@@ -37,6 +37,12 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing, snapshots } = options;
 
+	// The recording canvas is fixed, but VS Code sizes its own window (1440x900
+	// with a workspace, 1200x800 empty), so the capture would otherwise show the
+	// window in the top-left corner of a larger frame. The window is resized to
+	// match below, which also renders reliably when it is larger than the screen.
+	const videoSize = { width: 1920, height: 1080 };
+
 	const playwrightImpl = options.playwright ?? playwright;
 	let electron;
 	try {
@@ -46,7 +52,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 			recordVideo: options.videosPath
 				? {
 					dir: options.videosPath,
-					size: { width: 1920, height: 1080 }
+					size: videoSize
 				} : undefined,
 			env: configuration.env as { [key: string]: string },
 			timeout: LAUNCH_TIMEOUT
@@ -61,6 +67,18 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: LAUNCH_TIMEOUT }), 'playwright-electron#firstWindow', logger);
 		} catch (error) {
 			throw enrichLaunchError(error, options);
+		}
+	}
+	if (options.videosPath) {
+		try {
+			await electron.evaluate(({ BrowserWindow }, size) => {
+				const target = BrowserWindow.getAllWindows()[0];
+				target?.setBounds({ x: 0, y: 0, width: size.width, height: size.height });
+			}, videoSize);
+		} catch (error) {
+			// A mismatched window only wastes pixels in the recording, so never fail
+			// a run because the window could not be resized.
+			logger.log(`Playwright (Electron): Failed to size the window to the recording (${error})`);
 		}
 	}
 	// Recording is per page, so sample the origin once the first window exists

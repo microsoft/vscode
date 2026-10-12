@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hostname, release } from 'os';
-import { Disposable, isDisposable, toDisposable, type DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, isDisposable, toDisposable, type DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { getDevDeviceId, getMachineId, getSqmMachineId } from '../../../base/node/id.js';
-import { ConfigurationService } from '../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
-import { NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
-import { resolveCommonProperties } from '../../telemetry/common/commonProperties.js';
+import { resolveCommonProperties, verifyMicrosoftInternalDomain } from '../../telemetry/common/commonProperties.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../telemetry/common/gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppender.js';
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
+import type { IAgentTelemetryContext } from '../common/agent.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -42,6 +41,10 @@ export interface IAgentHostTelemetryServiceOptions {
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
+	/** Register an account reader with provider-owned lifetime, never process-wide account properties. */
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable;
+	/** Read the current account for point-in-time events. Delayed events must capture their own account context. */
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
@@ -50,12 +53,15 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	private _telemetryLevel: TelemetryLevel;
 
 	/**
-	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
-	 * to `false` so nothing restricted is sent until an authenticated token confirms the opt-in,
-	 * keeping public users off the enhanced pipeline the way the Copilot extension does.
+	 * Whether `/copilot_internal/user` enables enhanced/restricted telemetry. Defaults to `false`
+	 * so nothing restricted is sent until the authenticated account confirms the opt-in.
 	 */
 	private _restrictedTelemetryEnabled = false;
 	private _internalTelemetryEnabled = false;
+
+	/** Whether the machine itself is internal, captured before any account can override it. */
+	private readonly _internalMachine: boolean;
+	private readonly _copilotTelemetryProviders = new Map<string, () => IAgentTelemetryContext>();
 
 	constructor(
 		private readonly _delegate: ITelemetryService,
@@ -66,6 +72,8 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	) {
 		super();
 		this._telemetryLevel = initialTelemetryLevel;
+		this._internalMachine = _delegate.msftInternal === true;
+		this._register(toDisposable(() => this._copilotTelemetryProviders.clear()));
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -191,6 +199,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this._internalTelemetryEnabled = context?.isInternal === true;
+		if (context) {
+			// Signing in to an external account has to clear the account half of the signal again.
+			this._delegate.setCommonProperty('common.msftInternal', this._internalMachine || this._internalTelemetryEnabled);
+		}
 		this._restricted?.setInternalTelemetryContext(context);
 	}
 
@@ -198,9 +210,22 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._delegate.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
 		this._delegate.setCommonProperty(name, value);
 		this._restricted?.setCommonProperty(name, value);
+	}
+
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable {
+		this._copilotTelemetryProviders.set(provider, getContext);
+		return toDisposable(() => {
+			if (this._copilotTelemetryProviders.get(provider) === getContext) {
+				this._copilotTelemetryProviders.delete(provider);
+			}
+		});
+	}
+
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined {
+		return this._copilotTelemetryProviders.get(provider)?.();
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
@@ -240,13 +265,15 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		return disposables.add(new AgentHostTelemetryService(NullTelemetryService));
 	}
 
-	const configurationService = disposables.add(new ConfigurationService(joinPath(environmentService.appSettingsHome, 'settings.json'), fileService, new NullPolicyService(), logService));
-	await configurationService.initialize();
+	const initialTelemetryLevel = Math.min(
+		parseLaunchTelemetryLevel(environmentService.args?.['telemetry-level']),
+		parseLaunchTelemetryLevel((options.readTelemetryLevelEnvironment ?? (() => process.env[AgentHostTelemetryLevelEnvKey]))()),
+	);
+	const internalTelemetry = verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
 
 	const appenders: ITelemetryAppender[] = [
-		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),
+		disposables.add(new TelemetryLogAppender({ prefix: '', loggerId: 'agentHostTelemetry' }, false, loggerService, environmentService, productService)),
 	];
-	const internalTelemetry = isInternalTelemetry(productService, configurationService);
 	const loggingOnly = isLoggingOnly(productService, environmentService);
 	if (!loggingOnly && productService.aiConfig?.ariaKey) {
 		const collectorAppender = new OneDataSystemAppender(options.requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
@@ -266,21 +293,19 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 
 	const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date);
 
-	const telemetryService = new TelemetryService({
+	const telemetryService = TelemetryService.createWithLevel({
 		appenders,
 		sendErrorTelemetry: true,
 		commonProperties,
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
-	}, configurationService, productService);
+		userContentPaths: getUserContentPathsFromEnvironment(environmentService),
+		telemetryLevel: initialTelemetryLevel,
+	}, productService);
 
 	const extensionVersion = loggingOnly ? undefined : await resolveCopilotExtensionVersion(environmentService, fileService, logService);
 	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
 	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
-	const initialTelemetryLevel = Math.min(
-		parseLaunchTelemetryLevel(environmentService.args?.['telemetry-level']),
-		parseLaunchTelemetryLevel((options.readTelemetryLevelEnvironment ?? (() => process.env[AgentHostTelemetryLevelEnvKey]))()),
-	);
 	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime, initialTelemetryLevel));
 }
 

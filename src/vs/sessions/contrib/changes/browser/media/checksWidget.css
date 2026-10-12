@@ -9,7 +9,7 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Header */
@@ -21,7 +21,7 @@
 	margin-top: 6px;
 	border-radius: var(--vscode-cornerRadius-medium);
 	min-height: 20px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;
 }
@@ -119,7 +119,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 1;
 }
 

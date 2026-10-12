@@ -6,6 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +47,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -180,6 +183,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
@@ -204,7 +208,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
-			this._toggleShareWithAgent();
+			void this._toggleShareWithAgent();
 		}));
 
 		// Auto-disable element selection when the user sends a chat request.
@@ -303,31 +307,54 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	// -- Sharing -------------------------------------------------------
 
-	private _toggleShareWithAgent(): void {
+	private async _toggleShareWithAgent(): Promise<void> {
 		const model = this.editor.model;
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
+		const shared = model.sharingState !== BrowserViewSharingState.Shared;
+		let succeeded: boolean;
+		try {
+			succeeded = !!await model.setSharedWithAgent(shared);
+		} catch (error) {
+			this.logService.error('BrowserEditor.toggleShareWithAgent: Failed to update sharing state', error);
+			await this.dialogService.error(
+				localize('browser.shareWithAgent.failed', "Unable to Share Browser Tab"),
+				getErrorMessage(error)
+			);
+			return;
+		}
+		if (shouldUnlockChatPetIntegratedBrowserShare(shared, succeeded)) {
+			this.chatPetService.unlockAchievement(ChatPetAchievementIds.IntegratedBrowserShared);
+		}
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
 		const model = this.editor.model;
 		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
 		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
+		const isBlockedByNetworkPolicy = model?.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
 		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
+		this._shareButton.enabled = !isBlockedByNetworkPolicy;
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
 			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
 			: '$(share-window)';
 
+		const opensShareableCopy = !isShared
+			&& !!model
+			&& !model.isDirectlyShareable;
 		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent");
+			: isBlockedByNetworkPolicy
+				? localize('browser.shareWithAgent.blockedByNetworkPolicy', "Cannot share with agents due to network domain policy.")
+				: opensShareableCopy
+					? localize('browser.shareWithAgent.isolated', "Share with Agent (Opens Isolated Tab)")
+					: localize('browser.shareWithAgent', "Share with Agent");
 		this._shareButton.setTitle(title);
 		this._shareButton.element.setAttribute('aria-label', title);
 	}

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
-import { Mutable } from '../../../../base/common/types.js';
+import { isBoolean, isNumber, isObject, isString, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,9 +19,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus, replaceMcpServerVariableReferences } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -30,24 +30,171 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
+import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { parseCopilotGlobalMcpConfiguration } from '../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
+import { IMcpCopilotGlobalConfigurationService } from '../common/mcpCopilotGlobalConfigurationService.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, IWorkbencMcpServerInstallOptions, LocalMcpServerScope, REMOTE_USER_CONFIG_ID, USER_CONFIG_ID, WORKSPACE_CONFIG_ID, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IEditableMcpServerConfiguration, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionProvenance, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { autorun, runOnChange } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
+}
+
+interface IMcpInstallUriPayload {
+	readonly name: string;
+	readonly config: IMcpServerConfiguration;
+	readonly inputs?: IMcpServerVariable[];
+}
+
+function parseMcpInstallUriPayload(query: string): IMcpInstallUriPayload | undefined {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(decodeURIComponent(query));
+	} catch {
+		return undefined;
+	}
+
+	if (!isObject(parsed)) {
+		return undefined;
+	}
+
+	const payload = parsed as Record<string, unknown>;
+	if (!isString(payload.name) || !payload.name) {
+		return undefined;
+	}
+
+	const config = sanitizeMcpServerConfiguration(payload);
+	if (!config) {
+		return undefined;
+	}
+
+	return {
+		name: payload.name,
+		config,
+		inputs: Array.isArray(payload.inputs) ? payload.inputs as IMcpServerVariable[] : undefined,
+	};
+}
+
+function sanitizeMcpServerConfiguration(payload: Record<string, unknown>): IMcpServerConfiguration | undefined {
+	const type = payload.type === McpServerType.LOCAL || payload.type === McpServerType.REMOTE
+		? payload.type
+		: isString(payload.command)
+			? McpServerType.LOCAL
+			: McpServerType.REMOTE;
+	const dev = sanitizeMcpDevModeConfig(payload.dev);
+
+	const common = {
+		...(isString(payload.version) ? { version: payload.version } : {}),
+		...(isBoolean(payload.gallery) || isString(payload.gallery) ? { gallery: payload.gallery } : {}),
+		...(dev ? { dev } : {}),
+	};
+
+	if (type === McpServerType.LOCAL) {
+		if (!isString(payload.command)) {
+			return undefined;
+		}
+		const env = sanitizeMcpEnvironment(payload.env);
+
+		return {
+			type,
+			command: payload.command,
+			...common,
+			...(isStringArray(payload.args) ? { args: payload.args } : {}),
+			...(env ? { env } : {}),
+			...(isString(payload.envFile) ? { envFile: payload.envFile } : {}),
+			...(isString(payload.cwd) ? { cwd: payload.cwd } : {}),
+			...(isBoolean(payload.sandboxEnabled) ? { sandboxEnabled: payload.sandboxEnabled } : {}),
+		} satisfies IMcpStdioServerConfiguration;
+	}
+
+	if (!isString(payload.url)) {
+		return undefined;
+	}
+	const headers = sanitizeStringRecord(payload.headers);
+	const oauth = sanitizeMcpOAuthConfiguration(payload.oauth);
+
+	return {
+		type,
+		url: payload.url,
+		...common,
+		...(payload.transport === 'http' || payload.transport === 'sse' ? { transport: payload.transport } : {}),
+		...(headers ? { headers } : {}),
+		...(oauth ? { oauth } : {}),
+	} satisfies IMcpRemoteServerConfiguration;
+}
+
+function sanitizeMcpDevModeConfig(value: unknown): IMcpDevModeConfig | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	const debug = sanitizeMcpDevModeDebugConfiguration(payload.debug);
+	if (!isString(payload.watch) && !isStringArray(payload.watch) && !debug) {
+		return undefined;
+	}
+
+	return {
+		...(isString(payload.watch) || isStringArray(payload.watch) ? { watch: payload.watch } : {}),
+		...(debug ? { debug } : {}),
+	};
+}
+
+function sanitizeMcpDevModeDebugConfiguration(value: unknown): IMcpDevModeConfig['debug'] | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	if (payload.type === 'node') {
+		return { type: 'node' };
+	}
+	if (payload.type === 'debugpy') {
+		return {
+			type: 'debugpy',
+			...(isString(payload.debugpyPath) ? { debugpyPath: payload.debugpyPath } : {}),
+		};
+	}
+	return undefined;
+}
+
+function sanitizeMcpEnvironment(value: unknown): Record<string, string | number | null> | undefined {
+	return sanitizeRecord(value, entry => entry === null || isString(entry) || isNumber(entry));
+}
+
+function sanitizeStringRecord(value: unknown): Record<string, string> | undefined {
+	return sanitizeRecord(value, isString);
+}
+
+function sanitizeRecord<T>(value: unknown, isValidValue: (entry: unknown) => entry is T): Record<string, T> | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, T] => isValidValue(entry[1])));
+}
+
+function sanitizeMcpOAuthConfiguration(value: unknown): IMcpRemoteServerConfiguration['oauth'] | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	return isString(payload.clientId) ? { clientId: payload.clientId } : undefined;
 }
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
@@ -173,6 +320,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	// Source identity is intentionally trusted only in-process; IPC copies are re-verified.
 	private readonly gallerySourceGenerations = new WeakMap<IGalleryMcpServer, number>();
 	private readonly registrySyncDelayer = this._register(new ThrottledDelayer<void>(0));
+	readonly whenInitialLocalMcpServersLoaded: Promise<void>;
 	get local(): readonly McpWorkbenchServer[] { return [...this._local]; }
 
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -200,6 +348,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpResourceScannerService private readonly mcpResourceScannerService: IMcpResourceScannerService,
+		@IMcpCopilotGlobalConfigurationService private readonly copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 		@IURLService urlService: IURLService,
 	) {
 		super();
@@ -207,7 +358,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
-		this.queryLocal().then(() => {
+		this.whenInitialLocalMcpServersLoaded = this.queryLocal().then(() => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -216,7 +367,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.scheduleRegistrySync();
 			}));
 			this.scheduleRegistrySync();
-		});
+		}, error => this.logService.error(error));
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
@@ -227,16 +378,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
-		this._register(runOnChange(mcpService.servers, () => {
-			this._local = this.sort(this._local);
-			this._onChange.fire(undefined);
-		}));
-
-		// React to enablement changes on individual servers
 		this._register(autorun(reader => {
 			for (const server of mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
 			}
+			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
 	}
@@ -262,14 +408,14 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._onChange.fire(undefined);
 	}
 
-	private areSameMcpServers(a: { name: string; scope: LocalMcpServerScope } | undefined, b: { name: string; scope: LocalMcpServerScope } | undefined): boolean {
+	private areSameMcpServers(a: { name: string; scope: LocalMcpServerScope; mcpResource: URI } | undefined, b: { name: string; scope: LocalMcpServerScope; mcpResource: URI } | undefined): boolean {
 		if (a === b) {
 			return true;
 		}
 		if (!a || !b) {
 			return false;
 		}
-		return a.name === b.name && a.scope === b.scope;
+		return a.name === b.name && a.scope === b.scope && this.uriIdentityService.extUri.isEqual(a.mcpResource, b.mcpResource);
 	}
 
 	private onDidUninstallMcpServer(e: DidUninstallWorkbenchMcpServerEvent) {
@@ -285,11 +431,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private onDidInstallMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		let needsRegistrySync = false;
-		for (const { local, name, source } of e) {
-			let server = this.installing.find(server => server.local && local ? this.areSameMcpServers(server.local, local) : server.name === name);
+		for (const { local, source } of e) {
+			let server = local ? this.installing.find(server => this.areSameMcpServers(server.local, local)) : undefined;
 			this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 			if (local) {
-				const trustedGallery = this.getTrustedGallerySource(source) ?? this.getTrustedGallerySource(server?.gallery);
+				const trustedGallery = this.getTrustedGallerySource(source, local) ?? this.getTrustedGallerySource(server?.gallery, local);
 				if (server) {
 					server.local = local;
 				} else {
@@ -322,7 +468,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), result.local, undefined, undefined);
 				this.addServer(server);
 			}
-			const trustedGallery = this.getTrustedGallerySource(result.source) ?? this.getTrustedGallerySource(server.gallery);
+			const trustedGallery = this.getTrustedGallerySource(result.source, result.local) ?? this.getTrustedGallerySource(server.gallery, result.local);
 			server.gallery = trustedGallery?.name === result.local.name ? trustedGallery : undefined;
 			needsRegistrySync = true;
 			this._onChange.fire(server);
@@ -334,12 +480,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private fromGallery(gallery: IGalleryMcpServer, registryGeneration: number): IWorkbenchMcpServer | undefined {
 		this.rememberGallerySource(gallery, registryGeneration);
-		for (const local of this._local) {
-			if (local.name === gallery.name) {
-				return local;
-			}
-		}
-		return undefined;
+		return this.getInstalledGalleryServer(gallery.name);
+	}
+
+	private getInstalledGalleryServer(name: string): McpWorkbenchServer | undefined {
+		return this._local.find(server => server.local?.format !== McpResourceFormat.WorkspaceRoot && server.name === name);
 	}
 
 	private scheduleRegistrySync(): void {
@@ -353,7 +498,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return;
 		}
 
-		const servers = this.local.flatMap(server => server.local ? [{ server, local: server.local }] : []);
+		const servers = this.local.flatMap(server => server.local && server.local.format !== McpResourceFormat.WorkspaceRoot ? [{ server, local: server.local }] : []);
 		const infosByName = new Map<string, { name: string; id?: string }>();
 		for (const { local } of servers) {
 			const existing = infosByName.get(local.name);
@@ -410,7 +555,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>> {
+	async queryGallery(options?: IQueryOptions, token?: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IWorkbenchMcpServer>> {
 		if (!this.mcpGalleryService.isEnabled()) {
 			return {
 				firstPage: { items: [], hasMore: false },
@@ -418,7 +563,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			};
 		}
 		const registryGeneration = this.registryGeneration;
-		const pager = await this.mcpGalleryService.query(options, token);
+		const pager = await this.mcpGalleryService.query(options, token, manifest);
 		const mapPage = (page: IIterativePage<IGalleryMcpServer>): IIterativePage<IWorkbenchMcpServer> => ({
 			items: page.items.map(gallery => this.fromGallery(gallery, registryGeneration) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined)),
 			hasMore: page.hasMore
@@ -459,8 +604,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	private getTrustedGallerySource(gallery: IGalleryMcpServer | undefined): IGalleryMcpServer | undefined {
-		return gallery && this.gallerySourceGenerations.get(gallery) === this.registryGeneration ? gallery : undefined;
+	private getTrustedGallerySource(gallery: IGalleryMcpServer | undefined, local?: IWorkbenchLocalMcpServer): IGalleryMcpServer | undefined {
+		return local?.format !== McpResourceFormat.WorkspaceRoot && gallery && this.gallerySourceGenerations.get(gallery) === this.registryGeneration ? gallery : undefined;
 	}
 
 	private addServer(server: McpWorkbenchServer): void {
@@ -487,7 +632,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const userRemote: IWorkbenchLocalMcpServer[] = [];
 		const workspace: IWorkbenchLocalMcpServer[] = [];
 
-		for (const server of this.local) {
+		// Discovery precedence must not depend on runtime-dependent display ordering.
+		for (const server of this.local.toSorted((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
+			// Root servers are published independently; exclude them before resolving installed-name precedence.
+			if (server.local?.format === McpResourceFormat.WorkspaceRoot) {
+				continue;
+			}
 			const enablementStatus = this.getEnablementStatus(server);
 			if (enablementStatus && enablementStatus.state !== McpServerEnablementState.Enabled) {
 				continue;
@@ -519,6 +669,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		return [...result.values()];
+	}
+
+	async getMcpServerFromGallery(name: string, manifest?: IMcpGalleryManifest): Promise<IWorkbenchMcpServer | undefined> {
+		const registryGeneration = this.registryGeneration;
+		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }], manifest);
+		if (registryGeneration !== this.registryGeneration) {
+			throw new Error(localize('mcpRegistryChangedDuringLookup', "The MCP registry changed. Try installing the server again."));
+		}
+		const gallery = servers.find(server => server.name === name);
+		if (!gallery) {
+			return undefined;
+		}
+		this.rememberGallerySource(gallery, registryGeneration);
+		const installed = this.getInstalledGalleryServer(gallery.name);
+		return gallery.galleryUrl && installed?.local?.galleryUrl === gallery.galleryUrl && installed.gallery?.name === gallery.name
+			? installed
+			: this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 	}
 
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString {
@@ -573,6 +740,32 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		await this.mcpManagementService.uninstall(server.local);
 	}
 
+	async resolveEditableMcpServerConfiguration(source: URI, name: string): Promise<IEditableMcpServerConfiguration | undefined> {
+		const root = this._local.find(server => server.local?.format === McpResourceFormat.WorkspaceRoot && server.local.name === name && this.uriIdentityService.extUri.isEqual(server.local.mcpResource, source))?.local;
+		if (root) {
+			return {
+				config: root.config,
+				format: McpResourceFormat.WorkspaceRoot,
+				save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, root.mcpResource, ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
+			};
+		}
+
+		const resource = await this.copilotGlobalConfigurationService.getConfigurationResource();
+		if (!resource || !this.uriIdentityService.extUri.isEqual(resource, source)) {
+			return undefined;
+		}
+		const content = (await this.fileService.readFile(resource)).value.toString();
+		const config = parseCopilotGlobalMcpConfiguration(content)[name];
+		if (!config) {
+			return undefined;
+		}
+		return {
+			config,
+			format: McpResourceFormat.CopilotGlobal,
+			save: (previous, next) => this.mcpResourceScannerService.updateMcpServer(name, previous, next, resource, undefined, McpResourceFormat.CopilotGlobal),
+		};
+	}
+
 	private async doInstall(server: McpWorkbenchServer, installTask: () => Promise<IWorkbenchLocalMcpServer>): Promise<IWorkbenchMcpServer> {
 		const source = server.gallery ? 'gallery' : 'local';
 		const serverName = server.name;
@@ -583,8 +776,22 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._onChange.fire(server);
 
 		try {
-			await installTask();
-			const result = await this.waitAndGetInstalledMcpServer(server);
+			const local = await installTask();
+			let result = this.local.find(candidate => this.areSameMcpServers(candidate.local, local));
+			if (!server.local || !result) {
+				if (!server.local) {
+					const gallery = this.getTrustedGallerySource(result?.gallery, local) ?? this.getTrustedGallerySource(server.gallery, local);
+					this._local = this._local.filter(candidate => candidate !== result);
+					server.local = local;
+					server.gallery = gallery;
+					result = server;
+				} else {
+					result = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), local, this.getTrustedGallerySource(server.gallery, local), undefined);
+				}
+				this.addServer(result);
+				this._onChange.fire(result);
+				this.scheduleRegistrySync();
+			}
 
 			// Track successful installation
 			this.telemetryService.publicLog2<McpServerInstallData, McpServerInstallClassification>('mcp/serverInstall', {
@@ -614,19 +821,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this._onChange.fire(server);
 			}
 		}
-	}
-
-	private async waitAndGetInstalledMcpServer(server: McpWorkbenchServer): Promise<IWorkbenchMcpServer> {
-		let installed = this.local.find(local => local.name === server.name);
-		if (!installed) {
-			await Event.toPromise(Event.filter(this.onChange, e => !!e && this.local.some(local => local.name === server.name)));
-		}
-		installed = this.local.find(local => local.name === server.name);
-		if (!installed) {
-			// This should not happen
-			throw new Error('Extension should have been installed');
-		}
-		return installed;
 	}
 
 	getMcpConfigPath(localMcpServer: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
@@ -709,6 +903,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const workspaceFolders = workspace.folders;
 		for (let index = 0; index < workspaceFolders.length; index++) {
 			const workspaceFolder = workspaceFolders[index];
+			if (this.uriIdentityService.extUri.isEqual(workspaceFolder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE), mcpResource)) {
+				const collectionId = `${WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX}${workspaceFolder.index}`;
+				return {
+					id: collectionId,
+					collectionId,
+					format: McpResourceFormat.WorkspaceRoot,
+					provenance: McpCollectionProvenance.WorkspaceDotMcp,
+					key: 'workspaceFolderValue',
+					target: ConfigurationTarget.WORKSPACE_FOLDER,
+					label: `${workspaceFolder.name}/${WORKSPACE_ROOT_MCP_CONFIG_FILE}`,
+					scope: StorageScope.WORKSPACE,
+					remoteAuthority: this.environmentService.remoteAuthority,
+					order: McpCollectionSortOrder.WorkspaceFolder + 1,
+					uri: mcpResource,
+					workspaceFolder,
+				};
+			}
 			if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), mcpResource)) {
 				return {
 					id: `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`,
@@ -747,15 +958,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private async handleMcpInstallUri(uri: URI): Promise<boolean> {
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
-		try {
-			parsed = JSON.parse(decodeURIComponent(uri.query));
-		} catch (e) {
+		const parsed = parseMcpInstallUriPayload(uri.query);
+		if (!parsed) {
 			return false;
 		}
 
 		try {
-			const { name, inputs, ...config } = parsed;
+			const { name, inputs, config } = parsed;
 
 			// When a gallery field is present and the gallery service is available,
 			// verify the server exists in the active gallery by name. If verified,
@@ -768,7 +977,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 					const [galleryServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
 					if (galleryServer) {
 						this.rememberGallerySource(galleryServer, registryGeneration);
-						const local = this.local.find(e => e.name === galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
+						const local = this.getInstalledGalleryServer(galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
 						this.open(local);
 						return true;
 					}
@@ -778,9 +987,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				}
 			}
 
-			if (config.type === undefined) {
-				(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
-			}
 			this.open(this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, undefined, { name, config, inputs }));
 		} catch (e) {
 			// ignore
@@ -795,7 +1001,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.logService.info(`MCP server '${url}' not found`);
 				return true;
 			}
-			const local = this.local.find(e => e.name === gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 			this.open(local);
 		} catch (e) {
 			// ignore
@@ -813,7 +1019,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				return true;
 			}
 			this.rememberGallerySource(gallery, registryGeneration);
-			const local = this.local.find(e => e.name === gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 			this.open(local);
 		} catch (e) {
 			// ignore
@@ -832,10 +1038,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private getInstallState(extension: McpWorkbenchServer): McpServerInstallState {
-		if (this.installing.some(i => i.name === extension.name)) {
+		if (this.installing.some(server => server === extension || server.local && extension.local && this.areSameMcpServers(server.local, extension.local))) {
 			return McpServerInstallState.Installing;
 		}
-		if (this.uninstalling.some(e => e.name === extension.name)) {
+		if (this.uninstalling.some(server => server === extension || server.local && extension.local && this.areSameMcpServers(server.local, extension.local))) {
 			return McpServerInstallState.Uninstalling;
 		}
 		const local = this.local.find(e => e === extension);
@@ -897,7 +1103,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (accessValue === McpAccessValue.Registry) {
-			if (!mcpServer.gallery) {
+			if (mcpServer.local.format === McpResourceFormat.WorkspaceRoot || !mcpServer.gallery) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
@@ -907,9 +1113,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				};
 			}
 
-			// Registry membership is name-based for local configurations; remote URLs must match exactly.
+			// Registry membership is name-based for local configurations; remote URLs must match the raw or converted template.
 			const remoteUrl = mcpServer.local.config.type === McpServerType.REMOTE && mcpServer.local.config.url;
-			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
+			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl || replaceMcpServerVariableReferences(remote.url, remote.variables) === remoteUrl)) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {

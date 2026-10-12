@@ -24,6 +24,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -39,6 +40,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 			const folders = workspaceFolders.read(reader);
 			return folders[0]?.uri;
 		});
+		this.activeProjectLabel = derived(reader => {
+			const folders = workspaceFolders.read(reader);
+			return folders[0]?.name;
+		});
 	}
 
 	getActiveProjectRoot(): URI | undefined {
@@ -47,14 +52,14 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.HarnessSettings,
 	];
 
@@ -76,7 +81,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		// No-op in core VS Code.
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
@@ -86,7 +91,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		};
 		const commandId = commandIds[type];
 		if (commandId) {
-			await this.commandService.executeCommand(commandId);
+			await this.commandService.executeCommand(commandId, workspaceFolder);
 		}
 	}
 

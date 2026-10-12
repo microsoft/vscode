@@ -47,7 +47,7 @@ export function activateShared(
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
-	const linkPresentationService = createSharedLinkPresentationService(context.globalState, logger);
+	const linkPresentationService = createSharedLinkPresentationService(logger);
 	context.subscriptions.push(
 		linkPresentationService,
 		registerLinkPresentationProvider(linkPresentationService),
@@ -100,7 +100,9 @@ function registerMarkdownEditorCommands(
 			}
 			return vscode.commands.registerCommand(commandId, () => provider.executeCommand(commandId));
 		});
-	return vscode.Disposable.from(...registrations);
+	return vscode.Disposable.from(...registrations,
+		vscode.commands.registerCommand('markdown.editor.rename', () => provider.executeCommand('markdown.editor.rename')),
+		vscode.commands.registerCommand('markdown.editor.triggerSuggest', () => provider.executeCommand('markdown.editor.triggerSuggest')));
 }
 
 function registerMarkdownLanguageFeatures(

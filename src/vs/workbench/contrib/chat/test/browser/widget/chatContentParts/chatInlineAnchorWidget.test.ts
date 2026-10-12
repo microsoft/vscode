@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { renderFileWidgets } from '../../../../browser/widget/chatContentParts/chatInlineAnchorWidget.js';
+import { renderFileAnchor, renderFileWidgets } from '../../../../browser/widget/chatContentParts/chatInlineAnchorWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ChatQueryTitlePart } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +30,7 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	let disposables: DisposableStore;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let mockAnchorService: IChatMarkdownAnchorService;
+	let attemptedUnlocks: ChatPetAchievementId[];
 
 	setup(() => {
 		disposables = store.add(new DisposableStore());
@@ -35,6 +44,13 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		};
 
 		instantiationService.stub(IChatMarkdownAnchorService, mockAnchorService);
+		attemptedUnlocks = [];
+		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}());
 	});
 
 	function createTestElement(linkText: string, href: string = 'file:///test.txt'): HTMLElement {
@@ -62,6 +78,80 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(widget, 'Widget should be rendered for empty link text');
 	});
 
+	test('does not register duplicate widgets when an anchor is rendered again', () => {
+		let registrations = 0;
+		mockAnchorService.register = () => {
+			registrations++;
+			return Disposable.None;
+		};
+		const element = createTestElement('Open Report', 'file:///report.md?vscodeLinkType=markdown-preview');
+		const anchor = element.querySelector('a')!;
+
+		const rendered = renderFileAnchor(anchor, instantiationService, mockAnchorService, disposables);
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
+		const alreadyRendered = renderFileAnchor(anchor, instantiationService, mockAnchorService, disposables, { linkTypes: ['markdown-preview'] });
+
+		assert.deepStrictEqual({ rendered, alreadyRendered, registrations, label: anchor.textContent }, {
+			rendered: true,
+			alreadyRendered: true,
+			registrations: 1,
+			label: 'Open Report',
+		});
+	});
+
+	for (const { href, rendered } of [
+		{ href: 'file:///report.md', rendered: false },
+		{ href: 'file:///report.md?view=full', rendered: false },
+		{ href: 'file:///report.md?vscodeLinkType=file', rendered: false },
+		{ href: 'file:///report.md?vscodeLinkType=markdown-preview', rendered: true },
+		{ href: 'file:///report.md?vscode%4CinkType=markdown-preview', rendered: true },
+	]) {
+		test(`filters single-anchor metadata for ${href}`, () => {
+			const element = createTestElement('Open Report', href);
+			const anchor = element.querySelector('a')!;
+
+			assert.strictEqual(renderFileAnchor(anchor, instantiationService, mockAnchorService, disposables, { linkTypes: ['markdown-preview'] }), rendered);
+		});
+	}
+
+	for (const authority of ['local', 'remote-host']) {
+		for (const [linkType, editorOverride] of [
+			['markdown-preview', 'vscode.markdown.preview.editor'],
+			['file', undefined],
+		]) {
+			test(`opens ${linkType} links with the expected editor on ${authority}`, async () => {
+				const resource = URI.file('/session/diagnostics/sandbox-policy.md');
+				const link = resource.with({ query: `vscodeLinkType=${linkType}` });
+				const element = createTestElement('Open Sandbox Policy', rewriteAgentHostLinkTarget(link.toString(), authority));
+				const opened = new DeferredPromise<Parameters<IOpenerService['open']>>();
+				instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+					override async open(...args: Parameters<IOpenerService['open']>): Promise<boolean> {
+						opened.complete(args);
+						return true;
+					}
+				}());
+				renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
+
+				element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
+
+				const [openedResource, options] = await opened.p;
+				assert.deepStrictEqual({
+					resource: openedResource.toString(),
+					options,
+					hasLinkStyle: element.querySelector('.chat-inline-anchor-widget')?.classList.contains('chat-markdown-preview-link'),
+				}, {
+					resource: rewriteAgentHostLinkTarget(resource.toString(), authority),
+					options: {
+						fromUserGesture: true,
+						editorOptions: { override: editorOverride, selection: undefined },
+					},
+					hasLinkStyle: linkType === 'markdown-preview',
+				});
+				await timeout(0);
+			});
+		}
+	}
+
 	test('uses a custom resource opener when provided', async () => {
 		const resource = URI.file('/workspace/package.json');
 		const element = createTestElement('', resource.toString());
@@ -76,6 +166,8 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
 
 		assert.strictEqual((await opened.p).toString(), resource.toString());
+		await timeout(0);
+		assert.deepStrictEqual(attemptedUnlocks, [ChatPetAchievementIds.ChatReferenceOpened]);
 	});
 
 	test('wraps the resource opener in trackOpen', async () => {
@@ -122,22 +214,52 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
 
 		assert.strictEqual(await failure.p, error);
+		assert.deepStrictEqual(attemptedUnlocks, []);
 	});
 
-	test('renders widget for empty vscode-agent-host link in chat query title', () => {
-		const container = mainWindow.document.createElement('div');
-		const titlePart = disposables.add(instantiationService.createInstance(
-			ChatQueryTitlePart,
-			container,
-			new MarkdownString('Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), lines 1 to 2'),
-			undefined,
-		));
-		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
+	for (const href of [
+		'file:///path/to/foo.ts',
+		'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
+	]) {
+		test(`renders empty ${URI.parse(href).scheme} links in chat query titles without conflicting native hovers`, () => {
+			const hoverTitles: (string | null)[] = [];
+			const hoverContents: Parameters<IHoverService['setupManagedHover']>[2][] = [];
+			instantiationService.stub(IHoverService, {
+				...NullHoverService,
+				setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => {
+					hoverTitles.push(args[1].getAttribute('title'));
+					hoverContents.push(args[2]);
+					return NullHoverService.setupManagedHover(...args);
+				},
+			});
 
-		const widget = container.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in chat query title');
-		assert.strictEqual(widget.querySelector('.icon-label')?.textContent, 'foo.ts');
-	});
+			const container = mainWindow.document.createElement('div');
+			const titlePart = disposables.add(instantiationService.createInstance(
+				ChatQueryTitlePart,
+				container,
+				new MarkdownString(`Read [](${href}), lines 1 to 2`),
+				undefined,
+			));
+			titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
+			titlePart.title = new MarkdownString(`Read [](${href}), lines 3 to 4`);
+
+			const widget = container.querySelector('.chat-inline-anchor-widget');
+			const hoverLabel = instantiationService.get(ILabelService).getUriLabel(URI.parse(href), { relative: true });
+			assert.deepStrictEqual({
+				label: widget?.querySelector('.icon-label')?.textContent,
+				title: widget?.getAttribute('title'),
+				href: widget?.getAttribute('data-href'),
+				hoverTitles,
+				hoverContents,
+			}, {
+				label: 'foo.ts',
+				title: null,
+				href,
+				hoverTitles: [null, null],
+				hoverContents: [hoverLabel, hoverLabel],
+			});
+		});
+	}
 
 	test('renders widget for vscodeLinkType=file', () => {
 		const element = createTestElement('document.txt', 'file:///path/to/document.txt?vscodeLinkType=file');
@@ -149,10 +271,17 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 
 	test('does not render widget for link without vscodeLinkType query parameter', () => {
 		const element = createTestElement('regular link text', 'file:///test.txt');
+		const anchor = element.querySelector('a')!;
+		anchor.title = 'Regular link tooltip';
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for link without vscodeLinkType query parameter');
+		assert.deepStrictEqual({
+			widget: element.querySelector('.chat-inline-anchor-widget'),
+			title: anchor.getAttribute('title'),
+		}, {
+			widget: null,
+			title: 'Regular link tooltip',
+		});
 	});
 
 	test('does not render widget when URI scheme is missing', () => {

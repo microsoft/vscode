@@ -20,7 +20,7 @@ import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
-import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -34,6 +34,7 @@ import { McpApps } from '../../../../../mcp/common/modelContextProtocolApps.js';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from '../../../../../webview/browser/webview.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { isToolResultInputOutputDetails, IToolResult } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
@@ -626,14 +627,12 @@ export class ChatMcpAppModel extends Disposable {
 	 * Resolves a server-relative resource URI into a workbench URI.
 	 * - Local servers: wrap in {@link McpResourceURI.fromServer} so it
 	 *   resolves through the MCP filesystem provider.
-	 * - Agent-host servers: pass through as a plain {@link URI}. There's
-	 *   no host-side resolver for AHP-backed servers in v1, so these
-	 *   URIs may not be openable, but they preserve the original
-	 *   resource reference for the user.
+	 * - Agent-host servers: wrap with the originating connection authority
+	 *   so the URI resolves against the server that supplied it.
 	 */
 	private _resolveServerResourceUri(serverUri: string): URI {
 		if (this.renderData.kind === 'agentHost') {
-			return URI.parse(serverUri);
+			return toAgentHostUri(URI.parse(serverUri), this.renderData.connectionAuthority);
 		}
 		return McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, serverUri);
 	}

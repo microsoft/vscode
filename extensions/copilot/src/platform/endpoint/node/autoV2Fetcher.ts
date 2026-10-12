@@ -151,7 +151,7 @@ export class AutoV2Fetcher {
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID in which the selection was made." },
 				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id in which the selection was made." },
 				"selectedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model the server selected for this prompt." },
-				"tier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing profile requested for this selection, e.g. eco, balanced, max, fast. Empty when none was requested." },
+				"tier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing profile requested for this selection, e.g. efficiency, balance, intelligence, fast. Empty when none was requested." },
 				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the auto request in milliseconds, including network overhead." },
 				"scoreReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for reasoning. -1 if not present in the response." },
 				"scoreCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for code generation. -1 if not present in the response." },

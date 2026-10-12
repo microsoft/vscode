@@ -7,6 +7,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
@@ -24,6 +25,8 @@ export interface ISessionEditorComment {
 	readonly range: IRange;
 	readonly text: string;
 	readonly suggestion?: ICodeReviewSuggestion;
+	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly canConvertToAgentFeedback: boolean;
 	/**
 	 * Replies that belong to the same comment thread as this comment. They
@@ -46,30 +49,21 @@ export function getSessionEditorComments(
 	agentFeedbackItems: readonly IAgentFeedback[],
 	prReviewState?: IPRReviewState,
 	visibleResolvedFeedbackIds?: ReadonlySet<string>,
+	includeRawPRReviewComments = true,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
-	// PR review comments are mirrored onto the feedback channel as `created`
-	// `prReview` items so the agent can see them (see
-	// `agentFeedbackPRReviewSeeder.ts`). Deduplicate the two representations by
-	// the originating PR thread id: while a mirror is still `created` the raw PR
-	// comment is shown (preserving its native actions) and the mirror is hidden;
-	// once the user accepts the mirror it supersedes the raw PR comment.
-	const supersededPRCommentIds = new Set<string>();
+	// Prefer the Agent Host annotation so the agent and editor share one representation.
+	const mirroredPRCommentIds = new Set<string>();
 	for (const item of agentFeedbackItems) {
-		if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId && item.state !== AgentFeedbackState.Created) {
-			supersededPRCommentIds.add(item.sourcePRReviewCommentId);
+		if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
+			mirroredPRCommentIds.add(item.sourcePRReviewCommentId);
 		}
 	}
 
 	for (const item of agentFeedbackItems) {
 		// Resolved feedback is hidden from the editor UI.
 		if (item.state === AgentFeedbackState.Resolved && !visibleResolvedFeedbackIds?.has(item.id)) {
-			continue;
-		}
-		// Hide the still-unaccepted PR review mirror; the raw PR comment is
-		// shown instead.
-		if (item.kind === AgentFeedbackKind.PRReview && item.state === AgentFeedbackState.Created && item.sourcePRReviewCommentId) {
 			continue;
 		}
 		comments.push({
@@ -82,16 +76,18 @@ export function getSessionEditorComments(
 			range: item.range,
 			text: item.text,
 			suggestion: item.suggestion,
+			sourcePRReviewCommentId: item.sourcePRReviewCommentId,
+			sourcePullRequest: item.sourcePullRequest,
 			canConvertToAgentFeedback: false,
 			replies: item.replies,
 			state: item.state,
 		});
 	}
 
-	for (const item of getPRReviewComments(prReviewState)) {
-		// Hide raw PR comments that the user has already accepted into agent
-		// feedback (shown via the accepted mirror above).
-		if (supersededPRCommentIds.has(item.id)) {
+	for (const item of includeRawPRReviewComments ? getPRReviewComments(prReviewState) : []) {
+		// The Agent Host annotation is the editor representation whenever one
+		// exists; raw client-side PR data is only a fallback before seeding.
+		if (mirroredPRCommentIds.has(item.id)) {
 			continue;
 		}
 		comments.push({
@@ -103,6 +99,12 @@ export function getSessionEditorComments(
 			resourceUri: item.uri,
 			range: item.range,
 			text: item.body,
+			sourcePRReviewCommentId: item.id,
+			sourcePullRequest: {
+				owner: item.pullRequest.owner,
+				repo: item.pullRequest.repo,
+				number: item.pullRequest.number,
+			},
 			canConvertToAgentFeedback: true,
 		});
 	}

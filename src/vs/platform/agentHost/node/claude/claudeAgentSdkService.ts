@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery, tool } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -40,14 +40,8 @@ const ClaudeDisablePrecompactSkipEnvVar = 'CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP';
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
 /**
- * Pure per-method passthrough shim over `@anthropic-ai/claude-agent-sdk`.
- *
- * SDK operations correspond 1:1 to a single SDK export. The optional
- * availability method is limited to scheduling the downloader for native-chat
- * discovery without importing the SDK. The shim owns lazy module loading and
- * the first-failure log-once convention; higher-level orchestration (e.g.
- * building the in-process client-tool MCP server) lives in dedicated modules
- * that depend on this interface for the raw bindings.
+ * Lazily loads `@anthropic-ai/claude-agent-sdk`, coalesces concurrent catalogue scans,
+ * and detaches returned session metadata from transcript buffers.
  */
 export interface IClaudeAgentSdkService {
 	readonly _serviceBrand: undefined;
@@ -76,8 +70,9 @@ export interface IClaudeAgentSdkService {
 	canLoadWithoutDownload(): Promise<boolean>;
 	/**
 	 * Downloads the SDK if it isn't local yet, without loading the module. This
-	 * is the explicit gesture: background callers gate on
-	 * {@link canLoadWithoutDownload} instead and do without.
+	 * is reserved for user-initiated activation, such as an explicit download
+	 * or restoring chat history. Background callers gate on
+	 * {@link canLoadWithoutDownload} instead.
 	 */
 	ensureAvailable(): Promise<void>;
 
@@ -97,7 +92,8 @@ export interface IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>>;
 }
 
@@ -131,7 +127,8 @@ export interface IClaudeSdkBindings {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): SdkMcpToolDefinition<Schema>;
 }
 
@@ -144,6 +141,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * (e.g. user fixes a broken `node_modules`), the next call retries.
 	 */
 	private _sdkModule: IClaudeSdkBindings | undefined;
+	private _listSessionsPromise: Promise<readonly SDKSessionInfo[]> | undefined;
 
 	/**
 	 * Latched once we've logged a load failure, so a corrupt postinstall
@@ -164,8 +162,19 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
-		const sdk = await this._getSdk();
-		return sdk.listSessions(undefined);
+		if (this._listSessionsPromise) {
+			return this._listSessionsPromise;
+		}
+		this._listSessionsPromise = (async () => {
+			const sdk = await this._getSdk();
+			// SDK metadata can contain sliced strings that keep entire transcript read buffers alive.
+			return structuredClone(await sdk.listSessions(undefined));
+		})();
+		try {
+			return await this._listSessionsPromise;
+		} finally {
+			this._listSessionsPromise = undefined;
+		}
 	}
 
 	async canLoadWithoutDownload(): Promise<boolean> {
@@ -187,7 +196,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
 		const sdk = await this._getSdk();
-		return sdk.getSessionInfo(sessionId);
+		return structuredClone(await sdk.getSessionInfo(sessionId));
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -239,10 +248,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>> {
 		const sdk = await this._getSdk();
-		return sdk.tool(name, description, inputSchema, handler);
+		return sdk.tool(name, description, inputSchema, handler, options);
 	}
 
 	private async _getSdk(): Promise<IClaudeSdkBindings> {

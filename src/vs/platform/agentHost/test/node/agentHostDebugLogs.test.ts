@@ -4,17 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { randomBytes } from 'crypto';
-import { mkdtemp, mkdir, readdir, rm, truncate, writeFile } from 'fs/promises';
+import { mkdtemp, mkdir, readdir, rm, truncate, utimes, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { URI } from '../../../../base/common/uri.js';
 import { join } from '../../../../base/common/path.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { StringSHA1 } from '../../../../base/common/hash.js';
 import { buffer } from '../../../../base/node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../common/agentService.js';
+import { buildChatUri } from '../../common/state/sessionState.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -37,12 +46,20 @@ suite('AgentHostDebugLogsCollector', () => {
 	});
 
 	teardown(async () => {
-		await rm(testRoot, { recursive: true, force: true });
+		// The collector's disposal cleans retained artifacts without awaiting
+		// (`dispose` is synchronous), and that teardown runs first. So this
+		// delete can race a still-running recursive delete of the same tree,
+		// which Windows reports as `EPERM` on `rmdir`. `maxRetries` is Node's
+		// built-in backoff for exactly those errors.
+		await rm(testRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
 
 	test('creates a flat archive from provider and host logs', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
+		const session = URI.parse('test:/session-1');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		let collectedTarget: { session: string | undefined; chat: string | undefined } | undefined;
 		await mkdir(logsHome, { recursive: true });
 		await mkdir(outputRoot, { recursive: true });
 		await writeFile(join(logsHome, 'agenthost.log'), 'agent host');
@@ -53,32 +70,82 @@ suite('AgentHostDebugLogsCollector', () => {
 
 		const result = await collector.collect([{
 			id: 'test',
-			collectDebugLogs: async (_session, outputDirectory) => {
+			collectDebugLogs: async (session, outputDirectory, chat) => {
+				collectedTarget = { session: session?.toString(), chat: chat?.toString() };
 				await writeFile(join(outputDirectory.fsPath, 'events.jsonl'), 'event');
 				return true;
 			},
-		}], URI.parse('test:/session-1'), 'archive');
+		}], session, 'archive', chat);
 
 		assert.deepStrictEqual({
 			kind: result.kind,
 			providerLogsIncluded: result.providerLogsIncluded,
-			sizeIsBounded: result.size > 0 && result.uncompressedSize > 0
-				&& result.size <= AGENT_HOST_DEBUG_LOGS_MAX_BYTES
-				&& result.uncompressedSize <= AGENT_HOST_DEBUG_LOGS_MAX_BYTES,
+			collectedTarget,
+			sizesArePositive: result.size > 0 && result.uncompressedSize > 0,
 			events: (await buffer(result.resource.fsPath, 'events.jsonl')).toString(),
 			agentHost: (await buffer(result.resource.fsPath, 'agenthost.log')).toString(),
 		}, {
 			kind: 'archive',
 			providerLogsIncluded: true,
-			sizeIsBounded: true,
+			collectedTarget: { session: session.toString(), chat: chat.toString() },
+			sizesArePositive: true,
 			events: 'event',
 			agentHost: 'agent host',
 		});
 	});
 
-	test('rejects and cleans an oversized directory artifact', async () => {
+	test('cancels collection before compression and cleans provider staging', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+		const collection = collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, target) => {
+				started.complete();
+				await finish.p;
+				await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
+				return true;
+			},
+		}], undefined, 'archive', undefined, 'cancel-me');
+		await started.p;
+		collector.cancel('cancel-me');
+		finish.complete();
+		await assert.rejects(collection, isCancellationError);
+		assert.deepStrictEqual(await readdir(outputRoot), []);
+	});
+
+	test('reports compression progress through the complete uncompressed byte count', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+		const progress: { bytes: number; total: number; message: string }[] = [];
+		const artifact = await collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, target) => {
+				await writeFile(join(target.fsPath, 'events.jsonl'), 'event\n'.repeat(100));
+				return true;
+			},
+		}], undefined, 'archive', undefined, 'progress', (bytes, total, message) => progress.push({ bytes, total, message }));
+		assert.deepStrictEqual({
+			lastBytes: progress.at(-1)?.bytes,
+			lastTotal: progress.at(-1)?.total,
+			uncompressedSize: artifact.uncompressedSize,
+			compressionReported: progress.at(-1)?.message.startsWith('Compressing'),
+		}, { lastBytes: 600, lastTotal: 600, uncompressedSize: 600, compressionReported: true });
+	});
+
+	test('collects a directory artifact larger than the previous 256 MiB limit', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
+		const largeLogSize = 300 * 1024 * 1024;
 		await mkdir(logsHome, { recursive: true });
 		await mkdir(outputRoot, { recursive: true });
 		const collector = disposables.add(new AgentHostDebugLogsCollector({
@@ -86,19 +153,144 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		await assert.rejects(collector.collect([{
+		const result = await collector.collect([{
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
-				for (let i = 0; i < 3; i++) {
-					const largeLog = join(outputDirectory.fsPath, `large-${i}.log`);
-					await writeFile(largeLog, '');
-					await truncate(largeLog, Math.floor(AGENT_HOST_DEBUG_LOGS_MAX_BYTES / 2));
-				}
+				const largeLog = join(outputDirectory.fsPath, 'large.log');
+				await writeFile(largeLog, '');
+				await truncate(largeLog, largeLogSize);
 				return true;
 			},
-		}], URI.parse('test:/session-1'), 'directory'), /Agent Host debug logs are too large/);
-		assert.deepStrictEqual(await readdir(outputRoot), []);
+		}], URI.parse('test:/session-1'), 'directory');
+
+		assert.deepStrictEqual({
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			entries: result.entries,
+		}, {
+			size: largeLogSize,
+			uncompressedSize: largeLogSize,
+			entries: [{ path: 'large.log', size: largeLogSize }],
+		});
+		await collector.cleanup();
 	});
+
+	for (const kind of ['archive', 'directory'] as const) {
+		test(`includes rotated Mission Control request and error logs in a session ${kind} export`, async () => {
+			const logsHome = URI.file(join(testRoot, 'logs'));
+			const log = new NullLogService();
+			const files = disposables.add(new FileService(log));
+			disposables.add(files.registerProvider('file', disposables.add(new DiskFileSystemProvider(log))));
+			const logger = disposables.add(new AhpJsonlLogger({
+				logsHome, logId: MISSION_CONTROL_AHP_LOG_ID, connectionId: 'mobile-client', transport: 'mission-control', maxFileSizeBytes: 1,
+			}, files, log));
+			const first = logger.resource;
+			const request = { jsonrpc: '2.0', id: 7, method: 'authenticate', params: { resource: 'https://api.github.com', token: 'private-token' } };
+			const response = { jsonrpc: '2.0', id: 7, error: { code: -32603, message: 'ENOENT: no such file or directory, realpath \'/missing/worktree\'' } };
+			logger.log(request, 'c2s');
+			logger.log(response, 's2c');
+			await logger.flush();
+			const collector = disposables.add(new AgentHostDebugLogsCollector({
+				logsHome, tmpDir: URI.file(join(testRoot, 'tmp')),
+			}, log));
+			const artifact = await collector.collect([emptyProvider], URI.parse('copilotcli:/shared-session'), kind);
+			const names = artifact.entries.map(entry => entry.path).sort();
+			const contents = await Promise.all(names.map(async name => kind === 'archive'
+				? (await buffer(artifact.resource.fsPath, name)).toString()
+				: (await files.readFile(joinPath(artifact.resource, name))).value.toString()));
+			const records = contents.flatMap(content => content.trim().split('\n').map(line => JSON.parse(line)))
+				.sort((a, b) => a._ahpLog.dir.localeCompare(b._ahpLog.dir));
+			assert.deepStrictEqual({
+				names,
+				records: records.map(entry => {
+					const { _ahpLog, ...message } = entry;
+					return { message, dir: _ahpLog.dir, connectionId: _ahpLog.connectionId, transport: _ahpLog.transport };
+				}),
+				containsCredential: contents.some(content => content.includes('private-token')),
+			}, {
+				names: [first, logger.resource].map(resource => `ahp/mission-control/${basename(resource)}`).sort(),
+				records: [
+					{ message: { ...request, params: { ...request.params, token: '<redacted>' } }, dir: 'c2s', connectionId: 'mobile-client', transport: 'mission-control' },
+					{ message: response, dir: 's2c', connectionId: 'mobile-client', transport: 'mission-control' },
+				],
+				containsCredential: false,
+			});
+			await collector.cleanup();
+		});
+	}
+
+	test('bounds Mission Control history by modification time and excludes unrelated logs and directories', async () => {
+		const logsHome = join(testRoot, 'logs');
+		const ahp = join(logsHome, 'ahp');
+		await mkdir(ahp, { recursive: true });
+		const hash = new StringSHA1();
+		hash.update(MISSION_CONTROL_AHP_LOG_ID);
+		const prefix = `ahp-${hash.digest()}-`;
+		const names: string[] = [];
+		for (let index = 0; index < 12; index++) {
+			const name = `${prefix}client-${index}.jsonl`;
+			names.push(name);
+			const path = join(ahp, name);
+			await writeFile(path, '{}\n');
+			await utimes(path, 1000 + index, 1000 + index);
+		}
+		await mkdir(join(ahp, `${prefix}directory.jsonl`));
+		await writeFile(join(ahp, 'unrelated.jsonl'), '{}\n');
+		await writeFile(join(ahp, `${prefix}not-jsonl.log`), 'not a wire log');
+		const warnings: string[] = [];
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(logsHome), tmpDir: URI.file(join(testRoot, 'tmp')),
+		}, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}()));
+		const artifact = await collector.collect([emptyProvider], undefined, 'directory');
+		assert.deepStrictEqual({ paths: artifact.entries.map(entry => entry.path).sort(), warnings }, {
+			paths: names.slice(2).map(name => `ahp/mission-control/${name}`).sort(),
+			warnings: ['[AgentHostDebugLogs] Omitted 2 Mission Control AHP files; exporting the 10 most recent files'],
+		});
+		await collector.cleanup();
+	});
+
+	for (const entryCount of [990, 991, 999, 1000]) {
+		test(`fits optional Mission Control logs in the remaining budget after ${entryCount} prior files`, async () => {
+			const logsHome = join(testRoot, 'logs');
+			const ahp = join(logsHome, 'ahp');
+			await mkdir(ahp, { recursive: true });
+			await writeFile(join(logsHome, 'agenthost.log'), 'host');
+			const hash = new StringSHA1();
+			hash.update(MISSION_CONTROL_AHP_LOG_ID);
+			for (let index = 0; index < 10; index++) {
+				await writeFile(join(ahp, `ahp-${hash.digest()}-client-${index}.jsonl`), '{}\n');
+			}
+			const warnings: string[] = [];
+			const collector = disposables.add(new AgentHostDebugLogsCollector({
+				logsHome: URI.file(logsHome), tmpDir: URI.file(join(testRoot, 'tmp')),
+			}, new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}()));
+			const artifact = await collector.collect([{
+				id: 'test',
+				collectDebugLogs: async (_session, output) => {
+					const nested = join(output.fsPath, 'provider');
+					await mkdir(nested);
+					await Promise.all(Array.from({ length: entryCount - 1 }, (_, index) =>
+						writeFile(join(nested, `${index}.log`), 'provider')));
+					return true;
+				},
+			}], URI.parse('copilotcli:/shared-session'), 'directory');
+			const included = 1000 - entryCount;
+			assert.deepStrictEqual({
+				count: artifact.entries.length,
+				providerCount: artifact.entries.filter(entry => entry.path.startsWith('provider/')).length,
+				missionControlCount: artifact.entries.filter(entry => entry.path.startsWith('ahp/mission-control/')).length,
+				warnings,
+			}, {
+				count: 1000, providerCount: entryCount - 1, missionControlCount: included,
+				warnings: included < 10 ? [`[AgentHostDebugLogs] Omitted ${10 - included} Mission Control AHP files; exporting the ${included} most recent files`] : [],
+			});
+			await collector.cleanup();
+		});
+	}
 
 	test('rejects and cleans an artifact with too many files', async () => {
 		const logsHome = join(testRoot, 'logs');
@@ -369,6 +561,33 @@ suite('AgentHostDebugLogsCollector', () => {
 		await waitForEmptyDirectory(outputRoot);
 	});
 
+	test('renews an artifact lease on each read and expires after inactivity', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService(), 1000));
+		const clock = sinon.useFakeTimers();
+		try {
+			const artifact = await collector.collect([{
+				id: 'test',
+				collectDebugLogs: async (_session, target) => {
+					await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
+					return true;
+				},
+			}], undefined, 'directory');
+			const source = joinPath(artifact.resource, 'events.jsonl');
+			clock.tick(600);
+			await collector.readArtifactChunk(source, 0);
+			clock.tick(600);
+			assert.strictEqual((await collector.readArtifactChunk(source, 0)).data.toString(), 'events');
+			clock.tick(1100);
+			await assert.rejects(collector.readArtifactChunk(source, 0), /Unknown or expired/);
+		} finally {
+			clock.restore();
+		}
+	});
 	test('removes retained artifacts when disposed', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');

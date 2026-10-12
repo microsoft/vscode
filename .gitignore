@@ -2,7 +2,8 @@
 .cache
 npm-debug.log
 Thumbs.db
-node_modules/
+# No trailing slash, so a symlinked node_modules is ignored too
+node_modules
 .tmp/
 .build/
 /extensionsCG/
@@ -32,7 +33,6 @@ product.overrides.json
 vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
-!test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
 .playwright-mcp

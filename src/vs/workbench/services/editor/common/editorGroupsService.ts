@@ -203,6 +203,11 @@ export interface IEditorDropTargetDelegate {
 	 * A helper to figure out if the drop target contains the provided group.
 	 */
 	containsGroup?(groupView: IEditorGroup): boolean;
+
+	/**
+	 * Whether the drop target supports creating editor groups.
+	 */
+	readonly supportsSplitting?: boolean;
 }
 
 /**

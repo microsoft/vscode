@@ -34,7 +34,7 @@ suite('AgentFeedbackServerTools', () => {
 	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
@@ -72,7 +72,7 @@ suite('AgentFeedbackServerTools', () => {
 	test('listComments reports unknown provenance rather than assuming the user', () => {
 		const orphan: Annotation = {
 			id: 'a',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -329,7 +329,7 @@ suite('AgentFeedbackServerTools', () => {
 		// than mutating it.
 		const foreign: Annotation = {
 			id: 'foreign',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -358,6 +358,13 @@ suite('AgentFeedbackServerTools', () => {
 			resolveActions: [],
 			resolveNotFound: ['foreign'],
 		});
+	});
+
+	test('defers every feedback tool behind tool search', () => {
+		assert.deepStrictEqual(
+			feedbackServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			feedbackServerToolDefinitions.map(({ name }) => ({ name, deferLoading: true })),
+		);
 	});
 
 	suite('AgentServerToolHost', () => {
@@ -459,7 +466,7 @@ suite('AgentFeedbackServerTools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
-			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
+			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition));
 		});
 
 		test('advertise does not dispatch before the session is registered', () => {

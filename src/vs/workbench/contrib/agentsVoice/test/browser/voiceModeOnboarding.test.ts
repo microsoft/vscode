@@ -17,7 +17,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, getAgentsVoicePolicyValue } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { VoiceModeOnboardingBanner, VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
@@ -91,6 +91,18 @@ suite('Voice Mode onboarding', () => {
 		instantiationService.stub(ITelemetryService, new TestTelemetryService(telemetryEvents));
 		return store.add(instantiationService.createInstance(VoiceModeOnboardingService));
 	}
+
+	test('disables Voice Mode when preview features are disabled by policy', () => {
+		assert.deepStrictEqual([
+			getAgentsVoicePolicyValue({ chat_preview_features_enabled: false }),
+			getAgentsVoicePolicyValue({ chat_preview_features_enabled: true }),
+			getAgentsVoicePolicyValue({}),
+		], [
+			false,
+			undefined,
+			undefined,
+		]);
+	});
 
 	test('auditions a voice, dismisses, and never returns', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];

@@ -84,6 +84,7 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 			const claim: TerminalSessionClaim = {
 				kind: TerminalClaimKind.Session,
 				session: sessionChannel,
+				chat: turnChannel,
 				turnId,
 				toolCallId,
 			};

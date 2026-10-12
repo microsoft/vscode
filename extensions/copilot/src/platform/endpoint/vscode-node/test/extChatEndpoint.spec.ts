@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
+import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { decodeStatefulMarker } from '../../common/statefulMarkerContainer';
@@ -21,6 +22,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			languageModel,
 			createInstantiationService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 		const modelConfiguration = { reasoningEffort: 'high', contextSize: 500_000 } as const;
 
@@ -47,6 +49,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			languageModel,
 			createInstantiationService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 
 		const result = await endpoint.makeChatRequest2({
@@ -73,6 +76,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			languageModel,
 			createInstantiationService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 
 		for (const enableThinking of [true, false, undefined]) {
@@ -99,6 +103,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			languageModel,
 			createInstantiationService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 
 		for (const turnIndex of ['', ' ', '-1', '1e2', '3.14', 'abc']) {
@@ -158,6 +163,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			languageModel,
 			createInstantiationService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 
 		const result = await endpoint.makeChatRequest2({
@@ -214,6 +220,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 				languageModel,
 				createInstantiationService(),
 				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+				new DefaultsOnlyConfigurationService(),
 			);
 
 			await endpoint.makeChatRequest2({

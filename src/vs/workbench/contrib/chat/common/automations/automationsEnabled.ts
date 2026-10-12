@@ -7,11 +7,12 @@ import { RawContextKey } from '../../../../../platform/contextkey/common/context
 
 /**
  * Gates the entire Automations feature: sidebar entry, editor section,
- * session composer option, and scheduled execution. Default `false`.
+ * session composer option, and scheduled execution. Enabled by default.
  */
 export const CHAT_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.enabled';
+export const CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.cloud.enabled';
 
-/** Per-run timeout in minutes. Hung runs are cancelled and marked failed so they don't block the dispatch chain. */
+/** Per-run timeout in minutes. Hung runs are ended so they cannot block later occurrences. */
 export const CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING = 'chat.automations.runTimeoutMinutes';
 
 /** Default for {@link CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING}. */

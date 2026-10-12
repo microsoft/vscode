@@ -446,6 +446,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	private computeXCordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+		const documentElementClientLeft = this._targetDocumentElement.clientLeft;
 
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
@@ -469,14 +470,15 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
+			const documentElementClientWidth = this._targetDocumentElement.clientWidth;
+			if (this._x + hoverWidth >= documentElementClientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
+				this._x = Math.max(documentElementClientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, documentElementClientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < this._targetDocumentElement.clientLeft) {
+		if (this._x < documentElementClientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
@@ -614,7 +616,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			}
 		}
 
+		this._hover.containerDomNode.style.maxHeight = '';
+		const heightOutsideContents = this._hover.containerDomNode.offsetHeight - this._hover.contentsDomNode.offsetHeight;
+		const contentsMaxHeight = Math.max(0, maxHeight - heightOutsideContents);
+
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${contentsMaxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
@@ -640,9 +647,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
 				}
 
-				// Otherwise show the pointer at the center of hover
+				// Otherwise show the pointer at the center of hover, unrounded so it stays centred
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+					this._hoverPointer.style.top = `${(hoverHeight / 2) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -652,8 +659,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Position pointer at the center of the hover, unrounded so it stays centred
+				let pointerLeftPosition = (hoverWidth / 2) - Constants.PointerSize;
 
 				// If pointer goes beyond target then position it at the center of the target
 				const pointerX = this._x + pointerLeftPosition;

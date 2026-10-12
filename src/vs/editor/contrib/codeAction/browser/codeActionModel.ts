@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -250,99 +250,108 @@ export class CodeActionModel extends Disposable {
 
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
-						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-						this.codeActionsDisposable.value = codeActionSet;
-						const allCodeActions = [...codeActionSet.allActions];
-						if (token.isCancellationRequested) {
-							codeActionSet.dispose();
-							return emptyCodeActionSet;
-						}
-
-						// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
-						const foundQuickfix = codeActionSet.validActions?.some(action => {
-							return action.action.kind &&
-								CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
-								!action.action.isAI;
-						});
-						const allMarkers = this._markerService.read({ resource: model.uri });
-						if (foundQuickfix) {
-							for (const action of codeActionSet.validActions) {
-								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
-									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
-								}
+						const codeActionSets = new DisposableStore();
+						let codeActionSetsOwnedByResult = false;
+						try {
+							const codeActionSet = codeActionSets.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
+							const allCodeActions = [...codeActionSet.allActions];
+							if (token.isCancellationRequested) {
+								return emptyCodeActionSet;
 							}
-							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
-						} else if (!foundQuickfix) {
-							// If markers exist, and there are no quickfixes found or length is zero, check for quickfixes on that line.
-							if (allMarkers.length > 0) {
-								const currPosition = trigger.selection.getPosition();
-								let trackedPosition = currPosition;
-								let distance = Number.MAX_VALUE;
-								const currentActions = [...codeActionSet.validActions];
 
-								for (const marker of allMarkers) {
-									const col = marker.endColumn;
-									const row = marker.endLineNumber;
-									const startRow = marker.startLineNumber;
+							// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
+							const foundQuickfix = codeActionSet.validActions?.some(action => {
+								return action.action.kind &&
+									CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
+									!action.action.isAI;
+							});
+							const allMarkers = this._markerService.read({ resource: model.uri });
+							if (foundQuickfix) {
+								for (const action of codeActionSet.validActions) {
+									if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+										action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+									}
+								}
+								const result = this._setCodeActions({ validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => codeActionSets.dispose() });
+								codeActionSetsOwnedByResult = true;
+								return result;
+							} else if (!foundQuickfix) {
+								// If markers exist, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+								if (allMarkers.length > 0) {
+									const currPosition = trigger.selection.getPosition();
+									let trackedPosition = currPosition;
+									let distance = Number.MAX_VALUE;
+									const currentActions = [...codeActionSet.validActions];
 
-									// Found quickfix on the same line and check relative distance to other markers
-									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber)) {
-										trackedPosition = new Position(row, col);
-										const newCodeActionTrigger: CodeActionTrigger = {
-											type: trigger.trigger.type,
-											triggerAction: trigger.trigger.triggerAction,
-											filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
-											autoApply: trigger.trigger.autoApply,
-											context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
-										};
+									for (const marker of allMarkers) {
+										const col = marker.endColumn;
+										const row = marker.endLineNumber;
+										const startRow = marker.startLineNumber;
 
-										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
-										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
-										if (token.isCancellationRequested) {
-											actionsAtMarker.dispose();
-											return emptyCodeActionSet;
-										}
+										// Found quickfix on the same line and check relative distance to other markers
+										if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber)) {
+											trackedPosition = new Position(row, col);
+											const newCodeActionTrigger: CodeActionTrigger = {
+												type: trigger.trigger.type,
+												triggerAction: trigger.trigger.triggerAction,
+												filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
+												autoApply: trigger.trigger.autoApply,
+												context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
+											};
 
-										if (actionsAtMarker.validActions.length !== 0) {
-											for (const action of actionsAtMarker.validActions) {
-												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
-													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+											const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
+											const actionsAtMarker = codeActionSets.add(await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token));
+											if (token.isCancellationRequested) {
+												return emptyCodeActionSet;
+											}
+
+											if (actionsAtMarker.validActions.length !== 0) {
+												for (const action of actionsAtMarker.validActions) {
+													if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+														action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+													}
+												}
+
+												if (codeActionSet.allActions.length === 0) {
+													allCodeActions.push(...actionsAtMarker.allActions);
+												}
+
+												// Already filtered through to only get quickfixes, so no need to filter again.
+												if (Math.abs(currPosition.column - col) < distance) {
+													currentActions.unshift(...actionsAtMarker.validActions);
+												} else {
+													currentActions.push(...actionsAtMarker.validActions);
 												}
 											}
-
-											if (codeActionSet.allActions.length === 0) {
-												allCodeActions.push(...actionsAtMarker.allActions);
-											}
-
-											// Already filtered through to only get quickfixes, so no need to filter again.
-											if (Math.abs(currPosition.column - col) < distance) {
-												currentActions.unshift(...actionsAtMarker.validActions);
-											} else {
-												currentActions.push(...actionsAtMarker.validActions);
-											}
+											distance = Math.abs(currPosition.column - col);
 										}
-										distance = Math.abs(currPosition.column - col);
 									}
+									const filteredActions = currentActions.filter((action, index, self) =>
+										self.findIndex((a) => a.action.title === action.action.title) === index);
+
+									filteredActions.sort((a, b) => {
+										if (a.action.isPreferred && !b.action.isPreferred) {
+											return -1;
+										} else if (!a.action.isPreferred && b.action.isPreferred) {
+											return 1;
+										} else if (a.action.isAI && !b.action.isAI) {
+											return 1;
+										} else if (!a.action.isAI && b.action.isAI) {
+											return -1;
+										} else {
+											return 0;
+										}
+									});
+
+									// Only retriggers if actually found quickfix on the same line as cursor
+									const result = this._setCodeActions({ validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => codeActionSets.dispose() });
+									codeActionSetsOwnedByResult = true;
+									return result;
 								}
-								const filteredActions = currentActions.filter((action, index, self) =>
-									self.findIndex((a) => a.action.title === action.action.title) === index);
-
-								filteredActions.sort((a, b) => {
-									if (a.action.isPreferred && !b.action.isPreferred) {
-										return -1;
-									} else if (!a.action.isPreferred && b.action.isPreferred) {
-										return 1;
-									} else if (a.action.isAI && !b.action.isAI) {
-										return 1;
-									} else if (!a.action.isAI && b.action.isAI) {
-										return -1;
-									} else {
-										return 0;
-									}
-								});
-
-								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
+							}
+						} finally {
+							if (!codeActionSetsOwnedByResult) {
+								codeActionSets.dispose();
 							}
 						}
 					}
@@ -350,13 +359,19 @@ export class CodeActionModel extends Disposable {
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-						this.codeActionsDisposable.value = codeActions;
-						return codeActions;
+						if (token.isCancellationRequested) {
+							codeActions.dispose();
+							return emptyCodeActionSet;
+						}
+						return this._setCodeActions(codeActions);
 					}
 
 					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-					this.codeActionsDisposable.value = codeActionSet;
-					return codeActionSet;
+					if (token.isCancellationRequested) {
+						codeActionSet.dispose();
+						return emptyCodeActionSet;
+					}
+					return this._setCodeActions(codeActionSet);
 				});
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
@@ -388,6 +403,22 @@ export class CodeActionModel extends Disposable {
 		} else {
 			this._supportedCodeActions.reset();
 		}
+	}
+
+	private _setCodeActions(actions: CodeActionSet): CodeActionSet {
+		this.codeActionsDisposable.value = actions;
+		return actions;
+	}
+
+	/**
+	 * Transfers ownership of the current code actions to the caller.
+	 */
+	public takeCodeActions(actions: CodeActionSet): CodeActionSet | undefined {
+		if (this.codeActionsDisposable.value !== actions) {
+			return undefined;
+		}
+		this.codeActionsDisposable.clearAndLeak();
+		return actions;
 	}
 
 	public trigger(trigger: CodeActionTrigger) {

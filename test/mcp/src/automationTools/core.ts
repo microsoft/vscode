@@ -5,7 +5,7 @@
 
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ApplicationService, assertNoProfileOverrides } from '../application';
+import { ApplicationService, assertNoProfileOverrides } from '../../../scenario';
 
 /**
  * Core Application Management Tools

@@ -15,6 +15,14 @@
 		"forceConsistentCasingInFileNames": true,
 		"target": "ES2024",
 		"useDefineForClassFields": false,
+		"paths": {
+			"electron": [
+				"../.build/typings/electron.d.ts"
+			],
+			"electron/*": [
+				"../.build/typings/electron.d.ts"
+			]
+		},
 		"lib": [
 			"ES2024",
 			"ESNext.Disposable",

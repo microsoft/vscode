@@ -9,12 +9,29 @@ import { localize } from '../../../../../nls.js';
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
-export const AGENT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
-export const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
+const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
+const AGENT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
+const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
 // TODO: update link when available
-export const HOOK_DOCUMENTATION_URL = 'https://aka.ms/vscode-chat-hooks';
+const HOOK_DOCUMENTATION_URL = 'https://aka.ms/vscode-chat-hooks';
+
+export function getDocumentationUrl(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.prompt:
+			return PROMPT_DOCUMENTATION_URL;
+		case PromptsType.instructions:
+			return INSTRUCTIONS_DOCUMENTATION_URL;
+		case PromptsType.agent:
+			return AGENT_DOCUMENTATION_URL;
+		case PromptsType.skill:
+			return SKILL_DOCUMENTATION_URL;
+		case PromptsType.hook:
+			return HOOK_DOCUMENTATION_URL;
+		default:
+			throw new Error(`Unknown prompt type: ${type}`);
+	}
+}
 
 /**
  * Language ID for the reusable prompt syntax.
@@ -40,11 +57,6 @@ export const SKILL_LANGUAGE_ID = 'skill';
  * Prompt and instructions files language selector.
  */
 export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
-
-/**
- * Configuration key for enabling the agent debug log feature.
- */
-export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.enabled';
 
 /**
  * Configuration key for enabling file logging for the agent debug log.

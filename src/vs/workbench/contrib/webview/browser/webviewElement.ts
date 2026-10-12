@@ -9,10 +9,10 @@ import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { listenStream } from '../../../../base/common/stream.js';
@@ -138,8 +138,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
-	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
-	private readonly _activeStreamControllers = new Set<ReadableStreamDefaultController>();
+	private readonly _resourceLoadingDisposables = this._register(new DisposableStore());
 
 	private _contextKeyService: IContextKeyService | undefined;
 
@@ -151,6 +150,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	private _messagePort?: MessagePort;
+	private _keyEventToken: string | undefined;
+	private _mountId: string | undefined;
+	private readonly _readyListener = this._register(new MutableDisposable());
 	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
 
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
@@ -245,7 +247,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			const message = this.extension
+				? localize('fatalErrorMessageWithExtension', "Error loading webview provided by '{0}': {1}", this.extension.id.value, e.message)
+				: localize('fatalErrorMessage', "Error loading webview: {0}", e.message);
+			notificationService.error(message);
 			this._onFatalError.fire({ message: e.message });
 		}));
 
@@ -292,7 +297,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					path: decodeURIComponent(entry.path), // This gets re-encoded
 					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
 				});
-				this.loadResource(entry.id, uri, { ifNoneMatch: entry.ifNoneMatch, range: entry.range }, this._resourceLoadingCts.token);
+				this.loadResource(entry.id, uri, { ifNoneMatch: entry.ifNoneMatch, range: entry.range });
 			} catch (e) {
 				this._send('did-load-resource', {
 					id: entry.id,
@@ -343,7 +348,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element?.remove();
 		this._element = undefined;
 
-		this._messagePort = undefined;
+		this.resetHostChannel();
+		this._mountId = undefined;
+		this._readyListener.clear();
 
 		if (this._state.type === WebviewState.Type.Initializing) {
 			for (const message of this._state.pendingMessages) {
@@ -354,12 +361,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._onDidDispose.fire();
 
-		for (const controller of this._activeStreamControllers) {
-			try { controller.close(); } catch { /* already closed */ }
-		}
-		this._activeStreamControllers.clear();
-
-		this._resourceLoadingCts.dispose(true);
+		this._resourceLoadingDisposables.dispose();
 
 		super.dispose();
 	}
@@ -448,6 +450,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
+			mountId: this._mountId ?? '',
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -477,6 +480,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._windowId = targetWindow.vscodeWindowId;
+		this._mountId = generateUuid();
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
@@ -507,8 +511,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.appendChild(this.element);
 	}
 
+	private resetHostChannel(): void {
+		if (this._messagePort) {
+			this._messagePort.onmessage = null;
+			this._messagePort.close();
+		}
+		this._messagePort = undefined;
+		this._keyEventToken = undefined;
+	}
+
 	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		const subscription = addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -523,8 +536,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					return;
 				}
 
+				// The mount id rejects stale handshakes; the shell token authenticates subsequent key events.
+				const keyEventToken = e.data?.data?.keyEventToken;
+				if (!this._mountId || e.data?.data?.mountId !== this._mountId
+					|| typeof keyEventToken !== 'string' || keyEventToken.length === 0
+					|| !this.element?.contentWindow || e.source !== this.element.contentWindow
+					|| !e.ports[0]) {
+					return;
+				}
+
 				this.perfMark('webview-ready');
 				this._logService.trace(`Webview(${this.id}): webview ready`);
+
+				this._keyEventToken = keyEventToken;
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -543,9 +567,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				}
 				this._state = WebviewState.Ready;
 
-				subscription.dispose();
+				this._readyListener.clear();
 			}
-		}));
+		});
+		this._readyListener.value = subscription;
 	}
 
 	private perfMark(name: string) {
@@ -627,7 +652,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	public reinitializeAfterDismount(): void {
 		this._state = new WebviewState.Initializing([]);
-		this._messagePort = undefined;
+		this.resetHostChannel();
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));
 		this.style();
@@ -714,6 +739,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		// Serialized isTrusted is meaningful only for events authenticated by the shell.
+		if (!this._keyEventToken || event.keyEventToken !== this._keyEventToken) {
+			return false;
+		}
 		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
 	}
 
@@ -791,10 +820,20 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken) {
+	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }) {
 		if (this._disposed) {
 			return;
 		}
+
+		const { promise: streamDone, resolve: resolveStreamDone } = promiseWithResolvers<void>();
+		let closeStream: (() => void) | undefined;
+		const cts = new CancellationTokenSource();
+		const request = this._resourceLoadingDisposables.add(toDisposable(() => {
+			closeStream?.();
+			cts.dispose(true);
+			resolveStreamDone();
+		}));
+		const token = cts.token;
 
 		try {
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
@@ -804,6 +843,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}, token);
 
 			if (this._disposed) {
+				if (result.type === WebviewResourceResponse.Type.Success) {
+					result.stream.resume();
+				}
 				return;
 			}
 
@@ -816,26 +858,21 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						? `bytes ${range.start}-${rangeEnd}/${result.size}`
 						: undefined;
 					if (WebviewElement._supportsTransferableStreams.value) {
-						const streamCts = this.platform === 'electron' ? new CancellationTokenSource(token) : undefined;
 						let controller: ReadableStreamDefaultController<Uint8Array<ArrayBuffer>> | undefined;
 						let closed = false;
 						const close = () => {
 							if (!closed) {
 								closed = true;
-								streamCts?.dispose();
 								if (controller) {
-									this._activeStreamControllers.delete(controller);
 									try { controller.close(); } catch { /* already closed */ }
 								}
+								resolveStreamDone();
 							}
 						};
+						closeStream = close;
 						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
 							start: (newController) => {
-								// Track this controller so that the single
-								// cancellation handler in dispose() can close
-								// all active streams without per-stream listeners.
 								controller = newController;
-								this._activeStreamControllers.add(controller);
 
 								listenStream(result.stream, {
 									onData: (chunk) => {
@@ -850,20 +887,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 									onError: (err) => {
 										if (!closed) {
 											closed = true;
-											streamCts?.dispose();
 											const currentController = controller;
 											if (currentController) {
-												this._activeStreamControllers.delete(currentController);
 												try { currentController.error(err); } catch { /* already closed */ }
 											}
+											resolveStreamDone();
 										}
 									},
 									onEnd: () => close()
-								}, streamCts?.token ?? token);
+								}, token);
 							},
-							cancel: streamCts ? () => {
-								streamCts.dispose(true);
-								result.stream.destroy();
+							cancel: this.platform === 'electron' ? () => {
+								// Let the file stream finish cancellation so its end/error listeners can clean up.
+								cts.cancel();
 								close();
 							} : undefined,
 						});
@@ -900,12 +936,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 							},
 							onError: () => {
 								this._send('did-load-resource-end', { id, error: true });
+								resolveStreamDone();
 							},
 							onEnd: () => {
 								this._send('did-load-resource-end', { id });
+								resolveStreamDone();
 							}
 						}, token);
 					}
+					await streamDone;
 					return;
 				}
 				case WebviewResourceResponse.Type.NotModified: {
@@ -927,6 +966,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 		} catch {
 			// noop
+		} finally {
+			this._resourceLoadingDisposables.delete(request);
 		}
 
 		return this._send('did-load-resource', {

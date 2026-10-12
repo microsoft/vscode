@@ -35,7 +35,7 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
+use crate::util::command::{kill_tree, new_script_command};
 use crate::util::errors::AnyError;
 use crate::util::http::{self, ReqwestSimpleHttp};
 use crate::util::io::SilentCopyProgress;
@@ -208,6 +208,7 @@ async fn handle(
 	};
 
 	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
+	append_frame_ancestors(&mut res);
 
 	Ok(res)
 }
@@ -273,6 +274,20 @@ fn append_secret_headers(
 		)
 		.parse()
 		.unwrap(),
+	);
+}
+
+/// Prevents other origins from embedding serve-web pages. Same-origin iframes
+/// used by the workbench itself are still allowed.
+fn append_frame_ancestors(res: &mut Response<HyperBody>) {
+	let headers = res.headers_mut();
+	headers.append(
+		::http::header::CONTENT_SECURITY_POLICY,
+		"frame-ancestors 'self'".parse().unwrap(),
+	);
+	headers.insert(
+		::http::header::HeaderName::from_static("x-frame-options"),
+		"SAMEORIGIN".parse().unwrap(),
 	);
 }
 
@@ -923,7 +938,22 @@ impl ConnectionManager {
 				}
 				_ = &mut kill_timer => {
 					info!(args.log, "[{} process]: idle timeout reached, ending", commit_prefix);
-					let _ = child.kill().await;
+					// The entrypoint is a shell/cmd shim, so kill the full tree
+					// to avoid orphaning the Node server it launches.
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+					if tokio::time::timeout(REAP_TIMEOUT, child.wait()).await.is_err() {
+						warning!(
+							args.log,
+							"[{} process]: server did not exit within {}s after kill_tree; escalating to force kill",
+							commit_prefix,
+							REAP_TIMEOUT.as_secs()
+						);
+						let _ = child.kill().await;
+						let _ = child.wait().await;
+					}
 					break;
 				}
 				e = child.wait() => {

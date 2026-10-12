@@ -6,11 +6,14 @@
 import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
-import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
+import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
+import { CompatibleSessionDatabase } from './compatibleSessionDatabase.js';
+import type { SessionStorageIdentity } from './sessionStorageIdentity.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 
@@ -21,9 +24,13 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 	 */
 	readonly liveDatabases = new Set<ISessionDatabase>();
 
+	/** Counts real opens (cache misses), not reference acquisitions. */
+	opens = 0;
+
 	constructor(
 		private readonly _getDbPath: (key: string) => string,
 		private readonly _logService: ILogService,
+		private readonly _identity?: SessionStorageIdentity,
 	) {
 		super();
 	}
@@ -31,7 +38,9 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 	protected createReferencedObject(key: string): ISessionDatabase {
 		const dbPath = this._getDbPath(key);
 		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
-		const db = new SessionDatabase(dbPath);
+		this.opens++;
+		const raw = new SessionDatabase(dbPath);
+		const db = this._identity ? new CompatibleSessionDatabase(raw, this._identity) : raw;
 		this.liveDatabases.add(db);
 		return db;
 	}
@@ -51,6 +60,7 @@ export class SessionDataService implements ISessionDataService {
 
 	private readonly _basePath: URI;
 	private readonly _databases: SessionDatabaseCollection;
+	private _stats = 0;
 	private readonly _onWillDeleteSessionData = new Emitter<IWillDeleteSessionDataEvent>();
 
 	get onWillDeleteSessionData(): Event<IWillDeleteSessionDataEvent> {
@@ -62,12 +72,18 @@ export class SessionDataService implements ISessionDataService {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		getDbPath?: (key: string) => string, // for testing
+		private readonly _identity?: SessionStorageIdentity,
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
 		this._databases = new SessionDatabaseCollection(
 			getDbPath ?? (key => URI.joinPath(this._basePath, key, SESSION_DB_FILENAME).fsPath),
 			this._logService,
+			this._identity,
 		);
+	}
+
+	get storageAccessCounts(): ISessionStorageAccessCounts {
+		return { opens: this._databases.opens, stats: this._stats };
 	}
 
 	getSessionDataDir(session: URI): URI {
@@ -93,6 +109,7 @@ export class SessionDataService implements ISessionDataService {
 	 * leaving plain session URIs (no authority) unchanged.
 	 */
 	private _dataKey(uri: URI): string {
+		uri = this._identity ? URI.parse(this._identity.toStorage(uri.toString())) : uri;
 		const id = AgentSession.id(uri);
 		return uri.authority ? `${uri.authority}-${id}` : id;
 	}
@@ -104,8 +121,14 @@ export class SessionDataService implements ISessionDataService {
 	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
 		const key = this._sanitizedSessionKey(session);
 		const dbPath = URI.joinPath(this._basePath, key, SESSION_DB_FILENAME);
-		if (!await this._fileService.exists(dbPath)) {
-			return undefined;
+		try {
+			this._stats++;
+			await this._fileService.stat(dbPath);
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
 		}
 		return this._databases.acquire(key);
 	}
@@ -162,7 +185,7 @@ export class SessionDataService implements ISessionDataService {
 					continue;
 				}
 				const name = child.name;
-				if (!knownSessionIds.has(name)) {
+				if (!knownSessionIds.has(name) && !name.startsWith(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX)) {
 					this._logService.trace(`[SessionDataService] Cleaning up orphaned session data: ${name}`);
 					deletions.push(
 						this._fileService.del(child.resource, { recursive: true }).catch(err => {
@@ -176,6 +199,14 @@ export class SessionDataService implements ISessionDataService {
 		} catch (err) {
 			this._logService.warn('[SessionDataService] Failed to run orphan cleanup', err);
 		}
+	}
+
+	async listSessionDataIds(prefix: string): Promise<readonly string[]> {
+		if (!await this._fileService.exists(this._basePath)) {
+			return [];
+		}
+		const stat = await this._fileService.resolve(this._basePath);
+		return stat.children?.filter(child => child.isDirectory && child.name.startsWith(prefix)).map(child => child.name) ?? [];
 	}
 
 	async whenIdle(): Promise<void> {

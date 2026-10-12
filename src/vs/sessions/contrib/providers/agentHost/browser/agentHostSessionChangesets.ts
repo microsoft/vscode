@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
@@ -13,30 +14,35 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
+import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
-const enum ChangesetKind {
-	Branch = 'branch',
-	Uncommitted = 'uncommitted',
-	Session = 'session',
-	Turn = 'turn',
-	Compare = 'compare-turns',
-}
-
 export interface IAgentHostChangeset extends Changeset {
+	/** Provider-neutral identity when it differs from the protocol change kind. */
+	readonly id?: string;
 	/**
 	 * Optional authoritative changes. `undefined` falls back to the changeset
 	 * channel; an array, including an empty one, is used as-is.
 	 */
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
+	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
+	readonly streamingChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>;
+}
+
+/** File changes published by one active turn. */
+export interface IAgentHostCurrentTurnChanges {
+	readonly id: string;
+	readonly changes: readonly ISessionTurnFileChange[];
 }
 
 /**
@@ -50,6 +56,49 @@ export interface IAgentHostChangeset extends Changeset {
  */
 function sessionFileChangeUri(change: ISessionFileChange): URI {
 	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
+function mergeStreamingChanges(changes: readonly ISessionFileChange[], streamingChanges: readonly ISessionTurnFileChange[]): readonly ISessionFileChange[] {
+	const result = [...changes];
+	for (const streamingChange of streamingChanges) {
+		let insertionIndex = result.length;
+		let existing: ISessionFileChange | undefined;
+
+		if (streamingChange.renamedFromUri) {
+			const renamedIndex = result.findIndex(change => isEqual(sessionFileChangeUri(change), streamingChange.renamedFromUri));
+			if (renamedIndex !== -1) {
+				insertionIndex = renamedIndex;
+				[existing] = result.splice(renamedIndex, 1);
+			}
+		}
+
+		const index = result.findIndex(change => isEqual(sessionFileChangeUri(change), sessionFileChangeUri(streamingChange)));
+		if (index !== -1) {
+			insertionIndex = Math.min(insertionIndex, index);
+			const [sameResource] = result.splice(index, 1);
+			existing ??= sameResource;
+		}
+
+		if (!existing) {
+			result.push(streamingChange);
+			continue;
+		}
+
+		if (existing.originalUri === undefined && streamingChange.modifiedUri === undefined) {
+			continue;
+		}
+		const merged = isIChatSessionFileChange2(streamingChange)
+			? {
+				...streamingChange,
+				originalUri: existing.originalUri,
+				insertions: existing.insertions,
+				deletions: existing.deletions,
+				reviewed: existing.reviewed ?? streamingChange.reviewed,
+			}
+			: streamingChange;
+		result.splice(insertionIndex, 0, merged);
+	}
+	return result;
 }
 
 /**
@@ -83,6 +132,8 @@ export function createChangesets(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	changesets: readonly IAgentHostChangeset[] | undefined,
+	chatUri?: URI,
+	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -90,11 +141,15 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultChangeset = selectDefaultChangeset(changesets, defaultChangesetKind);
 
-	for (const changeset of changesets) {
-		const isDefault = changeset === defaultChangeset;
+	for (const catalogueEntry of changesets) {
+		const isDefault = chatUri !== undefined && catalogueEntry === defaultChangeset;
+		// A relative template parses to a local filesystem path, so resolve before use.
+		const changeset = {
+			...catalogueEntry,
+			uriTemplate: resolveChangesetUriTemplate((chatUri ?? sessionUri).toString(), catalogueEntry.uriTemplate),
+		};
 
 		if (
 			changeset.changeKind === ChangesetKind.Branch ||
@@ -107,13 +162,82 @@ export function createChangesets(
 			}));
 		} else if (changeset.changeKind === ChangesetKind.Turn) {
 			// Last Turn Changes
-			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, options, isActiveSessionObs, {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, chatUri, options, isActiveSessionObs, {
+				...changeset, isDefault
+			}));
+		} else if (changeset.changeKind === AGENT_MERGE_CHANGESET_ID) {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, sessionUri, chatUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		}
 	}
 
 	return sessionChangesets;
+}
+
+export function createChatChangesets(
+	sessionUri: URI,
+	chatUriObs: IObservable<URI | undefined>,
+	options: IAgentHostAdapterOptions,
+	isActiveSessionObs: IObservable<boolean>,
+	currentTurnChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>,
+	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
+): IObservable<readonly ISessionChangeset[] | undefined> {
+	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+		options,
+		isActiveSessionObs,
+		StateComponents.Chat,
+		chatUriObs,
+	);
+	const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+		options,
+		isActiveSessionObs,
+		StateComponents.Session,
+		constObservable(sessionUri),
+	);
+	let lastChatCatalogue: readonly Changeset[] | undefined;
+	let lastSessionCatalogue: readonly Changeset[] | undefined;
+	let lastChatUri: URI | undefined;
+	let lastDefaultChatUri: string | undefined;
+	let lastChangesets: readonly ISessionChangeset[] | undefined;
+	const currentTurnFileChanges = currentTurnChanges
+		? derived(reader => currentTurnChanges.read(reader)?.changes)
+		: undefined;
+	return derived(reader => {
+		const chatUri = chatUriObs.read(reader);
+		const chatState = chatStateObs.read(reader).read(reader);
+		const sessionState = sessionStateObs.read(reader).read(reader);
+		if (!chatUri || !chatState || chatState instanceof Error || sessionState instanceof Error) {
+			return undefined;
+		}
+		const defaultChatUri = sessionState?.defaultChat ?? sessionState?.chats?.[0]?.resource;
+		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
+			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
+			return lastChangesets;
+		}
+		const resolvedCatalogue = resolveChatChangesetCatalogue(chatUri.toString(), chatState.changesets, sessionState?.changesets, defaultChatUri);
+		if (resolvedCatalogue === undefined) {
+			lastChatCatalogue = undefined;
+			lastSessionCatalogue = undefined;
+			lastChangesets = undefined;
+			return undefined;
+		}
+		lastChatCatalogue = chatState.changesets;
+		lastSessionCatalogue = sessionState?.changesets;
+		lastChatUri = chatUri;
+		lastDefaultChatUri = defaultChatUri;
+		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
+			...changeset,
+			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
+			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnFileChanges : undefined,
+			streamingChanges: changeset.changeKind === ChangesetKind.Branch
+				|| changeset.changeKind === ChangesetKind.Uncommitted
+				|| changeset.changeKind === ChangesetKind.Session
+				? currentTurnChanges
+				: undefined,
+		})), chatUri, defaultChangesetKind);
+		return lastChangesets;
+	});
 }
 
 export function createActiveSessionSubscriptionObs<T>(
@@ -123,7 +247,7 @@ export function createActiveSessionSubscriptionObs<T>(
 	resourceObs: IObservable<URI | undefined>,
 ): IObservable<IObservable<T | Error | undefined | null>> {
 	return derived(reader => {
-		const connection = options.getConnection();
+		const connection = options.getConnection(reader);
 		if (!connection) {
 			return constObservable(null);
 		}
@@ -138,10 +262,9 @@ export function createActiveSessionSubscriptionObs<T>(
 			return constObservable(null);
 		}
 
-		const subscriptionRef = connection.getSubscription(component, resource, 'AgentHostSessionChangesets');
-		reader.store.add(subscriptionRef);
+		const subscriptionRef = reader.store.add(connection.getSubscription(component, resource, 'AgentHostSessionChangesets'));
 
-		return observableFromEvent(subscriptionRef.object.onDidChange,
+		return observableFromEvent(Event.any(subscriptionRef.object.onDidChange, subscriptionRef.object.onDidError ?? Event.None),
 			() => subscriptionRef.object.value as T | Error | undefined);
 	});
 }
@@ -226,6 +349,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 	readonly capabilities: ISessionChangesetCapabilities;
 
+	private readonly _locallyRunningOperationCounts = observableValue<ReadonlyMap<string, number>>(this, new Map());
+
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
@@ -239,22 +364,62 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			review: changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
 
-		const providedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
-			const providedChanges = changeset.changes?.read(reader);
-			if (providedChanges !== undefined) {
-				return providedChanges;
-			}
-			if (lastValue === undefined) {
+		const retainUntilChangesetFilesPublished = <T extends readonly ISessionFileChange[]>(source: IObservable<T | undefined> | undefined) => {
+			let changesetStateWithProvidedChanges: ChangesetState | Error | undefined | null;
+			return derivedObservableWithCache<T | undefined>(this, (reader, lastValue) => {
+				const providedChanges = source?.read(reader);
+				if (providedChanges !== undefined) {
+					changesetStateWithProvidedChanges = this.changesetStateObs.read(reader).read(reader);
+					return providedChanges;
+				}
+				if (lastValue === undefined) {
+					return undefined;
+				}
+				const changesetState = this.changesetStateObs.read(reader).read(reader);
+				if (changesetState === changesetStateWithProvidedChanges
+					|| !changesetState
+					|| changesetState instanceof Error
+					|| (changesetState.status !== ChangesetStatus.Ready && changesetState.status !== ChangesetStatus.Recomputing)) {
+					return lastValue;
+				}
+				changesetStateWithProvidedChanges = undefined;
 				return undefined;
-			}
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready
-				? undefined
-				: lastValue;
-		});
+			});
+		};
+		const providedChangesObs = retainUntilChangesetFilesPublished(changeset.changes);
+		const streamingChangesObs = (() => {
+			let publishedTurnId: string | undefined;
+			let changesetStateWithProvidedChanges: ChangesetState | Error | undefined | null;
+			return derivedObservableWithCache<readonly ISessionTurnFileChange[] | undefined>(this, (reader, lastValue) => {
+				const streamingChanges = changeset.streamingChanges?.read(reader);
+				if (streamingChanges !== undefined) {
+					if (streamingChanges.changes.length > 0) {
+						publishedTurnId = streamingChanges.id;
+					}
+					if (publishedTurnId !== streamingChanges.id) {
+						return undefined;
+					}
+					changesetStateWithProvidedChanges = this.changesetStateObs.read(reader).read(reader);
+					return streamingChanges.changes;
+				}
+				if (lastValue === undefined) {
+					return undefined;
+				}
+				const changesetState = this.changesetStateObs.read(reader).read(reader);
+				if (changesetState === changesetStateWithProvidedChanges
+					|| !changesetState
+					|| changesetState instanceof Error
+					|| (changesetState.status !== ChangesetStatus.Ready && changesetState.status !== ChangesetStatus.Recomputing)) {
+					return lastValue;
+				}
+				publishedTurnId = undefined;
+				changesetStateWithProvidedChanges = undefined;
+				return undefined;
+			});
+		})();
 
 		this.isLoadingChanges = derived(reader => {
-			if (providedChangesObs.read(reader) !== undefined) {
+			if (providedChangesObs.read(reader) !== undefined || streamingChangesObs.read(reader) !== undefined) {
 				return false;
 			}
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
@@ -271,13 +436,12 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return false;
 			}
 
-			// For static changesets, that are persisted to the database, the
-			// cached state will be sent over the wire while the changeset is
-			// being computed.
+			// There is no cached file list, so we are doing the initial computation
 			return changesetState.status === ChangesetStatus.Computing;
 		});
 
 		const mapDiffUri = this._options.mapDiffUri;
+		const useModifiedSnapshot = changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn;
 
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
 		// files keep their reference across reducer updates, enabling the
@@ -292,13 +456,6 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return lastValue;
 			}
 
-			// Render `state.files` when the changeset is `Ready`, or on the very
-			// first arrival (the initial snapshot contains the file list persisted
-			// from the previous session).
-			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
-				return lastValue;
-			}
-
 			return changesetState.files;
 		});
 
@@ -307,7 +464,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// re-parsed and re-mapped.
 		const mappedChangesObs = mapObservableArrayCached(this,
 			this._changesetFilesObs.map(files => files ?? []),
-			file => changesetFileToChange(file, mapDiffUri));
+			file => changesetFileToChange(file, mapDiffUri, useModifiedSnapshot));
 
 		const changesObs = derived<readonly ISessionFileChange[] | undefined>(this, reader => {
 			return mappedChangesObs.read(reader).filter(isDefined);
@@ -315,7 +472,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
 			const changes = providedChangesObs.read(reader) ?? changesObs.read(reader) ?? [];
-			return this._filterChanges(changes, reader);
+			const streamingChanges = streamingChangesObs.read(reader);
+			return this._filterChanges(streamingChanges ? mergeStreamingChanges(changes, streamingChanges) : changes, reader);
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
@@ -331,8 +489,18 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
 		});
 
+		const pullRequestCreation = new AgentHostPullRequestCreation(
+			() => this._options.getConnection(),
+			() => this.channelUriObs.get(),
+			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+			chat => this._options.getBackendChatResource?.(chat),
+		);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
-			return operationsObs.read(reader) ?? [];
+			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
+			return pullRequestCreation.mapOperations(operationsObs.read(reader))
+				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
+					? { ...operation, status: SessionChangesetOperationStatus.Running }
+					: operation);
 		});
 	}
 
@@ -347,15 +515,19 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		return changes;
 	}
 
-	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
+	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
+		await this._invokeOperation(operationId, target, _meta);
+	}
+
+	private async _invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<InvokeChangesetOperationResult | undefined> {
 		const connection = this._options.getConnection();
 		if (!connection) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the agent host connection is unavailable.`);
 		}
 
 		const channel = this.channelUriObs.get();
 		if (!channel) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the changeset channel is unavailable.`);
 		}
 
 		const operation = this.operations.get().find(o => o.id === operationId);
@@ -375,16 +547,35 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 		}
 
-		await connection.invokeChangesetOperation({
-			operationId,
-			channel: channel.toString(),
-			target: target?.kind === 'resource'
-				? {
-					kind: ChangesetOperationTargetKind.Resource,
-					resource: target.resource.toString()
-				}
-				: undefined,
-		});
+		this._setOperationLocallyRunning(operationId, true);
+		try {
+			return await connection.invokeChangesetOperation({
+				operationId,
+				channel: channel.toString(),
+				target: target?.kind === 'resource'
+					? {
+						kind: ChangesetOperationTargetKind.Resource,
+						resource: target.resource.toString()
+					}
+					: undefined,
+				_meta
+			});
+		} finally {
+			this._setOperationLocallyRunning(operationId, false);
+		}
+	}
+
+	private _setOperationLocallyRunning(operationId: string, running: boolean): void {
+		const counts = new Map(this._locallyRunningOperationCounts.get());
+		const count = counts.get(operationId) ?? 0;
+		if (running) {
+			counts.set(operationId, count + 1);
+		} else if (count <= 1) {
+			counts.delete(operationId);
+		} else {
+			counts.set(operationId, count - 1);
+		}
+		this._locallyRunningOperationCounts.set(counts, undefined);
 	}
 
 	setReviewState(resources: readonly URI[], reviewed: boolean): void {
@@ -401,7 +592,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		const files = resources.map(resource => {
 			const file = this._changesetFilesObs.get()?.find(candidate => {
 				const change = changesetFileToChange(candidate, this._options.mapDiffUri);
-				return isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
+				return isEqual(change?.uri, resource) || isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
 			});
 			if (!file) {
 				throw new Error(`Resource '${resource.toString()}' is not part of changeset '${this.id}'`);
@@ -423,6 +614,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 class AgentHostChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
+	readonly resource: URI;
 
 	private _label: string;
 	get label(): string { return this._label; }
@@ -444,7 +636,8 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	) {
 		super(changesetSummary, options, dialogService);
 
-		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
+		this.resource = URI.parse(changesetSummary.uriTemplate);
+		this.channelUriObs = constObservable(this.resource);
 
 		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
 			options,
@@ -453,7 +646,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 			this.channelUriObs,
 		);
 
-		this.id = changesetSummary.changeKind;
+		this.id = changesetSummary.id ?? changesetSummary.changeKind;
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
 
@@ -481,6 +674,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 	constructor(
 		sessionUri: URI,
+		chatUri: URI | undefined,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
@@ -490,32 +684,21 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		this.id = changesetSummary.changeKind;
 
-		// Turns moved off the session and onto a per-chat channel with the
-		// multi-chat protocol. Subscribe to the session to discover its
-		// chats, then track the chat that was modified most recently — its
-		// in-progress turn (or, when idle, its last completed turn) is the
-		// session's "last turn".
-		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			options,
-			isActiveSessionObs,
-			StateComponents.Session,
-			constObservable(sessionUri),
-		);
+		const sessionStateObs = chatUri
+			? undefined
+			: createActiveSessionSubscriptionObs<SessionState>(
+				options,
+				isActiveSessionObs,
+				StateComponents.Session,
+				constObservable(sessionUri),
+			);
 
-		// Reuse the session-state subscription above to expose the session's
-		// working directories for the primary-directory filter.
-		this._workingDirectoriesObs = derived(reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
-				return undefined;
-			}
-			return sessionState.workingDirectories;
-		});
-
-		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			return selectMostRecentChatUri(sessionState, sessionUri);
-		});
+		const mostRecentChatUriObs = chatUri
+			? constObservable(chatUri)
+			: derivedOpts({ equalsFn: isEqual }, reader => {
+				const sessionState = sessionStateObs?.read(reader).read(reader);
+				return selectMostRecentChatUri(sessionState, sessionUri);
+			});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			options,
@@ -523,6 +706,16 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			StateComponents.Chat,
 			mostRecentChatUriObs,
 		);
+
+		this._workingDirectoriesObs = derived(reader => {
+			const ownerState = chatUri
+				? chatStateObs.read(reader).read(reader)
+				: sessionStateObs?.read(reader).read(reader);
+			if (!ownerState || ownerState instanceof Error) {
+				return undefined;
+			}
+			return ownerState.workingDirectories;
+		});
 
 		const lastTurnIdObs = derived(reader => {
 			const chatState = chatStateObs.read(reader).read(reader);
@@ -532,7 +725,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			// Prefer the in-progress turn so the "last turn" reflects streaming
 			// edits live; once it completes it moves into `turns` under the same
 			// id, so the tracked changeset transitions seamlessly.
-			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
+			if (chatState.activeTurn && !isHostNoticeTurn(chatState.activeTurn)) {
+				return chatState.activeTurn.id;
+			}
+			return lastAttributableTurnId(chatState.turns);
 		});
 
 		// Last turn changes
@@ -566,4 +762,77 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	protected override _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
 		return filterChangesToPrimaryWorkingDirectory(changes, this._workingDirectoriesObs.read(reader));
 	}
+}
+
+class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
+	readonly id = AGENT_MERGE_CHANGESET_ID;
+	readonly label: string;
+	readonly description: string | undefined;
+
+	readonly isEnabled = constObservable(true);
+	readonly isDefault: IObservable<boolean>;
+
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
+	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
+
+	constructor(
+		sessionUri: URI,
+		chatUri: URI | undefined,
+		options: IAgentHostAdapterOptions,
+		isActiveSessionObs: IObservable<boolean>,
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
+	) {
+		super(changesetSummary, options, dialogService);
+
+		this.label = changesetSummary.label;
+		this.description = changesetSummary.description;
+		this.isDefault = constObservable(changesetSummary.isDefault);
+
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Chat,
+			constObservable(chatUri ?? URI.parse(buildDefaultChatUri(sessionUri))),
+		);
+
+		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			const range = getAgentMergeChangesetRange(chatStateObs.read(reader).read(reader));
+			if (!range) {
+				return undefined;
+			}
+			return URI.parse(changesetSummary.uriTemplate
+				.replace('{originalTurnId}', range.originalTurnId)
+				.replace('{modifiedTurnId}', range.modifiedTurnId));
+		});
+
+		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Changeset,
+			this.channelUriObs,
+		);
+	}
+}
+
+function getAgentMergeChangesetRange(chatState: ChatState | Error | undefined | null): { readonly originalTurnId: string; readonly modifiedTurnId: string } | undefined {
+	if (!chatState || chatState instanceof Error || chatState.activeTurn?.message.origin.kind === MessageKind.User) {
+		return undefined;
+	}
+
+	let originalTurnId: string | undefined;
+	let modifiedTurnId: string | undefined;
+	for (const turn of chatState.turns) {
+		if (turn.message.origin.kind === MessageKind.User) {
+			originalTurnId = turn.state === TurnState.Cancelled ? undefined : turn.id;
+			modifiedTurnId = undefined;
+		} else if (originalTurnId
+			&& turn.state !== TurnState.Cancelled
+			&& turn.message.origin.kind === MessageKind.SystemNotification
+			&& isAgentMergeMessage(turn.message)) {
+			modifiedTurnId = turn.id;
+		}
+	}
+
+	return originalTurnId && modifiedTurnId ? { originalTurnId, modifiedTurnId } : undefined;
 }

@@ -11,7 +11,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { buildBranchChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from '../../node/agentHostMergeOperationHandler.js';
@@ -20,6 +21,8 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 const session = URI.parse('agent:/session');
 const worktreeRoot = URI.file('/repo.worktrees/session');
 const repositoryRoot = URI.file('/repo');
+const branchOwner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([worktreeRoot.toString()]));
+const branchChangeset = buildBranchChangesetUri(branchOwner);
 
 class TestGitService extends mock<IAgentHostGitService>() {
 	declare readonly _serviceBrand: undefined;
@@ -123,7 +126,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		outgoingChanges: 1,
 	});
 	if (options.hasPullRequest) {
-		sessionMeta = withSessionGitHubState(sessionMeta, {
+		sessionMeta = withSessionGitHubState(sessionMeta, worktreeRoot.toString(), {
 			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
 			pullRequestBranchName: 'agents/session',
 		});
@@ -145,6 +148,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		async (sessionKey, commit) => { merged.push({ sessionKey, commit }); },
 		gitService,
 		new NullLogService(),
+		stateManager,
 	);
 	return { gitService, handler, merged, refreshed };
 }
@@ -156,7 +160,7 @@ suite('AgentHostMergeOperationHandler', () => {
 		const { gitService, handler, merged, refreshed } = await setup(disposables, { configuredBranch: 'release', sourceDirty: true, targetBranch: 'release' });
 
 		const result = await handler.invoke({
-			channel: buildBranchChangesetUri(session.toString()),
+			channel: branchChangeset,
 			operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
 		}, CancellationToken.None);
 
@@ -175,7 +179,7 @@ suite('AgentHostMergeOperationHandler', () => {
 			],
 			requestedBaseBranches: ['release'],
 			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
-			refreshed: [session.toString()],
+			refreshed: [branchOwner],
 			message: 'Merged changes from \'agents/session\' into \'release\'.',
 		});
 	});
@@ -190,7 +194,7 @@ suite('AgentHostMergeOperationHandler', () => {
 		let errorMessage: string | undefined;
 		try {
 			await handler.invoke({
-				channel: buildBranchChangesetUri(session.toString()),
+				channel: branchChangeset,
 				operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
 			}, CancellationToken.None);
 		} catch (error) {
@@ -210,7 +214,7 @@ suite('AgentHostMergeOperationHandler', () => {
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
 			],
 			merged: [],
-			refreshed: [session.toString()],
+			refreshed: [branchOwner],
 			errorMessage: 'The worktree changes were committed, but merging into \'main\' failed. Open the parent repository and merge manually. Git reported: merge conflict',
 		});
 	});
@@ -224,7 +228,7 @@ suite('AgentHostMergeOperationHandler', () => {
 		let errorMessage: string | undefined;
 		try {
 			await handler.invoke({
-				channel: buildBranchChangesetUri(session.toString()),
+				channel: branchChangeset,
 				operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
 			}, CancellationToken.None);
 		} catch (error) {
@@ -237,7 +241,7 @@ suite('AgentHostMergeOperationHandler', () => {
 			errorMessage,
 		}, {
 			merged: [],
-			refreshed: [session.toString()],
+			refreshed: [branchOwner],
 			errorMessage: 'Changes were merged into \'main\', but the resulting commit could not be recorded.',
 		});
 	});
@@ -252,7 +256,7 @@ suite('AgentHostMergeOperationHandler', () => {
 		let errorMessage: string | undefined;
 		try {
 			await handler.invoke({
-				channel: buildBranchChangesetUri(session.toString()),
+				channel: branchChangeset,
 				operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
 			}, CancellationToken.None);
 		} catch (error) {
@@ -284,7 +288,7 @@ suite('AgentHostMergeOperationHandler', () => {
 		let errorMessage: string | undefined;
 		try {
 			await handler.invoke({
-				channel: buildBranchChangesetUri(session.toString()),
+				channel: branchChangeset,
 				operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
 			}, CancellationToken.None);
 		} catch (error) {

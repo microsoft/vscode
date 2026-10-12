@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
-import { selectSystemWideKeybindings } from '../../electron-browser/systemWideKeybindings.contribution.js';
+import { selectSystemWideKeybindings } from '../../electron-browser/systemWideKeybindings.js';
 
 suite('SystemWideKeybindings selection', () => {
 
@@ -72,7 +72,10 @@ suite('SystemWideKeybindings selection', () => {
 
 		assert.deepStrictEqual(selection, {
 			candidates: [],
-			unsupported: ['cmd+k cmd+c'],
+			unsupported: [{
+				commandId: 'noop.chord',
+				userSettingsLabel: 'cmd+k cmd+c',
+			}],
 			duplicates: [],
 		});
 	});
@@ -92,7 +95,10 @@ suite('SystemWideKeybindings selection', () => {
 				hasWhen: false,
 			}],
 			unsupported: [],
-			duplicates: ['cmd+a'],
+			duplicates: [{
+				commandId: 'second.loses',
+				userSettingsLabel: 'cmd+a',
+			}],
 		});
 	});
 });

@@ -19,13 +19,16 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function skill(name: string, description?: string): SkillCustomization {
+	type SkillOptions = Pick<SkillCustomization, 'disableModelInvocation' | 'disableUserInvocation' | 'enabled'>;
+
+	function skill(name: string, description?: string, options?: SkillOptions): SkillCustomization {
 		return {
 			type: CustomizationType.Skill,
 			id: `file:///skills/${name}/SKILL.md`,
 			uri: `file:///skills/${name}/SKILL.md`,
 			name,
 			...(description !== undefined ? { description } : {}),
+			...options,
 		};
 	}
 
@@ -62,13 +65,14 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	/** A skill with an explicit URI, so the same logical skill can be modelled at two different locations. */
-	function skillAt(name: string, uri: string, description?: string): SkillCustomization {
+	function skillAt(name: string, uri: string, description?: string, options?: SkillOptions): SkillCustomization {
 		return {
 			type: CustomizationType.Skill,
 			id: uri,
 			uri,
 			name,
 			...(description !== undefined ? { description } : {}),
+			...options,
 		};
 	}
 
@@ -125,6 +129,30 @@ suite('AgentHostSkillCompletionProvider', () => {
 				},
 			},
 		}]);
+	});
+
+	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin', [
+				skill('default'),
+				skill('model-disabled', undefined, { disableModelInvocation: true }),
+				skill('user-disabled', undefined, { disableUserInvocation: true }),
+			]),
+			directory('.github', 'file:///ws/.github/skills', [
+				skillAt('disabled', 'file:///ws/.github/skills/disabled/SKILL.md', undefined, { enabled: false }),
+				skillAt('visible', 'file:///ws/.github/skills/visible/SKILL.md'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/plugin:default ',
+			'/plugin:model-disabled ',
+			'/visible ',
+		]);
 	});
 
 	test('complete skills from a plugin with the same name as the skill', async () => {
