@@ -174,8 +174,10 @@ suite('ModelCard', () => {
 				suggestedValues: [{ value: 200_000, label: '200K' }, { value: 1_000_000, label: 'Full' }],
 			} } } });
 			const result = createCard({ contextSize: 200_000 }, { model, quickInputService: { input: async () => response } });
-			element(result.card.element, '.chat-model-card-custom').click();
+			const custom = element(result.card.element, '.chat-model-card-custom');
+			custom.focus(); custom.click();
 			await timeout(0);
+			assert.strictEqual(mainWindow.document.activeElement, element(result.card.element, '.chat-model-card-custom'));
 			assert.deepStrictEqual({ writes: result.writes, value: result.values.contextSize, label: element(result.card.element, '.chat-model-card-custom').textContent }, response === '250000'
 				? { writes: [{ contextSize: 250_000 }], value: 250_000, label: 'Custom: 250000...' }
 				: { writes: [], value: 200_000, label: 'Custom...' });
