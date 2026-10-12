@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatModelDefaultsCapabilities, IChatModelDefaultsPatch, IChatModelDefaultsSnapshot, IChatModelDefaultsTarget, IChatModelDefaultsUpdateResult } from '../../contrib/chat/common/chatModelDefaults.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRemoteConsoleLog } from '../../../base/common/console.js';
@@ -1464,7 +1465,11 @@ export interface ExtHostBrowsersShape {
 }
 
 export interface MainThreadLanguageModelsShape extends IDisposable {
-	$registerLanguageModelProvider(vendor: string): void;
+	$registerLanguageModelProvider(vendor: string, extension: ExtensionIdentifier): void;
+	$getChatModelDefaultsCapabilities(extension: ExtensionIdentifier, modelId: string): Promise<IChatModelDefaultsCapabilities>;
+	$getChatModelDefaultsTargets(extension: ExtensionIdentifier, modelId: string): Promise<readonly IChatModelDefaultsTarget[]>;
+	$inspectChatModelDefaults(extension: ExtensionIdentifier, modelId: string, targetId: string): Promise<IChatModelDefaultsSnapshot>;
+	$updateChatModelDefaults(extension: ExtensionIdentifier, modelId: string, targetId: string, patch: IChatModelDefaultsPatch, expectedRevision: string): Promise<IChatModelDefaultsUpdateResult>;
 	$onLMProviderChange(vendor: string): void;
 	$unregisterProvider(vendor: string): void;
 	$tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
@@ -1479,6 +1484,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
+	$onChatModelDefaultsChange(extension: ExtensionIdentifier, modelId: string, targetId: string): void;
 	$provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$onChatModelsChange(): void;

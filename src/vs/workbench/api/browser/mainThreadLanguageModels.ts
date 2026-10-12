@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../contrib/chat/browser/chatModelDefaultsService.js';
+import { IChatModelDefaultsCapabilities, IChatModelDefaultsPatch, IChatModelDefaultsService, IChatModelDefaultsSnapshot, IChatModelDefaultsTarget, IChatModelDefaultsUpdateResult } from '../../contrib/chat/common/chatModelDefaults.js';
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -22,7 +24,7 @@ import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageM
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
-import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError } from '../common/extHostTypes.js';
@@ -53,6 +55,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
+	private readonly _providerOwners = new Map<string, ExtensionIdentifier>();
+	private readonly _defaultsSubscriptions = new Map<string, ExtensionIdentifier>();
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
@@ -68,8 +72,15 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
+		@IChatModelDefaultsService private readonly _modelDefaultsService: IChatModelDefaultsService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+		this._store.add(this._modelDefaultsService.onDidChange(e => {
+			const owner = this._defaultsSubscriptions.get(e.modelId);
+			if (owner) {
+				this._proxy.$onChatModelDefaultsChange(owner, e.modelId, e.targetId);
+			}
+		}));
 
 		// Bridge workbench-side language-model changes to extensions via `vscode.lm.onDidChangeChatModels`.
 		// Only forward when the set of model identifiers changes. Providers (e.g. BYOK utility aliases) can
@@ -93,9 +104,49 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._pendingCancelCTS.dispose();
 		this._ignoredFileProviderRegistrations.dispose();
 		this._store.dispose();
+		this._providerOwners.clear();
+		this._defaultsSubscriptions.clear();
 	}
 
-	$registerLanguageModelProvider(vendor: string): void {
+	private async _checkDefaultsAccess(extension: ExtensionIdentifier, modelId: string): Promise<void> {
+		const description = await this._extensionService.getExtension(extension.value);
+		if (!description) {
+			throw new Error('Unknown extension');
+		}
+		checkProposedApiEnabled(description, 'languageModelChatDefaults');
+		this._checkDefaultsOwner(extension, modelId);
+		this._defaultsSubscriptions.set(modelId, extension);
+	}
+
+	private _checkDefaultsOwner(extension: ExtensionIdentifier, modelId: string): void {
+		const metadata = this._chatProviderService.lookupLanguageModel(modelId);
+		const owner = metadata && this._providerOwners.get(metadata.vendor);
+		if (!metadata || !owner || !ExtensionIdentifier.equals(owner, extension) || !ExtensionIdentifier.equals(metadata.extension, extension)) {
+			throw new Error('Model defaults are only accessible to the registered provider owner');
+		}
+	}
+
+	async $getChatModelDefaultsCapabilities(extension: ExtensionIdentifier, modelId: string): Promise<IChatModelDefaultsCapabilities> {
+		await this._checkDefaultsAccess(extension, modelId);
+		return this._modelDefaultsService.capabilities;
+	}
+
+	async $getChatModelDefaultsTargets(extension: ExtensionIdentifier, modelId: string): Promise<readonly IChatModelDefaultsTarget[]> {
+		await this._checkDefaultsAccess(extension, modelId);
+		return this._modelDefaultsService.getTargets(modelId);
+	}
+
+	async $inspectChatModelDefaults(extension: ExtensionIdentifier, modelId: string, targetId: string): Promise<IChatModelDefaultsSnapshot> {
+		await this._checkDefaultsAccess(extension, modelId);
+		return this._modelDefaultsService.inspect(modelId, targetId);
+	}
+
+	async $updateChatModelDefaults(extension: ExtensionIdentifier, modelId: string, targetId: string, patch: IChatModelDefaultsPatch, expectedRevision: string): Promise<IChatModelDefaultsUpdateResult> {
+		await this._checkDefaultsAccess(extension, modelId);
+		return this._modelDefaultsService.update(modelId, targetId, patch, expectedRevision, () => this._checkDefaultsOwner(extension, modelId));
+	}
+
+	$registerLanguageModelProvider(vendor: string, extension: ExtensionIdentifier): void {
 		const disposables = new DisposableStore();
 		try {
 			disposables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
@@ -168,6 +219,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					return this._proxy.$provideTokenLength(modelId, str, token);
 				},
 			}));
+			this._providerOwners.set(vendor, extension);
 			this._providerRegistrations.set(vendor, disposables);
 		} catch (err) {
 			disposables.dispose();
@@ -205,6 +257,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 	$unregisterProvider(vendor: string): void {
+		this._providerOwners.delete(vendor);
+		for (const modelId of this._defaultsSubscriptions.keys()) {
+			if (this._chatProviderService.lookupLanguageModel(modelId)?.vendor === vendor) {
+				this._defaultsSubscriptions.delete(modelId);
+			}
+		}
 		this._providerRegistrations.deleteAndDispose(vendor);
 	}
 

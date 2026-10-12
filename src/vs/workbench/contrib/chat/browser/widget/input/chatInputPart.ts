@@ -106,6 +106,7 @@ import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } fro
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
+import { ChatModelConfigurationPersistence } from '../../../common/chatModelConfigurationPersistence.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
@@ -1587,9 +1588,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getModelConfigurationStorageKey(): string {
 		const sessionType = this._currentSessionType;
 		if (sessionType && this.sessionTypeHasOwnModelPool(sessionType)) {
-			return `chat.modelConfiguration.${this.location}.${sessionType}`;
+			return ChatModelConfigurationPersistence.storageKey(this.location, sessionType);
 		}
-		return `chat.modelConfiguration.${this.location}`;
+		return ChatModelConfigurationPersistence.storageKey(this.location);
 	}
 
 	private _createModePickerDelegate(): IModePickerDelegate {

@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IChatModelDefaultsService } from '../../../contrib/chat/common/chatModelDefaults.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -21,9 +23,48 @@ import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels
 import { ExtHostLanguageModelsShape } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
+const unusedModelDefaults: IChatModelDefaultsService = {
+	_serviceBrand: undefined,
+	capabilities: { version: 1, scopeAwareDefaults: true, numericSuggestions: true, customNumericValues: true, requestConfigurationFidelity: 'unverified' },
+	onDidChange: Event.None,
+	getTargets() { throw new Error('Unexpected defaults access'); },
+	inspect() { throw new Error('Unexpected defaults access'); },
+	async update() { throw new Error('Unexpected defaults access'); },
+};
+
 suite('MainThreadLanguageModels', function () {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('defaults access requires the registered provider owner and proposal permission', async () => {
+		const store = disposables.add(new DisposableStore());
+		const owner = new ExtensionIdentifier('owner.extension');
+		const foreign = new ExtensionIdentifier('foreign.extension');
+		const denied = new ExtensionIdentifier('denied.extension');
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = Event.None;
+			override getLanguageModelIds() { return ['vendor/model']; }
+			override lookupLanguageModel() {
+				return { extension: owner, vendor: 'vendor', id: 'model', name: 'Model', version: '1', family: 'model',
+					maxInputTokens: 1000, maxOutputTokens: 100, isDefaultForLocation: {} };
+			}
+			override registerLanguageModelProvider() { return Disposable.None; }
+		};
+		const extensionService = new class extends mock<IExtensionService>() {
+			override async getExtension(id: string): Promise<IExtensionDescription | undefined> {
+				return { ...nullExtensionDescription, identifier: new ExtensionIdentifier(id), enabledApiProposals: id === denied.value ? [] : ['languageModelChatDefaults'] };
+			}
+		};
+		const mainThread = store.add(new MainThreadLanguageModels(SingleProxyRPCProtocol({}), languageModelsService, new NullLogService(), TestProductService,
+			new class extends mock<IAuthenticationService>() {}, new class extends mock<IAuthenticationAccessService>() {}, extensionService,
+			new class extends mock<ILanguageModelIgnoredFilesService>() {}, unusedModelDefaults));
+		mainThread.$registerLanguageModelProvider('vendor', owner);
+		assert.deepStrictEqual(await mainThread.$getChatModelDefaultsCapabilities(owner, 'vendor/model'), unusedModelDefaults.capabilities);
+		await assert.rejects(mainThread.$getChatModelDefaultsCapabilities(foreign, 'vendor/model'), /provider owner/);
+		await assert.rejects(mainThread.$getChatModelDefaultsCapabilities(denied, 'vendor/model'), /languageModelChatDefaults/);
+		mainThread.$unregisterProvider('vendor');
+		await assert.rejects(mainThread.$getChatModelDefaultsCapabilities(owner, 'vendor/model'), /provider owner/);
+	});
 
 	test('bridges onDidChangeLanguageModels to $onChatModelsChange when the model id set changes', async () => {
 		const store = disposables.add(new DisposableStore());
@@ -47,6 +88,7 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
 
 		assert.strictEqual(onChatModelsChangeCount, 0);
@@ -90,6 +132,7 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
 
 		for (let i = 0; i < 10; i++) {
@@ -183,8 +226,9 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
-		mainThread.$registerLanguageModelProvider('test-vendor');
+		mainThread.$registerLanguageModelProvider('test-vendor', new ExtensionIdentifier('test.extension'));
 
 		const infos = await provider!.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(info => ({ identifier: info.identifier, isBYOK: info.metadata.isBYOK })), [
@@ -221,6 +265,7 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
 
 		const requestId = 42;
@@ -260,6 +305,7 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
 
 		// Should not throw
@@ -297,8 +343,9 @@ suite('MainThreadLanguageModels', function () {
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
 			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+			unusedModelDefaults,
 		));
-		mainThread.$registerLanguageModelProvider('test');
+		mainThread.$registerLanguageModelProvider('test', new ExtensionIdentifier('test.extension'));
 
 		const cts = store.add(new CancellationTokenSource());
 		const response = await provider!.sendChatRequest('model-1', [], undefined, {}, cts.token);
