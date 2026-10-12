@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { McpServerSource } from './vscode/mcpCustomizationMeta.js';
-export { readMcpServerSource, withMcpServerSourceMeta } from './vscode/mcpCustomizationMeta.js';
+export { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from './vscode/mcpCustomizationMeta.js';

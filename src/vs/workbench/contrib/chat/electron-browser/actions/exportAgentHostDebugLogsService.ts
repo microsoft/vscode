@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -13,13 +17,13 @@ import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../../../../platform/agent
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ByteSize, IFileService } from '../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService, type INativeZipFile } from '../../../../../platform/native/common/native.js';
-import { createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, resolveAgentHostDebugLogsExportDirectory, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { commitAgentHostDebugLogsExport, createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, resolveAgentHostDebugLogsExportDirectory, type IAgentHostDebugLogsExportOptions, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
-class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
+export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
 	readonly hostArtifactKind = 'archive';
 
@@ -43,15 +47,27 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		});
 	}
 
-	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<void> {
+	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined, options?: IAgentHostDebugLogsExportOptions): Promise<void> {
+		const listeners = new DisposableStore();
+		const cancellation = listeners.add(new CancellationTokenSource(options?.token));
+		const token = cancellation.token;
+		const checkCancellation = () => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		};
+		const operationId = generateUuid();
+		const temporaryExport = joinPath(dirname(destination), `.agent-host-debug-logs-${operationId}.zip`);
 		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
 				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size };
 		});
-		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES };
+		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, operationId };
 		let temporaryHostArchive: URI | undefined;
+		let creatingZip = false;
 		try {
+			checkCancellation();
 			if (hostArtifact) {
 				const { artifact, readChunk } = hostArtifact;
 				if (artifact.kind !== 'archive') {
@@ -64,12 +80,52 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 					// single protocol message.
 					localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
 					temporaryHostArchive = localHostArchive;
-					await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
+					const watch = StopWatch.create();
+					let lastReport = 0;
+					const reportDownload = (bytes: number) => {
+						const elapsed = watch.elapsed();
+						if (bytes === artifact.size || elapsed - lastReport >= 100) {
+							lastReport = elapsed;
+							options?.progress.report({ message: localize('exportDebugLogs.downloadProgress', "Downloading Agent Host logs: {0} / {1}", ByteSize.formatSize(bytes), ByteSize.formatSize(artifact.size)) });
+						}
+					};
+					options?.progress.report({ message: localize('exportDebugLogs.downloadProgress', "Downloading Agent Host logs: {0} / {1}", ByteSize.formatSize(0), ByteSize.formatSize(artifact.size)) });
+					await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position), token, reportDownload));
+					this.logService.info(`[ExportAgentHostDebugLogs] Downloaded ${artifact.size} bytes in ${watch.elapsed()}ms`);
 				}
-				zipFiles.push({ sourceArchive: localHostArchive });
+				zipFiles.push({ path: 'host-logs.zip', source: localHostArchive, size: artifact.size, compress: false });
 			}
-			await this.nativeHostService.createZipFile(destination, zipFiles, zipOptions);
+			checkCancellation();
+			options?.progress.report({ message: localize('exportDebugLogs.zipProgress', "Creating debug logs ZIP...") });
+			listeners.add(this.nativeHostService.onDidProgressZipFile(progress => {
+				if (progress.operationId === operationId && !token.isCancellationRequested) {
+					options?.progress.report({ message: localize('exportDebugLogs.zipBytesProgress', "Creating ZIP ({0}): {1} / {2}", progress.path, ByteSize.formatSize(progress.bytes), ByteSize.formatSize(progress.total)) });
+				}
+			}));
+			listeners.add(token.onCancellationRequested(() => {
+				if (creatingZip) {
+					void this.nativeHostService.cancelZipFile(operationId).catch(error => this.logService.warn('[ExportAgentHostDebugLogs] Failed to cancel ZIP creation', error));
+				}
+			}));
+			const watch = StopWatch.create();
+			creatingZip = true;
+			try {
+				await this.nativeHostService.createZipFile(temporaryExport, zipFiles, zipOptions);
+			} finally {
+				creatingZip = false;
+			}
+			await commitAgentHostDebugLogsExport(temporaryExport, destination, this.fileService, this.logService, options);
+			this.logService.info(`[ExportAgentHostDebugLogs] Created final ZIP in ${watch.elapsed()}ms`);
 		} finally {
+			cancellation.cancel();
+			listeners.dispose();
+			try {
+				if (await this.fileService.exists(temporaryExport)) {
+					await this.fileService.del(temporaryExport);
+				}
+			} catch (error) {
+				this.logService.warn('[ExportAgentHostDebugLogs] Failed to remove incomplete export', error);
+			}
 			if (temporaryHostArchive) {
 				// Best-effort: the download may have failed before the file was
 				// created, and a cleanup failure must never mask that error.

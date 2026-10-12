@@ -18,6 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { ConfirmationOption } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -222,6 +223,7 @@ export interface IToolInvocation {
 }
 
 export interface IToolInvocationContext {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly sessionResource: URI;
 	/**
 	 * The id of the chat request that the tool is invoked for. For a subagent
@@ -242,6 +244,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 }
 
 export interface IToolInvocationPreparationContext {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	toolCallId: string;

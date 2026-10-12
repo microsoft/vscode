@@ -139,6 +139,7 @@ export class WebviewEditor extends EditorPane {
 
 	public override async setInput(input: EditorInput, options: IEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (this.input && input.matches(this.input)) {
+			await this.applyNavigationOptions(options, token);
 			return;
 		}
 
@@ -160,6 +161,18 @@ export class WebviewEditor extends EditorPane {
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
 			}
+		}
+		await this.applyNavigationOptions(options, token);
+	}
+
+	public override setOptions(options: IEditorOptions): void {
+		super.setOptions(options);
+		void this.applyNavigationOptions(options, CancellationToken.None);
+	}
+
+	private async applyNavigationOptions(options: IEditorOptions, token: CancellationToken): Promise<void> {
+		if (this.input instanceof WebviewInput) {
+			await this.input.applyOptions(options, token);
 		}
 	}
 

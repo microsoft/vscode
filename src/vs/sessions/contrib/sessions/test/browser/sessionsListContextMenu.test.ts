@@ -282,6 +282,7 @@ suite('Sessions list context menus', () => {
 			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
+			isRead: constObservable(true),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -294,6 +295,7 @@ suite('Sessions list context menus', () => {
 			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
+			isRead: constObservable(true),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 			changes: constObservable([]),
 			changesets: constObservable([]),

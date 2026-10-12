@@ -99,7 +99,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		}));
 
 		this._register(autorun(reader => {
-			this.domNode.style.display = showChanges.read(reader) ? '' : 'none';
+			this.domNode.hidden = !showChanges.read(reader);
 		}));
 	}
 

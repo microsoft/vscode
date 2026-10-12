@@ -10,10 +10,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { constObservable, observableValue, autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,6 +22,10 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
@@ -39,6 +44,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTypes.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -51,6 +57,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
@@ -72,7 +79,10 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
@@ -89,6 +99,7 @@ suite('AgentHostClientTools', () => {
 
 	/** A remote agent host running the same Copilot CLI harness (`remote-{authority}-{provider}`). */
 	const REMOTE_COPILOT_CLI_SESSION_TYPE = 'remote-devbox-copilotcli';
+	const CLOUD_SANDBOX_SESSION_TYPE = 'remote-cloudsandbox_environment-one-copilot';
 
 	const disposables = new DisposableStore();
 
@@ -288,10 +299,10 @@ suite('AgentHostClientTools', () => {
 				bundled: customizations.customizations.get().map(ref => Object.keys(ref.childEnablement ?? {})),
 			}, {
 				deliveries: [
-					['copilot.null', remoteAuthority ? AgentHostMcpServerDelivery.ClientForwarded : AgentHostMcpServerDelivery.RuntimeDiscovered],
-					['copilot.ssh-remote+devbox', remoteAuthority ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.ClientForwarded],
+					['copilot.null', remoteAuthority ? AgentHostMcpServerDelivery.NotDelivered : AgentHostMcpServerDelivery.RuntimeDiscovered],
+					['copilot.ssh-remote+devbox', remoteAuthority ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.NotDelivered],
 				],
-				bundled: [[remoteAuthority ? 'copilot.null' : 'copilot.ssh-remote+devbox']],
+				bundled: [],
 			});
 		});
 	}
@@ -348,12 +359,16 @@ suite('AgentHostClientTools', () => {
 			localDisabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, false),
 			localEnabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
 			remoteEnabled: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE, true),
+			sandboxDisabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, false),
+			sandboxEnabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, true),
 			otherEnabled: await publishedTools(tools, 'agent-host-claude', true),
 			withoutCanonical: await publishedTools([collidingCodebaseTool, collidingSemanticSearchTool, readFileTool], AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
 		}, {
 			localDisabled: [['readFile', 'Read File']],
 			localEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			sandboxDisabled: [['readFile', 'Read File']],
+			sandboxEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
@@ -734,6 +749,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
 			override readonly initializeResult = constObservable(undefined);
+			override readonly resourceUris = createAgentHostResourceUriMapper('local');
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
@@ -741,6 +757,17 @@ suite('AgentHostClientTools', () => {
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
 			public readonly resourceReadResponses = new Map<string, Promise<{ data: string; encoding: ContentEncoding }>>();
+
+			override async listSessions() {
+				const sessions = new Set([AgentSession.uri('copilot', 'session-1').toString()]);
+				for (const [resource, entry] of this._liveSubscriptions) {
+					const parent = parseDefaultChatUri(resource);
+					if (parent || hasKey(entry.state, { provider: true })) {
+						sessions.add(parent ?? resource);
+					}
+				}
+				return [...sessions].map(resource => ({ session: URI.parse(resource), provider: 'copilot', startTime: 0, modifiedTime: 0 }));
+			}
 
 			override async resourceRead(uri: URI) {
 				this.resourceReadUris.push(uri);
@@ -856,6 +883,10 @@ suite('AgentHostClientTools', () => {
 			} as Partial<IConfigurationService>;
 
 			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAgentHostService, connection);
+			instantiationService.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
+			instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
+			instantiationService.stub(IAgentHostConnectionsService, disposables.add(instantiationService.createInstance(AgentHostConnectionsService)));
 			instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
@@ -974,6 +1005,7 @@ suite('AgentHostClientTools', () => {
 				refreshResolvedConfig: async () => { },
 			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 			instantiationService.stub(IAgentHostToolSetEnablementService, {
 				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
 				getState: () => ({ toolSets: new Map(), tools: new Map() }),
@@ -996,7 +1028,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications, instantiationService };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -2580,6 +2612,152 @@ suite('AgentHostClientTools', () => {
 			assert.strictEqual(connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'mcp-call-1'), false);
 		}));
 
+		/**
+		 * Renders a running MCP tool call in an observed turn, then pauses it for
+		 * authentication. `sessions` are the remembered accounts the silent
+		 * authentication attempt can reuse. Like the real host, a forwarded token
+		 * resolves the tool call's pending authentication. With
+		 * `challengeBeforeRender`, the tool call is already waiting for
+		 * authentication when the chat is first rendered, as after a reconnect.
+		 */
+		async function renderMcpToolCallRequiringAuthentication(sessions: AuthenticationSession[], challengeBeforeRender = false) {
+			const { handler, connection, instantiationService } = createHandlerWithMocks(disposables, []);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const chatURI = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1').toString()));
+			instantiationService.stub(IAuthenticationService, {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'notion-provider',
+				getSessions: async () => sessions,
+			});
+			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			const authenticateRequests: { resource: string; token: string }[] = [];
+			connection.authenticate = async params => {
+				authenticateRequests.push({ resource: params.resource, token: params.token });
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-1',
+					toolCallId: 'mcp-call-1',
+				} as ChatAction);
+				return { authenticated: true };
+			};
+			const challenge = async () => {
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallAuthRequired,
+					turnId: 'turn-1',
+					toolCallId: 'mcp-call-1',
+					auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.notion.com/mcp', authorization_servers: ['https://auth.notion.com'] } },
+				} as ChatAction);
+				await timeout(0);
+				await timeout(0);
+			};
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'search notion', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'mcp-call-1',
+				toolName: 'notionSearch',
+				displayName: 'Notion Search',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'notion-mcp' },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'mcp-call-1',
+				invocationMessage: 'Search Notion',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			if (challengeBeforeRender) {
+				await challenge();
+			}
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+
+			const invocation = (session as unknown as { progressObs: { get(): IChatProgress[] } }).progressObs.get()
+				.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'mcp-call-1');
+			assert.ok(invocation, 'the turn observer should render the MCP tool call');
+			const stateKinds: IChatToolInvocation.StateKind[] = [];
+			disposables.add(autorun(reader => {
+				stateKinds.push(invocation.state.read(reader).type);
+			}));
+
+			if (!challengeBeforeRender) {
+				await challenge();
+			}
+
+			return { invocation, stateKinds, authenticateRequests, sessionResource, challenge };
+		}
+
+		const rememberedNotionSession: AuthenticationSession = {
+			id: 'notion-session',
+			accessToken: 'notion-token',
+			account: { id: 'notion-account', label: 'Notion Account' },
+			scopes: [],
+		};
+
+		test('does not show authentication UI when silent MCP authentication resolves the tool call', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { stateKinds, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
+
+			assert.deepStrictEqual({
+				showedAuthentication: stateKinds.includes(IChatToolInvocation.StateKind.WaitingForAuthentication),
+				authenticateRequests,
+			}, {
+				showedAuthentication: false,
+				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token' }],
+			});
+		}));
+
+		test('shows authentication UI once silent MCP authentication fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests, sessionResource } = await renderMcpToolCallRequiringAuthentication([]);
+
+			const state = invocation.state.get();
+			assert.deepStrictEqual({
+				state: state.type,
+				server: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? { id: state.server.id, resource: state.server.resource } : undefined,
+				authenticateRequests,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				server: { id: `${sessionResource.authority}/notion-mcp`, resource: 'https://mcp.notion.com/mcp' },
+				authenticateRequests: [],
+			});
+		}));
+
+		test('shows authentication UI when the server rejects the silently supplied credential', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests, challenge } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
+
+			// The server challenges again after the silent token resolved the first challenge.
+			await challenge();
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				authenticateRequests: 1,
+			});
+		}));
+
+		test('silently authenticates a tool call that already required authentication when rendered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession], true);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.Executing,
+				authenticateRequests: 1,
+			});
+		}));
+
 		test('renders a subagent client tool as the same invocation the watcher executes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// The subagent observer renders the shared invocation and the
 			// watcher executes it: both act on one object, invoked exactly once,
@@ -2749,7 +2927,7 @@ suite('AgentHostClientTools', () => {
 
 		test('maps semantic search to codebase only for Copilot sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const invoke = async (sessionType: string, toolCallId: string) => {
-				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE;
+				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE || sessionType === CLOUD_SANDBOX_SESSION_TYPE;
 				const codebaseTool = isCopilot
 					? semanticSearchTool
 					: { ...semanticSearchTool, canRequestPreApproval: true };
@@ -2792,9 +2970,10 @@ suite('AgentHostClientTools', () => {
 				[
 					await invoke(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, 'copilot-semantic'),
 					await invoke(REMOTE_COPILOT_CLI_SESSION_TYPE, 'remote-copilot-semantic'),
+					await invoke(CLOUD_SANDBOX_SESSION_TYPE, 'sandbox-copilot-semantic'),
 					await invoke('agent-host-claude', 'claude-semantic'),
 				],
-				[semanticSearchTool.id, semanticSearchTool.id, collidingSemanticSearchTool.id],
+				[semanticSearchTool.id, semanticSearchTool.id, semanticSearchTool.id, collidingSemanticSearchTool.id],
 			);
 		}));
 
@@ -3022,6 +3201,7 @@ suite('AgentHostClientTools', () => {
 				const backendSession = AgentSession.uri('copilot', `session-${index}`);
 				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/session-${index}` });
 				const chat = buildDefaultChatUri(backendSession.toString());
+				connection.applySessionAction(backendSession, { type: ActionType.SessionTitleChanged, title: 'Test' });
 				const subscription = disposables.add(new ChatStateSubscription(chat, connection.clientId, () => ++clientSeq, () => { }));
 				disposables.add(subscription.onDidChange(state => connection.setChatState(chat, state)));
 				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);

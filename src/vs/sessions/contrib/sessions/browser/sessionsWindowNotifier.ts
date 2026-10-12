@@ -178,8 +178,8 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		switch (status) {
 			case SessionStatus.NeedsInput:
 				return workspaceLabel
-					? localize('sessions.notification.needsInputWithWorkspace', "Input needed in {0}.", workspaceLabel)
-					: localize('sessions.notification.needsInput', "Input needed.");
+					? localize('sessions.notification.needsInputWithWorkspace', "Attention needed in {0}.", workspaceLabel)
+					: localize('sessions.notification.needsInput', "Attention needed.");
 			case SessionStatus.Completed:
 				return workspaceLabel
 					? localize('sessions.notification.completedWithWorkspace', "Completed in {0}.", workspaceLabel)

@@ -34,6 +34,7 @@ import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
 import { defineAutomationsTests } from './automationsSuite.js';
 import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
+import { defineTerminalResilienceTests } from './terminalResilienceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -168,6 +169,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
 			defineDetachedWorktreeTests(context);
+			defineTerminalResilienceTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

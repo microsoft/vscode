@@ -143,34 +143,6 @@
 	margin-bottom: 4px;
 }
 
-.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
-	display: flex;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
-	flex: 0 1 auto;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
-	padding: 0;
-	border-radius: 0;
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: normal;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
-	margin-left: auto;
-	flex-shrink: 0;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-config-option .title,
-.action-widget .monaco-list-row.chat-model-picker-config-option .description {
-	flex: none;
-	overflow: visible;
-}
-
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;
@@ -524,28 +496,6 @@
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button .codicon,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action .codicon {
 	font-size: var(--vscode-codiconFontSize);
-}
-
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tab {
-	flex: 0 1 auto;
-}
-
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tab.has-toggle {
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--vscode-modernTab-activeForeground);
-	background: var(--vscode-modernTab-activeBackground);
-	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
-}
-
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tab.has-toggle > .monaco-button.active {
-	background: transparent;
-	box-shadow: none;
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tab-toggle {
-	flex: 0 0 auto;
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
 }
 
 .action-widget .chat-model-picker-tabbed,
@@ -1186,6 +1136,21 @@
 
 .chat-model-card-description p {
 	margin: 0;
+}
+
+.chat-model-card-description a,
+.chat-model-card-description a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-model-card-description a:hover,
+.chat-model-card-description a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-model-card-description a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 .model-picker-workflow-footer {

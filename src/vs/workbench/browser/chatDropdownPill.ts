@@ -20,7 +20,7 @@ import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverActions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -104,6 +104,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 
 	private _dropdownVisible = false;
 	private readonly _prefetchedEntries = new Set<string>();
+	private readonly _dropdownLabels = new Map<string, Pick<IChatPillEntry, 'label' | 'ariaLabel' | 'dropdownAriaLabel'>>();
 	private _entries: readonly IChatPillEntry[] = [];
 	private _summaryIcon: ThemeIcon | undefined;
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
@@ -114,11 +115,15 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		this._register(autorun(reader => {
 			const previous = this._getPresentation();
 			this._entries = getChatPillEntries(this._sections.read(reader));
+			for (const id of this._dropdownLabels.keys()) {
+				if (!this._entries.some(entry => entry.id === id)) {
+					this._dropdownLabels.delete(id);
+				}
+			}
 			for (const [id, cached] of this._resourceDropdownHovers) {
 				const entry = this._entries.find(entry => entry.id === id);
 				if (!entry || !sameResourceHover(cached.entry, entry)) {
-					cached.hover.disposable?.dispose();
-					this._resourceDropdownHovers.delete(id);
+					this._evictResourceHover(id, entry);
 				}
 			}
 			this._summaryIcon = ThemeIcon.isThemeIcon(this._pillOptions.icon) ? this._pillOptions.icon : this._pillOptions.icon.read(reader);
@@ -239,20 +244,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (this.isSummarized) {
 			return super.getHoverContents();
 		}
-		const entry = this.entries.at(0);
-		if (!entry?.imagePreview) {
-			return entry?.pillHover ?? super.getHoverContents();
-		}
-		const imagePreview = entry.imagePreview;
-		let content = this._imageHoverContents.get(entry);
-		if (!content) {
-			content = {
-				element: token => createChatPillImagePreview({ ...entry, imagePreview }, this._fileService, token).element,
-				contentOwnsPadding: true,
-			};
-			this._imageHoverContents.set(entry, content);
-		}
-		return content;
+		return getChatPillEntryHoverContents(this.entries.at(0), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
 	}
 
 	protected override getAriaLabel(): string | undefined {
@@ -262,17 +254,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
-		const entry = this.isSummarized ? undefined : this.entries.at(0);
-		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
-		return hoverActions?.length ? {
-			trapFocus: true,
-			actions: hoverActions.map(action => ({
-				commandId: action.id,
-				label: action.hoverLabel ?? action.label,
-				iconClass: action.class,
-				run: () => { void action.run(); },
-			})),
-		} : undefined;
+		return getChatPillEntryHoverOptions(this.isSummarized ? undefined : this.entries.at(0));
 	}
 
 	protected override onDidClickButton(): void {
@@ -306,6 +288,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}
 
 		this._prefetchedEntries.clear();
+		this._dropdownLabels.clear();
 		sections.flatMap(section => section.entries).filter(entry => entry.prefetch).slice(0, 5).forEach(entry => this._prefetchEntry(entry));
 		sections = this._sections.get().filter(section => section.entries.length > 0);
 		const items = this._getDropdownItems(sections);
@@ -317,6 +300,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			onHide: () => {
 				this._dropdownVisible = false;
 				this._prefetchedEntries.clear();
+				this._dropdownLabels.clear();
 				this._updatePopupState();
 				if (trigger.isConnected) {
 					trigger.focus();
@@ -334,7 +318,11 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => [item.item?.ariaLabel ?? item.label, item.ariaDescription].filter(Boolean).join(', '),
+				getAriaLabel: item => {
+					const entryLabel = item.item?.ariaLabel ?? item.label;
+					const label = item.item?.dropdownAriaLabel ?? (item.badgeBeforeLabel ? [item.badge, entryLabel].filter(Boolean).join(', ') : entryLabel);
+					return [label, item.ariaDescription].filter(Boolean).join(', ');
+				},
 				getWidgetAriaLabel: () => this._pillOptions.title,
 			},
 			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown', preferredAnchorPosition: this._pillOptions.preferredAnchorPosition },
@@ -349,10 +337,19 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			items.push({ kind: ActionListItemKind.Header, label: section.title, group: { title: section.title } });
 			for (const entry of section.entries) {
+				let displayedEntry = entry;
+				if (entry.preserveLabelOnRefresh) {
+					const label = this._dropdownLabels.get(entry.id) ?? { label: entry.label, ariaLabel: entry.ariaLabel, dropdownAriaLabel: entry.dropdownAriaLabel };
+					this._dropdownLabels.set(entry.id, label);
+					displayedEntry = { ...entry, ...label };
+				} else {
+					this._dropdownLabels.delete(entry.id);
+				}
 				items.push({
 					kind: ActionListItemKind.Action,
-					label: entry.label,
+					label: displayedEntry.label,
 					...(entry.badge ? { badge: entry.badge } : {}),
+					...(entry.badgeBeforeLabel ? { badgeBeforeLabel: true } : {}),
 					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
@@ -361,7 +358,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					hover: this._getDropdownHover(entry),
 					onDidBecomeVisible: entry.prefetch ? () => this._prefetchEntry(entry) : undefined,
 					...(this._pillOptions.openHoverOnSelect ? { openSubmenuOnClick: true } : {}),
-					item: entry,
+					item: displayedEntry,
 				});
 			}
 		}
@@ -388,7 +385,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				this._dropdownHovers.set(entry, baseHover);
 			}
 		}
-		const cacheable = !!entry.imagePreview || entry.hover?.panelClassName === 'chat-pill-location-hover-panel';
+		const cacheable = !!entry.imagePreview || entry.hover?.panelClassName === 'chat-pill-hover-panel';
 		const cached = this._resourceDropdownHovers.get(entry.id);
 		if (cacheable && cached && sameResourceHover(cached.entry, entry)) {
 			if (cached.entry === entry) {
@@ -407,8 +404,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			return hover;
 		}
 		if (cached) {
-			cached.hover.disposable?.dispose();
-			this._resourceDropdownHovers.delete(entry.id);
+			this._evictResourceHover(entry.id, entry);
 		}
 		if (!entry.imagePreview) {
 			if (cacheable && baseHover) {
@@ -422,6 +418,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			...baseHover,
 			content: () => {
 				preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
+				preview.element.classList.add('compact');
 				return preview.element;
 			},
 			disposeContent: content => {
@@ -442,6 +439,25 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		};
 		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;
+	}
+
+	/**
+	 * Releases the hover cached for an entry that changed or was removed. An entry can
+	 * hand out the same hover disposable on every update, for content its source keeps
+	 * alive. That hover stays cached until the entry is removed or stops carrying the
+	 * disposable, so it is still released when the entry updates while the dropdown is closed.
+	 */
+	private _evictResourceHover(id: string, replacement: IChatPillEntry | undefined): void {
+		const cached = this._resourceDropdownHovers.get(id);
+		if (!cached) {
+			return;
+		}
+		const disposable = cached.hover.disposable;
+		if (disposable && disposable === replacement?.hover?.disposable) {
+			return;
+		}
+		disposable?.dispose();
+		this._resourceDropdownHovers.delete(id);
 	}
 
 	private _prefetchEntry(entry: IChatPillEntry): void {
@@ -470,7 +486,11 @@ function sameResourceHover(first: IChatPillEntry, second: IChatPillEntry): boole
 		&& isEqual(first.resource, second.resource)
 		&& isEqual(first.imagePreview?.resource, second.imagePreview?.resource)
 		&& first.imagePreview?.mimeType === second.imagePreview?.mimeType
-		&& first.hover?.panelClassName === second.hover?.panelClassName;
+		&& first.hover?.panelClassName === second.hover?.panelClassName
+		&& first.hover?.getTabbableElements === second.hover?.getTabbableElements
+		&& (typeof first.hover?.content === 'function'
+			? first.hover.content === second.hover?.content
+			: typeof second.hover?.content !== 'function');
 }
 
 function iconsEqual(first: ThemeIcon | undefined, second: ThemeIcon | undefined): boolean {

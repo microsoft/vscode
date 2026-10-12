@@ -7,7 +7,6 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -16,12 +15,12 @@ import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlas
 
 export const copilotSandboxPolicyCommand: RuntimeSlashCommandInfo = {
 	name: 'sandbox',
-	description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session"),
+	description: localize('copilotSlashCommand.sandboxPolicy', "Open the latest effective sandbox policy for this session in the editor"),
 	kind: 'builtin',
 	allowDuringAgentExecution: true,
 	input: {
 		hint: '',
-		choices: [{ name: 'policy', description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session") }],
+		choices: [{ name: 'policy', description: localize('copilotSlashCommand.sandboxPolicy', "Open the latest effective sandbox policy for this session in the editor") }],
 	},
 };
 
@@ -49,7 +48,7 @@ export class CopilotSandboxPolicyDisplay {
 			throw new Error(localize('copilotSlashCommand.sandboxPolicyUnavailable', "The SDK did not return a sandbox policy."));
 		}
 		const markdown = formatSandboxPolicyMarkdown(text, result.kind !== 'text' || result.markdown === true);
-		const resource = URI.joinPath(this._sessionDataService.getSessionDataDir(this._storageUri), 'diagnostics', generateUuid(), 'sandbox-policy.md');
+		const resource = URI.joinPath(this._sessionDataService.getSessionDataDir(this._storageUri), 'diagnostics', 'sandbox-policy.md');
 		try {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(markdown));
 		} catch (err) {
@@ -61,6 +60,7 @@ export class CopilotSandboxPolicyDisplay {
 			resource,
 			label: localize('copilotSlashCommand.openSandboxPolicy', "Open Sandbox Policy"),
 			preview: true,
+			openInEditor: true,
 		};
 	}
 }

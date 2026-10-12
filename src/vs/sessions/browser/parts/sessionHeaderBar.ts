@@ -72,6 +72,7 @@ export class SessionHeaderBar extends Disposable {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
+	private _height = 0;
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
@@ -86,10 +87,12 @@ export class SessionHeaderBar extends Disposable {
 	}
 
 	get height(): number {
-		return this._visible ? this._container.offsetHeight : 0;
+		this._height = this._visible ? this._container.offsetHeight : 0;
+		return this._height;
 	}
 
 	constructor(
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -143,11 +146,19 @@ export class SessionHeaderBar extends Disposable {
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
-		// Report height changes so the host can re-layout.
-		const heightObserver = this._register(new DisposableResizeObserver('SessionHeaderBar.height', () => {
-			this._onDidChangeHeight.fire();
-		}));
-		this._register(heightObserver.observe(this._container));
+		const heightObserver = this._register(new DisposableResizeObserver('SessionHeaderBar.height', entries => {
+			const entry = entries.find(entry => entry.target === this._container);
+			if (!entry || this._store.isDisposed) {
+				return;
+			}
+			// Match offsetHeight's integer border box, including when an ancestor is hidden.
+			const height = this._visible ? Math.round(entry.borderBoxSize[0]?.blockSize ?? this._container.offsetHeight) : 0;
+			if (this._height !== height) {
+				this._height = height;
+				this._onDidChangeHeight.fire();
+			}
+		}, getWindow(this._container), { resizeObserverCtor }));
+		this._register(heightObserver.observe(this._container, { box: 'border-box' }));
 
 		this._applyVisibility(false);
 		this._updateStyles();
@@ -288,12 +299,14 @@ export class SessionHeaderBar extends Disposable {
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		// Metadata is surfaced above the chat input, so the title keeps the
 		// read/unread status indicator.
+		// The title shows the active chat, so its read state must too: the session's
+		// own `isRead` aggregates all chats and would show another peer chat's unread state.
+		const activeChat = activeChatObservable.read(reader);
 		const status = session.status.read(reader);
-		const isRead = session.isRead.read(reader);
+		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		const activeChat = activeChatObservable.read(reader);
 		if (!activeChat) {
 			this._activeChat = undefined;
 			this._titleTextEl.textContent = this._getUntitledTitle(reader);
@@ -309,7 +322,6 @@ export class SessionHeaderBar extends Disposable {
 			? this._getUntitledTitle(reader)
 			: activeChat.title.read(reader) || this._getUntitledTitle(reader);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
-		this._onDidChangeHeight.fire();
 	}
 
 	private _getUntitledTitle(reader?: IReader): string {

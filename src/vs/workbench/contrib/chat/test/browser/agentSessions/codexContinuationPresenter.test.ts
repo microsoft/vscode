@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -20,6 +21,56 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 suite('Codex continuation presentation boundary', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	for (const surface of ['agentsWindow', 'editorWindow'] as const) {
+		for (const failure of ['declined', 'storage error'] as const) {
+			test(`${surface} retries after a ${failure} visibility claim`, () => runWithFakedTimers({}, async () => {
+				const changed = store.add(new Emitter<void>());
+				const candidate = upcastPartial<ICodexContinuationCandidate>({});
+				const expectedError = new Error('Shared storage is unavailable');
+				const errors: Error[] = [];
+				let reserved = false;
+				let claims = 0;
+				let shown = 0;
+				let released = 0;
+				let disposed = 0;
+				let visibleSurfaces = 0;
+				const nudge = upcastPartial<ICodexContinuationService>({
+					candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
+					wouldShow: async () => !reserved, resolve: async () => candidate,
+					reservePresentation: async () => { reserved = true; return true; },
+					releasePresentation: async () => { reserved = false; released++; }, ownsEpisode: () => true,
+					markVisible: async () => {
+						if (++claims === 1) {
+							if (failure === 'storage error') { throw expectedError; }
+							return false;
+						}
+						return true;
+					},
+					trackVisibility: () => { visibleSurfaces++; return toDisposable(() => visibleSurfaces--); },
+				});
+				let visible: () => Promise<boolean>;
+				store.add(new CodexContinuationPresenter({
+					surface, onDidChangePresentability: changed.event, isPresentable: () => true,
+					show: (_candidate, didShow) => { shown++; visible = didShow; return toDisposable(() => disposed++); },
+				}, nudge, upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }),
+					upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+				await timeout(1);
+				const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+				setUnexpectedErrorHandler(error => errors.push(error));
+				try {
+					assert.strictEqual(await visible!(), false);
+				} finally {
+					setUnexpectedErrorHandler(originalErrorHandler);
+				}
+				changed.fire();
+				await timeout(1);
+				assert.deepStrictEqual({ shown, released, disposed, reserved, visibleSurfaces, errors }, {
+					shown: 2, released: 1, disposed: 1, reserved: true, visibleSurfaces: 0,
+					errors: failure === 'storage error' ? [expectedError] : [],
+				});
+				assert.strictEqual(await visible!(), true);
+			}));
+		}
+
 		for (const scenario of ['clickBeforeVisible', 'clickDuringClaim', 'dismissDuringClaim', 'rejectedClaim'] as const) {
 			test(`${surface} actions await one visibility claim: ${scenario}`, () => runWithFakedTimers({}, async () => {
 				const pending = new DeferredPromise<boolean>();
@@ -29,7 +80,7 @@ suite('Codex continuation presentation boundary', () => {
 				let disposed = 0;
 				let visibleSurfaces = 0;
 				const nudge = upcastPartial<ICodexContinuationService>({
-					candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+					candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
 					wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
 					releasePresentation: async () => { }, ownsEpisode: () => true,
 					markVisible: async (_surface, _candidate, isVisible) => { claims++; return await pending.p && isVisible!(); },
@@ -60,6 +111,51 @@ suite('Codex continuation presentation boundary', () => {
 			}));
 		}
 
+		test(`${surface} ignores an old failed claim after a new presentation is visible`, () => runWithFakedTimers({}, async () => {
+			const pending = new DeferredPromise<boolean>();
+			const changed = store.add(new Emitter<void>());
+			const candidate = upcastPartial<ICodexContinuationCandidate>({});
+			let claims = 0;
+			let disposed = 0;
+			let released = 0;
+			let previewEnded = 0;
+			let visibleSurfaces = 0;
+			const nudge = upcastPartial<ICodexContinuationService>({
+				candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+				endPreview: () => previewEnded++,
+				wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
+				releasePresentation: async () => { released++; }, ownsEpisode: () => true,
+				markVisible: async () => ++claims === 1 ? pending.p : true,
+				trackVisibility: () => { visibleSurfaces++; return toDisposable(() => visibleSurfaces--); },
+			});
+			let visible: () => Promise<boolean>;
+			let close: (reason: 'action' | 'dismissed') => void;
+			store.add(new CodexContinuationPresenter({
+				surface, onDidChangePresentability: changed.event, isPresentable: () => true,
+				show: (_candidate, didShow, didClose) => { visible = didShow; close = didClose; return toDisposable(() => disposed++); },
+			}, nudge, upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }),
+				upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+			await timeout(1);
+			const firstClaim = visible!();
+			close!('dismissed');
+			changed.fire();
+			await timeout(1);
+			assert.strictEqual(await visible!(), true);
+			const expectedError = new Error('Late storage failure');
+			const errors: Error[] = [];
+			const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				await pending.error(expectedError);
+				assert.strictEqual(await firstClaim, false);
+			} finally {
+				setUnexpectedErrorHandler(originalErrorHandler);
+			}
+			assert.deepStrictEqual({ claims, disposed, released, previewEnded, visibleSurfaces, errors }, {
+				claims: 2, disposed: 1, released: 1, previewEnded: 1, visibleSurfaces: 1, errors: [expectedError],
+			});
+		}));
+
 		test(`${surface} hidden or silenced does not trigger, reserve, or claim`, () => runWithFakedTimers({}, async () => {
 			const changed = store.add(new Emitter<void>());
 			let presentable = false;
@@ -68,7 +164,7 @@ suite('Codex continuation presentation boundary', () => {
 			const nudge = upcastPartial<ICodexContinuationService>({
 				candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0),
 				trackVisibility: () => toDisposable(() => { }),
-				setSelectableModels: () => { },
+				setSelectableModels: () => { }, endPreview: () => { },
 				wouldShow: async () => { calls.push('trigger'); return true; }, resolve: async () => candidate,
 				reservePresentation: async () => { calls.push('reserve'); return true; },
 				releasePresentation: async () => { }, ownsEpisode: () => true,
@@ -99,7 +195,7 @@ suite('Codex continuation presentation boundary', () => {
 			let disposed = 0;
 			let dismissed = 0;
 			const nudge = upcastPartial<ICodexContinuationService>({
-				candidate: eligible, revision: observableValue('revision', 0), setSelectableModels: () => { },
+				candidate: eligible, revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
 				trackVisibility: () => toDisposable(() => { }),
 				wouldShow: async () => true, resolve: async () => eligible.get(), reservePresentation: async () => true,
 				releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
@@ -125,7 +221,7 @@ suite('Codex continuation presentation boundary', () => {
 		let shown = 0;
 		const candidate = upcastPartial<ICodexContinuationCandidate>({});
 		const nudge = upcastPartial<ICodexContinuationService>({
-			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
 			wouldShow: () => treatment.p, resolve: async () => candidate, releasePresentation: async () => { },
 		});
 		const presenter = store.add(new CodexContinuationPresenter({
@@ -147,7 +243,7 @@ suite('Codex continuation presentation boundary', () => {
 		let dismissed = 0;
 		const candidate = upcastPartial<ICodexContinuationCandidate>({});
 		const nudge = upcastPartial<ICodexContinuationService>({
-			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
 			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
 			trackVisibility: () => toDisposable(() => { }),
 			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
@@ -178,7 +274,7 @@ suite('Codex continuation presentation boundary', () => {
 		let dismissed = 0;
 		const candidate = upcastPartial<ICodexContinuationCandidate>({});
 		const nudge = upcastPartial<ICodexContinuationService>({
-			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { }, endPreview: () => { },
 			trackVisibility: () => toDisposable(() => { }),
 			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
 			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,

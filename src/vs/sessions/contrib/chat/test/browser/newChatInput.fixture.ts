@@ -268,16 +268,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 
 	// Where the pet lands, for each notice that can dock above the input (#332570).
 	WithPet: defineComponentFixture({
+		deferPaint: true,
 		render: context => renderNewChatInput(context, { pet: true }),
 	}),
 	WithPetAndNotification: defineComponentFixture({
+		deferPaint: true,
 		render: context => renderNewChatInput(context, { notification: petPlatformNotification, pet: true }),
 	}),
 	WithPetAndGettingStartedTip: defineComponentFixture({
+		deferPaint: true,
 		render: context => renderNewChatInput(context, { gettingStartedTip: true, pet: true }),
 	}),
 	// The sub-session tip, docked from the composer's host slot.
 	WithPetAndSubSessionTip: defineComponentFixture({
+		deferPaint: true,
 		render: context => renderNewChatInput(context, { subSessionTip: true, pet: true }),
 	}),
 });
