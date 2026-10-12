@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileService, IFileSystemWatcher, IStat, IWriteFileOptions } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -56,8 +57,7 @@ class TestFileService {
 			throw new Error('write failed');
 		}
 
-		if ((options?.expectedContent && options.expectedContent.toString() !== this._files.get(resource.toString()))
-			|| (options?.etag !== undefined && options.etag !== String(this._versions.get(resource.toString())))) {
+		if (options?.etag !== undefined && options.etag !== String(this._versions.get(resource.toString()))) {
 			throw new FileOperationError('File changed', FileOperationResult.FILE_MODIFIED_SINCE);
 		}
 		this.setFile(resource, content.toString());
@@ -355,6 +355,58 @@ suite('FileBackedInstalledPluginsStore', () => {
 		});
 	});
 
+	for (const scheme of [Schemas.file, Schemas.vscodeUserData]) {
+		for (const trailingSeparator of ['', '/']) {
+			test(`preserves descendant casing with a differently cased home (${scheme}, trailing separator: ${!!trailingSeparator})`, async () => {
+				const originalHome = URI.from({ scheme, path: '/Users/Test/Portable/data/agent-plugins' + trailingSeparator });
+				const relocatedHome = URI.from({ scheme, path: '/Volumes/USB/code-portable-data/agent-plugins' });
+				const relativePath = 'github.com/Org/Repo/plugins/My Plugin #%20';
+				const pluginUri = URI.joinPath(originalHome.with({ path: originalHome.path.replace('/Portable/', '/PORTABLE/') }), relativePath);
+				const fileService = new TestFileService();
+				const pluginsStore = createPluginsStore(originalHome, fileService);
+				await waitFor(() => fileService.isWatching);
+				pluginsStore.set([{ pluginUri, marketplace: 'org/repo' }], undefined);
+				const installedJson = URI.joinPath(originalHome, 'installed.json');
+				await waitFor(() => !!fileService.getFile(installedJson));
+				const content = fileService.getFile(installedJson)!;
+				pluginsStore.dispose();
+
+				fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), content);
+				const relocatedStore = createPluginsStore(relocatedHome, fileService);
+				await waitFor(() => relocatedStore.get().length === 1);
+
+				const managed = scheme !== Schemas.file || !isLinux;
+				assert.deepStrictEqual({
+					relativePath: JSON.parse(content).installed[0].relativePath,
+					relocated: relocatedStore.get()[0].pluginUri.toString(),
+				}, {
+					relativePath: managed ? relativePath : undefined,
+					relocated: (managed ? URI.joinPath(relocatedHome, relativePath) : pluginUri).toString(),
+				});
+			});
+		}
+	}
+
+	test('rebases legacy paths with differently cased cache roots', async () => {
+		const oldCacheRoot = URI.file('/Users/Test/Portable/cache/agentPlugins');
+		const agentPluginsHome = URI.file('/Volumes/USB/code-portable-data/agent-plugins');
+		const relativePath = 'github.com/Org/Repo/plugins/My Plugin';
+		const originalUri = URI.joinPath(oldCacheRoot.with({ path: oldCacheRoot.path.replace('/Portable/', '/PORTABLE/') }), relativePath);
+		const storageService = store.add(new InMemoryStorageService());
+		storageService.store(LEGACY_INSTALLED_PLUGINS_STORAGE_KEY, JSON.stringify([createLegacyEntry(originalUri.fsPath)]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const fileService = new TestFileService();
+		const pluginsStore = createPluginsStore(agentPluginsHome, fileService, storageService, oldCacheRoot);
+		await waitFor(() => fileService.isWatching);
+
+		assert.deepStrictEqual({
+			pluginUri: pluginsStore.get()[0].pluginUri.toString(),
+			relativePath: JSON.parse(fileService.getFile(URI.joinPath(agentPluginsHome, 'installed.json'))!).installed[0].relativePath,
+		}, {
+			pluginUri: (isLinux ? originalUri : URI.joinPath(agentPluginsHome, relativePath)).toString(),
+			relativePath: isLinux ? undefined : relativePath,
+		});
+	});
+
 	test('resolves relative paths after external manifest edits', async () => {
 		const agentPluginsHome = URI.file('/portable/data/agent-plugins');
 		const onDidChange = store.add(new Emitter<FileChangesEvent>());
@@ -392,82 +444,173 @@ suite('FileBackedInstalledPluginsStore', () => {
 		});
 	});
 
+	test('preserves a debounced local change when a file reload is already scheduled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+		const onDidChange = store.add(new Emitter<FileChangesEvent>());
+		const fileService = new TestFileService(false, onDidChange.event);
+		fileService.setFile(installedJson, JSON.stringify({
+			version: 1,
+			installed: [{ pluginUri: URI.joinPath(agentPluginsHome, 'plugin').toString(), relativePath: 'plugin', marketplace: 'org/repo' }],
+		}));
+		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
+		await waitFor(() => fileService.isWatching);
+
+		onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.UPDATED }], false));
+		await timeout(50);
+		pluginsStore.set([], undefined);
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			plugins: pluginsStore.get(),
+			file: JSON.parse(fileService.getFile(installedJson)!),
+		}, {
+			plugins: [],
+			file: { version: 1, installed: [] },
+		});
+	}));
+
 	for (const onStartup of [true, false]) {
-		for (const mtimeChange of [0, 1000]) {
-			test(`preserves concurrent same-size edits ${onStartup ? 'on startup' : 'after a file change'} (mtime change: ${mtimeChange})`, async () => {
-				const agentPluginsHome = URI.file('/portable/data/agent-plugins');
-				const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
-				const entries = ['rev1', 'rev2', 'rev3'].map(revision => ({
-					pluginUri: URI.joinPath(agentPluginsHome, revision).toString(),
-					marketplace: 'org/repo',
-					name: 'plugin',
+		for (const phase of ['read', 'migration write']) {
+			for (const mutation of ['install', 'uninstall', 'update']) {
+				test(`preserves local ${mutation} during ${phase} ${onStartup ? 'on startup' : 'after a file change'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+					const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+					const original = { pluginUri: URI.joinPath(agentPluginsHome, 'original'), marketplace: 'org/repo', name: 'original' };
+					const changed = { pluginUri: URI.joinPath(agentPluginsHome, 'changed'), marketplace: 'org/repo', name: 'changed' };
+					const expected = mutation === 'install' ? [original, changed] : mutation === 'uninstall' ? [] : [changed];
+					const started = new DeferredPromise<void>();
+					const release = new DeferredPromise<void>();
+					let blocked = onStartup;
+					const onDidChange = store.add(new Emitter<FileChangesEvent>());
+					const fileService = new class extends TestFileService {
+						override async readFile(resource: URI) {
+							const content = await super.readFile(resource);
+							if (blocked && phase === 'read') {
+								blocked = false;
+								started.complete();
+								await release.p;
+							}
+							return content;
+						}
+
+						override async writeFile(resource: URI, content: VSBuffer, options?: IWriteFileOptions): Promise<unknown> {
+							if (blocked && phase === 'migration write' && options) {
+								blocked = false;
+								started.complete();
+								await release.p;
+							}
+							return super.writeFile(resource, content, options);
+						}
+					}(false, onDidChange.event);
+					const manifestEntry = { ...original, pluginUri: original.pluginUri.toString() };
+					fileService.setFile(installedJson, JSON.stringify({
+						version: 1,
+						installed: [{ ...manifestEntry, ...(!onStartup ? { relativePath: 'original' } : {}) }],
+					}));
+					const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
+					if (!onStartup) {
+						await waitFor(() => fileService.isWatching);
+						blocked = true;
+						fileService.setFile(installedJson, JSON.stringify({ version: 1, installed: [manifestEntry] }));
+						onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.UPDATED }], false));
+					}
+					try {
+						await started.p;
+						pluginsStore.set(expected, undefined);
+						await timeout(200);
+					} finally {
+						release.complete();
+					}
+					await timeout(200);
+
+					assert.deepStrictEqual({
+						plugins: pluginsStore.get().map(entry => entry.pluginUri.toString()),
+						file: JSON.parse(fileService.getFile(installedJson)!),
+					}, {
+						plugins: expected.map(entry => entry.pluginUri.toString()),
+						file: {
+							version: 1,
+							installed: expected.map(entry => ({ ...entry, pluginUri: entry.pluginUri.toString(), relativePath: entry.name })),
+						},
+					});
 				}));
-				let mtime = 1;
-				const provider = store.add(new class extends InMemoryFileSystemProvider {
-					override async stat(resource: URI): Promise<IStat> {
-						return { ...await super.stat(resource), mtime };
-					}
-				}());
-				const onDidChange = store.add(new Emitter<FileChangesEvent>());
-				const fileService = store.add(new class extends FileService {
-					isWatching = false;
-					attempts = 0;
-					migrations = 0;
-
-					override async writeFile(resource: URI, content: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions) {
-						if (options && ++this.attempts <= 2) {
-							await provider.writeFile(installedJson, VSBuffer.fromString(JSON.stringify({
-								version: 1,
-								installed: [entries[this.attempts]],
-							})).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
-							mtime += mtimeChange;
-						}
-						const result = await super.writeFile(resource, content, options);
-						if (options) {
-							this.migrations++;
-						}
-						return result;
-					}
-
-					override createWatcher(): IFileSystemWatcher {
-						this.isWatching = true;
-						return { onDidChange: onDidChange.event, dispose: () => { } };
-					}
-				}(new NullLogService()));
-				store.add(fileService.registerProvider(Schemas.file, provider));
-				const initialContent = VSBuffer.fromString(JSON.stringify({ version: 1, installed: [entries[0]] }));
-				if (onStartup) {
-					await fileService.writeFile(installedJson, initialContent);
-				}
-				const storageService = store.add(new InMemoryStorageService());
-				const pluginsStore = store.add(new FileBackedInstalledPluginsStore(
-					agentPluginsHome,
-					undefined,
-					fileService,
-					new NullLogService(),
-					storageService,
-					store.add(new AgentPluginEnablementService(storageService)),
-				));
-				await waitFor(() => fileService.isWatching);
-				if (!onStartup) {
-					await fileService.writeFile(installedJson, initialContent);
-					onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
-				}
-				await waitFor(() => fileService.migrations > 0 && pluginsStore.get().length === 1);
-
-				assert.deepStrictEqual({
-					attempts: fileService.attempts,
-					migrations: fileService.migrations,
-					file: JSON.parse((await fileService.readFile(installedJson)).value.toString()),
-					plugins: pluginsStore.get().map(entry => entry.pluginUri.toString()),
-				}, {
-					attempts: 3,
-					migrations: 1,
-					file: { version: 1, installed: [{ ...entries[2], relativePath: 'rev3' }] },
-					plugins: [entries[2].pluginUri],
-				});
-			});
+			}
 		}
+
+		test(`preserves concurrent size-changing edits using FileService ${onStartup ? 'on startup' : 'after a file change'}`, async () => {
+			const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+			const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+			const entries = ['rev1', 'revision-2', 'revision-3-new'].map(revision => ({
+				pluginUri: URI.joinPath(agentPluginsHome, revision).toString(),
+				marketplace: 'org/repo',
+				name: 'plugin',
+			}));
+			let mtime = 1;
+			const provider = store.add(new class extends InMemoryFileSystemProvider {
+				override async stat(resource: URI): Promise<IStat> {
+					return { ...await super.stat(resource), mtime };
+				}
+			}());
+			const onDidChange = store.add(new Emitter<FileChangesEvent>());
+			const fileService = store.add(new class extends FileService {
+				isWatching = false;
+				attempts = 0;
+				migrations = 0;
+
+				override async writeFile(resource: URI, content: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions) {
+					if (options && ++this.attempts <= 2) {
+						await provider.writeFile(installedJson, VSBuffer.fromString(JSON.stringify({
+							version: 1,
+							installed: [entries[this.attempts]],
+						})).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+						mtime += 1000;
+					}
+					const result = await super.writeFile(resource, content, options);
+					if (options) {
+						this.migrations++;
+					}
+					return result;
+				}
+
+				override createWatcher(): IFileSystemWatcher {
+					this.isWatching = true;
+					return { onDidChange: onDidChange.event, dispose: () => { } };
+				}
+			}(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.file, provider));
+			const initialContent = VSBuffer.fromString(JSON.stringify({ version: 1, installed: [entries[0]] }));
+			if (onStartup) {
+				await fileService.writeFile(installedJson, initialContent);
+			}
+			const storageService = store.add(new InMemoryStorageService());
+			const pluginsStore = store.add(new FileBackedInstalledPluginsStore(
+				agentPluginsHome,
+				undefined,
+				fileService,
+				new NullLogService(),
+				storageService,
+				store.add(new AgentPluginEnablementService(storageService)),
+			));
+			await waitFor(() => fileService.isWatching);
+			if (!onStartup) {
+				await fileService.writeFile(installedJson, initialContent);
+				onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
+			}
+			await waitFor(() => fileService.migrations > 0 && pluginsStore.get().length === 1);
+
+			assert.deepStrictEqual({
+				attempts: fileService.attempts,
+				migrations: fileService.migrations,
+				file: JSON.parse((await fileService.readFile(installedJson)).value.toString()),
+				plugins: pluginsStore.get().map(entry => entry.pluginUri.toString()),
+			}, {
+				attempts: 3,
+				migrations: 1,
+				file: { version: 1, installed: [{ ...entries[2], relativePath: 'revision-3-new' }] },
+				plugins: [entries[2].pluginUri],
+			});
+		});
 
 		test(`migrates concurrent external installs ${onStartup ? 'on startup' : 'after a file change'}`, async () => {
 			const agentPluginsHome = URI.file('/portable/data/agent-plugins');

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, ThrottledDelayer } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer, ThrottledDelayer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
@@ -87,6 +87,8 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private readonly _fileUri: URI;
 	private readonly _writeDelayer: ThrottledDelayer<void>;
 	private readonly _reloadScheduler: RunOnceScheduler;
+	private readonly _fileOperationQueue = new Sequencer();
+	private _hasPendingChanges = false;
 	private _suppressFileWatch = false;
 	private _initialized = false;
 
@@ -103,8 +105,8 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
-		this._reloadScheduler = this._register(new RunOnceScheduler(() => this._onFileChanged(), 100));
-		void this._initialize();
+		this._reloadScheduler = this._register(new RunOnceScheduler(() => this._fileOperationQueue.queue(() => this._onFileChanged()), 100));
+		void this._fileOperationQueue.queue(() => this._initialize());
 	}
 
 	get(): readonly IStoredInstalledPlugin[] {
@@ -112,17 +114,23 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	}
 
 	set(newValue: readonly IStoredInstalledPlugin[], tx: ITransaction | undefined): void {
-		this._setValue(newValue, tx, true);
+		this._hasPendingChanges = true;
+		this._installed.set(newValue, tx);
+		if (this._initialized) {
+			this._scheduleWrite();
+		}
 	}
 
 	private async _initialize(): Promise<void> {
 		try {
 			const entries = await this._readAndMigrateFromFile();
-			if (entries !== undefined) {
-				this._setValue(entries, undefined, false);
-			} else {
-				// No installed.json yet — attempt migration from legacy storage.
-				await this._migrateFromStorage();
+			if (!this._hasPendingChanges) {
+				if (entries !== undefined) {
+					this._installed.set(entries, undefined);
+				} else {
+					// No installed.json yet — attempt migration from legacy storage.
+					await this._migrateFromStorage();
+				}
 			}
 		} catch (error) {
 			this._logService.error('[FileBackedInstalledPluginsStore] Initialization failed', error);
@@ -130,6 +138,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 		this._initialized = true;
 		this._setupFileWatcher();
+		if (this._hasPendingChanges) {
+			this._scheduleWrite();
+		}
 	}
 
 	// --- File I/O ----------------------------------------------------------------
@@ -137,7 +148,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private async _readAndMigrateFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
 		let read = await this._readFromFile();
 		if (read?.needsMigration) {
-			const result = await this._writeToFile(read.entries, { expectedContent: read.content.value });
+			const result = await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag });
 			if (result !== 'success') {
 				read = await this._readFromFile();
 				if (result === 'conflict' && read?.needsMigration && !this._store.isDisposed) {
@@ -171,7 +182,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 					const pluginUri = hasRelativePath ? joinPath(this._agentPluginsHome, entry.relativePath) : originalUri;
 					const relocated = !isEqual(originalUri, pluginUri);
 					const enablementUri = typeof entry.enablementUri === 'string' ? URI.parse(entry.enablementUri) : relocated ? originalUri : undefined;
-					if (relocated || (!hasRelativePath && extUriBiasedIgnorePathCase.isEqualOrParent(pluginUri, this._agentPluginsHome))) {
+					if (relocated || (!hasRelativePath && this._getRelativePath(this._agentPluginsHome, pluginUri) !== undefined)) {
 						needsMigration = true;
 					}
 					if (enablementUri) {
@@ -192,15 +203,16 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	}
 
 	private _scheduleWrite(): void {
-		void this._writeDelayer.trigger(async () => {
+		void this._writeDelayer.trigger(() => this._fileOperationQueue.queue(async () => {
+			this._hasPendingChanges = false;
 			await this._writeToFile();
-		});
+		}));
 	}
 
 	private async _writeToFile(plugins: readonly IStoredInstalledPlugin[] = this.get(), options?: IWriteFileOptions): Promise<'success' | 'conflict' | 'error'> {
 		const entries: IInstalledJsonEntry[] = plugins.map(e => ({
 			pluginUri: e.pluginUri.toString(),
-			relativePath: extUriBiasedIgnorePathCase.isEqualOrParent(e.pluginUri, this._agentPluginsHome) ? extUriBiasedIgnorePathCase.relativePath(this._agentPluginsHome, e.pluginUri) : undefined,
+			relativePath: this._getRelativePath(this._agentPluginsHome, e.pluginUri),
 			...(e.enablementUri ? { enablementUri: e.enablementUri.toString() } : {}),
 			marketplace: e.marketplace,
 			...(e.name ? { name: e.name } : {}),
@@ -247,26 +259,13 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	}
 
 	private async _onFileChanged(): Promise<void> {
-		const entries = await this._readAndMigrateFromFile();
-		if (entries !== undefined) {
-			// Suppress file write for externally triggered updates.
-			this._suppressFileWatch = true;
-			try {
-				this._setValue(entries, undefined, false);
-			} finally {
-				this._suppressFileWatch = false;
-			}
+		if (this._hasPendingChanges) {
+			return;
 		}
-	}
 
-	// --- Write-through to file ----------------------------------------------------
-
-	private _setValue(newValue: readonly IStoredInstalledPlugin[], tx: ITransaction | undefined, scheduleWrite: boolean): void {
-		this._installed.set(newValue, tx);
-		// Only schedule writes after initialization and when not processing
-		// an external file change.
-		if (scheduleWrite && this._initialized && !this._suppressFileWatch) {
-			this._scheduleWrite();
+		const entries = await this._readAndMigrateFromFile();
+		if (entries !== undefined && !this._hasPendingChanges) {
+			this._installed.set(entries, undefined);
 		}
 	}
 
@@ -301,7 +300,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			this._logService.info(`[FileBackedInstalledPluginsStore] Migrating ${migrated.length} plugin(s) from storage to installed.json`);
 
 			// Set in memory and persist to file before removing legacy keys.
-			this._setValue(migrated, undefined, false);
+			this._installed.set(migrated, undefined);
 			const result = await this._writeToFile();
 			if (result !== 'success') {
 				return;
@@ -315,6 +314,18 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		}
 	}
 
+	private _getRelativePath(root: URI, uri: URI): string | undefined {
+		const normalizedRoot = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(extUriBiasedIgnorePathCase.normalizePath(root));
+		const normalizedUri = extUriBiasedIgnorePathCase.normalizePath(uri);
+		if (!extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, normalizedRoot)) {
+			return undefined;
+		}
+
+		// Native relative paths are case-sensitive on macOS even when containment is not.
+		const relativePath = normalizedUri.path.slice(normalizedRoot.path.length);
+		return relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+	}
+
 	/**
 	 * If the plugin URI was under the old cache root, rebase it to the
 	 * new agent-plugins directory. Otherwise, return `undefined` to keep
@@ -325,9 +336,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			return undefined;
 		}
 
-		const oldRoot = this._oldCacheRoot;
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, oldRoot)) {
-			return joinPath(this._agentPluginsHome, extUriBiasedIgnorePathCase.relativePath(oldRoot, uri)!);
+		const relativePath = this._getRelativePath(this._oldCacheRoot, uri);
+		if (relativePath !== undefined) {
+			return joinPath(this._agentPluginsHome, relativePath);
 		}
 		return undefined;
 	}
