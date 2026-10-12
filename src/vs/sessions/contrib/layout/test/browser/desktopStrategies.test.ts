@@ -80,6 +80,8 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		onDidEndSessionLayoutRestore: onDidEndSessionLayoutRestore.event,
 		get togglingSidePane() { return state.togglingSidePane; },
 		multipleSessionsVisibleObs: derived(reader => harness.visibleSessionsObs.read(reader).length > 1),
+		multipleChatsVisibleObs: derived(reader =>
+			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader) > 1),
 		activeSessionResourceObs: derived(reader => harness.activeSessionObs.read(reader)?.resource),
 		hasSavedWorkingSet: sessionResource => savedWorkingSets.has(sessionResource.toString()),
 		completeChangesEditorTransition: () => { },
@@ -424,7 +426,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('New Session composition changes are captured to the focused draft owner while another session is simultaneously visible', async () => {
+	test('New Session composition changes stay global while another chat is simultaneously visible', async () => {
 		const ctx = setup();
 		ctx.chatLayoutActive = () => true;
 		const draft = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
@@ -439,8 +441,8 @@ suite('Desktop layout strategies', () => {
 
 		assert.deepStrictEqual(
 			ctx.compositionStore.get(ctx.ownerKeyFor(draft)!),
-			{ editor: true, auxiliaryBar: false },
-			'a visibility change on the focused draft owner must be captured even while another session is simultaneously visible'
+			undefined,
+			'a visibility change must not overwrite the focused draft owner while another chat is simultaneously visible'
 		);
 	});
 

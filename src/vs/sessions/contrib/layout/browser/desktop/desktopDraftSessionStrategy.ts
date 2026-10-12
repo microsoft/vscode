@@ -111,7 +111,8 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _captureOwnerCompositionIfApplicable(): void {
-		if (this._changingVisibility || this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._layoutService.isEditorMaximized()) {
+		if (this._changingVisibility || this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()
+			|| this._ctx.multipleChatsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const ownerKey = this._activeOwnerKey();

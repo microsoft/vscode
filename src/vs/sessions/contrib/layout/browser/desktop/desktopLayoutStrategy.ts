@@ -25,6 +25,7 @@ export interface IDesktopLayoutContext {
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
+	readonly multipleChatsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
