@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, getActiveElement, getWindow, isAncestor, isHTMLElement, runAtThisOrScheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
-import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, SerializableGrid, Sizing, isGridBranchNode } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, IViewSize, SerializableGrid, Sizing, isGridBranchNode } from '../../../base/browser/ui/grid/grid.js';
 import { Orientation } from '../../../base/browser/ui/sash/sash.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ISessionGridPlacement } from '../../services/sessions/browser/sessionsPartService.js';
 import { isSessionGridLeafData, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import { Color } from '../../../base/common/color.js';
+import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
 
 export interface ISessionGridView extends IView {
 	/** Applies the allocated geometry without laying out descendants. */
 	layoutContainer(width: number, height: number, top: number, left: number): void;
 	/** Lays out descendants using the most recently applied geometry. */
-	layoutContents(): void;
+	layoutContents(gap?: number): void;
 }
 
 export interface ISessionGridEntry {
@@ -33,26 +34,56 @@ interface ILayout {
 }
 
 /** A host keeps grid identity stable while its content is projected onto the desktop surface. */
-class SessionGridLeaf implements ISerializableView {
+class SessionGridLeaf extends Disposable implements ISerializableView {
 	readonly element = $('.session-grid-leaf');
+	private insets = NO_GRID_EDGE_INSETS;
+	private readonly _onDidChangeConstraints = this._register(new Emitter<IViewSize | undefined>());
+	readonly onDidChange: Event<IViewSize | undefined>;
 	private projected = false;
 	private active = false;
 	private visible = true;
 	private lastLayout: ILayout | undefined;
 	private projectedLayout: ILayout | undefined;
 	private appliedLayout: ILayout | undefined;
+	private appliedInsets: IGridEdgeInsets | undefined;
+	private appliedGap: number | undefined;
 	private appliedVisible: boolean | undefined;
 	private contentsDirty = false;
 
-	constructor(readonly id: string, readonly view: ISessionGridView, private readonly requestLayout: (leaf: SessionGridLeaf) => void) {
+	constructor(
+		readonly id: string,
+		readonly view: ISessionGridView,
+		private readonly requestLayout: (leaf: SessionGridLeaf) => void,
+	) {
+		super();
+		this.onDidChange = Event.any(
+			Event.map(view.onDidChange, size => size && ({
+				width: size.width + this.insets.left + this.insets.right,
+				height: size.height + this.insets.top + this.insets.bottom,
+			})),
+			this._onDidChangeConstraints.event,
+		);
 		this.element.appendChild(view.element);
 	}
 
-	get minimumWidth() { return this.view.minimumWidth; }
-	get maximumWidth() { return this.view.maximumWidth; }
-	get minimumHeight() { return this.view.minimumHeight; }
-	get maximumHeight() { return this.view.maximumHeight; }
-	get onDidChange() { return this.view.onDidChange; }
+	get minimumWidth() { return this.view.minimumWidth + this.insets.left + this.insets.right; }
+	get maximumWidth() { return this.view.maximumWidth + this.insets.left + this.insets.right; }
+	get minimumHeight() { return this.view.minimumHeight + this.insets.top + this.insets.bottom; }
+	get maximumHeight() { return this.view.maximumHeight + this.insets.top + this.insets.bottom; }
+	get preferredWidth() { return this.view.preferredWidth === undefined ? undefined : this.view.preferredWidth + this.insets.left + this.insets.right; }
+	get preferredHeight() { return this.view.preferredHeight === undefined ? undefined : this.view.preferredHeight + this.insets.top + this.insets.bottom; }
+
+	setInsets(insets: IGridEdgeInsets): boolean {
+		if (this.insets.top === insets.top && this.insets.right === insets.right && this.insets.bottom === insets.bottom && this.insets.left === insets.left) {
+			return false;
+		}
+		this.insets = insets;
+		return true;
+	}
+
+	notifyConstraintsChanged(): void {
+		this._onDidChangeConstraints.fire(undefined);
+	}
 
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
@@ -86,19 +117,40 @@ class SessionGridLeaf implements ISerializableView {
 		this.requestLayout(this);
 	}
 
-	applyGeometry(): void {
+	applyGeometry(gap: number): void {
 		const dimensions = this.projected ? this.projectedLayout : this.lastLayout;
 		if (!(this.projected ? this.active : this.visible) || !dimensions) {
 			return;
 		}
-		const { width, height, top, left } = dimensions;
+		const insets = this.insets;
+		const layout = {
+			width: Math.max(0, dimensions.width - insets.left - insets.right),
+			height: Math.max(0, dimensions.height - insets.top - insets.bottom),
+			top: dimensions.top + insets.top,
+			left: dimensions.left + insets.left,
+		};
 		const previous = this.appliedLayout;
-		if (previous?.width === width && previous.height === height && previous.top === top && previous.left === left) {
+		const previousInsets = this.appliedInsets;
+		const geometryChanged = !(
+			previous?.width === layout.width && previous.height === layout.height && previous.top === layout.top && previous.left === layout.left
+			&& previousInsets?.top === insets.top && previousInsets.right === insets.right
+			&& previousInsets.bottom === insets.bottom && previousInsets.left === insets.left
+		);
+		if (!geometryChanged && this.appliedGap === gap) {
 			return;
 		}
-		this.appliedLayout = dimensions;
+		this.appliedGap = gap;
 		this.contentsDirty = true;
-		this.view.layoutContainer(width, height, top, left);
+		if (!geometryChanged) {
+			return;
+		}
+		this.appliedLayout = layout;
+		this.appliedInsets = insets;
+		this.element.style.borderTopWidth = `${insets.top}px`;
+		this.element.style.borderRightWidth = `${insets.right}px`;
+		this.element.style.borderBottomWidth = `${insets.bottom}px`;
+		this.element.style.borderLeftWidth = `${insets.left}px`;
+		this.view.layoutContainer(layout.width, layout.height, layout.top, layout.left);
 	}
 
 	applyContents(isCurrent: () => boolean): void {
@@ -111,7 +163,7 @@ class SessionGridLeaf implements ISerializableView {
 			this.view.setVisible?.(visible);
 		}
 		if (visible && this.appliedLayout && layout && isCurrent()) {
-			this.view.layoutContents();
+			this.view.layoutContents(this.appliedGap);
 		}
 	}
 
@@ -123,6 +175,7 @@ export class SessionGridLayout extends Disposable {
 	readonly element = $('.session-grid');
 	private readonly projectionHost = $('.session-grid-projection');
 	private readonly grid = this._register(new MutableDisposable<SerializableGrid<SessionGridLeaf>>());
+	private gridLaidOut = false;
 	private readonly leaves = new Map<string, SessionGridLeaf>();
 	private readonly placements = new Map<string, ISessionGridPlacement | undefined>();
 	private readonly _onDidChangeMaximized = this._register(new Emitter<void>());
@@ -132,6 +185,7 @@ export class SessionGridLayout extends Disposable {
 	private phone = false;
 	private active: string | undefined;
 	private styles: IGridStyles = { separatorBorder: Color.transparent };
+	private gap = 0;
 	private maximizedId: string | undefined;
 	private updatingLayout = false;
 	private flushingLayout = false;
@@ -176,6 +230,7 @@ export class SessionGridLayout extends Disposable {
 					this.pendingLayouts.delete(leaf);
 					leaf.project(undefined, false);
 					this.grid.value!.removeView(leaf);
+					leaf.dispose();
 					this.placements.delete(id);
 				}
 			}
@@ -356,14 +411,17 @@ export class SessionGridLayout extends Disposable {
 		const previous = this.grid.value;
 		previous?.element.remove();
 		this.grid.value = grid;
-		grid.style(this.styles);
+		this.gridLaidOut = false;
+		this.applyStyles();
 		this.element.prepend(grid.element);
 		this.layoutViews();
 	}
 
-	layout(width: number, height: number, top: number, left: number, phone: boolean): void {
+	layout(width: number, height: number, top: number, left: number, phone: boolean, gap = 0): void {
 		this.preserveFocus(() => {
 			this.phone = phone;
+			this.gap = phone ? 0 : Math.max(0, gap);
+			this.applyStyles();
 			this.phoneDimensions = phone ? { width, height, top, left } : undefined;
 			const initialLayout = !this.dimensions;
 			if (!phone || initialLayout) {
@@ -381,6 +439,11 @@ export class SessionGridLayout extends Disposable {
 	private layoutViews(): void {
 		const projectedId = this.projectedId;
 		const host = projectedId === undefined ? undefined : this.projectionHost;
+		const hasGaps = this.gap > 0 && this.leaves.size > 1 && projectedId === undefined;
+		this.element.classList.toggle('session-grid-has-gaps', hasGaps);
+		if (this.grid.value) {
+			updateGridGapSashes(this.grid.value, hasGaps);
+		}
 		let bottomLeftId = projectedId;
 		let bottomRightId = projectedId;
 		if (projectedId === undefined && this.grid.value) {
@@ -399,14 +462,28 @@ export class SessionGridLayout extends Disposable {
 			this.grid.value.element.style.display = host ? 'none' : '';
 		}
 		this.projectionHost.style.display = host ? '' : 'none';
+		if (hasGaps && this.dimensions && this.grid.value && !this.gridLaidOut) {
+			const { width, height, top, left } = this.dimensions;
+			this.grid.value.layout(width, height, top, left);
+			this.gridLaidOut = true;
+		}
+		const constraintChanges: SessionGridLeaf[] = [];
 		for (const leaf of this.leaves.values()) {
+			if (leaf.setInsets(hasGaps ? this.getInsets(leaf) : NO_GRID_EDGE_INSETS)) {
+				constraintChanges.push(leaf);
+			}
 			leaf.project(host, leaf.id === projectedId);
 			leaf.view.element.classList.toggle('session-grid-bottom-left', leaf.id === bottomLeftId);
 			leaf.view.element.classList.toggle('session-grid-bottom-right', leaf.id === bottomRightId);
+			this.requestLayout(leaf);
+		}
+		for (const leaf of constraintChanges) {
+			leaf.notifyConstraintsChanged();
 		}
 		if (this.dimensions) {
 			const { width, height, top, left } = this.dimensions;
 			this.grid.value?.layout(width, height, top, left);
+			this.gridLaidOut = true;
 		}
 		const projected = projectedId && this.leaves.get(projectedId);
 		const dimensions = this.phone ? this.phoneDimensions : this.dimensions;
@@ -416,6 +493,14 @@ export class SessionGridLayout extends Disposable {
 			this.projectionHost.style.height = `${height}px`;
 			projected.layoutProjected({ width, height, top, left });
 		}
+	}
+
+	private getInsets(leaf: SessionGridLeaf): IGridEdgeInsets {
+		const grid = this.grid.value;
+		if (!grid || this.leaves.size < 2) {
+			return NO_GRID_EDGE_INSETS;
+		}
+		return getGridEdgeInsets(grid, leaf, this.gap);
 	}
 
 	private requestLayout(leaf: SessionGridLeaf): void {
@@ -440,7 +525,7 @@ export class SessionGridLayout extends Disposable {
 				this.pendingLayouts.clear();
 				for (const leaf of leaves) {
 					if (this.leaves.get(leaf.id) === leaf) {
-						leaf.applyGeometry();
+						leaf.applyGeometry(this.gap);
 					}
 				}
 				for (const leaf of leaves) {
@@ -461,7 +546,14 @@ export class SessionGridLayout extends Disposable {
 
 	style(styles: IGridStyles): void {
 		this.styles = styles;
-		this.grid.value?.style(styles);
+		this.applyStyles();
+	}
+
+	private applyStyles(): void {
+		this.grid.value?.style({
+			...this.styles,
+			separatorBorder: this.gap > 0 ? Color.transparent : this.styles.separatorBorder,
+		});
 	}
 
 	private preserveFocus(fn: () => void): void {
@@ -488,6 +580,7 @@ export class SessionGridLayout extends Disposable {
 		this.pendingLayouts.clear();
 		for (const leaf of this.leaves.values()) {
 			leaf.view.element.remove();
+			leaf.dispose();
 		}
 		this.leaves.clear();
 		this.placements.clear();

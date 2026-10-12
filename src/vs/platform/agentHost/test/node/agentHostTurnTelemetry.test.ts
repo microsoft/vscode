@@ -24,7 +24,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -1641,6 +1641,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		agent.setModels([
 			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MAX_MODEL_ID, name: 'HydraFusion Max', supportsVision: false },
 			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
 		]);
 		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
@@ -1650,6 +1651,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		agent.chatModel = { id: COPILOT_HYDRA_FUSION_MODEL_ID };
 		startTurn('turn-default');
 		fire({ type: ActionType.ChatError, turnId: 'turn-default', duration: 1000, part: createErrorResponsePart({ errorType: 'query', message: 'failed before routing' }) });
+
+		startTurn('turn-max', 'hello', COPILOT_HYDRA_FUSION_MAX_MODEL_ID);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-max', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-max', duration: 1000 });
 
 		assert.deepStrictEqual(completedEvents().map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -1661,6 +1666,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusion', result: 'success' },
 			{ model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID }, modelSelectionKind: 'hydrafusion', result: 'error' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusionMax', result: 'success' },
 		]);
 	});
 

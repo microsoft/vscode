@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
@@ -35,6 +35,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.style.width = '800px';
 		container.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 		container.style.setProperty('--vscode-cornerRadius-large', '8px');
+		container.style.setProperty('--vscode-sash-size', '4px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
@@ -95,6 +96,258 @@ suite('Sessions - Agents Part Card', () => {
 			contentWidth: 800,
 			contentSize: { width: 800, height: 600 },
 		});
+	});
+
+	for (const { connectedEditorTabs, showTabs } of [
+		{ connectedEditorTabs: false, showTabs: 'multiple' as const },
+		{ connectedEditorTabs: true, showTabs: 'multiple' as const },
+		{ connectedEditorTabs: true, showTabs: 'single' as const },
+	]) {
+		test(`matches the ${connectedEditorTabs ? `connected ${showTabs}-tab` : 'pill'} side-pane gap to the floating-panel gap`, () => {
+			const { container, card } = createCard(true, true);
+			container.classList.add('modern-ui-tabs', 'dock-detail-panel');
+			container.classList.toggle('modern-ui-connected-editor-tabs', connectedEditorTabs);
+			container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, showTabs === 'multiple');
+			card.classList.add('part', 'sessionspart');
+			const row = append(container, $('.monaco-grid-view'));
+			row.style.display = 'flex';
+			const sessionAllocation = append(row, $('.session-allocation'));
+			sessionAllocation.style.width = '500px';
+			sessionAllocation.style.height = '400px';
+			sessionAllocation.style.flex = '0 0 auto';
+			append(sessionAllocation, card);
+			card.style.height = '100%';
+			const sidePaneMarginRight = getSessionsPartCardMarginRight(container);
+			const contentSize = getAgentsPartCardContentSize(500, 400, true, true, false, false, sidePaneMarginRight);
+			const content = append(card, $('.content'));
+			content.style.width = `${contentSize.width}px`;
+			content.style.height = `${contentSize.height}px`;
+			const session = append(content, $('.session-view'));
+			session.style.width = '100%';
+			session.style.height = '100%';
+			const editor = append(row, $('.part.editor'));
+			editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
+			editor.style.width = '300px';
+			editor.style.height = '400px';
+			editor.style.flex = '0 0 auto';
+			const divider = append(row, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+			const dividerStyle = mainWindow.getComputedStyle(divider);
+			const gripStyle = mainWindow.getComputedStyle(divider, '::after');
+			const editorBounds = editor.getBoundingClientRect();
+			const sidePaneFrameInset = getSidePaneFrameInset(container);
+			const sidePaneFrameLeft = editorBounds.left + sidePaneFrameInset;
+			const insetFrame = connectedEditorTabs && showTabs === 'multiple';
+
+			assert.deepStrictEqual({
+				sessionFrameInset: getSessionsPartFrameInset(container),
+				sidePaneFrameInset,
+				sidePaneMarginRight,
+				marginRight: mainWindow.getComputedStyle(card).marginRight,
+				backgroundClip: mainWindow.getComputedStyle(card).backgroundClip,
+				renderedContentWidth: card.clientWidth,
+				contentSize,
+				frameGap: sidePaneFrameLeft - session.getBoundingClientRect().right,
+				divider: {
+					transform: dividerStyle.transform,
+					width: dividerStyle.width,
+					gripContent: gripStyle.content,
+					gripWidth: gripStyle.width,
+					gripHeight: gripStyle.height,
+				},
+			}, {
+				sessionFrameInset: 1,
+				sidePaneFrameInset: insetFrame ? 1 : 0,
+				sidePaneMarginRight: insetFrame ? 2 : 3,
+				marginRight: insetFrame ? '2px' : '3px',
+				backgroundClip: 'padding-box',
+				renderedContentWidth: insetFrame ? 496 : 495,
+				contentSize: { width: insetFrame ? 496 : 495, height: 398 },
+				frameGap: 4,
+				divider: {
+					transform: insetFrame ? 'matrix(1, 0, 0, 1, -1, 0)' : 'matrix(1, 0, 0, 1, -2, 0)',
+					width: '4px',
+					gripContent: '""',
+					gripWidth: '2px',
+					gripHeight: '2px',
+				},
+			});
+		});
+	}
+
+	test('aligns pill and connected side-pane frames above a justified bottom panel', () => {
+		const { container } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'dock-detail-panel', 'panel-alignment-justify');
+		const grid = append(container, $('.monaco-grid-view'));
+		grid.style.height = '400px';
+		const editor = append(grid, $('.part.editor'));
+		editor.style.width = '300px';
+		editor.style.height = '100%';
+		const content = append(editor, $('.content'));
+		const baseLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+			content.style.width = `${width}px`;
+			content.style.height = `${height}px`;
+		});
+		const part = {
+			layoutService: {
+				mainContainer: container,
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				isModernUICompact: () => false,
+				isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+					|| partId === Parts.SESSIONS_PART
+					|| partId === Parts.PANEL_PART,
+			},
+		};
+		const layout = MainEditorPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+		const states = [
+			{ name: 'pill multiple', connected: false, multiple: true },
+			{ name: 'connected single', connected: true, multiple: false },
+			{ name: 'connected multiple', connected: true, multiple: true },
+		];
+
+		const actual = states.map(state => {
+			container.classList.toggle('modern-ui-connected-editor-tabs', state.connected);
+			container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, state.multiple);
+			editor.classList.toggle('editor-tabs-multiple', state.multiple);
+			layout.call(part, 300, 400, 0, 0);
+			const sidePaneFrameInset = getSidePaneFrameInset(container);
+
+			return {
+				name: state.name,
+				sidePaneFrameInset,
+				bottomFrameInset: getSidePaneBottomFrameInset(container),
+				visibleFrameHeight: editor.getBoundingClientRect().height - sidePaneFrameInset,
+				layout: baseLayout.lastCall.args,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ name: 'pill multiple', sidePaneFrameInset: 0, bottomFrameInset: 1, visibleFrameHeight: 399, layout: [298, 397, 0, 0] },
+			{ name: 'connected single', sidePaneFrameInset: 0, bottomFrameInset: 1, visibleFrameHeight: 399, layout: [298, 397, 0, 0] },
+			{ name: 'connected multiple', sidePaneFrameInset: 1, bottomFrameInset: 0, visibleFrameHeight: 399, layout: [298, 398, 0, 0] },
+		]);
+	});
+
+	test('aligns non-docked side-pane frames after leaving phone layout', () => {
+		const { container, card } = createCard(true, true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, 'panel-alignment-justify');
+		container.classList.remove('phone-layout');
+		card.classList.add('part', 'sessionspart');
+		const row = append(container, $('.monaco-grid-view'));
+		row.style.display = 'flex';
+		row.style.width = '800px';
+		row.style.height = '400px';
+		const sessionAllocation = append(row, $('.session-allocation'));
+		sessionAllocation.style.width = '500px';
+		sessionAllocation.style.height = '400px';
+		sessionAllocation.style.flex = '0 0 auto';
+		sessionAllocation.appendChild(card);
+		card.style.height = '100%';
+		const sidePaneMarginRight = getSessionsPartCardMarginRight(container);
+		const sessionContentSize = getAgentsPartCardContentSize(500, 400, true, true, false, false, sidePaneMarginRight);
+		const sessionContent = append(card, $('.content'));
+		sessionContent.style.width = `${sessionContentSize.width}px`;
+		sessionContent.style.height = `${sessionContentSize.height}px`;
+		const session = append(sessionContent, $('.session-view'));
+		session.style.width = '100%';
+		session.style.height = '100%';
+		const editor = append(row, $('.part.editor'));
+		editor.style.width = '200px';
+		editor.style.height = '100%';
+		editor.style.flex = '0 0 auto';
+		const editorContent = append(editor, $('.content'));
+		const auxiliaryBar = append(row, $('.part.auxiliarybar'));
+		auxiliaryBar.style.width = '100px';
+		auxiliaryBar.style.height = '100%';
+		auxiliaryBar.style.flex = '0 0 auto';
+		auxiliaryBar.style.transition = 'none';
+		const auxiliaryContent = append(auxiliaryBar, $('.content'));
+		const layoutService = {
+			mainContainer: container,
+			agentWorkbenchLayout: AgentWorkbenchLayout.Mobile,
+			isModernUICompact: () => false,
+			isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+				|| partId === Parts.AUXILIARYBAR_PART
+				|| partId === Parts.SESSIONS_PART
+				|| partId === Parts.SIDEBAR_PART
+				|| partId === Parts.PANEL_PART,
+			getPanelAlignment: () => 'justify' as const,
+		};
+		const editorLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+			editorContent.style.width = `${width}px`;
+			editorContent.style.height = `${height}px`;
+		});
+		const auxiliaryLayout = sinon.stub(AbstractPaneCompositePart.prototype, 'layout').callsFake((width, height) => {
+			auxiliaryContent.style.width = `${width}px`;
+			auxiliaryContent.style.height = `${height}px`;
+		});
+		const layoutEditor = MainEditorPart.prototype.layout as (this: { layoutService: typeof layoutService }, width: number, height: number, top: number, left: number) => void;
+		const layoutAuxiliaryBar = AuxiliaryBarPart.prototype.layout as typeof layoutEditor;
+		layoutEditor.call({ layoutService }, 200, 400, 0, 500);
+		layoutAuxiliaryBar.call({ layoutService }, 100, 400, 0, 700);
+
+		assert.deepStrictEqual({
+			docked: container.classList.contains('dock-detail-panel'),
+			sessionFrameInset: getSessionsPartFrameInset(container),
+			sidePaneFrameInset: getSidePaneFrameInset(container),
+			bottomFrameInset: getSidePaneBottomFrameInset(container),
+			sidePaneMarginRight,
+			renderedMarginRight: mainWindow.getComputedStyle(card).marginRight,
+			horizontalGap: editor.getBoundingClientRect().left - session.getBoundingClientRect().right,
+			editorFrameHeight: editor.getBoundingClientRect().height,
+			auxiliaryFrameHeight: auxiliaryBar.getBoundingClientRect().height,
+			editorLayout: editorLayout.lastCall.args,
+			auxiliaryLayout: auxiliaryLayout.lastCall.args,
+		}, {
+			docked: false,
+			sessionFrameInset: 1,
+			sidePaneFrameInset: 0,
+			bottomFrameInset: 1,
+			sidePaneMarginRight: 3,
+			renderedMarginRight: '3px',
+			horizontalGap: 4,
+			editorFrameHeight: 399,
+			auxiliaryFrameHeight: 399,
+			editorLayout: [198, 397, 0, 500],
+			auxiliaryLayout: [93, 397, 0, 700],
+		});
+	});
+
+	test('compensates the bottom-panel margin for the inset session frame', () => {
+		const { container } = createCard(true, false);
+		container.classList.add('modern-ui-tabs');
+		const panel = append(container, $('.part.panel'));
+		panel.style.transition = 'none';
+		const baseLayout = sinon.stub(AbstractPaneCompositePart.prototype, 'layout');
+		let sessionsVisible = true;
+		const part = {
+			layoutService: {
+				mainContainer: container,
+				isModernUICompact: () => false,
+				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
+					|| partId === Parts.SIDEBAR_PART
+					|| (partId === Parts.SESSIONS_PART && sessionsVisible),
+				getPanelAlignment: () => 'justify' as const,
+			},
+		};
+		const layoutPanel = PanelPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+
+		const actual = [true, false, true].map(visible => {
+			sessionsVisible = visible;
+			container.classList.toggle('nosessionspart', !visible);
+			layoutPanel.call(part, 800, 200, 400, 0);
+			return {
+				sessionsVisible: visible,
+				sessionFrameInset: getSessionsPartFrameInset(container),
+				marginTop: mainWindow.getComputedStyle(panel).marginTop,
+				layout: baseLayout.lastCall.args,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ sessionsVisible: true, sessionFrameInset: 1, marginTop: '3px', layout: [798, 195, 400, 0] },
+			{ sessionsVisible: false, sessionFrameInset: 0, marginTop: '4px', layout: [798, 194, 400, 0] },
+			{ sessionsVisible: true, sessionFrameInset: 1, marginTop: '3px', layout: [798, 195, 400, 0] },
+		]);
 	});
 
 	for (const desktop of [false, true]) {

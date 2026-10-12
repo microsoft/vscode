@@ -17,6 +17,7 @@ import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInter
 import type { IAgentHostSavedChatDto } from './agentHostSavedChat.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
+import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -31,20 +32,24 @@ export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayM
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
+export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
+export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
 	address: vString(),
 	name: vString(),
 	remoteWorkspaceFolder: vString(),
 	hostWorkspaceFolder: vOptionalProp(vString()),
+	sandboxSupported: vOptionalProp(vBoolean()),
 });
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
+export const CancelAgentHostDebugLogsExtensionMethod = 'vscode/cancelAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
 export const CreateAgentHostDetachedWorktreeExtensionMethod = 'vscode/createAgentHostDetachedWorktree';
 export const ClaimAgentHostDetachedWorktreeExtensionMethod = 'vscode/claimAgentHostDetachedWorktree';
@@ -66,6 +71,7 @@ const AgentHostSavedChatCapabilityMetaKey = 'vscode.readSavedChat';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
@@ -87,6 +93,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 
 export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false): IAgentHostExtensionInitializeResultMeta {
 	return {
+		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
@@ -120,6 +127,7 @@ export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
 	chat: vOptionalProp(vString()),
 	kind: vEnum('archive', 'directory'),
+	progressToken: vOptionalProp(vString()),
 });
 
 export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentHostDebugLogsParamsValidator>;
@@ -195,6 +203,10 @@ export interface IAgentHostExtensionCommandMap {
 		/** `data` is base64; at most `AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES` decoded bytes. */
 		result: { data: string; eof: boolean };
 	};
+	[CancelAgentHostDebugLogsExtensionMethod]: {
+		params: { progressToken: string };
+		result: void;
+	};
 }
 
 export interface IAgentHostExtensionNotificationMap {
@@ -202,6 +214,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
+	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

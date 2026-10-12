@@ -418,7 +418,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('connected chat tabs and their card share one inset frame at fractional zoom', () => {
+	test('chat tabs and their card share one inset frame at fractional zoom', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);
 		root.classList.add('noeditorpane');
@@ -498,8 +498,13 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.classList.remove('phone-layout', 'modern-ui-connected-editor-tabs');
 		assert.deepStrictEqual({
 			frame: mainWindow.getComputedStyle(harness.container, '::after').content,
+			frameColor: mainWindow.getComputedStyle(harness.container, '::after').borderTopColor,
 			outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
-		}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
+		}, {
+			frame: '""',
+			frameColor: 'rgb(171, 205, 239)',
+			outerBorder: 'rgba(0, 0, 0, 0)',
+		});
 	});
 
 	test('connected chat tabs retain clipped outlines and reveal the full terminal shoulder', () => {

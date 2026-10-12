@@ -1080,6 +1080,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				readOnlyBannerAtTop: true,
 				renderFollowups: true,
+				renderArtifactsWidget: false,
 				customizationMigrationNotice: {
 					workspace: this.aiCustomizationWorkspaceService.activeProjectRoot,
 					onDidChangeAvailability: available => this.customizationMigrationsAvailable.set(available, undefined),

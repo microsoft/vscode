@@ -45,6 +45,8 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasInfo,
+	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
@@ -527,6 +529,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request);
 	}
 
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
 	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {
 		return this._getManagementService().installPlugin(provider, request);
 	}
@@ -666,8 +676,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind, chat);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		await this._getManagementService().cancelDebugLogs?.(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
