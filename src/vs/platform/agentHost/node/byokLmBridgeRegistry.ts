@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IByokLmBridgeConnection, IByokLmModelInfo } from '../common/agentHostByokLm.js';
+import { IByokLmBridgeConnection, IByokLmContextSizeOptions, IByokLmModelInfo } from '../common/agentHostByokLm.js';
 
 export const IByokLmBridgeRegistry = createDecorator<IByokLmBridgeRegistry>('byokLmBridgeRegistry');
 
@@ -171,11 +171,20 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 			&& m.maxOutputTokens === n.maxOutputTokens
 			&& m.supportsVision === n.supportsVision
 			&& m.defaultReasoningEffort === n.defaultReasoningEffort
-			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts);
+			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts)
+			&& contextSizeOptionsEqual(m.contextSizeOptions, n.contextSizeOptions);
 	});
 }
 
-function arraysEqual(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+function contextSizeOptionsEqual(a: IByokLmContextSizeOptions | undefined, b: IByokLmContextSizeOptions | undefined): boolean {
+	return a === b || (a !== undefined && b !== undefined
+		&& a.default === b.default
+		&& arraysEqual(a.values, b.values)
+		&& arraysEqual(a.labels, b.labels)
+		&& arraysEqual(a.descriptions, b.descriptions));
+}
+
+function arraysEqual<T extends string | number>(a: readonly T[] | undefined, b: readonly T[] | undefined): boolean {
 	return a === b || (a !== undefined && b !== undefined && a.length === b.length && a.every((value, index) => value === b[index]));
 }
 

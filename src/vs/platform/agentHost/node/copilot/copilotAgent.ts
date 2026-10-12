@@ -46,7 +46,7 @@ import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentH
 import type { AgentHostPrewarmSkipReason, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
-import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
+import { agentModelConfigurationReportKey, createByokContextSizeConfigSchemaProperty, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -93,7 +93,7 @@ import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
 import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, hasReportedUsage, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
-import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
+import { getByokLmAgentModelId, isByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -4551,7 +4551,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
+			const properties: ConfigSchema['properties'] = {};
 			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
+			if (thinkingLevel) {
+				properties[ThinkingLevelConfigKey] = thinkingLevel;
+			}
+			// A selection is applied as the session's prompt-token limit (see
+			// `getByokSessionModelLimits`), not as a Copilot context tier.
+			const contextSize = createByokContextSizeConfigSchemaProperty(m.contextSizeOptions);
+			if (contextSize) {
+				properties[ContextSizeConfigKey] = contextSize;
+			}
 			return {
 				provider: this.id,
 				id: getByokLmAgentModelId(m),
@@ -4560,7 +4570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				maxPromptTokens: m.maxPromptTokens,
 				maxOutputTokens: m.maxOutputTokens,
 				supportsVision: m.supportsVision ?? false,
-				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
+				...(Object.keys(properties).length ? { configSchema: { type: 'object', properties } satisfies ConfigSchema } : {}),
 				...(byokMeta && { _meta: byokMeta }),
 			};
 		});
@@ -5010,9 +5020,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * (the max numeric value in the synthesized `contextSize` {@link ConfigPropertySchema.enum}). Used by
 	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
 	 * Returns `undefined` when the model exposes no such picker (or the model list isn't loaded yet),
-	 * leaving the SDK on its default tier.
+	 * leaving the SDK on its default tier. BYOK models have no tiers: their picker selection becomes
+	 * the session's prompt-token limit instead (see `getByokSessionModelLimits`).
 	 */
 	private _longContextWindowFor(modelId: string | undefined, models = this._models.get()): number | undefined {
+		if (!modelId || isByokLmAgentModelId(modelId)) {
+			return undefined;
+		}
 		const windows = this._contextSizeWindows(modelId, models);
 		return windows ? Math.max(...windows) : undefined;
 	}
