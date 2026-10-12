@@ -2571,9 +2571,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private updateConnectedTabClipping(scrollLeft: number): void {
-		if (this.connectedTabBounds) {
-			updateConnectedTabClipping(this.connectedTabBounds, scrollLeft);
-		}
 		const terminalTab = this.getLastTab();
 		if (this.addTabContainer && this.addTabContainer.offsetWidth > 0 && this.tabsContainer && terminalTab && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && !this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			const tabsBounds = this.tabsContainer.getBoundingClientRect();
@@ -2582,16 +2579,29 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const rtl = getWindow(this.tabsContainer).getComputedStyle(this.tabsContainer).direction === 'rtl';
 			const shoulderSpace = Number.parseFloat(getWindow(terminalTab).getComputedStyle(terminalTab).marginInlineEnd);
 			const viewportEdge = rtl ? addBounds.right + shoulderSpace * scale : addBounds.left - shoulderSpace * scale;
+			if (this.connectedTabBounds) {
+				const activeLeft = this.connectedTabBounds.tab.getBoundingClientRect().left;
+				const viewportLeft = rtl
+					? Math.max(this.connectedTabBounds.viewportLeft, ((activeLeft < viewportEdge ? viewportEdge : addBounds.right) - tabsBounds.left) / scale)
+					: this.connectedTabBounds.viewportLeft;
+				const viewportRight = rtl ? this.tabsContainer.offsetWidth : (addBounds.left - tabsBounds.left) / scale;
+				this.connectedTabBounds.overflowEdge.style.left = `${viewportLeft}px`;
+				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer.offsetWidth - viewportRight}px`;
+				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportLeft, viewportRight }, scrollLeft);
+			}
 			this.forEachTab((_editor, _index, tab) => {
-				if (tab.classList.contains('active')) {
-					tab.style.removeProperty('clip-path');
-					return;
-				}
 				const bounds = tab.getBoundingClientRect();
 				const clipped = Math.max(0, (rtl ? viewportEdge - bounds.left : bounds.right - viewportEdge) / scale);
-				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? 0 : clipped}px calc(-1 * var(--vscode-strokeThickness)) ${rtl ? clipped : 0}px)` : '';
+				const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
+				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
 			});
 		} else {
+			if (this.connectedTabBounds) {
+				const viewportRight = this.addTabContainer?.offsetWidth === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
+				this.connectedTabBounds.overflowEdge.style.left = `${this.connectedTabBounds.viewportLeft}px`;
+				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
+				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);
+			}
 			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
 		}
 	}

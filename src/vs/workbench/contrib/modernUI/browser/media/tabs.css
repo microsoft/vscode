@@ -64,9 +64,12 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
-	background-image: linear-gradient(var(--vscode-editorGroupHeader-tabsBackground), var(--vscode-editorGroupHeader-tabsBackground));
 	cursor: default;
 	--editor-group-tab-height: 24px !important;
+}
+
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title.tabs {
+	background-image: linear-gradient(var(--vscode-editorGroupHeader-tabsBackground), var(--vscode-editorGroupHeader-tabsBackground));
 }
 
 /* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.

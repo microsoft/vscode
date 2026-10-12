@@ -298,13 +298,13 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px', oppositeMargin: '0px', backplateMatchesButton: true, backplateRadius: '4px', noSquareContainer: 'rgba(0, 0, 0, 0)' })));
 	});
 
-	test('scrolling inactive tabs are clipped before the rounded sticky Add control', async () => {
+	test('scrolling tab content is clipped before the rounded sticky Add control', async () => {
 		const group = connectedGroup();
 		control.dispose();
 		reset(container);
 		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.roundedAddOcclusion') });
 		const editors = openNamedEditors(['F.ts', 'a-long-inactive-label-that-scrolls-beneath-the-Add-button.ts', 'another-long-inactive-label-that-scrolls-beneath-the-Add-button.ts', 'last.ts']);
-		model.openEditor(editors[0], { active: true });
+		model.openEditor(editors[1], { active: true });
 		control.openEditors(editors);
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs: false, tabActionReserveSpace: true, editorActionsLocation: 'hidden' };
@@ -314,12 +314,22 @@ suite('MultiEditorTabsControl', () => {
 		const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 		const readClipping = (direction: string, zoom: number) => {
 			const boundary = direction === 'rtl' ? add.getBoundingClientRect().right + 8 * zoom : add.getBoundingClientRect().left - 8 * zoom;
-			const inactive = Array.from(tabs.querySelectorAll<HTMLElement>('.tab:not(.active)'));
+			const rendered = Array.from(tabs.querySelectorAll<HTMLElement>('.tab'));
+			const overlay = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+			const activeFill = tabs.querySelector<HTMLElement>('.tab.active > .tab-fill')!;
+			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
+			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
+			const oppositeShoulderOutsideViewport = direction === 'rtl'
+				? activeFill.getBoundingClientRect().right + shoulderWidth > tabs.getBoundingClientRect().right
+				: activeFill.getBoundingClientRect().left - shoulderWidth < tabs.getBoundingClientRect().left;
 			return {
-				hasClippedTab: inactive.some(tab => direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary),
-				matchingClip: inactive.every(tab => {
+				hasClippedTab: rendered.some(tab => direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary),
+				hasClippedActive: rendered.some(tab => tab.classList.contains('active') && (direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary)),
+				rtlCapAtBoundary: direction !== 'rtl' || Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32,
+				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
+				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px 0px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px 0px\)$/);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px -8px\)$/);
 					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
 				}),
 			};
@@ -352,7 +362,7 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, matchingClip: true }, scrolled: { hasClippedTab: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
@@ -449,10 +459,22 @@ suite('MultiEditorTabsControl', () => {
 				container.classList.toggle('tabs', showTabs);
 				await layoutConnectedGroup(group, width);
 				const style = mainWindow.getComputedStyle(container);
-				results.push({ connected, width, showTabs, backing: style.backgroundColor, themeLayer: style.backgroundImage });
+				results.push({
+					connected, width, showTabs,
+					backing: style.backgroundColor,
+					themeLayer: style.backgroundImage,
+					connectedRowThemeLayer: connected && showTabs ? mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-and-actions-container')!).backgroundColor : undefined,
+				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, backing: 'rgb(18, 52, 86)', themeLayer: result.showTabs ? 'linear-gradient(rgba(255, 0, 0, 0.25), rgba(255, 0, 0, 0.25))' : 'linear-gradient(rgba(0, 255, 0, 0.25), rgba(0, 255, 0, 0.25))' })));
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			backing: 'rgb(18, 52, 86)',
+			themeLayer: result.showTabs
+				? result.connected ? 'none' : 'linear-gradient(rgba(255, 0, 0, 0.25), rgba(255, 0, 0, 0.25))'
+				: 'linear-gradient(rgba(0, 255, 0, 0.25), rgba(0, 255, 0, 0.25))',
+			connectedRowThemeLayer: result.connected && result.showTabs ? 'rgba(255, 0, 0, 0.25)' : undefined,
+		})));
 	});
 
 	test('connected labels use end ellipsis before the badge and action', async () => {
