@@ -258,8 +258,8 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
-			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
 			['hydrafusion-max', undefined, undefined],
 		]);
