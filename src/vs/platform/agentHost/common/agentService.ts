@@ -952,9 +952,6 @@ export interface IAgentService {
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
 
-	/** Resolve the session that owns a chat from recorded ownership; `undefined` when none is recorded. */
-	resolveChatOwner(chat: URI): Promise<URI | undefined>;
-
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 

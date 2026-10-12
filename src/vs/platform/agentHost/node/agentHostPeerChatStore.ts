@@ -17,6 +17,7 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -67,7 +68,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _database: IAgentHostDatabase,
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _logService: ILogService,
-		private readonly _getLiveChatOwner: (chat: string) => string | undefined,
+		private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {
@@ -504,7 +505,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const sessionKey = session.toString();
 		const recorded = await this._database.findChatOwners(entries.map(entry => entry.uri));
 		const owned = entries.map(entry => {
-			const liveOwner = this._getLiveChatOwner(entry.uri);
+			const liveOwner = this._chatOwnership.getChatOwner(entry.uri);
 			if (liveOwner !== undefined) {
 				return liveOwner === sessionKey;
 			}

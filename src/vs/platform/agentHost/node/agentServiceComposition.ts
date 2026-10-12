@@ -47,12 +47,14 @@ import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
 	readonly authenticationService: IAgentHostAuthenticationService;
 	readonly configurationService: IAgentConfigurationService;
 	readonly stateManager: AgentHostStateManager;
+	readonly chatOwnership: IAgentHostChatOwnershipService;
 	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
 	readonly checkpointService: IAgentHostCheckpointService;
 	readonly completions: IAgentHostCompletions;
@@ -91,7 +93,8 @@ export function createAgentServiceComposition(
 			owned.add(options.orchestratorDatabase);
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chat => foundation.stateManager.getChatOwner(chat));
+		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership);
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -145,7 +148,6 @@ export function createAgentServiceComposition(
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
-				resolveChatOwner: chat => callbackAdapter.value.resolveChatOwner(chat),
 			},
 		));
 		const agentMergeTools = owned.add(instantiationService.createInstance(
@@ -249,6 +251,7 @@ export function createAgentServiceComposition(
 			authenticationService: core.authenticationService,
 			configurationService,
 			stateManager,
+			chatOwnership,
 			customizationEnablementService,
 			checkpointService,
 			completions,

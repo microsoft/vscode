@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
-export class AgentHostSubscriptionService implements IAgentHostSubscriptionService {
+export class AgentHostSubscriptionService extends Disposable implements IAgentHostSubscriptionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _subscribers = new ResourceMap<Set<string>>();
@@ -17,6 +19,14 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 	private readonly _chatOwners = new Map<string, string>();
 	/** Subscribed resources addressing each chat: the chat itself and its chat-scoped canvases. */
 	private readonly _resourcesByChat = new Map<string, Set<string>>();
+
+	constructor(
+		@IAgentHostChatOwnershipService chatOwnership: IAgentHostChatOwnershipService,
+	) {
+		super();
+		// A chat subscribed before it registered (e.g. a reconnect fast path) gets its owner now.
+		this._register(chatOwnership.onDidRegisterChat(({ chat, session }) => this._recordChatOwner(chat, session)));
+	}
 
 	get subscribedResources(): Iterable<URI> {
 		return this._subscribers.keys();
@@ -71,7 +81,7 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 		}
 	}
 
-	recordChatOwner(chat: string, session: string): void {
+	private _recordChatOwner(chat: string, session: string): void {
 		if (this._resourcesByChat.has(chat)) {
 			this._chatOwners.set(chat, session);
 		}

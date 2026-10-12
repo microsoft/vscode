@@ -26,8 +26,6 @@ export interface IAgentHostSubscriptionService {
 	hasSubscribers(resource: URI): boolean;
 	/** Records the owning session of a subscribed chat; kept until its last subscriber leaves. */
 	setSubscriptionOwner(resource: URI, session: string): void;
-	/** Records the owning session of a chat registered after it was subscribed, for every subscribed resource of that chat. */
-	recordChatOwner(chat: string, session: string): void;
 	/** Maps a subscribed resource to its session using the owner recorded for it. */
 	resolveSubscribedSession(resource: URI): URI | undefined;
 	/** Whether any subscribed resource belongs to `session`, using recorded owners. */

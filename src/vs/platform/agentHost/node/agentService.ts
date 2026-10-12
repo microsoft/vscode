@@ -27,7 +27,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -75,6 +75,7 @@ import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDa
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
@@ -150,9 +151,6 @@ const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
-function usesStandardSessionUris(provider: AgentProvider): boolean {
-	return provider === COPILOT_CLI_AGENT_PROVIDER_ID || provider === CODEX_AGENT_PROVIDER_ID || provider === CLAUDE_AGENT_PROVIDER_ID;
-}
 
 /** A recent update to one local Agent Host session. */
 /**
@@ -172,12 +170,6 @@ function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | 
 		}
 	}
 	return storage;
-}
-
-/** The recorded owner of a chat, and the spawning tool call when it was found from a spawn edge. */
-interface IChatOwnerResolution {
-	readonly owner: string;
-	readonly spawnedBy: { readonly chat: string; readonly toolCallId: string; readonly title: string | undefined } | undefined;
 }
 
 interface IRecentLocalSessionUpdate {
@@ -631,7 +623,6 @@ export interface IAgentServiceCallbacks {
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
-	readonly resolveChatOwner: NonNullable<IAgentSideEffectsOptions['resolveChatOwner']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
@@ -903,6 +894,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostChatInputService private readonly _chatInputService: IAgentHostChatInputService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
@@ -1016,7 +1008,6 @@ export class AgentService extends Disposable implements IAgentService {
 			postAgentMergeNotice: (chat, kind, content) => this._postAgentMergeNotice(chat, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-			resolveChatOwner: async chat => (await this._resolveChatOwner(chat))?.owner,
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
@@ -1074,8 +1065,6 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}));
-		// A chat subscribed before it registered (e.g. a reconnect fast path) gets its owner now.
-		this._register(this._stateManager.onDidRegisterChat(({ chat, session }) => this._subscriptions.recordChatOwner(chat, session)));
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			const sessionKey = session.toString();
 			this._restoredSubagentAdmissionRetries.get(sessionKey)?.cancel();
@@ -1430,7 +1419,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return existing;
 		}
 
-		const owner = isAhpChatChannel(resource) ? (await this._resolveChatOwner(resource))?.owner : resource;
+		const owner = isAhpChatChannel(resource) ? (await this._chatOwnership.resolveChatOwner(resource))?.owner : resource;
 		if (owner === undefined) {
 			throw new Error(`Cannot resolve peer chat attachment: ${resource}`);
 		}
@@ -2735,7 +2724,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (snapshot?.authorityVersion === 2) {
 			const source = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
 			if (source?.verified && source.payloadDirty !== 0 && agent) {
-				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._createChatBackingOwnerLookup()));
+				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 			}
 			if (source?.verified && !reconciliationMetadata) {
 				const decoded = decodeAgentHostCatalogPayload(source.payload);
@@ -2762,7 +2751,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return { status: 'providerUnavailable' };
 		}
-		const metadata = reconciliationMetadata ?? await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._createChatBackingOwnerLookup()));
+		const metadata = reconciliationMetadata ?? await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 		if (!metadata) {
 			if (!this._readableProviderCatalogs.has(registered.provider)) {
 				return { status: 'providerUnavailable' };
@@ -3261,7 +3250,7 @@ export class AgentService extends Disposable implements IAgentService {
 			external,
 			metadata: this._toSessionMetadata(metadata, session, provider.id),
 		}));
-		const findChatBackingOwner = this._createChatBackingOwnerLookup();
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		const resolvedIdentities = usesStandardSessionUris(provider.id)
 			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider.id, providerMetadata.map(candidate => candidate.metadata.session))
 			: new Map();
@@ -3525,7 +3514,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// reproduce it.
 		const startedAt = Date.now();
 		const storageAccessesAtStart = this._storageAccessCounts();
-		const findChatBackingOwner = this._createChatBackingOwnerLookup();
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		const report = await this._sessionsV2MigrationService.migrateProvider(
 			provider.id,
 			async () => {
@@ -3928,7 +3917,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider, sessions)
 			: new Map();
 		const known = new Set<string>();
-		const findChatBackingOwner = this._createChatBackingOwnerLookup();
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		for (const session of sessions) {
 			const key = session.toString();
 			const sessionProvider = AgentSession.provider(session);
@@ -3948,16 +3937,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Whether a session is marked as an internal chat backing, either durably
 	 * or in `_unpersistedChatBackings`.
 	 */
-	/**
-	 * Owner lookup for chat-backing markers. One lookup is shared by a pass
-	 * over many sessions, so the registered default-chat inventory is read at
-	 * most once per pass.
-	 */
-	private _createChatBackingOwnerLookup(): (chat: string) => Promise<string | undefined> {
-		let inventory: Promise<ReadonlyMap<string, string>> | undefined;
-		return async chat => (await this._findRecordedChatOwner(chat, () => inventory ??= this._getDefaultChatInventory()))?.owner;
-	}
-
 	private async _isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean> {
 		const sessionKey = session.toString();
 		if (this._unpersistedChatBackings.has(sessionKey)) {
@@ -5758,7 +5737,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _resolveSessionSourceChat(source: URI): Promise<{ sourceChatKey: string; sourceSessionKey: string; sourceState: ReturnType<AgentHostStateManager['getChatState']> | undefined }> {
 		const sourceKey = source.toString();
-		const sourceSessionKey = isAhpChatChannel(sourceKey) ? (await this._resolveChatOwner(sourceKey))?.owner : sourceKey;
+		const sourceSessionKey = isAhpChatChannel(sourceKey) ? (await this._chatOwnership.resolveChatOwner(sourceKey))?.owner : sourceKey;
 		if (sourceSessionKey === undefined) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Source chat not found: ${sourceKey}`);
 		}
@@ -5781,11 +5760,6 @@ export class AgentService extends Disposable implements IAgentService {
 			return this._worktree.resolveWorkingDirectoryForResume(detachedWorktreeRecordUri(additionalWorktree.handle), additionalWorktree.handle, workingDirectory);
 		}
 		return this._worktree.resolveWorkingDirectoryForResume(session, sessionId, workingDirectory);
-	}
-
-	async resolveChatOwner(chat: URI): Promise<URI | undefined> {
-		const owner = (await this._resolveChatOwner(chat.toString()))?.owner;
-		return owner === undefined ? undefined : URI.parse(owner);
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
@@ -7009,7 +6983,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const chatKey = parsed.chat.toString();
-		if ((await this._resolveChatOwner(chatKey))?.owner !== sessionResource) {
+		if ((await this._chatOwnership.resolveChatOwner(chatKey))?.owner !== sessionResource) {
 			return undefined;
 		}
 		let chat = this._stateManager.getChatState(chatKey);
@@ -7092,7 +7066,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
 			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
-				const containing = session ?? (await this._resolveChatOwner(owner))?.owner;
+				const containing = session ?? (await this._chatOwnership.resolveChatOwner(owner))?.owner;
 				if (containing === undefined) {
 					this._logService.trace(`[AgentService] subscribe: no owner recorded for changeset owner ${owner}`);
 				} else if (!this._stateManager.getSessionState(containing)) {
@@ -7144,7 +7118,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// owner rather than the chat itself. This makes the chat-channel
 				// subscribe self-sufficient and independent of whether the
 				// session channel was subscribed first.
-				chatOwner = await this._resolveChatOwner(resourceStr);
+				chatOwner = await this._chatOwnership.resolveChatOwner(resourceStr);
 				if (chatOwner !== undefined) {
 					telemetry.setSession(URI.parse(chatOwner.owner));
 					this._subscriptions.setSubscriptionOwner(resource, chatOwner.owner);
@@ -7173,7 +7147,7 @@ export class AgentService extends Disposable implements IAgentService {
 					snapshot = await this._awaitPendingSubagentChat(resourceStr);
 					if (!snapshot) {
 						const chatId = parseChatUri(resource)?.chatId;
-						const owner = chatOwner ?? await this._resolveChatOwner(resourceStr);
+						const owner = chatOwner ?? await this._chatOwnership.resolveChatOwner(resourceStr);
 						if (owner !== undefined && chatId?.startsWith('subagent/')) {
 							telemetry.setSession(URI.parse(owner.owner));
 							await this._restoreSubagentChat(resourceStr, URI.parse(owner.owner), owner.spawnedBy?.toolCallId ?? chatId.slice('subagent/'.length));
@@ -7259,7 +7233,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Maps a subscribable resource to its owning session; a chat resolves through the live registry only. */
-	private readonly _getChatOwner = (chat: string) => this._stateManager.getChatOwner(chat);
+	private readonly _getChatOwner = (chat: string) => this._chatOwnership.getChatOwner(chat);
 
 	/** Records the registry owner of a subscribed chat while the chat is still registered. */
 	private _recordSubscriptionOwner(resource: URI): void {
@@ -7271,105 +7245,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _resolveResourceSession(resource: URI): URI | undefined {
 		return resolveAgentHostSession(resource, this._getChatOwner);
-	}
-
-	/**
-	 * Resolves the session that owns a chat from recorded ownership only: the
-	 * live registry, retained summaries, the central catalog and the registered
-	 * session inventory, then restores in flight, then spawn edges recorded in
-	 * loaded chats. The chat URI itself is never decoded.
-	 */
-	private async _resolveChatOwner(chat: string): Promise<IChatOwnerResolution | undefined> {
-		const recorded = await this._findRecordedChatOwner(chat, () => this._getDefaultChatInventory());
-		if (recorded) {
-			return recorded;
-		}
-		const inFlight = [...this._restoreSessionInFlight.values(), ...this._restoreSubagentInFlight.values()];
-		if (inFlight.length > 0) {
-			await Promise.allSettled(inFlight);
-			const owner = this._stateManager.getChatOwner(chat);
-			if (owner !== undefined) {
-				return { owner, spawnedBy: undefined };
-			}
-		}
-		return this._findChatSpawnEdge(chat);
-	}
-
-	private async _findRecordedChatOwner(chat: string, getDefaultChatInventory: () => Promise<ReadonlyMap<string, string>>): Promise<IChatOwnerResolution | undefined> {
-		const live = this._stateManager.getChatOwner(chat) ?? this._stateManager.findRetainedChatOwner(chat);
-		if (live !== undefined) {
-			return { owner: live, spawnedBy: undefined };
-		}
-		const durable = await this._orchestratorDatabase.findChatOwner(chat);
-		if (durable) {
-			return { owner: durable.ownerSession, spawnedBy: undefined };
-		}
-		const owner = (await getDefaultChatInventory()).get(chat);
-		return owner === undefined ? undefined : { owner, spawnedBy: undefined };
-	}
-
-	/**
-	 * Default chats of every registered session. A legacy default chat has no
-	 * catalog row of its own, so its owner is the session record it was minted
-	 * for, addressed by either its standard or its provider-native session URI.
-	 */
-	private async _getDefaultChatInventory(): Promise<ReadonlyMap<string, string>> {
-		const [current, legacy] = await Promise.all([
-			this._orchestratorDatabase.listSessionV2Registrations(),
-			this._orchestratorDatabase.listSessions(),
-		]);
-		const defaults = new Map<string, string>();
-		for (const { session, provider } of [...current, ...legacy]) {
-			const identities = usesStandardSessionUris(provider)
-				? [session, AgentSession.uri('ahp-session', AgentSession.id(session)).toString(), AgentSession.uri(provider, AgentSession.id(session)).toString()]
-				: [session];
-			for (const identity of identities) {
-				defaults.set(this._defaultChatUri(identity), identity);
-			}
-		}
-		return defaults;
-	}
-
-	/**
-	 * Finds a chat spawned by a tool call of a loaded chat: the spawned chat is
-	 * owned by the spawning chat's owner, or is the default chat of the legacy
-	 * subagent session the tool call reported.
-	 */
-	private _findChatSpawnEdge(chat: string): IChatOwnerResolution | undefined {
-		for (const session of this._stateManager.getSessionUris()) {
-			const state = this._stateManager.getSessionState(session);
-			if (!state) {
-				continue;
-			}
-			const candidates = [...new Set([state.defaultChat ?? this._defaultChatUri(session), ...state.chats.map(summary => summary.resource)])];
-			for (const candidate of candidates) {
-				const chatState = this._stateManager.getChatState(candidate);
-				if (!chatState) {
-					continue;
-				}
-				for (const turn of [...chatState.turns, ...(chatState.activeTurn ? [chatState.activeTurn as Turn] : [])]) {
-					for (const part of turn.responseParts) {
-						if (part.kind !== ResponsePartKind.ToolCall || (part.toolCall.status !== ToolCallStatus.Completed && part.toolCall.status !== ToolCallStatus.Running)) {
-							continue;
-						}
-						const { toolCallId } = part.toolCall;
-						for (const content of part.toolCall.content ?? []) {
-							if (content.type !== ToolResultContentType.Subagent) {
-								continue;
-							}
-							const spawnedBy = { chat: candidate, toolCallId, title: content.title || undefined };
-							if (content.resource === chat || buildSubagentChatUri(session, toolCallId) === chat) {
-								return { owner: session, spawnedBy };
-							}
-							if (!isAhpChatChannel(content.resource) && buildDefaultChatUri(content.resource) === chat) {
-								return { owner: content.resource, spawnedBy };
-							}
-						}
-					}
-				}
-			}
-		}
-		return undefined;
 	}
 
 	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
@@ -7926,7 +7801,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			const sessionChannel = knownSessionChannel ?? (await this._resolveChatOwner(channel))?.owner;
+			const sessionChannel = knownSessionChannel ?? (await this._chatOwnership.resolveChatOwner(channel))?.owner;
 			if (sessionChannel === undefined) {
 				this._logService.trace(`[AgentService] dispatchAction: no owner recorded for chat ${channel}; ${action.type} has no effect`);
 				if (!this._rejectUnknownChatAction(channel, action, { clientId, clientSeq })) {
@@ -8898,6 +8773,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
 		const restore = this._doRestoreSession(session, sessionStr);
 		this._restoreSessionInFlight.set(sessionStr, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 			this._sessionResidency.touch(session);
@@ -10102,7 +9978,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * spawn bridge is safe because `addChat` is idempotent.
 	 */
 	private _sequenceSpawnedChat(signal: AgentSignal): void {
-		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => this._stateManager.getChatOwner(chat));
+		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => this._chatOwnership.getChatOwner(chat));
 		if (spawn) {
 			this._onChatSpawned(spawn);
 		}
@@ -11134,6 +11010,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const restore = this._doRestoreSubagentChat(chatUri, parentSession, toolCallId);
 		this._restoreSubagentInFlight.set(chatUri, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 		} finally {
@@ -11239,6 +11116,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const restore = this._doRestoreSubagentSession(subagentUri, parentSession);
 		this._restoreSubagentInFlight.set(subagentUri, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 		} finally {

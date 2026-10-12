@@ -88,6 +88,8 @@ import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.j
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -205,9 +207,8 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns' | 'resolveChatOwner'> & {
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
 		localTurns?: AgentHostLocalTurns;
-		resolveChatOwner?: IAgentSideEffectsOptions['resolveChatOwner'];
 		gitStateService?: IAgentHostGitStateService;
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
@@ -266,7 +267,9 @@ function createTestSideEffects(
 	services.set(IAgentHostSessionTitleController, titleController);
 	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
 	services.set(IAgentHostProviderService, providerService);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+	const chatOwnership = createTestChatOwnershipService(stateManager);
+	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)))));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -288,7 +291,6 @@ function createTestSideEffects(
 	services.set(IAgentHostLocalCommands, localCommands);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
-		resolveChatOwner: async () => undefined,
 		...options,
 		localTurns,
 	};

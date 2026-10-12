@@ -5919,13 +5919,12 @@ suite('AgentService (node dispatcher)', () => {
 			const session = URI.parse('ahp-session:/orphan-marker');
 			await perSession.database(session).setMetadata('peerChatBacking', buildDefaultChatUri('ahp-session:/missing-owner'));
 			const inspect = svc as unknown as {
-				_createChatBackingOwnerLookup(): (chat: string) => Promise<string | undefined>;
 				_isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean>;
 				_readSessionRegistrationFacts(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
 			};
 			assert.deepStrictEqual({
-				backing: await inspect._isChatBacking(session, inspect._createChatBackingOwnerLookup()),
-				facts: await inspect._readSessionRegistrationFacts(session, inspect._createChatBackingOwnerLookup()),
+				backing: await inspect._isChatBacking(session, getTestAgentServiceComposition(svc).chatOwnership.createRecordedOwnerLookup()),
+				facts: await inspect._readSessionRegistrationFacts(session, getTestAgentServiceComposition(svc).chatOwnership.createRecordedOwnerLookup()),
 			}, { backing: false, facts: { chatBacking: false, hostCreated: false } });
 		});
 
@@ -5935,14 +5934,13 @@ suite('AgentService (node dispatcher)', () => {
 			await database.setMetadata('peerChatBackingProvider', 'codex');
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const inspect = svc as unknown as {
-				_createChatBackingOwnerLookup(): (chat: string) => Promise<string | undefined>;
 				_isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean>;
 				_readSessionRegistrationFacts(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
 			};
 			const candidates = [URI.parse('codex:/shared-sdk-id'), URI.parse('claude:/shared-sdk-id')];
 			assert.deepStrictEqual(await Promise.all(candidates.map(async session => ({
-				backing: await inspect._isChatBacking(session, inspect._createChatBackingOwnerLookup()),
-				facts: await inspect._readSessionRegistrationFacts(session, inspect._createChatBackingOwnerLookup()),
+				backing: await inspect._isChatBacking(session, getTestAgentServiceComposition(svc).chatOwnership.createRecordedOwnerLookup()),
+				facts: await inspect._readSessionRegistrationFacts(session, getTestAgentServiceComposition(svc).chatOwnership.createRecordedOwnerLookup()),
 			}))), [
 				{ backing: true, facts: { chatBacking: true, hostCreated: false } },
 				{ backing: false, facts: { chatBacking: false, hostCreated: false } },
@@ -23202,7 +23200,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				owners: [restored, live].map(chat => getStateManager(svc).getChatOwner(chat)),
 				storage: [restored, live].map(chat => getStateManager(svc).getChatStorageResource(chat)),
-				coldOwner: (await svc.resolveChatOwner(URI.parse(restored)))?.toString(),
+				coldOwner: (await getTestAgentServiceComposition(svc).chatOwnership.resolveChatOwner(restored))?.owner,
 				configurationOwners: [restored, live].map(chat => getTestAgentServiceComposition(svc).configurationService.resolveConfigurationOwner(chat)),
 				restoredScopes: scopes(restored),
 				liveScopes: scopes(live),

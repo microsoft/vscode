@@ -22,6 +22,7 @@ import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSub
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentSessionResidency', () => {
 	const disposables = new DisposableStore();
@@ -39,7 +40,7 @@ suite('AgentSessionResidency', () => {
 		releaseHold = disposables.add(new Emitter<string>());
 		released = [];
 		evicted = [];
-		subscriptions = new AgentHostSubscriptionService();
+		subscriptions = disposables.add(new AgentHostSubscriptionService(createTestChatOwnershipService(stateManager)));
 		delegate = {
 			isReleaseBlocked: () => false,
 			whenSessionDataIdle: async () => { },

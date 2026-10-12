@@ -94,6 +94,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import type { AuthRequiredErrorData } from '../common/state/protocol/common/errors.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -479,6 +480,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -1873,7 +1875,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
-			const owner = isAhpChatChannel(params.channel) ? await this._agentService.resolveChatOwner(chat) : undefined;
+			const owner = isAhpChatChannel(params.channel) ? await this._resolveChatOwner(params.channel) : undefined;
 			if (!owner) {
 				this._logService.trace(`[ProtocolServer] disposeChat: no owner recorded for ${params.channel}`);
 				return null;
@@ -3104,9 +3106,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private async _resolveChatOwner(chat: string): Promise<URI | undefined> {
+		const owner = (await this._chatOwnership.resolveChatOwner(chat))?.owner;
+		return owner === undefined ? undefined : URI.parse(owner);
+	}
+
 	/** Rejects unless `chat` is a chat whose recorded owner is `session`. */
 	private async _assertChatBelongsToSession(chat: URI, session: URI): Promise<void> {
-		const owner = isAhpChatChannel(chat.toString()) ? await this._agentService.resolveChatOwner(chat) : undefined;
+		const owner = isAhpChatChannel(chat.toString()) ? await this._resolveChatOwner(chat.toString()) : undefined;
 		if (owner?.toString() !== session.toString()) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session');
 		}

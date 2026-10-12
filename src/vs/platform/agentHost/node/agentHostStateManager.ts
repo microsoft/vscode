@@ -110,6 +110,13 @@ type RestoredChatResolver = (providerData: string | undefined, storageResource: 
  * has a summary before it has conversation state; resolution atomically
  * installs that state only after its provider history is ready.
  */
+/** A chat's registration in the registry: its recorded owner and the resource its persisted data is keyed by. */
+export interface IChatRegistration {
+	readonly chat: URI;
+	readonly session: URI;
+	readonly storageResource: URI;
+}
+
 interface IChatEntry {
 	/** Owning session, recorded from the registering session record. */
 	readonly session: string;
@@ -352,9 +359,12 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
-	private readonly _onDidRegisterChat = this._register(new Emitter<{ chat: string; session: string }>());
-	/** Fires when a chat enters the registry with its recorded owner. */
-	readonly onDidRegisterChat: Event<{ chat: string; session: string }> = this._onDidRegisterChat.event;
+	private readonly _onDidRegisterChat = this._register(new Emitter<IChatRegistration>());
+	/** Fires when a chat enters the registry with its recorded owner and storage. */
+	readonly onDidRegisterChat: Event<IChatRegistration> = this._onDidRegisterChat.event;
+	private readonly _onDidUnregisterChat = this._register(new Emitter<IChatRegistration>());
+	/** Fires when a chat leaves the registry, with the owner and storage captured from its entry. */
+	readonly onDidUnregisterChat: Event<IChatRegistration> = this._onDidUnregisterChat.event;
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
@@ -2031,12 +2041,13 @@ export class AgentHostStateManager extends Disposable {
 		if (entry) {
 			entry.valid = false;
 			this._chatEntries.delete(chat);
+			this._onDidUnregisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
 		}
 	}
 
 	private _setChatEntry(chat: URI, entry: IChatEntry): void {
 		this._chatEntries.set(chat, entry);
-		this._onDidRegisterChat.fire({ chat, session: entry.session });
+		this._onDidRegisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
 	}
 
 	private _synchronizeChatEntries(session: URI, summaries: readonly ChatSummary[]): void {

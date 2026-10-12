@@ -5,21 +5,27 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 
 suite('AgentHostSubscriptionService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
 
 	test('records a registered chat owner for its subscribed chat and canvases without iterating unrelated subscriptions', () => {
-		const subscriptions = new AgentHostSubscriptionService();
+		const registrations = disposables.add(new Emitter<IChatRegistration>());
+		const subscriptions = disposables.add(new AgentHostSubscriptionService(new class extends mock<IAgentHostChatOwnershipService>() {
+			override readonly onDidRegisterChat = registrations.event;
+		}()));
 		const owner = 'copilot:/owner';
 		const chat = buildChatUri('copilot:/encoded', 'peer');
 		const canvas = buildCanvasUri(URI.parse(chat), 'canvas');
@@ -30,8 +36,9 @@ suite('AgentHostSubscriptionService', () => {
 		subscriptions.addSubscriber(canvas, 'client');
 		const iterations = sinon.spy(ResourceMap.prototype, 'keys');
 
-		subscriptions.recordChatOwner(chat, owner);
-		subscriptions.recordChatOwner(buildChatUri('copilot:/unsubscribed', 'chat'), 'copilot:/other');
+		registrations.fire({ chat, session: owner, storageResource: chat });
+		const unsubscribed = buildChatUri('copilot:/unsubscribed', 'chat');
+		registrations.fire({ chat: unsubscribed, session: 'copilot:/other', storageResource: unsubscribed });
 		const afterRecord = {
 			iterations: iterations.callCount,
 			chat: subscriptions.resolveSubscribedSession(URI.parse(chat))?.toString(),
