@@ -129,7 +129,7 @@ import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/title
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat } from './agentHostPeerChatStore.js';
 import { migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
@@ -2150,7 +2150,7 @@ export class AgentService extends Disposable implements IAgentService {
 					delete metadataKeys[defaultChatTitleKey];
 				}
 				const persisted = await ref.object.getMetadataObject(metadataKeys);
-				if (persisted[CHAT_BACKING_METADATA_KEY]) {
+				if (isAgentHostChatBacking(metadata.session, !!persisted[CHAT_BACKING_METADATA_KEY])) {
 					return undefined;
 				}
 				let updated = sanitized;
@@ -3498,7 +3498,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			candidate => isSubagentSession(candidate.session.toString())
 				? { reason: 'subagent', fingerprint: 'uri-v1' }
-				: candidate.catalog?.isChatBacking === true
+				: candidate.catalog && isAgentHostChatBacking(candidate.session, candidate.catalog.isChatBacking)
 					? { reason: 'backing', fingerprint: candidate.catalog.payloadHash }
 					: undefined,
 			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate),
@@ -3903,6 +3903,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * or in `_unpersistedChatBackings`.
 	 */
 	private async _isChatBacking(session: URI): Promise<boolean> {
+		if (!isAgentHostChatBacking(session, true)) {
+			return false;
+		}
 		const sessionKey = session.toString();
 		if (this._unpersistedChatBackings.has(sessionKey)) {
 			return true;
@@ -9982,12 +9985,15 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!provider) {
 				throw new Error(`Chat backing has no provider: ${backingSessionStr}`);
 			}
-			const ref = this._sessionDataService.openDatabase(backingSession);
-			try {
-				await ref.object.setMetadata(CHAT_BACKING_METADATA_KEY, chat.toString());
-				await ref.object.setMetadata(`${CHAT_BACKING_METADATA_KEY}Provider`, provider);
-			} finally {
-				ref.dispose();
+			const owner = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+			if (!isEqual(this._sessionDataService.getSessionDataDir(backingSession), this._sessionDataService.getSessionDataDir(owner))) {
+				const ref = this._sessionDataService.openDatabase(backingSession);
+				try {
+					await ref.object.setMetadata(CHAT_BACKING_METADATA_KEY, chat.toString());
+					await ref.object.setMetadata(`${CHAT_BACKING_METADATA_KEY}Provider`, provider);
+				} finally {
+					ref.dispose();
+				}
 			}
 			await this._sessionRegistry.markSessionsV2Excluded({ provider, session: backingSessionStr, reason: 'backing', fingerprint: 'backing-v1' });
 		};

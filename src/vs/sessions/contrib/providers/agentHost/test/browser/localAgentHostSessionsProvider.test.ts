@@ -1507,6 +1507,67 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const agentProvider of ['claude', 'codex']) {
+		for (const initiallyBlocked of [false, true]) {
+			test(`policy-disabled ${agentProvider} history suspends changeset and feedback access (cold=${initiallyBlocked})`, () => {
+				const setting = `chat.agentHost.${agentProvider}Agent.enabled`;
+				const configurationService = new class extends TestConfigurationService {
+					blocked = initiallyBlocked;
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+					}
+				}({ [setting]: !initiallyBlocked });
+				const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService, activeSession, isSessionsWindow: true });
+				const backend = `${agentProvider}:/policy-changes`;
+				const chatUri = buildDefaultChatUri(backend);
+				const changesetUri = `${chatUri}/changeset/uncommitted`;
+				agentHost.setSessionState('policy-changes', agentProvider, {
+					provider: agentProvider, title: 'Saved', status: ProtocolSessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+				});
+				agentHost.setChatState(chatUri, {
+					resource: chatUri, title: '', status: ProtocolSessionStatus.Idle,
+					modifiedAt: new Date(0).toISOString(), turns: [],
+					changesets: [{ label: 'Uncommitted Changes', uriTemplate: changesetUri, changeKind: 'uncommitted' }],
+				});
+				agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Ready, files: [] });
+				fireSessionAdded(agentHost, 'policy-changes', { title: 'Saved', provider: agentProvider });
+				const session = provider.getSessions()[0];
+				activeSession.set(new class extends mock<IActiveSession>() {
+					override readonly resource = session.resource;
+				}(), undefined);
+				disposables.add(autorun(reader => {
+					for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
+						changeset.changes.read(reader);
+					}
+				}));
+				const hasLiveSourceSubscriptions = () => [...agentHost.sessionSubscribeCounts].some(([resource, count]) =>
+					resource.startsWith(backend) && count > (agentHost.sessionUnsubscribeCounts.get(resource) ?? 0));
+				const before = { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId) };
+				configurationService.blocked = true;
+				configurationService.setUserConfiguration(setting, false);
+				fireConfigChange(configurationService, setting);
+				const blocked = { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId), interactivity: session.mainChat.get().interactivity.get() };
+				configurationService.blocked = false;
+				configurationService.setUserConfiguration(setting, true);
+				fireConfigChange(configurationService, setting);
+				assert.deepStrictEqual({
+					before,
+					blocked,
+					recovered: { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId) },
+					retained: provider.getSessions()[0] === session,
+				}, {
+					before: { subscribed: !initiallyBlocked, feedback: !initiallyBlocked },
+					blocked: { subscribed: false, feedback: false, interactivity: ChatInteractivity.ReadOnly },
+					recovered: { subscribed: true, feedback: true },
+					retained: true,
+				});
+			});
+		}
+	}
+
 	test('policy-disabled saved rows reject mutations and honor explicit deletion', async () => {
 		const setting = 'chat.agentHost.claudeAgent.enabled';
 		const configurationService = new class extends TestConfigurationService {

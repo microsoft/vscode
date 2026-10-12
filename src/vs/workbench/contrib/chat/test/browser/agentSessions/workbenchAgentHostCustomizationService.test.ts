@@ -16,6 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CustomizationType, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -84,6 +85,8 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			const activeClientService = {
 				isBundledMcpServer: () => false,
 			} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+			const configurationService = new TestConfigurationService();
+			store.add(configurationService.onDidChangeConfigurationEmitter);
 			const service = store.add(new WorkbenchAgentHostCustomizationService(
 				connectionsService,
 				provisionalService,
@@ -92,6 +95,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				chatService,
 				activeClientService,
 				new class extends mock<IMcpService>() { }(),
+				configurationService,
 			));
 			let customizationChangeCount = 0;
 			store.add(service.onDidChangeCustomizations(() => customizationChangeCount++));

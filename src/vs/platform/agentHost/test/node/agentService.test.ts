@@ -6563,6 +6563,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a native backing alias sharing the standard owner storage does not mark the owner database', async () => {
+			class AliasedDefaultChatAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await base.createChat(chat, context, options);
+						const owner = resolveAgentChatContext(context, chat).configurationResource;
+						return result ? { ...result, providerData: 'opaque-backing', backingSession: AgentSession.uri(this.id, AgentSession.id(owner)) } : result;
+					},
+				}));
+			}
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			const storage = createSessionDataService(database);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, storage, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AliasedDefaultChatAgent('codex'));
+			registerTestAgentProvider(svc, agent);
+			const owner = await svc.createSession({ provider: 'codex' });
+			const alias = AgentSession.uri('codex', AgentSession.id(owner));
+			assert.strictEqual(owner.scheme, 'ahp-session');
+			assert.deepStrictEqual({
+				ownerMarker: await database.getMetadata('peerChatBacking'),
+				excludedAlias: (await getTestAgentHostDatabase(svc).getSessionsV2Exclusion('codex', alias.toString()))?.reason,
+			}, { ownerMarker: undefined, excludedAlias: 'backing' });
+		});
+
 		test('marks the backing and rolls back creation when default-chat provider data cannot be persisted', async () => {
 			// N2: `_persistDefaultChatBacking`'s provider-data write and its
 			// backing-marker write must be independent — a provider-data

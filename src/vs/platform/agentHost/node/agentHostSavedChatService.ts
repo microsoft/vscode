@@ -20,7 +20,7 @@ import type { ISessionDatabase, ISessionDataService } from '../common/sessionDat
 import { ChatOriginKind, type ChatOrigin, type Turn } from '../common/state/protocol/channels-chat/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, isSubagentChatUri, parseChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayloadData } from './agentHostCatalogProjection.js';
-import { fromCatalogChatOrigin, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
+import { fromCatalogChatOrigin, isAgentHostChatBacking, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase, IAgentHostDatabaseCatalogSnapshotEntry, IAgentHostDatabaseChatV2 } from './agentHostDatabase.js';
 import { interleaveLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from './agentHostPeerChatStore.js';
@@ -150,7 +150,7 @@ export class AgentHostSavedChatService {
 			this._database.readCatalogSnapshot([key]),
 			this._database.getSessionV2(key),
 		]);
-		if (!snapshot || snapshot.isChatBacking || snapshot.provisional || await this._database.isSessionTombstoned(key)) {
+		if (!snapshot || isAgentHostChatBacking(session, snapshot.isChatBacking) || snapshot.provisional || await this._database.isSessionTombstoned(key)) {
 			throw new Error(`Saved session not found: ${key}`);
 		}
 		if (snapshot.identity.session !== key || catalog && (catalog.provider !== snapshot.identity.provider || snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)) {

@@ -16,6 +16,9 @@ import { savedChatToDto } from '../../common/agentHostSavedChat.js';
 import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
+import { encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostSavedChatService, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -93,6 +96,39 @@ suite('AgentHostSavedChatService', () => {
 			assert.deepStrictEqual(savedChatToDto(await createService().readSavedChat(session)), savedChatToDto(saved));
 		});
 	}
+
+	test('recovers a standard owner whose native alias marked their shared storage as a backing', async () => {
+		const { sessionDatabase, database, createService, calls } = await fixture('codex');
+		const alias = URI.parse('codex:/saved-owner');
+		await sessionDatabase.setMetadata(CHAT_BACKING_METADATA_KEY, defaultChat.toString());
+		await sessionDatabase.setChatDraft(defaultChat, { text: 'Saved unsent draft', origin: { kind: MessageKind.User } });
+		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+		assert.ok(snapshot.header);
+		const encoded = encodeAgentHostCatalogPayload({
+			modifiedTime: 1, isRead: true, isArchived: false, isChatBacking: true,
+			workingDirectories: [folder.toString()], chats: chatCatalogV2ToCatalogChats(snapshot),
+		});
+		assert.ok(encoded.ok);
+		assert.strictEqual(await database.upsertSessionV2FromChatCatalog({
+			session: session.toString(), sessionGeneration: 'saved-owner-generation', sourceRevision: 1,
+			payloadVersion: 2, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true,
+		}, undefined, snapshot.header.revision), 'applied');
+		await database.registerSessionV2(alias.toString(), { provider: 'codex', startTime: 1, source: 'discovery' }, { checkTombstone: false });
+		assert.strictEqual(await database.excludeSessionV2({ provider: 'codex', session: alias.toString(), reason: 'backing', fingerprint: 'backing-v1' }, {
+			identity: await database.getSessionV2Registration(alias.toString()), catalog: undefined,
+		}), 'excluded');
+		const listed = await new AgentHostCatalogListReader(database).read({ session, provider: 'codex', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' });
+		const saved = await createService().readSavedChat(session);
+		await assert.rejects(createService().readSavedChat(alias), /not found/i);
+		assert.deepStrictEqual({
+			listed: listed.eligible, turns: saved.turns, draft: saved.draft?.text,
+			readers: calls.map(call => call.session.toString()),
+			excluded: (await database.getSessionsV2Exclusion('codex', alias.toString()))?.reason,
+		}, {
+			listed: true, turns: [turn('native', 'Saved question')], draft: 'Saved unsent draft',
+			readers: [session.toString()], excluded: 'backing',
+		});
+	});
 
 	test('reads the requested peer backing and never substitutes the default for a missing chat', async () => {
 		const { calls, createService } = await fixture();

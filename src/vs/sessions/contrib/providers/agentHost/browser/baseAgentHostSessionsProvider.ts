@@ -4333,7 +4333,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			instantiationService: this._instantiationService,
 			getConnection: reader => {
 				this._connectionChanged.read(reader);
-				return this.connection;
+				return this._isAgentDisabledByPolicy(provider) ? undefined : this.connection;
 			},
 			getBackendChatResource: chat => this.getBackendChatResource(chat),
 			agentCapabilities: this._agentCapabilities,
@@ -4425,6 +4425,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	protected _onSessionPolicyChanged(): void {
+		this._connectionChanged.trigger(undefined);
 		for (const cached of this._sessionCache.values()) {
 			if (!this._isAgentDisabledByPolicy(cached.agentProvider)) {
 				continue;
@@ -4980,7 +4981,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				instantiationService: this._instantiationService,
 				getConnection: reader => {
 					this._connectionChanged.read(reader);
-					return this.connection;
+					return this._isAgentDisabledByPolicy(sessionType.id) ? undefined : this.connection;
 				},
 				getBackendChatResource: chat => this.getBackendChatResource(chat),
 				agentCapabilities: this._agentCapabilities,
@@ -6342,7 +6343,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached || !rawId) {
+		if (!cached || !rawId || this._isAgentDisabledByPolicy(cached.agentProvider)) {
 			return undefined;
 		}
 		const sessionUri = cached.backendUri;
