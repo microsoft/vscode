@@ -174,10 +174,10 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 
 	private _getDetail(limited: number | false, isMarkersSourceTruncated: boolean): string | undefined {
 		if (isMarkersSourceTruncated && limited !== false) {
-			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some diagnostics are truncated, and only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
+			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some diagnostics are not shown, and only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
 		}
 		if (isMarkersSourceTruncated) {
-			return nls.localize('status.limitedDiagnostics.details', "Some diagnostics are truncated for performance reasons.");
+			return nls.localize('status.limitedDiagnostics.details', "Some diagnostics are not shown for performance reasons.");
 		}
 		if (limited !== false) {
 			return nls.localize('status.limitedDiagnosticHighlights.details', "Only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
