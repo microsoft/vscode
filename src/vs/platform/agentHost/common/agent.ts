@@ -280,6 +280,27 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
+export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** One canvas declaration available to an initialized provider chat. */
+export interface IAgentCanvasInfo {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: AgentCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
+	readonly actionCount: number;
+}
+
+/** Opens or focuses one stable canvas instance in an initialized provider chat. */
+export interface IAgentCanvasOpenRequest {
+	readonly canvasId: string;
+	readonly extensionId?: string;
+	readonly instanceId: string;
+}
+
 export interface IAgentCustomizationInstallationCatalogue {
 	readonly resourceId?: string;
 	readonly itemUrl?: string;
@@ -1401,6 +1422,8 @@ export interface IAgentPendingMessageSender {
 /** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
 export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
+	/** Analytics ID from the same account discovery as the SKU, without an additional hash. */
+	readonly copilotTrackingId?: string;
 }
 
 export interface IAgentSessionPlan {
@@ -1437,6 +1460,12 @@ export interface IAgent {
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+
+	/** List canvas declarations available to one initialized provider chat. */
+	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
+
+	/** Open or focus one canvas instance in an initialized provider chat. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;
@@ -1659,6 +1688,9 @@ export interface IAgent {
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
+
+	/** Return the exact provider-owned plan file, resolving the chat's native backing identity. */
+	getSessionPlanFile?(session: URI, chat: URI): URI | undefined;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
 	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;

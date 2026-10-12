@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { ManagedSettingsData } from '../../../../../../base/common/policy.js';
 import { constObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
@@ -21,7 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -81,6 +82,7 @@ import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME,
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
 import { NullLanguageModelsService } from '../languageModels.js';
 import { ICanvasContext } from '../../../../canvases/common/canvas.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -213,6 +215,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
 		instantiationService.stub(ILanguageModelsService, new NullLanguageModelsService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
@@ -264,6 +267,33 @@ suite('ChatService', () => {
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
 	] as const) {
+		test(`${policyKey} allows Local with the enterprise escape hatch and blocks it again on withdrawal`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let optOut = true;
+			const getSettings = (): ManagedSettingsData => ({ [policyKey]: policyValue, [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: optOut });
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => getSettings()[key],
+				getManagedSettings: getSettings,
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const result = await service.sendRequest(model.sessionResource, 'Local escape hatch');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
+			const allowed = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
+			optOut = false;
+			changes.fire();
+			const blocked = await service.sendRequest(restored.sessionResource, 'withdrawn escape hatch');
+			assert.deepStrictEqual({
+				allowed, blocked: blocked.kind,
+				history: restored.getRequests().length,
+				inputBlocked: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
+			}, { allowed: [false, false], blocked: 'rejected', history: 1, inputBlocked: [true, true] });
+		});
+
 		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let rules: string | boolean | undefined;
@@ -337,6 +367,37 @@ suite('ChatService', () => {
 				}, { result: 'rejected', blocked: true, requests: 0 });
 			});
 		}
+
+		test(`${policyKey} Local request blocking reacts to the effective configuration policy escape hatch`, async () => {
+			const configuration = new TestConfigurationService();
+			testDisposables.add(configuration.onDidChangeConfigurationEmitter);
+			let optOut = false;
+			const inspection = stub(configuration, 'inspect').callThrough();
+			inspection.withArgs(TemporaryDefaultToLocalHarnessSettingId).callsFake(() => ({ policyValue: optOut }));
+			testDisposables.add(toDisposable(() => inspection.restore()));
+			instantiationService.stub(IConfigurationService, configuration);
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
+				getManagedSettingValue: key => key === policyKey ? policyValue : undefined,
+				getManagedSettings: () => ({ [policyKey]: policyValue }),
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const blocked = model.isInputBlocked.get();
+			optOut = true;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.DEFAULT,
+				affectsConfiguration: key => key === TemporaryDefaultToLocalHarnessSettingId,
+				affectedKeys: new Set([TemporaryDefaultToLocalHarnessSettingId]),
+				change: { keys: [TemporaryDefaultToLocalHarnessSettingId], overrides: [] },
+			});
+			const result = await service.sendRequest(model.sessionResource, 'policy escape hatch');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			assert.deepStrictEqual({ blocked, unblocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
+				blocked: true, unblocked: false, requests: 1,
+			});
+		});
 
 		test(`${policyKey} preserves editor inline activation, sending and retry while policy initializes`, async () => {
 			const ready = new DeferredPromise<void>();
@@ -413,6 +474,70 @@ suite('ChatService', () => {
 				}, { autostarts: phase === 'before' ? 0 : 1, invocations: 0, blocked: true, hasError: true });
 			});
 		}
+	}
+
+	for (const adopt of [false, true]) {
+		test(`correlates remote pending requests through ${adopt ? 'adoption between owners' : 'send and completion'}`, async () => {
+			const sessionType = 'remote-private-host-copilotcli';
+			const source = URI.from({ scheme: sessionType, path: '/source', fragment: 'peer-one' });
+			const target = URI.from({ scheme: sessionType, path: '/target', fragment: 'peer-two' });
+			const sessions = new MockChatSessionsService();
+			sessions.setContributions([{ type: sessionType, name: 'Remote', displayName: 'Remote', description: '', agentHostProviderId: 'copilotcli' }]);
+			testDisposables.add(sessions.registerChatSessionContentProvider(sessionType, {
+				provideChatSessionContent: async resource => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+			}));
+			instantiationService.stub(IChatSessionsService, sessions);
+			instantiationService.stub(IAgentHostConnectionsService, {
+				resolveSessionResourceIdentity: resource => ({ connectionAuthority: 'private-host', backendSession: resource.with({ scheme: 'copilotcli', fragment: '' }) }),
+			});
+			const events: Record<string, unknown>[] = [];
+			instantiationService.stub(ITelemetryService, {
+				publicLog2: (name, data) => {
+					if (name === 'chat.pendingRequestChange' && data) {
+						events.push(data);
+					}
+				},
+			});
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+				async invoke() { started.complete(); await complete.p; return {}; },
+			}));
+			const service = createChatService();
+			const sourceRef = await service.acquireOrLoadSession(source, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(sourceRef);
+			testDisposables.add(sourceRef);
+			const targetRef = await service.acquireOrLoadSession(target, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(targetRef);
+			testDisposables.add(targetRef);
+			const sent = await service.sendRequest(source, 'test', { agentId: sessionType });
+			ChatSendResult.assertSent(sent);
+			try {
+				await started.p;
+				if (adopt) {
+					const request = sourceRef.object.getRequests().at(-1);
+					assert.ok(request);
+					await service.adoptRequest(target, request);
+				}
+			} finally {
+				complete.complete();
+				await sent.data.responseCompletePromise;
+			}
+			const selected = events.filter(event => adopt ? event.source === 'adoptRequest' : event.source === 'sendRequest' || event.source === 'sendRequestComplete');
+			assert.deepStrictEqual(selected.map(event => ({
+				action: event.action, source: event.source, agentSessionId: event.agentSessionId, chatSessionId: event.chatSessionId,
+			})), adopt ? [
+				{ action: 'remove', source: 'adoptRequest', agentSessionId: 'source', chatSessionId: 'source#peer-one' },
+				{ action: 'add', source: 'adoptRequest', agentSessionId: 'target', chatSessionId: 'target#peer-two' },
+			] : [
+				{ action: 'add', source: 'sendRequest', agentSessionId: 'source', chatSessionId: 'source#peer-one' },
+				{ action: 'remove', source: 'sendRequestComplete', agentSessionId: 'source', chatSessionId: 'source#peer-one' },
+			]);
+			if (adopt) {
+				await service.cancelCurrentRequestForSession(target, 'testCleanup');
+			}
+		});
 	}
 
 	test('propagates Agents Voice Mode input to the participant request', async () => {
@@ -4856,6 +4981,36 @@ suite('ChatService', () => {
 
 			await testService.cancelCurrentRequestForSession(resource, 'test');
 			assert.strictEqual(interruptCalls, 1, 'Interrupt callback should be invoked once');
+		});
+
+		test('correlates Stop with the owning host session and pending request, without counting a no-op Stop', async () => {
+			const events: { name: string; data: Record<string, unknown> | undefined }[] = [];
+			instantiationService.stub(ITelemetryService, {
+				publicLog2: (name, data) => events.push({ name, data }),
+			});
+			instantiationService.stub(IAgentHostConnectionsService, {
+				resolveSessionResourceIdentity: () => ({ connectionAuthority: 'private-host', backendSession: URI.parse('copilotcli:/owner-session') }),
+			});
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', id: 'turn-1', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await service.cancelCurrentRequestForSession(resource, 'cancelAction');
+			await service.cancelCurrentRequestForSession(resource, 'cancelAction');
+			assert.deepStrictEqual(events.filter(event => event.name === 'chat.pendingRequestChange'), [{
+				name: 'chat.pendingRequestChange',
+				data: { action: 'add', source: 'remoteSession', chatSessionId: resource.path.slice(1), agentSessionId: 'owner-session' },
+			}, {
+				name: 'chat.pendingRequestChange',
+				data: { action: 'remove', source: 'cancelAction', requestId: 'turn-1', chatSessionId: resource.path.slice(1), agentSessionId: 'owner-session' },
+			}]);
+			assert.strictEqual(events.filter(event => event.name === 'chat.stopCancellationNoop').length, 1);
 		});
 
 		test('transition of isCompleteObs to true clears pending request and completes response', async () => {

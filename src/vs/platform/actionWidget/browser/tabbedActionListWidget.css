@@ -50,21 +50,6 @@
 	white-space: nowrap;
 }
 
-.action-widget .tabbed-action-list-tab {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-}
-
-.action-widget .tabbed-action-list-tab-toggle:not([hidden]) {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	padding: 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label2);
-	color: var(--vscode-descriptionForeground);
-}
-
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {
 	display: flex;
 	align-items: center;

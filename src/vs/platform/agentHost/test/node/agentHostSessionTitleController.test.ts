@@ -27,6 +27,7 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, Sessi
 import { GitHubIssueOrPullRequest, GitHubIssueRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -61,6 +62,18 @@ class TestCopilotApiService implements ICopilotApiService {
 		}
 		return this.response;
 	}
+}
+
+function createUtilityModelService(copilotApiService: TestCopilotApiService, getGitHubCopilotToken: () => string | undefined): IAgentHostUtilityModelService {
+	return {
+		_serviceBrand: undefined,
+		chatCompletion: (_context, request, options) => {
+			const token = getGitHubCopilotToken();
+			return token
+				? copilotApiService.utilityChatCompletion(token, request, options)
+				: Promise.reject(new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired));
+		},
+	};
 }
 
 class TestGitHubQuery extends mock<IGitHubQuery>() {
@@ -157,12 +170,11 @@ suite('AgentHostSessionTitleController', () => {
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
 			queueCatalogSync: (session, metadataOverrides) => catalogSyncs.push({ session, metadataOverrides }),
-			getGitHubCopilotToken,
 			getGitHubToken,
 			getGitHubHost,
 			gitHubContextRequestTimeout,
 			gitHubService: createTestGitHubService(createTestGitHubClient({ query })),
-			copilotApiService,
+			utilityModelService: createUtilityModelService(copilotApiService, getGitHubCopilotToken),
 			getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, query };
@@ -276,8 +288,7 @@ suite('AgentHostSessionTitleController', () => {
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
-			copilotApiService,
-			getGitHubCopilotToken: () => 'gh-token',
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService()));
 		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 		const beforeRefinement = await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
@@ -438,8 +449,7 @@ suite('AgentHostSessionTitleController', () => {
 					tryOpenDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).tryOpenDatabase(resource),
 				},
 				getInitialTitleGenerationStrategy: () => 'deferred',
-				copilotApiService,
-				getGitHubCopilotToken: () => 'gh-token',
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService()));
 			const defaultChat = buildDefaultChatUri(session);
 			const pendingTitle = new DeferredPromise<string>();
@@ -640,8 +650,7 @@ suite('AgentHostSessionTitleController', () => {
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
-			copilotApiService,
-			getGitHubCopilotToken: () => 'gh-token',
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService()));
 		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
@@ -674,8 +683,7 @@ suite('AgentHostSessionTitleController', () => {
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
-			getGitHubCopilotToken: () => 'gh-token',
-			copilotApiService,
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			persistMetadata: (resource: string, values: Readonly<Record<string, string>>) => store.persistMetadata(session, URI.parse(resource), values),
 			readNormalizedChat: (owner: URI, resource: URI) => store.readNormalizedChat(owner, resource),
 		};
@@ -717,8 +725,7 @@ suite('AgentHostSessionTitleController', () => {
 			await db.setMetadata('deferredTitleSeed', rawSeed);
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
-				copilotApiService,
-				getGitHubCopilotToken: () => 'gh-token',
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService()));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
@@ -737,8 +744,7 @@ suite('AgentHostSessionTitleController', () => {
 			await db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, source);
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
-				copilotApiService,
-				getGitHubCopilotToken: () => 'gh-token',
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService()));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
@@ -768,8 +774,7 @@ suite('AgentHostSessionTitleController', () => {
 			const callsBeforeRestore = copilotApiService.utilityCalls.length;
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
-				copilotApiService,
-				getGitHubCopilotToken: () => 'gh-token',
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService()));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
@@ -1134,10 +1139,9 @@ suite('AgentHostSessionTitleController', () => {
 			const persistedTitles: string[] = [];
 			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(new TestSessionDatabase()),
-				getGitHubCopilotToken: () => 'copilot-token',
 				getGitHubToken: () => 'test-token',
 				gitHubService,
-				copilotApiService,
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'copilot-token'),
 				persistSurfacedSessionTitle: async session => { persistedTitles.push(session); },
 			}, new NullLogService()));
 			const sessions = [URI.parse('agenthost-session://copilot/first'), URI.parse('agenthost-session://copilot/second')];
@@ -1541,6 +1545,29 @@ suite('AgentHostSessionTitleController', () => {
 		};
 		return { kind: ResponsePartKind.ToolCall, toolCall };
 	}
+
+	test('passes the session, chat, and turn model to the utility model service', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('agenthost-session://copilot/utility-model-context');
+		stateManager.createSession(createSummary(session));
+		const contexts: IAgentHostUtilityModelContext[] = [];
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(new TestSessionDatabase()),
+			utilityModelService: {
+				_serviceBrand: undefined,
+				chatCompletion: async context => {
+					contexts.push(context);
+					return 'Generated title';
+				},
+			},
+			getInitialTitleGenerationStrategy: () => 'utility',
+		}, new NullLogService()));
+		const chat = buildDefaultChatUri(session);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat, { id: 'azure/work/gpt-5' });
+		await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'title should be generated');
+
+		assert.deepStrictEqual(contexts, [{ session: session.toString(), chat, model: { id: 'azure/work/gpt-5' } }]);
+	});
 
 	function firstTurn(text: string, responseParts: ResponsePart[]): Turn {
 		return {

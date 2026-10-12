@@ -25,7 +25,10 @@ interface IFileEditAttributionMarkerBase {
 export interface IFileEditAttributionSource {
 	readonly modelId?: string;
 	readonly autoTier?: string;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	readonly fusionModel?: string;
 	readonly conversationId: string;
+	readonly agentSessionId?: string;
 	readonly chatSessionId?: string;
 	readonly requestId: string;
 	readonly harness: string;
@@ -64,6 +67,8 @@ export interface IAgentEditAttribution {
 	readonly changes: readonly IOffsetEdit[];
 	readonly modelId: string | undefined;
 	readonly autoTier?: AutoModeRoutingTier;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	readonly fusionModel?: string;
 	readonly toolName: string;
 }
 
@@ -176,7 +181,9 @@ function isFileEditAttributionSource(source: unknown): source is IFileEditAttrib
 	const candidate = source as Partial<IFileEditAttributionSource>;
 	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
 		(candidate.autoTier === undefined || typeof candidate.autoTier === 'string') &&
+		(candidate.fusionModel === undefined || typeof candidate.fusionModel === 'string') &&
 		typeof candidate.conversationId === 'string' &&
+		(candidate.agentSessionId === undefined || typeof candidate.agentSessionId === 'string') &&
 		(candidate.chatSessionId === undefined || typeof candidate.chatSessionId === 'string') &&
 		typeof candidate.requestId === 'string' &&
 		typeof candidate.harness === 'string';

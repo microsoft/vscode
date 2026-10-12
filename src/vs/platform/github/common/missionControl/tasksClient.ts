@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNumber } from '../../../../base/common/types.js';
+import { pathSegment, withQuery } from '../client/routing.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { parse, SchemaError } from '../schema.js';
-import { PaginatedResponse, PaginationOptions } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseEnvironmentKind, parseUser, pathSegment, queryPath } from './missionControlClient.js';
+import { parse } from '../client/schema.js';
+import { PaginatedResponse } from './missionControl.js';
+import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
 import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { PageOptions } from '../client/types.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
@@ -16,7 +18,7 @@ export class TasksClient implements ITasksClient {
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath('/tasks', { ...options, ...pagination(options) }),
+			path: withQuery('/tasks', { ...options }),
 			expectedStatus: [200],
 		}, signal, response => paginated(response, parseListTasksResponse(response.data)));
 	}
@@ -89,10 +91,10 @@ export class TasksClient implements ITasksClient {
 		return this.steer(taskId, { type: 'abort' }, signal);
 	}
 
-	getEvents(taskId: string, signal: AbortSignal, options?: PaginationOptions): Promise<PaginatedResponse<ListTaskEventsResponse>> {
+	getEvents(taskId: string, signal: AbortSignal, options?: PageOptions): Promise<PaginatedResponse<ListTaskEventsResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${taskPath(taskId)}/events`, { ...pagination(options) }),
+			path: withQuery(`${taskPath(taskId)}/events`, { ...options }),
 			expectedStatus: [200],
 			retry: false,
 		}, signal, response => paginated(response, parseTaskEventsResponse(response.data)));
@@ -222,11 +224,11 @@ function parseArtifact(value: unknown): TaskArtifact {
 }
 
 function parseTask(value: unknown, expectedId?: string): Task {
-	const task = parseTaskFields(value);
-	if (expectedId !== undefined && task.id !== expectedId) {
-		throw new SchemaError('Task response did not match the requested task');
-	}
-	return task;
+	return parse.refine(
+		parseTaskFields,
+		task => expectedId === undefined || task.id === expectedId,
+		'Task response did not match the requested task',
+	)(value);
 }
 
 function parseTaskDetail(value: unknown, expectedId?: string): GetTaskResponse {

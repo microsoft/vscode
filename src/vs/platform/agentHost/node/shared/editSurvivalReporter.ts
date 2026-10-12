@@ -53,6 +53,8 @@ export interface IEditSurvivalReporterLaunchParams {
 	 */
 	readonly modelId?: string;
 	readonly autoTier?: AutoModeRoutingTier;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	readonly fusionModel?: string;
 	/**
 	 * Explicit AI-written text chunks extracted from the tool input
 	 * (see `editChunkExtractor.ts`). When provided, survival is scored
@@ -91,6 +93,7 @@ interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	modelId: string;
 	autoTier?: string;
+	fusionModel?: string;
 	toolName: string;
 	agentSessionId: string;
 	turnId: string;
@@ -113,6 +116,7 @@ type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The committed Copilot Auto tier (efficiency, balance, intelligence or fast) when the edit was produced under Auto. Omitted when unknown or not Auto.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) that routed the edit, as attributed by the runtime. Omitted when the edit was not produced by HydraFusion.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn identifier this edit belongs to.' };
@@ -212,6 +216,7 @@ class SessionEditSurvivalReporter extends Disposable {
 					provider: this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
 					...(this._params.autoTier !== undefined ? { autoTier: this._params.autoTier } : {}),
+					...(this._params.fusionModel !== undefined ? { fusionModel: this._params.fusionModel } : {}),
 					toolName: this._params.toolName ?? '',
 					agentSessionId: AgentSession.id(sessionUri),
 					turnId: this._params.turnId,

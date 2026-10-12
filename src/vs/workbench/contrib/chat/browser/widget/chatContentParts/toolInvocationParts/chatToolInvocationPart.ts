@@ -275,7 +275,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode = this.subPart.domNode;
 
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-			if (this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
+			if (!context.inImageGenerationBatch && this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
 				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal));
 				this.subPart.domNode.appendChild(imageResult.domNode);
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -340,6 +340,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private shouldSuppressImageGenerationProgress(reader?: IReader): boolean {
+		if (this.context.inImageGenerationBatch) {
+			return true;
+		}
 		if (this.toolInvocation.kind !== 'toolInvocation' || this.toolInvocation.otherClientToolCall
 			|| !isImageGenerationToolInProgress(this.toolInvocation, this.toolInvocation.state.read(reader))) {
 			return false;

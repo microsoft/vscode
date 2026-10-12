@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -102,6 +102,8 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
 	[CopilotCliConfigKey.HydraFusionV2]: { type: 'boolean', title: 'HydraFusion V2' },
+	[CopilotCliConfigKey.Ensemble]: { type: 'boolean', title: 'Ensemble' },
+	[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: { type: 'boolean', title: 'Ensemble Intelligence Uses HydraFusion' },
 	[CopilotCliConfigKey.Memory]: { type: 'boolean', title: 'Copilot Memory' },
 	[CopilotCliConfigKey.LocalMemory]: { type: 'boolean', title: 'Local Copilot Memory' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
@@ -159,6 +161,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 			[AgentHostHydraFusionEnabledSettingId]: 'v2',
+			[AgentHostEnsembleEnabledSettingId]: true,
+			[AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true,
 			[AgentHostCopilotMemoryEnabledSettingId]: true,
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
@@ -170,7 +174,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 17);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -184,6 +188,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.HydraFusion]: true,
 			[CopilotCliConfigKey.HydraFusionV2]: true,
+			[CopilotCliConfigKey.Ensemble]: true,
+			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: true,
 			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
@@ -261,8 +267,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 			[CopilotCliConfigKey.HydraFusionV2]: fullSchema[CopilotCliConfigKey.HydraFusionV2],
 		};
-		const forwarded = async (value: unknown, previewFeaturesEnabled = true) => {
-			const { agentHostService } = setup(disposables, { [AgentHostHydraFusionEnabledSettingId]: value }, { chat_preview_features_enabled: previewFeaturesEnabled });
+		const forwarded = async (value: unknown, previewFeaturesEnabled = true, ensemble = false) => {
+			const { agentHostService } = setup(disposables, { [AgentHostHydraFusionEnabledSettingId]: value, [AgentHostEnsembleEnabledSettingId]: ensemble }, { chat_preview_features_enabled: previewFeaturesEnabled });
 			agentHostService.setRootState(makeRootStateWithSchema(hydraFusionSchema));
 			await flush();
 			const config: Record<string, unknown> = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
@@ -275,12 +281,41 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			disabled: await forwarded(false),
 			unknown: await forwarded('v3'),
 			v2PreviewFeaturesDisabled: await forwarded('v2', false),
+			v1WithEnsemble: await forwarded(true, true, true),
+			disabledWithEnsemble: await forwarded(false, true, true),
 		}, {
 			v1: 'true/false',
 			v2: 'true/true',
 			disabled: 'false/false',
 			unknown: 'false/false',
 			v2PreviewFeaturesDisabled: 'false/false',
+			v1WithEnsemble: 'true/true',
+			disabledWithEnsemble: 'true/true',
+		});
+	});
+
+	test('forwards Ensemble and its Intelligence routing', async () => {
+		const ensembleSchema = {
+			[CopilotCliConfigKey.Ensemble]: fullSchema[CopilotCliConfigKey.Ensemble],
+			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: fullSchema[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion],
+		};
+		const forwarded = async (settings: Record<string, unknown>, previewFeaturesEnabled = true) => {
+			const { agentHostService } = setup(disposables, settings, { chat_preview_features_enabled: previewFeaturesEnabled });
+			agentHostService.setRootState(makeRootStateWithSchema(ensembleSchema));
+			await flush();
+			const config: Record<string, unknown> = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
+			return `${config[CopilotCliConfigKey.Ensemble]}/${config[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]}`;
+		};
+		assert.deepStrictEqual({
+			off: await forwarded({}),
+			ensemble: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true }),
+			routing: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true, [AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true }),
+			previewFeaturesDisabled: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true, [AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true }, false),
+		}, {
+			off: 'false/false',
+			ensemble: 'true/false',
+			routing: 'true/true',
+			previewFeaturesDisabled: 'false/false',
 		});
 	});
 
@@ -347,6 +382,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.HydraFusion]: false,
 			[CopilotCliConfigKey.HydraFusionV2]: false,
+			[CopilotCliConfigKey.Ensemble]: false,
+			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: false,
 			[CopilotCliConfigKey.Memory]: false,
 			[CopilotCliConfigKey.LocalMemory]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',

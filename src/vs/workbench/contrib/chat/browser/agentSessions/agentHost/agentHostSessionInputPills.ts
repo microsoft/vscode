@@ -20,7 +20,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -53,6 +53,7 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -156,11 +157,14 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	};
 }
 
+/** The changeset the workbench Changes pill targets unless the session's provider configures another default. */
+const CHANGES_PILL_DEFAULT_CHANGESET_KIND: DefaultChangesetKind = ChangesetKind.Session;
+
 /** Resolves the changeset represented by the workbench Changes pill. */
 export function resolveAgentHostChangeset(
 	ownerResource: URI,
 	changesets: readonly Changeset[] | undefined,
-	defaultKind?: DefaultChangesetKind,
+	defaultKind: DefaultChangesetKind = CHANGES_PILL_DEFAULT_CHANGESET_KIND,
 ): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
 	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
@@ -529,6 +533,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -574,7 +579,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			return !!resource && (isSubagentChatUri(resource) || sessionState.read(reader)?.chats.some(chat =>
 				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool));
 		});
-		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
@@ -584,12 +588,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			const session = sessionState.read(reader);
 			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
 				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
 				selectedChangeset ? [selectedChangeset] : undefined,
-				currentResolution.defaultChangesetKind,
+				defaultKind,
 			);
 		});
 		const changesetStateSource = derived(this, reader => {
@@ -721,9 +726,10 @@ export class AgentHostSessionInputPills extends Disposable {
 		})));
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
-			return currentResolution
+			const recorded = !subagentChat.read(reader) && currentResolution
 				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
+			return mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader));
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -809,8 +815,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
 			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
-			enabled: pillsVisible,
-			sources: constObservable(sources.sources),
+			enabled: constObservable(true),
+			sources: derived(this, reader => subagentChat.read(reader)
+				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
+				: sources.sources),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));

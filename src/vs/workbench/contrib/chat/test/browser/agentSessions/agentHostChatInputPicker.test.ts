@@ -109,6 +109,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				const result = super.inspect<T>(key);
 				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
 			}
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 			[ChatConfiguration.GlobalAutoApprove]: false,
@@ -1003,6 +1006,23 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	for (const combined of [false, true]) {
+		test(`turns off global auto approve when selecting lower permissions (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			await configuration.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
+			config.values.autoApprove = 'autoApprove';
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'), combined);
+			await actionWidget.select('Manual permissions');
+
+			assert.deepStrictEqual({
+				globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
+				dispatches,
+			}, {
+				globalAutoApprove: false,
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+			});
+		});
+
 		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
