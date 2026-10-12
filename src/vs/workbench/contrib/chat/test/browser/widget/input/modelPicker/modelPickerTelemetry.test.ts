@@ -449,6 +449,10 @@ suite('ModelPickerTelemetry', () => {
 		const plainDefault = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model]);
 		const withoutMax = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model]);
 		// The picker does not offer a Max this build cannot run, so neither tier is shown.
+		// An Ensemble this build cannot run is not offered, so HydraFusion keeps its own tiers.
+		const ensembleNeedsUpdate = createPicker(max, undefined, [ensemble, hydraFusion, max, model], undefined, undefined, undefined, {
+			free: {}, paid: { auto: { label: 'Ensemble', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+		});
 		const maxNeedsUpdate = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model], undefined, undefined, undefined, {
 			free: {}, paid: { 'hydrafusion-max': { label: 'HydraFusion Max', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
 		});
@@ -460,6 +464,7 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionDefault: input(plainDefault),
 			hydraFusionWithoutMax: input(withoutMax),
 			hydraFusionMaxNeedsUpdate: input(maxNeedsUpdate),
+			ensembleNeedsUpdate: input(ensembleNeedsUpdate),
 			ensembleTriggers: triggers(result),
 			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
 			autoTriggers: triggers(plain),
@@ -469,6 +474,7 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionDefault: ['HydraFusion', 'Default'],
 			hydraFusionWithoutMax: ['HydraFusion'],
 			hydraFusionMaxNeedsUpdate: ['HydraFusion'],
+			ensembleNeedsUpdate: ['HydraFusion', 'Max'],
 			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
 			withoutHydraFusionTriggers: [],
 			autoTriggers: [],

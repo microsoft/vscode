@@ -759,6 +759,19 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('HydraFusion\'s row carries an organization default of either tier, standing for it until another tier is chosen', () => {
+		const result = createPicker({ policyDefault: 'hydrafusion-max', models: [...models, createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		const readout = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === 'HydraFusion')?.querySelector('.action-label')?.textContent;
+		const defaults = defaultBadgeModels(result.popup);
+		openDetails(result.popup, 'HydraFusion');
+		const details = result.popup.querySelector('.tabbed-action-list-details .chat-model-card-org-default')?.textContent;
+		assert.deepStrictEqual({ readout, defaults, details }, {
+			readout: 'Max',
+			defaults: ['HydraFusion'],
+			details: 'Your organization sets HydraFusion Max as the default for new chats. You can choose another model for this chat.',
+		});
+	});
+
 	/** Reopens the picker on the latest selection, as the chat input does. */
 	function reopen(result: ReturnType<typeof createPicker>): void {
 		result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections.at(-1) ?? result.context.selectedModelId });

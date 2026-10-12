@@ -475,10 +475,12 @@ export class TabbedModelPicker extends Disposable {
 		return models.length > 1 ? models : [];
 	}
 
-	/** The tier HydraFusion's row stands for: the one in use, else the last one chosen, else Default. */
+	/** The tier HydraFusion's row stands for: the one in use, else the last one chosen, else the organization default, else Default. */
 	private _hydraFusionRowModel(tiers: readonly ILanguageModelChatMetadataAndIdentifier[], context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier {
+		const organizationDefault = this._getOrganizationDefaultModel(context);
 		return tiers.find(model => model.identifier === context.selectedModelId)
 			?? tiers.find(model => model.identifier === this._preferredHydraFusionTier)
+			?? tiers.find(model => model.identifier === organizationDefault?.identifier)
 			?? tiers[0];
 	}
 
@@ -546,9 +548,12 @@ export class TabbedModelPicker extends Disposable {
 	private _getOrganizationDefaultForModel(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const defaultModel = this._getOrganizationDefaultModel(context);
 		const variants = this._speedVariants.get(model.identifier);
+		// HydraFusion's tiers share one row, which carries the organization default of either.
+		const hydraFusionTiers = this._hydraFusionTiers(context);
 		return defaultModel && (defaultModel.identifier === model.identifier
 			|| defaultModel.identifier === variants?.standard.identifier
-			|| defaultModel.identifier === variants?.fast.identifier) ? defaultModel : undefined;
+			|| defaultModel.identifier === variants?.fast.identifier
+			|| (hydraFusionTiers.includes(model) && hydraFusionTiers.includes(defaultModel))) ? defaultModel : undefined;
 	}
 
 	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
@@ -907,7 +912,7 @@ export class TabbedModelPicker extends Disposable {
 		const cardOptions: IModelCardOptions = {
 			model,
 			name: ownTiers.length ? this._getRowLabel(model, context) : undefined,
-			// Default and Max share HydraFusion's description, so choosing a tier doesn't change it.
+			// Both tiers share HydraFusion's description.
 			description: ownTiers[0]?.metadata.tooltip,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
