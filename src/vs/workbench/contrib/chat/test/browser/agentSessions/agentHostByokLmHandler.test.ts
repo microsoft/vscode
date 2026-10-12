@@ -310,6 +310,53 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
+	test('listModels carries numeric context size options from renderer BYOK schemas', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['id-sized', {
+					...byokModel('acme', 'sized'),
+					configurationSchema: {
+						properties: {
+							contextSize: {
+								type: 'number',
+								enum: [200000, 968000],
+								enumItemLabels: ['200K', '1M'],
+								enumDescriptions: ['Summarizes sooner', 'Longer sessions'],
+								default: 968000,
+								group: 'tokens',
+							},
+						},
+					},
+				}],
+				// Non-numeric entries drop out with their labels; a default outside the values is not forwarded.
+				['id-mixed', {
+					...byokModel('acme', 'mixed'),
+					configurationSchema: {
+						properties: {
+							contextSize: { type: 'number', enum: ['small', 100000, -1, 968000], enumItemLabels: ['S', '100K', 'neg', '1M'], default: 500000 },
+						},
+					},
+				}],
+				['id-malformed', {
+					...byokModel('acme', 'malformed'),
+					configurationSchema: { properties: { contextSize: { type: 'number', enum: ['a', 'b'], default: 'a' } } },
+				}],
+				['id-plain', byokModel('acme', 'plain')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models.map(model => [model.id, model.contextSizeOptions]), [
+			['sized', { values: [200000, 968000], labels: ['200K', '1M'], descriptions: ['Summarizes sooner', 'Longer sessions'], default: 968000 }],
+			['mixed', { values: [100000, 968000], labels: ['100K', '1M'] }],
+			['malformed', undefined],
+			['plain', undefined],
+		]);
+	});
+
 	test('chat resolves the configured provider group when models share a vendor and id', async () => {
 		const workIdentifier = 'google/Gemini Work/gemini-2.5-pro';
 		const service = new TestLanguageModelsService(

@@ -14965,6 +14965,59 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('BYOK model configSchema exposes the advertised context sizes beside the thinking level', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const agent = createTestAgent(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', { chat: async () => ({ output: [] }), onDidChangeModels: modelSnapshots.event }));
+
+		try {
+			modelSnapshots.fire([
+				{
+					vendor: 'acme',
+					id: 'opus',
+					name: 'Opus',
+					supportedReasoningEfforts: ['low', 'high'],
+					contextSizeOptions: { values: [200_000, 968_000], labels: ['200K', '1M'], descriptions: ['Summarizes sooner', 'Longer sessions'], default: 968_000 },
+				},
+				// No labels or default: the host formats the counts and defaults to the full window.
+				{ vendor: 'acme', id: 'haiku', name: 'Haiku', contextSizeOptions: { values: [100_000, 968_000] } },
+				// A single size is no choice, so no picker is offered.
+				{ vendor: 'acme', id: 'fixed', name: 'Fixed', contextSizeOptions: { values: [128_000], default: 128_000 } },
+				{ vendor: 'acme', id: 'plain', name: 'Plain' },
+			]);
+			const models = await waitForState(agent.models, models => models.length === 4);
+
+			assert.deepStrictEqual(models.map(model => ({
+				id: model.id,
+				properties: model.configSchema && Object.keys(model.configSchema.properties),
+				contextSize: model.configSchema?.properties.contextSize && {
+					type: model.configSchema.properties.contextSize.type,
+					enum: model.configSchema.properties.contextSize.enum,
+					enumLabels: model.configSchema.properties.contextSize.enumLabels,
+					enumDescriptions: model.configSchema.properties.contextSize.enumDescriptions,
+					default: model.configSchema.properties.contextSize.default,
+				},
+			})), [
+				{
+					id: 'acme/opus',
+					// `reasoningEffort` is the published alias of `thinkingLevel` (see `_withModelConfigAliases`).
+					properties: ['thinkingLevel', 'contextSize', 'reasoningEffort'],
+					contextSize: { type: 'number', enum: [200_000, 968_000], enumLabels: ['200K', '1M'], enumDescriptions: ['Summarizes sooner', 'Longer sessions'], default: 968_000 },
+				},
+				{
+					id: 'acme/haiku',
+					properties: ['contextSize'],
+					contextSize: { type: 'number', enum: [100_000, 968_000], enumLabels: ['100K', '1M'], enumDescriptions: undefined, default: 968_000 },
+				},
+				{ id: 'acme/fixed', properties: undefined, contextSize: undefined },
+				{ id: 'acme/plain', properties: undefined, contextSize: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK models follow synchronized root configuration', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const { agent, configurationService } = createTestAgentContext(disposables, {

@@ -227,4 +227,26 @@ suite('ByokLmBridgeRegistry', () => {
 
 		reg.dispose();
 	});
+
+	test('compares context size options structurally', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const conn = pushable();
+		const reg = store.add(registry.register('client-a', conn.connection));
+		conn.push([{ vendor: 'acme', id: 'sized', contextSizeOptions: { values: [200_000, 968_000], labels: ['200K', '1M'], default: 968_000 } }]);
+
+		let changes = 0;
+		store.add(registry.onDidChangeModels(() => { changes++; }));
+
+		// Same content, new object: no change.
+		conn.push([{ vendor: 'acme', id: 'sized', contextSizeOptions: { values: [200_000, 968_000], labels: ['200K', '1M'], default: 968_000 } }]);
+		// Each of default, labels and values changing is a change; dropping the options is one too.
+		conn.push([{ vendor: 'acme', id: 'sized', contextSizeOptions: { values: [200_000, 968_000], labels: ['200K', '1M'], default: 200_000 } }]);
+		conn.push([{ vendor: 'acme', id: 'sized', contextSizeOptions: { values: [200_000, 968_000], labels: ['200K', '968K'], default: 200_000 } }]);
+		conn.push([{ vendor: 'acme', id: 'sized', contextSizeOptions: { values: [100_000, 968_000], labels: ['200K', '968K'], default: 200_000 } }]);
+		conn.push([{ vendor: 'acme', id: 'sized' }]);
+
+		assert.deepStrictEqual({ changes, models: registry.getModels() }, { changes: 4, models: [{ vendor: 'acme', id: 'sized' }] });
+
+		reg.dispose();
+	});
 });

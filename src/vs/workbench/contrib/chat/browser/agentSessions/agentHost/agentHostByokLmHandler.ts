@@ -14,6 +14,7 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
+	IByokLmContextSizeOptions,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
@@ -29,6 +30,7 @@ import {
 	IChatMessage,
 	IChatMessagePart,
 	ILanguageModelChatRequestOptions,
+	ILanguageModelConfigurationSchema,
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -172,6 +174,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
+				const contextSizeOptions = this._toContextSizeOptions(metadata.configurationSchema?.properties?.contextSize);
 				const model: IByokLmModelInfo = {
 					vendor: metadata.vendor,
 					id: metadata.id,
@@ -183,6 +186,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					supportsVision: !!metadata.capabilities?.vision,
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
+					...(contextSizeOptions ? { contextSizeOptions } : {}),
 				};
 				const agentHostModelIdentifier = `${SessionType.AgentHostCopilot}:${getByokLmAgentModelId(model)}`;
 				if (!this._languageModelsService.isModelHidden(identifier) && !this._languageModelsService.isModelHidden(agentHostModelIdentifier)) {
@@ -191,6 +195,37 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			}
 		}
 		return models;
+	}
+
+	/**
+	 * The context-window sizes a model's `contextSize` schema property offers, in the
+	 * shape Copilot Chat publishes for its own models: a numeric enum of prompt-token
+	 * budgets with optional parallel labels and descriptions. Non-numeric enum entries
+	 * are dropped together with their labels so the arrays stay aligned.
+	 */
+	private _toContextSizeOptions(schema: NonNullable<ILanguageModelConfigurationSchema['properties']>[string] | undefined): IByokLmContextSizeOptions | undefined {
+		if (!schema?.enum?.length) {
+			return undefined;
+		}
+		const values: number[] = [];
+		const labels: string[] = [];
+		const descriptions: string[] = [];
+		schema.enum.forEach((value, index) => {
+			if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+				values.push(value);
+				labels.push(schema.enumItemLabels?.[index] ?? '');
+				descriptions.push(schema.enumDescriptions?.[index] ?? '');
+			}
+		});
+		if (values.length === 0) {
+			return undefined;
+		}
+		return {
+			values,
+			...(schema.enumItemLabels ? { labels } : {}),
+			...(schema.enumDescriptions ? { descriptions } : {}),
+			...(typeof schema.default === 'number' && values.includes(schema.default) ? { default: schema.default } : {}),
+		};
 	}
 
 	/**
