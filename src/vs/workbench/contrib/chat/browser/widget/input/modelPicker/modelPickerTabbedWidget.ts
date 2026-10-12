@@ -203,6 +203,7 @@ export class TabbedModelPicker extends Disposable {
 		this._models = context.models;
 		const pickerContext = this._filterModelsForEntitlement(context);
 		this._context = pickerContext;
+		this._rememberHydraFusionTier(pickerContext);
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
 		if (options?.initialFilterValue !== undefined) {
@@ -220,6 +221,7 @@ export class TabbedModelPicker extends Disposable {
 		if (this._context && this._context.selectedModelId !== modelId) {
 			this._selectionVersion++;
 			this._context = { ...this._context, selectedModelId: modelId };
+			this._rememberHydraFusionTier(this._context);
 			this.refresh();
 		}
 	}
@@ -1063,10 +1065,15 @@ export class TabbedModelPicker extends Disposable {
 			context.workflow?.reset();
 		}
 		this._context = { ...context, selectedModelId: model.identifier };
-		if (this._hydraFusionTiers(context).includes(model)) {
-			this._preferredHydraFusionTier = model.identifier;
-		}
+		this._rememberHydraFusionTier(this._context);
 		context.onSelect(model);
+	}
+
+	/** Remembers a HydraFusion tier in use, so HydraFusion's row keeps standing for it once another model is chosen. */
+	private _rememberHydraFusionTier(context: ITabbedModelPickerContext): void {
+		if (this._hydraFusionTiers(context).some(model => model.identifier === context.selectedModelId)) {
+			this._preferredHydraFusionTier = context.selectedModelId;
+		}
 	}
 
 	/** Restores a usable manual model from Copilot, never a routing model or another provider. */

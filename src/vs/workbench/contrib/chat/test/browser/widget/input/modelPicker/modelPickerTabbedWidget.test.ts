@@ -759,6 +759,20 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('HydraFusion\'s row keeps standing for a tier the chat started on after another model is chosen', () => {
+		const max = createHydraFusionMaxModel();
+		const result = createPicker({ models: [...models, createAutoModel(), createHydraFusionModel(), max], selectedModelId: max.identifier });
+		const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === 'HydraFusion')?.querySelector('.action-label')?.textContent;
+		const initial = readout();
+		selectRow(result.popup, 'First');
+		reopen(result);
+		assert.deepStrictEqual({ initial, afterSwitching: readout(), selections: result.selections }, {
+			initial: 'Max',
+			afterSwitching: 'Max',
+			selections: [models[0].identifier],
+		});
+	});
+
 	test('HydraFusion\'s row carries an organization default of either tier, standing for it until another tier is chosen', () => {
 		const result = createPicker({ policyDefault: 'hydrafusion-max', models: [...models, createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
 		const readout = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === 'HydraFusion')?.querySelector('.action-label')?.textContent;
