@@ -62,6 +62,9 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		if (!isEqual(resource, AgentSession.uri('ahp-session', AgentSession.id(resource))) || await this.raw.getSessionV2Registration(session) || await this.raw.getSession(session)) {
 			return;
 		}
+		if (await this.raw.isSessionTombstoned(session) || await this.raw.isSessionTombstoned(storage)) {
+			return;
+		}
 		if (await this.raw.getSessionV2Registration(storage) || await this.raw.getSession(storage)) {
 			throw new Error('Cannot allocate a native session over an existing legacy identity: ' + session);
 		}

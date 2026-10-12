@@ -106,6 +106,63 @@ suite('Session storage identity compatibility', () => {
 		].sort());
 	});
 
+	for (const registration of ['registerRuntimeSession', 'registerSessionV2'] as const) {
+		test(`${registration} preserves native deletion tombstones without allocating a compatibility identity`, async () => {
+			const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+			const session = 'ahp-session:/deleted';
+			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await raw.tombstoneAndUnregisterSession(session);
+			await raw.close();
+			const db = await database();
+			const registered = await db[registration](session, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, {
+				checkTombstone: true, discoveryBackingSession: 'copilotcli:/deleted',
+			});
+			await db.close();
+			const next = await database();
+			assert.deepStrictEqual({
+				registered,
+				tombstoned: await next.isSessionTombstoned(session),
+				identity: next.identity.toStorage(session),
+				markers: await next.raw.readStorageIdentityMetadata(),
+				registrations: await next.listSessionV2Registrations(),
+			}, { registered: false, tombstoned: true, identity: session, markers: [], registrations: [] });
+		});
+	}
+
+	test('discovery does not allocate a compatibility identity over a deleted legacy backing', async () => {
+		const db = await database();
+		await db.raw.markSessionTombstoned('copilotcli:/deleted');
+		const registered = await db.registerRuntimeSession('ahp-session:/deleted', {
+			provider: 'copilotcli', startTime: 2, source: 'discovery',
+		}, { checkTombstone: true, discoveryBackingSession: 'copilotcli:/deleted' });
+		assert.deepStrictEqual({
+			registered,
+			tombstoned: await db.raw.isSessionTombstoned('copilotcli:/deleted'),
+			markers: await db.raw.readStorageIdentityMetadata(),
+		}, { registered: false, tombstoned: true, markers: [] });
+	});
+
+	test('preparing deleted native data cannot bypass explicit creation collision checks', async () => {
+		const db = await database();
+		const session = URI.parse('ahp-session:/deleted');
+		await db.raw.markSessionTombstoned(session.toString());
+		const fileService = files();
+		const data = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+		const service = store.add(createTestAgentService(
+			new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db,
+		));
+		registerTestAgentProvider(service, store.add(new MockAgent('copilotcli')));
+		await db.prepareSessionStorage(session.toString(), 'copilotcli');
+		await assert.rejects(service.createSession({ provider: 'copilotcli', session }), /Session storage identity is already in use/);
+		assert.deepStrictEqual({
+			tombstoned: await db.isSessionTombstoned(session.toString()),
+			identity: db.identity.toStorage(session.toString()),
+			markers: await db.raw.readStorageIdentityMetadata(),
+			registrations: (await db.raw.listSessionV2Registrations()).map(row => row.session),
+		}, { tombstoned: true, identity: session.toString(), markers: [], registrations: [] });
+	});
+
 	test('the dual reader accepts a future native writer in a mixed database', async () => {
 		const writer = await database(false);
 		await writer.registerRuntimeSession('ahp-session:/future', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
