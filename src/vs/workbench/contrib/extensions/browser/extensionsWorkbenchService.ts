@@ -26,10 +26,11 @@ import {
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor,
-	IGalleryExtensionVersion
+	IGalleryExtensionVersion,
+	IExtensionBlockingInfo
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry, getExtensionBlockedMessage } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -234,6 +235,10 @@ export class Extension implements IExtension {
 
 	get private(): boolean {
 		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
+	}
+
+	get blockingInfo(): IExtensionBlockingInfo | undefined {
+		return this.gallery?.blockingInfo;
 	}
 
 	get pinned(): boolean {
@@ -678,7 +683,10 @@ class Extensions extends Disposable {
 			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
-			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
+			if (!extension.gallery
+				|| extension.gallery.version !== gallery.version
+				|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
+				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin) {
 				extension.gallery = gallery;
 				this._onChange.fire({ extension });
 			}
@@ -1463,14 +1471,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
-		this.syncInstalledExtensionsWithGallery(pager.firstPage);
+		await this.syncInstalledExtensionsWithGallery(pager.firstPage);
 		return {
 			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
 			total: pager.total,
 			pageSize: pager.pageSize,
 			getPage: async (pageIndex, token) => {
 				const page = await pager.getPage(pageIndex, token);
-				this.syncInstalledExtensionsWithGallery(page);
+				await this.syncInstalledExtensionsWithGallery(page);
 				return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 			}
 		};
@@ -1486,7 +1494,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
-		this.syncInstalledExtensionsWithGallery(galleryExtensions);
+		await this.syncInstalledExtensionsWithGallery(galleryExtensions);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -2335,6 +2343,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private shouldAutoUpdateExtension(extension: IExtension): boolean {
+		if (extension.blockingInfo) {
+			return false;
+		}
+
 		if (extension.deprecationInfo?.disallowInstall) {
 			return false;
 		}
@@ -2558,6 +2570,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (extension.isMalicious) {
 			return new MarkdownString().appendText(nls.localize('malicious', "This extension is reported to be problematic."));
+		}
+
+		if (extension.blockingInfo) {
+			return getExtensionBlockedMessage(extension.blockingInfo);
 		}
 
 		if (extension.deprecationInfo?.disallowInstall) {

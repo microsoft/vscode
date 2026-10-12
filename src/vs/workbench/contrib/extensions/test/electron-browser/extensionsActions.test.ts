@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IExtensionsWorkbenchService, ExtensionContainers } from '../../common/extensions.js';
+import { IExtensionsWorkbenchService, ExtensionContainers, ExtensionState } from '../../common/extensions.js';
 import * as ExtensionsActions from '../../browser/extensionsActions.js';
-import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
+import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -52,7 +52,7 @@ import { IUserDataSyncEnablementService } from '../../../../../platform/userData
 import { UserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSyncEnablementService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { platform } from '../../../../../base/common/platform.js';
 import { arch } from '../../../../../base/common/process.js';
@@ -66,6 +66,8 @@ import { Mutable } from '../../../../../base/common/types.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -93,6 +95,11 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+	instantiationService.stub(IWorkspaceTrustEnablementService, { isWorkspaceTrustEnabled: () => true });
+	instantiationService.stub(IExtensionFeaturesManagementService, {
+		onDidChangeAccessData: Event.None,
+	});
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 	instantiationService.stub(IExtensionGalleryManifestService, {
@@ -175,6 +182,33 @@ suite('ExtensionsActions', () => {
 		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
 
 		assert.ok(!testObject.enabled);
+	});
+
+	test('Auto update action is disabled for blocked extensions', () => {
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.ToggleAutoUpdateForExtensionAction));
+		testObject.extension = aWorkbenchExtension(ExtensionState.Installed, ExtensionBlockingOrigin.Policy);
+
+		assert.strictEqual(testObject.enabled, false);
+	});
+
+	test('Blocked extension status uses state-aware origin wording', async () => {
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionStatusAction));
+		const messages: string[] = [];
+		for (const [state, origin] of [
+			[ExtensionState.Uninstalled, ExtensionBlockingOrigin.Policy],
+			[ExtensionState.Installed, ExtensionBlockingOrigin.Policy],
+			[ExtensionState.Installed, ExtensionBlockingOrigin.Service],
+		] as const) {
+			testObject.extension = aWorkbenchExtension(state, origin);
+			await testObject.recomputeStatus();
+			messages.push(testObject.status[0].message.value);
+		}
+
+		assert.deepStrictEqual(messages, [
+			'This extension is not permitted by your organization\'s policy.',
+			'Updates for this extension are blocked by your organization\'s policy.',
+			'Updates for this extension have been blocked by the Extension Marketplace.',
+		]);
 	});
 
 	test('Test Install action when state is installed', () => {
@@ -2591,6 +2625,12 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 	});
 
 });
+
+function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin): Extension {
+	const local = state === ExtensionState.Uninstalled ? undefined : aLocalExtension('blocked');
+	const gallery = aGalleryExtension('blocked', { blockingInfo: { origin } });
+	return instantiationService.createInstance(Extension, () => state, () => undefined, undefined, local, gallery, undefined);
+}
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
 	manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
