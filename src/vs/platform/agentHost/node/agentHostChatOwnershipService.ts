@@ -57,9 +57,9 @@ export interface IAgentHostChatOwnershipService {
 
 	/**
 	 * Resolves the owner of a chat that may not be registered: the live
-	 * registry, retained summaries, the central catalog and the registered
-	 * session inventory, then restores in flight, then spawn edges recorded in
-	 * loaded chats.
+	 * registry, retained summaries, the central catalogs, the registered
+	 * session inventory and cached catalog payloads, then restores in flight,
+	 * then spawn edges recorded in loaded chats.
 	 */
 	resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined>;
 	/** A recorded-owner lookup for a pass over many chats, reading the session inventory at most once. */
@@ -140,12 +140,17 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		if (live !== undefined) {
 			return { owner: live, spawnedBy: undefined };
 		}
-		const durable = await this._database.findChatOwner(chat);
-		if (durable) {
-			return { owner: durable.ownerSession, spawnedBy: undefined };
+		const central = (await this._database.findCentralChatOwners([chat])).get(chat);
+		if (central) {
+			return { owner: central.ownerSession, spawnedBy: undefined };
 		}
 		const owner = (await getDefaultChatInventory()).get(chat);
-		return owner === undefined ? undefined : { owner, spawnedBy: undefined };
+		if (owner !== undefined) {
+			return { owner, spawnedBy: undefined };
+		}
+		// Scanning cached catalog payloads is the most expensive source, so it is the last.
+		const payload = (await this._database.findCatalogPayloadChatOwners([chat])).get(chat);
+		return payload === undefined ? undefined : { owner: payload.ownerSession, spawnedBy: undefined };
 	}
 
 	/**

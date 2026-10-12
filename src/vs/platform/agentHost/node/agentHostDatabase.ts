@@ -146,7 +146,7 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly chats: readonly IAgentHostDatabaseOwnedSessionChat[];
 }
 
-/** Where a chat was found by {@link IAgentHostDatabase.findChatOwner}. */
+/** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findCatalogPayloadChatOwners}. */
 export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
 
 /** The owning session of a chat, taken from the record that contains it. */
@@ -396,13 +396,18 @@ export interface IAgentHostDatabase extends IDisposable {
 	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
-	 * Read-only search for the session that contains `chat`: normalized rows
-	 * (including tombstones) dominate, then legacy peer catalogs, then cached
-	 * catalog payloads. Never inspects the chat URI itself.
+	 * Read-only search of the central chat catalogs for the sessions that
+	 * contain `chats`: normalized rows (including tombstones) dominate, then
+	 * legacy peer catalogs. Two indexed queries; chats with no record are
+	 * absent. Never inspects a chat URI itself.
 	 */
-	findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined>;
-	/** Batched {@link findChatOwner}: one read-only pass for every chat; chats with no record are absent. */
-	findChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
+	findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
+	/**
+	 * Read-only search of cached catalog payloads for the sessions that list
+	 * `chats`; the lowest session wins. Scans the payload table, so it is the
+	 * last resort after the central catalogs and the registered sessions.
+	 */
+	findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -414,7 +419,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	close(): Promise<void>;
 }
 
-/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findChatOwners}. */
+/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findCatalogPayloadChatOwners}. */
 const FIND_CHAT_OWNERS_PAYLOAD_BATCH = 100;
 const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
 	session_uri         TEXT PRIMARY KEY NOT NULL,
@@ -1721,26 +1726,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined> {
-		return (await this.findChatOwners([chat])).get(chat);
-	}
-
-	async findChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+	async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
 		if (chats.length === 0) {
 			return owners;
 		}
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
-			const deletedSessions = new Map<string, boolean>();
-			const isSessionDeleted = async (session: string) => {
-				let deleted = deletedSessions.get(session);
-				if (deleted === undefined) {
-					deleted = !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
-					deletedSessions.set(session, deleted);
-				}
-				return deleted;
-			};
+			const isSessionDeleted = this._createSessionDeletedLookup(database);
 			const pending = new Set(chats);
 			const placeholders = (count: number) => new Array(count).fill('?').join(', ');
 			for (const row of await all(database, `SELECT chat_uri, owner_session_uri, tombstoned FROM chats_v2 WHERE chat_uri IN (${placeholders(pending.size)})`, [...pending])) {
@@ -1752,15 +1745,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				for (const row of await all(database, `SELECT chat_uri, MIN(session_uri) AS session_uri FROM session_chats WHERE chat_uri IN (${placeholders(pending.size)}) GROUP BY chat_uri`, [...pending])) {
 					const ownerSession = row.session_uri as string;
 					owners.set(row.chat_uri as string, { ownerSession, source: 'legacyCatalog', deleted: await isSessionDeleted(ownerSession) });
-					pending.delete(row.chat_uri as string);
 				}
 			}
-			// Only payloads that mention a pending chat are decoded.
-			for (let start = 0; pending.size > 0 && start < chats.length; start += FIND_CHAT_OWNERS_PAYLOAD_BATCH) {
-				const batch = chats.slice(start, start + FIND_CHAT_OWNERS_PAYLOAD_BATCH).filter(chat => pending.has(chat));
-				if (batch.length === 0) {
-					continue;
-				}
+			return owners;
+		});
+	}
+
+	async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+		if (chats.length === 0) {
+			return owners;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const isSessionDeleted = this._createSessionDeletedLookup(database);
+			const unique = [...new Set(chats)];
+			// Only payloads that mention a chat of the batch are decoded.
+			for (let start = 0; start < unique.length; start += FIND_CHAT_OWNERS_PAYLOAD_BATCH) {
+				const batch = unique.slice(start, start + FIND_CHAT_OWNERS_PAYLOAD_BATCH);
 				const batchChats = new Set(batch);
 				const filter = batch.map(() => 'instr(payload, ?) > 0').join(' OR ');
 				// A payload is canonical JSON, so a chat it lists contains the chat's JSON string literal.
@@ -1771,7 +1773,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 					// Chats of later batches are resolved by their own query, so the lowest owning session wins for each.
 					for (const entry of decoded.value.chats) {
-						if (batchChats.has(entry.uri) && pending.delete(entry.uri)) {
+						if (batchChats.delete(entry.uri)) {
 							const ownerSession = candidate.session_uri as string;
 							owners.set(entry.uri, { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) });
 						}
@@ -1780,6 +1782,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 			return owners;
 		});
+	}
+
+	private _createSessionDeletedLookup(database: Database): (session: string) => Promise<boolean> {
+		const deletedSessions = new Map<string, boolean>();
+		return async session => {
+			let deleted = deletedSessions.get(session);
+			if (deleted === undefined) {
+				deleted = !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+				deletedSessions.set(session, deleted);
+			}
+			return deleted;
+		};
 	}
 
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {

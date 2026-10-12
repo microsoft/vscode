@@ -11,6 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT } from '../../node/agentHostCatalogProjection.js';
+import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
@@ -611,8 +612,8 @@ suite('AgentHostPeerChatStore', () => {
 			privateDescendants: [{ chat: tombstoned, metadata: { interactivity: ChatInteractivity.Hidden } }],
 		});
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
-		const tombstonedOwner = await orchestrator.findChatOwner(tombstoned);
-		const lookups = sinon.spy(orchestrator, 'findChatOwners');
+		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
+		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
 		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined));
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
@@ -644,11 +645,38 @@ suite('AgentHostPeerChatStore', () => {
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([tombstonedHere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
-			central: await orchestrator.findChatOwner(tombstonedHere),
+			central: (await orchestrator.findCentralChatOwners([tombstonedHere])).get(tombstonedHere),
 			entries: await store.tryReadLegacy(session),
 		}, {
 			central: { ownerSession: session.toString(), source: 'normalized', deleted: true },
 			entries: [{ uri: first.toString() }],
+		});
+	});
+
+	test('reading and reconciling a full legacy peer list checks only the central catalogs, never cached catalog payloads', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const peers = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => buildChatUri(session, `legacy-${index}`));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(peers.map(uri => ({ uri }))));
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const read = await store.tryReadLegacy(session);
+		const reconciled = await store.reconcileLegacy(session);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			read: read?.length,
+			reconciled: reconciled?.length,
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN')).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		}, {
+			read: peers.length,
+			reconciled: peers.length,
+			centralLookups: 2,
+			payloadScans: 0,
 		});
 	});
 

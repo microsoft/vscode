@@ -503,7 +503,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 */
 	private async _withoutCentrallyOwnedElsewhere(session: URI, entries: IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
 		const sessionKey = session.toString();
-		const recorded = await this._database.findChatOwners(entries.map(entry => entry.uri));
+		const recorded = await this._database.findCentralChatOwners(entries.map(entry => entry.uri));
 		const owned = entries.map(entry => {
 			const liveOwner = this._chatOwnership.getChatOwner(entry.uri);
 			if (liveOwner !== undefined) {

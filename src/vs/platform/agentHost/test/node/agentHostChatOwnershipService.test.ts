@@ -10,16 +10,21 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostChatOwnershipService, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
-import { IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import type { Database } from '@vscode/sqlite3';
+import { AgentHostDatabase, IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	readonly owners = new Map<string, IAgentHostDatabaseChatOwner>();
+	readonly payloadOwners = new Map<string, IAgentHostDatabaseChatOwner>();
 	readonly sessions: IAgentHostDatabaseSession[] = [];
 	inventoryReads = 0;
 
-	override async findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined> {
-		return this.owners.get(chat);
+	override async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		return new Map(chats.flatMap(chat => this.owners.has(chat) ? [[chat, this.owners.get(chat)!] as const] : []));
+	}
+	override async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		return new Map(chats.flatMap(chat => this.payloadOwners.has(chat) ? [[chat, this.payloadOwners.get(chat)!] as const] : []));
 	}
 	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this.inventoryReads++;
@@ -71,7 +76,7 @@ suite('AgentHostChatOwnershipService', () => {
 		return { stateManager, database, service: new AgentHostChatOwnershipService(stateManager, database) };
 	}
 
-	test('resolves an owner from the live registry, then the catalog, then the registered inventory, then spawn edges, never from the chat URI', async () => {
+	test('resolves an owner from the live registry, then the central catalogs, then the registered inventory, then cached payloads, then spawn edges, never from the chat URI', async () => {
 		const { stateManager, database, service } = create();
 		// Every chat URI encodes a session other than its owner.
 		const chat = (id: string) => buildChatUri('copilot:/encoded', id);
@@ -84,8 +89,10 @@ suite('AgentHostChatOwnershipService', () => {
 		database.owners.set(chat('catalog'), { ownerSession: 'copilot:/catalog-owner', source: 'normalized', deleted: false });
 		database.owners.set(buildDefaultChatUri('copilot:/inventory-owner'), { ownerSession: 'copilot:/catalog-beats-inventory', source: 'legacyCatalog', deleted: false });
 		database.sessions.push(registeredSession('copilot:/inventory-owner'), registeredSession('copilot:/inventory-only'));
+		database.payloadOwners.set(buildDefaultChatUri('copilot:/inventory-only'), { ownerSession: 'copilot:/payload-loses-to-inventory', source: 'catalogPayload', deleted: false });
+		database.payloadOwners.set(chat('payload'), { ownerSession: 'copilot:/payload-owner', source: 'catalogPayload', deleted: false });
 
-		const owners = await Promise.all([chat('live'), chat('catalog'), buildDefaultChatUri('copilot:/inventory-owner'), buildDefaultChatUri('copilot:/inventory-only'), chat('spawned'), chat('unknown')]
+		const owners = await Promise.all([chat('live'), chat('catalog'), buildDefaultChatUri('copilot:/inventory-owner'), buildDefaultChatUri('copilot:/inventory-only'), chat('payload'), chat('spawned'), chat('unknown')]
 			.map(async resource => await service.resolveChatOwner(resource)));
 
 		assert.deepStrictEqual(owners, [
@@ -93,6 +100,7 @@ suite('AgentHostChatOwnershipService', () => {
 			{ owner: 'copilot:/catalog-owner', spawnedBy: undefined },
 			{ owner: 'copilot:/catalog-beats-inventory', spawnedBy: undefined },
 			{ owner: 'copilot:/inventory-only', spawnedBy: undefined },
+			{ owner: 'copilot:/payload-owner', spawnedBy: undefined },
 			{ owner: spawner, spawnedBy: { chat: buildDefaultChatUri(spawner), toolCallId: 'tc', title: 'Worker' } },
 			undefined,
 		]);
@@ -165,6 +173,29 @@ suite('AgentHostChatOwnershipService', () => {
 			owners: [...sessions, undefined],
 			readsByLookup: 1,
 			readsByResolutions: 2,
+		});
+	});
+
+	test('a legacy default chat resolves from the registered sessions without scanning cached catalog payloads', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const service = new AgentHostChatOwnershipService(stateManager, database);
+		const legacy = 'copilot:/legacy-default-owner';
+		await database.registerRuntimeSession(legacy, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const resolved = await service.resolveChatOwner(buildDefaultChatUri(legacy));
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			resolved,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		}, {
+			resolved: { owner: legacy, spawnedBy: undefined },
+			payloadScans: 0,
 		});
 	});
 

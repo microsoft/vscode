@@ -11,8 +11,11 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 /** A catalog that records no chats or sessions, so ownership comes from the live registry only. */
 export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
-	override async findChatOwner(): Promise<IAgentHostDatabaseChatOwner | undefined> {
-		return undefined;
+	override async findCentralChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		return new Map();
+	}
+	override async findCatalogPayloadChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		return new Map();
 	}
 	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
 		return [];

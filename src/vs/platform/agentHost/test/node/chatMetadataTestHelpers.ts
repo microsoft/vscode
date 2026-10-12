@@ -5,7 +5,7 @@
 
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseSessionListCatalog } from '../../node/agentHostDatabase.js';
+import type { IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSessionListCatalog } from '../../node/agentHostDatabase.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -61,39 +61,46 @@ export async function readTestChatV2(database: IAgentHostDatabase, session: stri
 	return { normalized: true, ...(row ? { chat: row } : {}) };
 }
 
-/** In-memory counterpart of {@link IAgentHostDatabase.findChatOwners} for database fakes. */
-export async function findTestChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
-	const owners = new Map<string, NonNullable<Awaited<ReturnType<IAgentHostDatabase['findChatOwner']>>>>();
+async function registeredTestSessions(database: IAgentHostDatabase): Promise<string[]> {
+	return [...new Set([
+		...(await database.listSessionV2Registrations()).map(identity => identity.session),
+		...(await database.listSessions()).map(identity => identity.session),
+	])];
+}
+
+/** In-memory counterpart of {@link IAgentHostDatabase.findCentralChatOwners} for database fakes. */
+export async function findTestCentralChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+	const sessions = await registeredTestSessions(database);
+	const snapshots = await database.readCatalogSnapshot(sessions);
+	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
 	for (const chat of chats) {
-		const owner = await findTestChatOwner(database, chat);
-		if (owner) {
-			owners.set(chat, owner);
+		const normalized = snapshots.find(snapshot => snapshot.chats.some(entry => entry.chat === chat));
+		if (normalized) {
+			owners.set(chat, { ownerSession: normalized.session, source: 'normalized', deleted: await database.isSessionTombstoned(normalized.session) });
+			continue;
+		}
+		for (const session of sessions) {
+			if ((await database.getSessionChatCatalog(session))?.chats.some(entry => entry.chat === chat)) {
+				owners.set(chat, { ownerSession: session, source: 'legacyCatalog', deleted: await database.isSessionTombstoned(session) });
+				break;
+			}
 		}
 	}
 	return owners;
 }
 
-/** In-memory counterpart of {@link IAgentHostDatabase.findChatOwner} for database fakes. */
-export async function findTestChatOwner(database: IAgentHostDatabase, chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
-	const sessions = [...new Set([
-		...(await database.listSessionV2Registrations()).map(identity => identity.session),
-		...(await database.listSessions()).map(identity => identity.session),
-	])];
-	for (const snapshot of await database.readCatalogSnapshot(sessions)) {
-		if (snapshot.chats.some(entry => entry.chat === chat)) {
-			return { ownerSession: snapshot.session, source: 'normalized', deleted: await database.isSessionTombstoned(snapshot.session) };
+/** In-memory counterpart of {@link IAgentHostDatabase.findCatalogPayloadChatOwners} for database fakes. */
+export async function findTestCatalogPayloadChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+	const rows = await database.listSessionsV2(await registeredTestSessions(database));
+	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+	for (const chat of chats) {
+		for (const row of rows) {
+			const decoded = decodeAgentHostCatalogPayload(row.payload);
+			if (decoded.ok && decoded.value.data.chats.some(entry => entry.uri === chat)) {
+				owners.set(chat, { ownerSession: row.session, source: 'catalogPayload', deleted: await database.isSessionTombstoned(row.session) });
+				break;
+			}
 		}
 	}
-	for (const session of sessions) {
-		if ((await database.getSessionChatCatalog(session))?.chats.some(entry => entry.chat === chat)) {
-			return { ownerSession: session, source: 'legacyCatalog', deleted: await database.isSessionTombstoned(session) };
-		}
-	}
-	for (const row of await database.listSessionsV2(sessions)) {
-		const decoded = decodeAgentHostCatalogPayload(row.payload);
-		if (decoded.ok && decoded.value.data.chats.some(entry => entry.uri === chat)) {
-			return { ownerSession: row.session, source: 'catalogPayload', deleted: await database.isSessionTombstoned(row.session) };
-		}
-	}
-	return undefined;
+	return owners;
 }

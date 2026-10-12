@@ -84,7 +84,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
-import { findTestChatOwner, findTestChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -382,11 +382,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
 	}
-	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
-		return findTestChatOwner(this, chat);
+	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+		return findTestCentralChatOwners(this, chats);
 	}
-	findChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
-		return findTestChatOwners(this, chats);
+	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+		return findTestCatalogPayloadChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -910,11 +910,11 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
 	}
-	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
-		return findTestChatOwner(this, chat);
+	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+		return findTestCentralChatOwners(this, chats);
 	}
-	findChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
-		return findTestChatOwners(this, chats);
+	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+		return findTestCatalogPayloadChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -5949,17 +5949,21 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('filtering many discovered backings looks up legacy marker owners without rereading the session inventory per marker', async () => {
 			const perSession = createPerSessionDataService();
-			const lookups = { findChatOwner: 0, listSessions: 0, listSessionV2Registrations: 0 };
+			const lookups = { findChatOwner: 0, payloadScans: 0, listSessions: 0, listSessionV2Registrations: 0 };
 			let findingOwner = false;
 			const database = new class extends TestAgentHostOrchestratorDatabase {
-				override async findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
+				override async findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 					lookups.findChatOwner++;
 					findingOwner = true;
 					try {
-						return await super.findChatOwner(chat);
+						return await super.findCentralChatOwners(chats);
 					} finally {
 						findingOwner = false;
 					}
+				}
+				override async findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+					lookups.payloadScans++;
+					return super.findCatalogPayloadChatOwners(chats);
 				}
 				// The test database answers owner lookups by listing; only the service's own listings count.
 				override async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
@@ -5990,7 +5994,7 @@ suite('AgentService (node dispatcher)', () => {
 			const inspect = svc as unknown as { _filterKnownSessions(provider: string, sessions: readonly URI[]): Promise<ReadonlySet<string>> };
 			await timeout(0);
 			const filter = async (sessions: readonly URI[]) => {
-				Object.assign(lookups, { findChatOwner: 0, listSessions: 0, listSessionV2Registrations: 0 });
+				Object.assign(lookups, { findChatOwner: 0, payloadScans: 0, listSessions: 0, listSessionV2Registrations: 0 });
 				const known = await inspect._filterKnownSessions('codex', sessions);
 				return { known: known.size, lookups: { ...lookups } };
 			};
@@ -6000,8 +6004,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Only legacy markers, which never recorded their provider, need an owner, and the listings do not grow with them.
 			assert.deepStrictEqual({ one, all }, {
-				one: { known: 1, lookups: { ...one.lookups, findChatOwner: 1 } },
-				all: { known: 10, lookups: { ...one.lookups, findChatOwner: 5 } },
+				one: { known: 1, lookups: { ...one.lookups, findChatOwner: 1, payloadScans: 0 } },
+				all: { known: 10, lookups: { ...one.lookups, findChatOwner: 5, payloadScans: 0 } },
 			});
 		});
 

@@ -387,21 +387,32 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await db.tombstoneAndUnregisterSession(deletedOwner);
 
 		const chats = ['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(chat);
-		const expected = [
-			{ ownerSession: normalized, source: 'normalized', deleted: false },
-			{ ownerSession: legacy, source: 'legacyCatalog', deleted: false },
-			{ ownerSession: payloadOwner, source: 'catalogPayload', deleted: false },
-			{ ownerSession: deletedOwner, source: 'normalized', deleted: true },
-			undefined,
-		];
-		const batched = await db.findChatOwners(chats);
+		const central = await db.findCentralChatOwners(chats);
+		const payload = await db.findCatalogPayloadChatOwners(chats);
+		const single = await Promise.all(chats.map(async id => ({ central: (await db.findCentralChatOwners([id])).get(id), payload: (await db.findCatalogPayloadChatOwners([id])).get(id) })));
 		assert.deepStrictEqual({
-			single: await Promise.all(chats.map(id => db.findChatOwner(id))),
-			batched: chats.map(id => batched.get(id)),
-		}, { single: expected, batched: expected });
+			batched: chats.map(id => ({ central: central.get(id), payload: payload.get(id) })),
+			single,
+		}, {
+			batched: [
+				{ central: { ownerSession: normalized, source: 'normalized', deleted: false }, payload: undefined },
+				{ central: { ownerSession: legacy, source: 'legacyCatalog', deleted: false }, payload: undefined },
+				// A cached payload is not a central catalog record.
+				{ central: undefined, payload: { ownerSession: payloadOwner, source: 'catalogPayload', deleted: false } },
+				{ central: { ownerSession: deletedOwner, source: 'normalized', deleted: true }, payload: undefined },
+				{ central: undefined, payload: undefined },
+			],
+			single: [
+				{ central: { ownerSession: normalized, source: 'normalized', deleted: false }, payload: undefined },
+				{ central: { ownerSession: legacy, source: 'legacyCatalog', deleted: false }, payload: undefined },
+				{ central: undefined, payload: { ownerSession: payloadOwner, source: 'catalogPayload', deleted: false } },
+				{ central: { ownerSession: deletedOwner, source: 'normalized', deleted: true }, payload: undefined },
+				{ central: undefined, payload: undefined },
+			],
+		});
 	});
 
-	test('finds many chat owners with a bounded number of statements and scans only payloads that mention a pending chat', async () => {
+	test('finds central owners with two indexed queries and no payload scan, and scans only payloads that mention a chat', async () => {
 		const db = new AgentHostDatabase(':memory:');
 		database = db;
 		const legacy = 'session://legacy-owner';
@@ -422,26 +433,34 @@ suite('AgentHostDatabase sessions_v2', () => {
 		sqlite.on('trace', onTrace);
 
 		const unknown = Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`);
-		const owners = await db.findChatOwners([...legacyChats, 'ahp-chat://payload-peer', ...unknown]);
+		const countStatements = () => ({
+			chatsV2: statements.filter(sql => sql.includes('FROM chats_v2')).length,
+			sessionChats: statements.filter(sql => sql.includes('FROM session_chats')).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2')).length,
+			prefilteredPayloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		});
+		const central = await db.findCentralChatOwners([...legacyChats, 'ahp-chat://payload-peer', ...unknown]);
+		const centralStatements = countStatements();
+		statements.length = 0;
+		const payload = await db.findCatalogPayloadChatOwners(['ahp-chat://payload-peer', ...unknown]);
+		const payloadStatements = countStatements();
 		sqlite.removeListener('trace', onTrace);
 
 		assert.deepStrictEqual({
-			legacyOwners: new Set(legacyChats.map(chat => owners.get(chat)?.ownerSession)),
-			payloadPeer: owners.get('ahp-chat://payload-peer'),
-			unknownFound: unknown.filter(chat => owners.has(chat)).length,
-			statements: {
-				chatsV2: statements.filter(sql => sql.includes('FROM chats_v2')).length,
-				sessionChats: statements.filter(sql => sql.includes('FROM session_chats')).length,
-				payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2')).length,
-				prefilteredPayloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
-				tombstoneChecks: statements.filter(sql => sql.includes('FROM metadata')).length,
-			},
+			legacyOwners: new Set(legacyChats.map(chat => central.get(chat)?.ownerSession)),
+			centralUnresolved: [...unknown, 'ahp-chat://payload-peer'].filter(chat => central.has(chat)).length,
+			centralStatements,
+			payloadPeer: payload.get('ahp-chat://payload-peer'),
+			payloadUnknownFound: unknown.filter(chat => payload.has(chat)).length,
+			payloadStatements,
 		}, {
 			legacyOwners: new Set([legacy]),
+			centralUnresolved: 0,
+			centralStatements: { chatsV2: 1, sessionChats: 1, payloadScans: 0, prefilteredPayloadScans: 0 },
 			payloadPeer: { ownerSession: payloadOwners[1], source: 'catalogPayload', deleted: false },
-			unknownFound: 0,
-			// The first 100 chats are all legacy-owned, so only the later two batches scan payloads.
-			statements: { chatsV2: 1, sessionChats: 1, payloadScans: 2, prefilteredPayloadScans: 2, tombstoneChecks: 2 },
+			payloadUnknownFound: 0,
+			// One prefiltered scan per batch of 100 chats.
+			payloadStatements: { chatsV2: 0, sessionChats: 0, payloadScans: 1, prefilteredPayloadScans: 1 },
 		});
 	});
 
@@ -470,8 +489,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// More than one payload batch: `early` is in the first, `late` and `escaped` in the second.
 			const chats = [early, ...Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`), late, escaped];
 
-			const batched = await db.findChatOwners(chats);
-			const single = await Promise.all(chats.map(chat => db.findChatOwner(chat)));
+			const batched = await db.findCatalogPayloadChatOwners(chats);
+			const single = await Promise.all(chats.map(async chat => (await db.findCatalogPayloadChatOwners([chat])).get(chat)));
 
 			const owners = (lookup: (chat: string) => unknown) => ({ early: lookup(early), late: lookup(late), escaped: lookup(escaped) });
 			assert.deepStrictEqual({
