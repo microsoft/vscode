@@ -13,7 +13,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IJSONEditingService, IJSONValue } from '../../../../../services/configuration/common/jsonEditing.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -73,6 +75,8 @@ suite('ManagePluginMarketplacesAction', () => {
 		const quickInputService = new TestQuickInputService();
 		const notifications: INotification[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
+		const jsonWrites: { resource: URI; values: IJSONValue[]; save: boolean }[] = [];
+		const userHome = URI.file('/home/testuser');
 		const harness = {
 			id: 'local',
 			label: 'Local',
@@ -96,13 +100,25 @@ suite('ManagePluginMarketplacesAction', () => {
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async exists(): Promise<boolean> { return false; }
 		}());
+		instantiationService.stub(IPathService, new class extends mock<IPathService>() {
+			override userHome(options: { preferLocal: true }): URI;
+			override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+			override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+				return options?.preferLocal ? userHome : Promise.resolve(userHome);
+			}
+		}());
+		instantiationService.stub(IJSONEditingService, new class extends mock<IJSONEditingService>() {
+			override async write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
+				jsonWrites.push({ resource, values, save });
+			}
+		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override notify(notification: INotification): INotificationHandle {
 				notifications.push(notification);
 				return new class extends mock<INotificationHandle>() { };
 			}
 		}());
-		return { instantiationService, configurationService, quickInputService, notifications, commands };
+		return { instantiationService, configurationService, quickInputService, notifications, commands, jsonWrites };
 	}
 
 	test('adds a marketplace from the management quick pick', async () => {
@@ -111,7 +127,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.ExtraMarketplaces]: {},
 			[ChatConfiguration.StrictMarketplaces]: null,
 		});
-		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
+		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'microsoft/vscode-marketplace';
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
@@ -124,6 +140,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				prompt: fixture.quickInputService.inputOptions?.prompt,
 			},
 			updates: fixture.configurationService.updates,
+			jsonWrites: fixture.jsonWrites,
 			notifications: fixture.notifications,
 		}, {
 			firstPick: [
@@ -136,12 +153,65 @@ suite('ManagePluginMarketplacesAction', () => {
 				placeHolder: 'owner/repo, Git URL, or local repository URI',
 				prompt: 'Only add marketplaces you trust.',
 			},
-			updates: [{
-				key: ChatConfiguration.PluginMarketplaces,
-				value: ['github/awesome-copilot#marketplace', 'microsoft/vscode-marketplace'],
+			updates: [],
+			jsonWrites: [{
+				resource: URI.file('/home/testuser/.copilot/settings.json'),
+				values: [{
+					path: ['extraKnownMarketplaces', 'vscode-marketplace'],
+					value: {
+						source: {
+							source: 'github',
+							repo: 'microsoft/vscode-marketplace',
+						},
+					},
+				}],
+				save: true,
 			}],
 			notifications: [],
 		});
+	});
+
+	test('writes Git and directory marketplaces using Copilot settings source descriptors', async () => {
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+		});
+		fixture.quickInputService.pickIds.push('addMarketplace');
+		fixture.quickInputService.inputValue = 'https://example.com/team/plugins.git#stable';
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		fixture.quickInputService.pickIds.push('addMarketplace');
+		fixture.quickInputService.inputValue = 'file:///marketplaces/local-marketplace';
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.jsonWrites, [{
+			resource: URI.file('/home/testuser/.copilot/settings.json'),
+			values: [{
+				path: ['extraKnownMarketplaces', 'plugins'],
+				value: {
+					source: {
+						source: 'git',
+						url: 'https://example.com/team/plugins.git',
+						ref: 'stable',
+					},
+				},
+			}],
+			save: true,
+		}, {
+			resource: URI.file('/home/testuser/.copilot/settings.json'),
+			values: [{
+				path: ['extraKnownMarketplaces', 'local-marketplace'],
+				value: {
+					source: {
+						source: 'directory',
+						path: URI.file('/marketplaces/local-marketplace').fsPath,
+					},
+				},
+			}],
+			save: true,
+		}]);
 	});
 
 	test('shows plugins from a configured marketplace in Customizations', async () => {
@@ -311,8 +381,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		);
 	});
 
-	test('adds marketplaces outside strict policy as disabled', async () => {
-		const blockedMarketplace = parseMarketplaceReference('blocked/catalog')!;
+	test('writes marketplaces outside strict policy to Copilot settings', async () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
@@ -325,26 +394,24 @@ suite('ManagePluginMarketplacesAction', () => {
 
 		assert.deepStrictEqual({
 			updates: fixture.configurationService.updates,
+			jsonWrites: fixture.jsonWrites,
 			notifications: fixture.notifications.map(notification => notification.message),
-			addedMarketplace: fixture.quickInputService.picks[1]
-				.find((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id === blockedMarketplace.canonicalId),
 		}, {
-			updates: [{
-				key: ChatConfiguration.PluginMarketplaces,
-				value: [blockedMarketplace.rawValue],
+			updates: [],
+			jsonWrites: [{
+				resource: URI.file('/home/testuser/.copilot/settings.json'),
+				values: [{
+					path: ['extraKnownMarketplaces', 'catalog'],
+					value: {
+						source: {
+							source: 'github',
+							repo: 'blocked/catalog',
+						},
+					},
+				}],
+				save: true,
 			}],
 			notifications: [],
-			addedMarketplace: {
-				id: blockedMarketplace.canonicalId,
-				label: blockedMarketplace.displayLabel,
-				description: 'Disabled by Organization',
-				detail: blockedMarketplace.cloneUrl,
-				kind: 'marketplace',
-				reference: blockedMarketplace,
-				managedByPolicy: false,
-				disabled: true,
-				pickable: false,
-			},
 		});
 	});
 });

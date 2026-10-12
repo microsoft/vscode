@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -18,6 +19,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IJSONEditingService } from '../../../../services/configuration/common/jsonEditing.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -226,6 +229,8 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
+		const jsonEditingService = accessor.get(IJSONEditingService);
+		const pathService = accessor.get(IPathService);
 
 		while (true) {
 			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
@@ -282,11 +287,8 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				const added = await this.addMarketplace(quickInputService, configurationService, notificationService);
-				if (!added) {
-					return;
-				}
-				continue;
+				await this.addMarketplace(quickInputService, configurationService, notificationService, jsonEditingService, pathService);
+				return;
 			}
 
 			const ref = selected.reference;
@@ -345,7 +347,9 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		quickInputService: IQuickInputService,
 		configurationService: IConfigurationService,
 		notificationService: INotificationService,
-	): Promise<boolean> {
+		jsonEditingService: IJSONEditingService,
+		pathService: IPathService,
+	): Promise<void> {
 		const value = await quickInputService.input({
 			title: localize('addPluginMarketplace', "Add Plugin Marketplace"),
 			placeHolder: localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI"),
@@ -354,26 +358,25 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			validateInput: async input => this.getMarketplaceInputError(input, configurationService),
 		});
 		if (value === undefined) {
-			return false;
+			return;
 		}
 
 		const validationError = this.getMarketplaceInputError(value, configurationService);
 		if (validationError) {
 			notificationService.notify({ severity: Severity.Warning, message: validationError });
-			return false;
+			return;
 		}
 
 		const reference = parseMarketplaceReference(value);
 		if (!reference) {
-			return false;
+			return;
 		}
-		const { userValues } = readConfiguredMarketplaces(configurationService);
-		const updated = [
-			...userValues.filter((entry): entry is string => typeof entry === 'string'),
-			reference.rawValue,
-		];
-		await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
-		return true;
+		const marketplaceName = getMarketplaceName(reference);
+		const settingsResource = joinPath(await pathService.userHome(), '.copilot', 'settings.json');
+		await jsonEditingService.write(settingsResource, [{
+			path: ['extraKnownMarketplaces', marketplaceName],
+			value: getMarketplaceSettingsEntry(reference),
+		}], true);
 	}
 
 	private getMarketplaceInputError(value: string, configurationService: IConfigurationService): string | undefined {
@@ -387,6 +390,51 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		}
 		return undefined;
 	}
+}
+
+function getMarketplaceName(reference: IMarketplaceReference): string {
+	if (reference.githubRepo) {
+		return reference.githubRepo.split('/')[1];
+	}
+	if (reference.localRepositoryUri) {
+		return basename(reference.localRepositoryUri);
+	}
+	const path = reference.cloneUrl.replace(/[\\/]+$/, '');
+	return path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf(':')) + 1).replace(/\.git$/i, '');
+}
+
+type IMarketplaceSettingsEntry = {
+	readonly source:
+	| { readonly source: 'github'; readonly repo: string; readonly ref?: string }
+	| { readonly source: 'git'; readonly url: string; readonly ref?: string }
+	| { readonly source: 'directory'; readonly path: string };
+};
+
+function getMarketplaceSettingsEntry(reference: IMarketplaceReference): IMarketplaceSettingsEntry {
+	if (reference.githubRepo) {
+		return {
+			source: {
+				source: 'github',
+				repo: reference.githubRepo,
+				...(reference.ref ? { ref: reference.ref } : {}),
+			},
+		};
+	}
+	if (reference.localRepositoryUri) {
+		return {
+			source: {
+				source: 'directory',
+				path: reference.localRepositoryUri.fsPath,
+			},
+		};
+	}
+	return {
+		source: {
+			source: 'git',
+			url: reference.cloneUrl,
+			...(reference.ref ? { ref: reference.ref } : {}),
+		},
+	};
 }
 
 export function registerChatPluginActions() {
