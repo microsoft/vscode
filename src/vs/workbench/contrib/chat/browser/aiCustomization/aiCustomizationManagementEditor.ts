@@ -1827,7 +1827,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const confirmation = category.getConfirmation(servers, this.getActiveHarnessLabel());
 		const confirmResult = await this.dialogService.confirm({
-			type: servers.some(server => Object.keys(server.removedProperties ?? {}).length > 0) ? 'warning' : 'question',
+			type: servers.some(server => (category.getCandidateWarnings?.(server, this.getActiveHarnessLabel()).length ?? 0) > 0) ? 'warning' : 'question',
 			message: confirmation.message,
 			detail: confirmation.detail,
 			primaryButton: confirmation.primaryButton,
