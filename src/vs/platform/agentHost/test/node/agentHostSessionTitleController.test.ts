@@ -748,8 +748,7 @@ suite('AgentHostSessionTitleController', () => {
 		}));
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
-			copilotApiService,
-			getGitHubCopilotToken: () => 'gh-token',
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService()));
 
 		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
