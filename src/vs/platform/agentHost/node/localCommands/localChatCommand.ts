@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -113,8 +113,14 @@ export interface ILocalChatCommandCtor {
 class LocalChatCommandRegistryImpl {
 	private readonly _ctors: ILocalChatCommandCtor[] = [];
 
-	register(ctor: ILocalChatCommandCtor): void {
+	register(ctor: ILocalChatCommandCtor): IDisposable {
 		this._ctors.push(ctor);
+		return toDisposable(() => {
+			const index = this._ctors.indexOf(ctor);
+			if (index !== -1) {
+				this._ctors.splice(index, 1);
+			}
+		});
 	}
 
 	createAll(context: ILocalChatCommandContext): ILocalChatCommand[] {
@@ -178,14 +184,16 @@ export class AgentHostLocalCommands extends Disposable {
 		for (const command of this._commands) {
 			const handling = command.tryHandle(request);
 			if (handling) {
-				void this._run(command, handling, request);
+				// Captured now: the chat may be removed while the command runs.
+				const owner = isAhpChatChannel(request.turnChannel) ? this._stateManager.getChatOwner(request.turnChannel) : request.turnChannel;
+				void this._run(command, handling, request, owner);
 				return handling;
 			}
 		}
 		return undefined;
 	}
 
-	private async _run(command: ILocalChatCommand, handling: ILocalChatCommandHandling, request: ILocalChatCommandRequest): Promise<void> {
+	private async _run(command: ILocalChatCommand, handling: ILocalChatCommandHandling, request: ILocalChatCommandRequest, owner: ProtocolURI | undefined): Promise<void> {
 		const stopWatch = StopWatch.create(false);
 		try {
 			await handling.run();
@@ -197,12 +205,19 @@ export class AgentHostLocalCommands extends Disposable {
 			// survives reload and anchors fork/truncate), then let the owner
 			// drain any messages queued behind it.
 			this._stateManager.dispatchServerAction(request.turnChannel, { type: ActionType.ChatTurnComplete, turnId: request.turnId, duration: Math.max(0, stopWatch.elapsed()) });
-			if (command.recordsLocalTurn) {
-				this._recordLocalTurn(request.turnChannel, request.turnId);
+			if (owner === undefined) {
+				this._logService.trace(`[AgentHostLocalCommands] No owner recorded for ${request.turnChannel}; skipping turn end`);
+			} else {
+				if (command.recordsLocalTurn) {
+					this._recordLocalTurn(request.turnChannel, request.turnId, owner);
+				}
+				this._chatContributions.turnEnd({ session: owner, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 			}
-			const session = this._ownerOf(request.turnChannel);
-			this._chatContributions.turnEnd({ session, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 		}
+	}
+
+	private _ownerOf(channel: ProtocolURI): ProtocolURI {
+		return isAhpChatChannel(channel) ? this._stateManager.requireChatOwner(channel) : channel;
 	}
 
 	/**
@@ -212,13 +227,8 @@ export class AgentHostLocalCommands extends Disposable {
 	 * the turn is keyed by its chat channel. Live terminal references are
 	 * stripped from the payload (the PTY does not survive a reload).
 	 */
-	private _ownerOf(channel: ProtocolURI): ProtocolURI {
-		return isAhpChatChannel(channel) ? this._stateManager.requireChatOwner(channel) : channel;
-	}
-
-	private _recordLocalTurn(turnChannel: ProtocolURI, turnId: string): void {
+	private _recordLocalTurn(turnChannel: ProtocolURI, turnId: string, session: ProtocolURI): void {
 		const chat = turnChannel;
-		const session = this._ownerOf(turnChannel);
 		const turns = this._stateManager.getSessionState(turnChannel)?.turns;
 		if (!turns) {
 			return;

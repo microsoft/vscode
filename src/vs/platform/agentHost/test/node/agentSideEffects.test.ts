@@ -2645,6 +2645,42 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(discardCount, 1);
 		});
 
+		test('a cancellation that arrives after its chat left the registry discards the checkpoint of the recorded owner', async () => {
+			const hiddenOwners = new Set<string>();
+			const localStateManager = disposables.add(new class extends AgentHostStateManager {
+				override getChatOwner(chat: string): string | undefined {
+					return hiddenOwners.has(chat) ? undefined : super.getChatOwner(chat);
+				}
+			}(new NullLogService()));
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			}, { emitNotification: false });
+			const discarded: { session: string; turnId: string }[] = [];
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+			}, undefined, NullTelemetryService, undefined, undefined, {
+				...NULL_CHECKPOINT_SERVICE,
+				discardTurnStartCheckpoint: async (session, _chat, turnId) => { discarded.push({ session: session.toString(), turnId }); },
+			});
+
+			localStateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 }, { clientId: 'test', clientSeq: 1 });
+			hiddenOwners.add(defaultChatUri);
+			localStateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 0 }, { clientId: 'test', clientSeq: 2 });
+			await timeout(0);
+
+			assert.deepStrictEqual(discarded, [
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-2' },
+			]);
+		});
+
 		test('cancellation before send skips turn-start capture', async () => {
 			setupProvisionalSession();
 			let captureCount = 0;

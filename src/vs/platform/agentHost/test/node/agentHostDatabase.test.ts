@@ -401,6 +401,50 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}, { single: expected, batched: expected });
 	});
 
+	test('finds many chat owners with a bounded number of statements and scans only payloads that mention a pending chat', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const legacy = 'session://legacy-owner';
+		const payloadOwners = ['session://payload-a', 'session://payload-b', 'session://payload-c'];
+		for (const session of [legacy, ...payloadOwners]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const legacyChats = Array.from({ length: 150 }, (_, index) => `ahp-chat://legacy-${index}`);
+		await db.replaceSessionChatCatalog(legacy, legacyChats.map((chat, order) => ({ chat, order })), undefined);
+		for (const session of payloadOwners) {
+			await db.upsertSessionV2(createEnvelope(session, 'generation', 1, {
+				payload: session === payloadOwners[1] ? createPayload(session, 1).replace(`"${session}#peer"`, '"ahp-chat://payload-peer"') : createPayload(session, 1),
+			}), undefined);
+		}
+		const sqlite = await (db as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const unknown = Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`);
+		const owners = await db.findChatOwners([...legacyChats, 'ahp-chat://payload-peer', ...unknown]);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			legacyOwners: new Set(legacyChats.map(chat => owners.get(chat)?.ownerSession)),
+			payloadPeer: owners.get('ahp-chat://payload-peer'),
+			unknownFound: unknown.filter(chat => owners.has(chat)).length,
+			statements: {
+				chatsV2: statements.filter(sql => sql.includes('FROM chats_v2')).length,
+				sessionChats: statements.filter(sql => sql.includes('FROM session_chats')).length,
+				payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2')).length,
+				prefilteredPayloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+				tombstoneChecks: statements.filter(sql => sql.includes('FROM metadata')).length,
+			},
+		}, {
+			legacyOwners: new Set([legacy]),
+			payloadPeer: { ownerSession: payloadOwners[1], source: 'catalogPayload', deleted: false },
+			unknownFound: 0,
+			// The first 100 chats are all legacy-owned, so only the later two batches scan payloads.
+			statements: { chatsV2: 1, sessionChats: 1, payloadScans: 2, prefilteredPayloadScans: 2, tombstoneChecks: 2 },
+		});
+	});
+
 	test('sequences chat catalog reads behind queued replacements', async () => {
 		const sequencedDatabase = new AgentHostDatabase(':memory:');
 		database = sequencedDatabase;

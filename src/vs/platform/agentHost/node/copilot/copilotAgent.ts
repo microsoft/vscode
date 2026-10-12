@@ -5018,7 +5018,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
 		// Advertise exactly the clients Agent Host fanned this chat out to.
 		const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString());
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
@@ -5655,7 +5655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
 			const snapshot = await activeClient.snapshot(chatKey);
-			const shellManager = this._instantiationService.createInstance(ShellManager, session, workingDirectory);
+			const shellManager = this._instantiationService.createInstance(ShellManager, session, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
 			const storageScope = context.resource;
@@ -6239,7 +6239,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const snapshot = await activeClient.snapshot(chatKey);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(configurationResource, snapshot);
-			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, workingDirectory);
+			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, context.resource, workingDirectory);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -6930,7 +6930,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
 
 		const disabledRootMcpServers = await this._disabledRootMcpServers(sessionUri, snapshot);
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
 		if (storedMetadata.agent && !resolvedAgentName) {
 			this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);

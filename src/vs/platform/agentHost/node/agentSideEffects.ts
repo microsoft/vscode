@@ -441,14 +441,17 @@ export class AgentSideEffects extends Disposable {
 						break;
 				}
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
-					let turnIds = this._cancelledTurnIds.get(envelope.channel);
-					if (!turnIds) {
-						turnIds = new Set();
-						this._cancelledTurnIds.set(envelope.channel, turnIds);
-					}
-					turnIds.add(envelope.action.turnId);
-					const sessionChannel = this._stateManager.getChatOwner(envelope.channel);
-					if (sessionChannel !== undefined) {
+					// The cancelled turn is tracked under its owner, so it is cleared with that session.
+					const sessionChannel = this._sessionOf(envelope.channel);
+					if (sessionChannel === undefined) {
+						this._logService.trace(`[AgentSideEffects] Ignoring cancellation of turn ${envelope.action.turnId} on ${envelope.channel}: unknown chat owner`);
+					} else {
+						let turnIds = this._cancelledTurnIds.get(envelope.channel);
+						if (!turnIds) {
+							turnIds = new Set();
+							this._cancelledTurnIds.set(envelope.channel, turnIds);
+						}
+						turnIds.add(envelope.action.turnId);
 						this._cancelledTurnOwners.set(envelope.channel, sessionChannel);
 						void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 					}

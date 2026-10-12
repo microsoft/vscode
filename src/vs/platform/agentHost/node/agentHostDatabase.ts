@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { stableStringify } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, decodeAgentHostCatalogPayloadData, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 
@@ -414,6 +414,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	close(): Promise<void>;
 }
 
+/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findChatOwners}. */
+const FIND_CHAT_OWNERS_PAYLOAD_BATCH = 100;
 const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
 	session_uri         TEXT PRIMARY KEY NOT NULL,
 	provider            TEXT NOT NULL,
@@ -1753,20 +1755,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					pending.delete(row.chat_uri as string);
 				}
 			}
-			if (pending.size > 0) {
-				for (const candidate of await all(database, 'SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL ORDER BY session_uri', [])) {
-					const decoded = decodeAgentHostCatalogPayload(candidate.payload as string);
+			// Only payloads that mention a pending chat are decoded.
+			for (let start = 0; pending.size > 0 && start < chats.length; start += FIND_CHAT_OWNERS_PAYLOAD_BATCH) {
+				const batch = chats.slice(start, start + FIND_CHAT_OWNERS_PAYLOAD_BATCH).filter(chat => pending.has(chat));
+				if (batch.length === 0) {
+					continue;
+				}
+				const filter = batch.map(() => 'instr(payload, ?) > 0').join(' OR ');
+				// A payload is canonical JSON, so a chat it lists contains the chat's JSON string literal.
+				for (const candidate of await all(database, `SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND (${filter}) ORDER BY session_uri`, batch.map(chat => JSON.stringify(chat)))) {
+					const decoded = decodeAgentHostCatalogPayloadData(candidate.payload as string);
 					if (!decoded.ok) {
 						continue;
 					}
-					for (const entry of decoded.value.data.chats) {
+					for (const entry of decoded.value.chats) {
 						if (pending.delete(entry.uri)) {
 							const ownerSession = candidate.session_uri as string;
 							owners.set(entry.uri, { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) });
 						}
-					}
-					if (pending.size === 0) {
-						break;
 					}
 				}
 			}

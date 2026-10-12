@@ -270,6 +270,29 @@ suite('AgentHostSessionOpenTelemetry', () => {
 		});
 	}
 
+	test('a cold chat subscription is measured once the subscribe resolves its owner', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestTelemetryService();
+			// No chat is registered when the subscription starts.
+			const service = createService(telemetryService, ['copilotcli'], new Map(), new Map());
+			const peer = URI.parse(buildChatUri(session, 'cold-peer'));
+			await service.withSubscription(peer, async telemetry => {
+				telemetry.setServedFromMemory(false);
+				telemetry.setSession(session);
+				telemetry.restoreStarted(false);
+				telemetry.restoreCompleted();
+			});
+			await service.withSubscription(URI.parse(buildChatUri(session, 'unknown')), async () => { });
+			assert.deepStrictEqual(telemetryService.events.map(event => ({
+				provider: event.data.provider,
+				channel: event.data.channel,
+				outcome: event.data.outcome,
+				servedFromMemory: event.data.servedFromMemory,
+				restored: event.data.timeToRestoreCompleteMs !== undefined,
+			})), [{ provider: 'copilotcli', channel: 'chat', outcome: 'success', servedFromMemory: false, restored: true }]);
+		});
+	});
+
 	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();

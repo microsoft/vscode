@@ -69,6 +69,8 @@ export class ShellManager extends Disposable {
 
 	constructor(
 		private readonly _ownerSession: URI,
+		/** The chat's recorded storage resource; keys the sandbox temp dir so each chat gets its own. */
+		private readonly _sandboxScope: URI,
 		workingDirectory: URI | undefined,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
@@ -141,6 +143,7 @@ export class ShellManager extends Disposable {
 			const sandboxEngine = this._instantiationService.createInstance(
 				AgentHostSandboxEngine,
 				this._ownerSession.toString(),
+				this._sandboxScope.toString(),
 				this._workingDirectory,
 			);
 			this._register(sandboxEngine);

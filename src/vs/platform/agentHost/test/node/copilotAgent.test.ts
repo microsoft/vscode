@@ -1352,6 +1352,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			setServedFromMemory: () => { },
 			restoreStarted: () => { },
 			restoreCompleted: () => { },
+			setSession: () => { },
 		}),
 		withSdkResume: async (_session, operation) => operation(),
 		sdkResumeFallbackCreated: () => { },
@@ -1384,7 +1385,7 @@ type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0]
 
 function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
-	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, options?.workingDirectory);
+	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
 	const mockSession = options?.mockSession ?? new MockCopilotSession();
 	const agentInternals = (agent as unknown as {

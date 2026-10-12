@@ -119,6 +119,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 		setServedFromMemory: () => { },
 		restoreStarted: () => { },
 		restoreCompleted: () => { },
+		setSession: () => { },
 	}),
 	withSdkResume: async (_session, operation) => operation(),
 	sdkResumeFallbackCreated: () => { },

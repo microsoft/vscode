@@ -5942,6 +5942,64 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 		});
 
+		test('filtering many discovered backings looks up legacy marker owners without rereading the session inventory per marker', async () => {
+			const perSession = createPerSessionDataService();
+			const lookups = { findChatOwner: 0, listSessions: 0, listSessionV2Registrations: 0 };
+			let findingOwner = false;
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				override async findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
+					lookups.findChatOwner++;
+					findingOwner = true;
+					try {
+						return await super.findChatOwner(chat);
+					} finally {
+						findingOwner = false;
+					}
+				}
+				// The test database answers owner lookups by listing; only the service's own listings count.
+				override async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+					lookups.listSessions += findingOwner ? 0 : 1;
+					return super.listSessions();
+				}
+				override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+					lookups.listSessionV2Registrations += findingOwner ? 0 : 1;
+					return super.listSessionV2Registrations();
+				}
+			}();
+			const owner = AgentSession.uri('codex', 'owner');
+			await database.registerRuntimeSession(owner.toString(), { provider: 'codex', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('codex')));
+			const legacyMarked = Array.from({ length: 5 }, (_, index) => AgentSession.uri('codex', `legacy-backing-${index}`));
+			const providerMarked = Array.from({ length: 5 }, (_, index) => AgentSession.uri('codex', `backing-${index}`));
+			for (const session of legacyMarked) {
+				await perSession.database(session).setMetadata('peerChatBacking', buildDefaultChatUri(owner));
+			}
+			for (const session of providerMarked) {
+				await perSession.database(session).setMetadata('peerChatBacking', buildChatUri(owner, `peer-${session.path}`));
+				await perSession.database(session).setMetadata('peerChatBackingProvider', 'codex');
+			}
+			const inspect = svc as unknown as { _filterKnownSessions(provider: string, sessions: readonly URI[]): Promise<ReadonlySet<string>> };
+			await timeout(0);
+			const filter = async (sessions: readonly URI[]) => {
+				Object.assign(lookups, { findChatOwner: 0, listSessions: 0, listSessionV2Registrations: 0 });
+				const known = await inspect._filterKnownSessions('codex', sessions);
+				return { known: known.size, lookups: { ...lookups } };
+			};
+
+			const one = await filter(legacyMarked.slice(0, 1));
+			const all = await filter([...legacyMarked, ...providerMarked]);
+
+			// Only legacy markers, which never recorded their provider, need an owner, and the listings do not grow with them.
+			assert.deepStrictEqual({ one, all }, {
+				one: { known: 1, lookups: { ...one.lookups, findChatOwner: 1 } },
+				all: { known: 10, lookups: { ...one.lookups, findChatOwner: 5 } },
+			});
+		});
+
 		test('registered standard identities route through their provider before restoration', async () => {
 			const database = new TestAgentHostOrchestratorDatabase();
 			const resource = URI.parse('ahp-session:/registered');
@@ -22955,6 +23013,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a restored subagent reads its transcript from the storage its private row records', async () => {
+			const owner = AgentSession.uri('copilot', 'subagent-storage-owner');
+			const defaultChat = buildDefaultChatUri(owner);
+			const subagentChat = buildSubagentChatUri(owner.toString(), 'tc-sub');
+			const storage = AgentSession.uri('copilot', 'recorded-subagent-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [],
+				privateDescendants: [{ chat: subagentChat, parentChat: defaultChat, storageResource: storage }],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			const { session } = await createAgentSession(agent, { session: owner });
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-1', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated', content: [{ type: ToolResultContentType.Text, text: 'Done' }] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+
+			await svc.restoreSession(owner);
+			await svc.subscribe(URI.parse(subagentChat), 'subagent-reader');
+
+			assert.deepStrictEqual({
+				storage: getStateManager(svc).getChatStorageResource(subagentChat),
+				providerResources: agent.chatContexts
+					.filter(call => call.chat.toString() === subagentChat && !URI.isUri(call.context) && call.context !== undefined)
+					.map(call => (call.context as IAgentChatContext).resource.toString()),
+			}, {
+				storage,
+				providerResources: [storage],
+			});
+		});
+
 		test('mismatch oracle: a chat whose URI encodes another session is owned, routed and stored by its records', async () => {
 			// The URIs encode a session of an unregistered provider; anything that
 			// routes by the URI would reach the wrong session and provider.
@@ -29572,6 +29670,22 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(service).addChat(owner.toString(), chat.toString());
 				service.addSubscriber(chat, 'client-1');
 				getStateManager(service).removeChat(owner.toString(), chat.toString());
+
+				service.unsubscribe(chat, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				return owner;
+			});
+			await waitForGcDisposal(1);
+			assert.deepStrictEqual(copilotAgent.disposeSessionCalls.map(u => u.toString()), [owner.toString()]);
+		});
+
+		test('a chat subscribed before it registers gets its owner when it registers, so its last unsubscribe arms the owner\'s GC', async () => {
+			const owner = await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const owner = await service.createSession({ provider: 'copilot' });
+				const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
+				service.addSubscriber(chat, 'client-1');
+				getStateManager(service).addChat(owner.toString(), chat.toString());
 
 				service.unsubscribe(chat, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));

@@ -351,6 +351,9 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
+	private readonly _onDidRegisterChat = this._register(new Emitter<{ chat: string; session: string }>());
+	/** Fires when a chat enters the registry with its recorded owner. */
+	readonly onDidRegisterChat: Event<{ chat: string; session: string }> = this._onDidRegisterChat.event;
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
@@ -1353,7 +1356,7 @@ export class AgentHostStateManager extends Disposable {
 		if (isRead !== undefined) {
 			chatSummary.status = withSessionStatusFlag(chatSummary.status, SessionStatus.IsRead, isRead);
 		}
-		this._chatEntries.set(chatUri, {
+		this._setChatEntry(chatUri, {
 			session: sessionKey,
 			storageResource: storageResource ?? creationTimeChatStorageResource(sessionKey, chatUri),
 			summary: chatSummary,
@@ -1418,7 +1421,7 @@ export class AgentHostStateManager extends Disposable {
 			interactivity: options?.interactivity,
 			...(options?.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 		};
-		this._chatEntries.set(chatUri, {
+		this._setChatEntry(chatUri, {
 			session,
 			storageResource: options?.storageResource ?? creationTimeChatStorageResource(session, chatUri),
 			parentChat: registrationParentChat(options?.origin),
@@ -1495,7 +1498,7 @@ export class AgentHostStateManager extends Disposable {
 			...(options.changes !== undefined ? { changes: options.changes } : {}),
 		};
 		entry.state.chats = [...entry.state.chats, chatSummary];
-		this._chatEntries.set(chatUri, {
+		this._setChatEntry(chatUri, {
 			session,
 			storageResource: options.storageResource ?? creationTimeChatStorageResource(session, chatUri),
 			parentChat: registrationParentChat(options.origin),
@@ -2019,6 +2022,11 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	private _setChatEntry(chat: URI, entry: IChatEntry): void {
+		this._chatEntries.set(chat, entry);
+		this._onDidRegisterChat.fire({ chat, session: entry.session });
+	}
+
 	private _synchronizeChatEntries(session: URI, summaries: readonly ChatSummary[]): void {
 		const expected = new Set(summaries.map(summary => summary.resource));
 		for (const summary of summaries) {
@@ -2029,7 +2037,7 @@ export class AgentHostStateManager extends Disposable {
 					existing.state = { ...existing.state, ...summary };
 				}
 			} else {
-				this._chatEntries.set(summary.resource, {
+				this._setChatEntry(summary.resource, {
 					session,
 					storageResource: creationTimeChatStorageResource(session, summary.resource),
 					parentChat: registrationParentChat(summary.origin),

@@ -55,6 +55,12 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 		}
 	}
 
+	recordChatOwner(chat: string, session: string): void {
+		if ([...this._subscribers.keys()].some(resource => this._chatOf(resource) === chat)) {
+			this._chatOwners.set(chat, session);
+		}
+	}
+
 	resolveSubscribedSession(resource: URI): URI | undefined {
 		return resolveAgentHostSession(resource, chat => this._chatOwners.get(chat));
 	}
