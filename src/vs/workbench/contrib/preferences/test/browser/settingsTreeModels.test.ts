@@ -607,6 +607,92 @@ suite('SettingsTree sandbox network search ordering', () => {
 	});
 });
 
+suite('SettingsTree search results', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel() {
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+		}();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		return store.add(instantiationService.createInstance(SearchResultModel,
+			{ settingsTarget: ConfigurationTarget.USER_LOCAL, query: 'test' }, null, true));
+	}
+
+	function createMatch(key: string) {
+		return {
+			setting: new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+				override scope = ConfigurationScope.APPLICATION;
+			}(),
+			matches: [], matchType: SettingMatchType.RemoteMatch, keyMatchScore: 0, score: 0,
+		};
+	}
+
+	test('refreshes after local results are cleared', () => {
+		const model = createModel();
+		model.setResult(SearchResultIdx.Local, { filterMatches: [createMatch('test.local')], exactMatch: true });
+		model.setResult(SearchResultIdx.Local, null);
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('retains remote results without local results', () => {
+		const model = createModel();
+		const match = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, null);
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [match], exactMatch: false });
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			keys: model.root.children.map(child => child instanceof SettingsTreeSettingElement ? child.setting.key : child.id),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [match], exactMatch: false }, keys: ['test.remote'], count: 1 });
+	});
+
+	test('switches from AI results without local results', () => {
+		const model = createModel();
+		model.showAiResults = true;
+		model.setResult(SearchResultIdx.Embeddings, { filterMatches: [createMatch('test.ai')], exactMatch: false });
+		model.showAiResults = false;
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('preserves local exact matches and remote deduplication', () => {
+		const model = createModel();
+		const localMatch = createMatch('test.local');
+		const remoteMatch = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, { filterMatches: [localMatch], exactMatch: true });
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [localMatch, remoteMatch], exactMatch: false });
+
+		assert.deepStrictEqual(model.getUniqueSearchResults(), {
+			filterMatches: [localMatch, remoteMatch],
+			exactMatch: true,
+		});
+	});
+});
+
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat - sandbox outbound connections', () => {
 		assert.deepStrictEqual([

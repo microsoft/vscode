@@ -20,7 +20,7 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SessionCanvasInput } from '../../../canvases/common/sessionCanvas.js';
+import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
@@ -262,7 +262,7 @@ suite('Desktop layout strategies', () => {
 		state.isRestoringSessionLayout = true;
 		const session = makeSession(URI.parse('session:/existing'), { isCreated: true });
 		const canvasResource = URI.parse('agent-host-canvas:/preview');
-		const canvasEditor = store.add(new SessionCanvasInput({
+		const canvasEditor = store.add(harness.instaService.createInstance(CanvasInput, {
 			providerId: 'local-agent-host',
 			session: session.resource,
 			chat: URI.parse('agent-host-chat:/session/main'),
@@ -389,6 +389,39 @@ suite('Desktop layout strategies', () => {
 			editor: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, { editor: true, auxiliaryBar: true });
+	});
+
+	test('New Session composition does not reveal a fully closed side pane on activation', () => {
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		harness = createTestHarness(store);
+		harness.storageService.store(
+			'sessions.chatLayout.sidePaneComposition',
+			JSON.stringify({ version: 1, entries: [[session.resource.toString(), { editor: true, auxiliaryBar: true }]] }),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE,
+		);
+		const { ctx } = createStrategyTestContext(store, harness);
+		ctx.chatLayoutActive = () => true;
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(session);
+
+		assert.deepStrictEqual({
+			visibility: {
+				editor: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			},
+			revealCalls: harness.setPartHiddenCalls.filter(call => !call.hidden),
+		}, {
+			visibility: { editor: false, auxiliaryBar: false },
+			revealCalls: [],
+		});
 	});
 
 	test('New Session composition changes are captured to the focused draft owner while another session is simultaneously visible', async () => {
@@ -1008,7 +1041,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Quick Chat hides the incoming side pane when editorless without changing the shared profile', () => {
+	test('Quick Chat does not reveal the incoming side pane after an editorless chat hid it', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);
 		const emptyQuickChat = makeSession(URI.parse('session:/empty-quick'), { isQuickChat: true });
@@ -1051,9 +1084,21 @@ suite('Desktop layout strategies', () => {
 			visibilityChanges: harness.setPartHiddenCalls,
 			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
 		}, {
-			editorVisible: true,
+			editorVisible: false,
 			auxiliaryBarVisible: false,
 			visibilityChanges: [],
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
+		harness.layoutService.toggleSidePane();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
 			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
 		});
 

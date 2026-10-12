@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { existsSync } from 'fs';
-import { mkdir, mkdtemp, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -24,13 +24,14 @@ import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadSt
 import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fetched server policy appears in sessionless diagnostics and channel layers', async function () {
 		this.timeout(60_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-policy-diagnostics-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-policy-diagnostics-'));
 		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
 				COPILOT_CACHE_HOME: join(directory, 'cache'),
@@ -110,7 +111,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 
 	setup(async function () {
 		this.timeout(60_000);
-		workspace = await mkdtemp(join(tmpdir(), 'copilot-managed-ahp-'));
+		workspace = createTestDirectory(join(tmpdir(), 'copilot-managed-ahp-'));
 		tempDirs.push(workspace);
 		await writeFile(join(workspace, 'input.txt'), 'MANAGED_READ_CONTENT');
 		clientSeq = 1;
@@ -426,7 +427,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 
 	test('runtime lockdown blocks standalone client customizations until the policy is removed', async function () {
 		this.timeout(240_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-customization-lockdown-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-customization-lockdown-'));
 		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
 				COPILOT_CACHE_HOME: join(directory, 'cache'),

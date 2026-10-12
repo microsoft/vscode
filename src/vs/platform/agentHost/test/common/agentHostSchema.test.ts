@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -31,20 +31,27 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('automatic title generation root settings are disabled by default', () => {
+	test('automatic title generation root settings default to utility naming', () => {
 		const properties = platformRootSchema.toProtocol().properties;
 		assert.deepStrictEqual({
-			activeAgent: {
+			strategy: {
+				type: properties[AgentHostTitleGenerationConfigKey].type,
+				enum: properties[AgentHostTitleGenerationConfigKey].enum,
+				default: properties[AgentHostTitleGenerationConfigKey].default,
+				rejectsUnselectableStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'deferred'),
+			},
+			legacyActiveAgent: {
 				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
 				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
 			},
-			deferred: {
+			legacyDeferred: {
 				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
 				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
 			},
 		}, {
-			activeAgent: { type: 'boolean', default: false },
-			deferred: { type: 'boolean', default: false },
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'agentReview'], default: 'utility', rejectsUnselectableStrategy: true },
+			legacyActiveAgent: { type: 'boolean', default: false },
+			legacyDeferred: { type: 'boolean', default: false },
 		});
 	});
 
@@ -63,6 +70,17 @@ suite('agentHostSchema', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
+	});
+
+	test('MCP sampling approval is a host-owned list of server identities, disabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSamplingAllowedServersConfigKey];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			acceptsNames: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, ['test-server', 'other-server']),
+			acceptsEmpty: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, []),
+			rejectsInvalid: ['test-server', { server: true }, [true], [1]].map(value => !platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, value)),
+		}, { type: 'array', default: [], acceptsNames: true, acceptsEmpty: true, rejectsInvalid: [true, true, true, true] });
 	});
 
 	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {

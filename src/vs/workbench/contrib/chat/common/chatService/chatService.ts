@@ -1148,6 +1148,13 @@ export namespace IChatToolInvocation {
 		return false;
 	}
 
+	export function isImageGeneration(invocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+		return invocation.toolSpecificData?.kind === 'generatedImage'
+			|| (invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.imageGeneration)
+			|| invocation.toolId === 'image_gen.imagegen'
+			|| invocation.toolId === 'image_generation';
+	}
+
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return false;
@@ -1353,6 +1360,8 @@ export interface IChatSessionCreatedData {
  */
 export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
+	/** Tool execution time in milliseconds, when known. */
+	readonly durationMs?: number;
 }
 
 /**
@@ -2303,9 +2312,11 @@ export type ChatPendingRequestChangeEvent = {
 	source: string;
 	requestId?: string;
 	chatSessionId?: string;
+	agentSessionId?: string;
 };
 
 export type ChatPendingRequestChangeClassification = {
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The owning Agent Host session identifier, when the chat has a resolved backend session.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
 	requestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request ID associated with the pending request change.' };

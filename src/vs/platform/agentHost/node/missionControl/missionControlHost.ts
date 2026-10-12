@@ -14,6 +14,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { IAgentService } from '../../common/agentService.js';
+import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import type { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { parseAnnotationsUri } from '../../common/annotationsUri.js';
@@ -29,11 +30,22 @@ import { MissionControlEnvironment } from './missionControlEnvironment.js';
 import type { MissionControlProtocolServer } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import { MissionControlProjects } from './missionControlProjects.js';
+import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
+import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
+import { isObject } from '../../../../base/common/types.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly clientFileSystemProvider: AgentHostClientFileSystemProvider;
 	readonly trackProtocolHandler: (handler: ProtocolServerHandler) => IDisposable;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return isObject(value);
 }
 
 type MissionControlOperationEvent = {
@@ -64,6 +76,9 @@ export function getMissionControlEnvironmentName(product: IProductService, machi
 /** Entry-owned adapter from the native runtime graph to the registration lifecycle. */
 export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
+	private readonly _projects: MissionControlProjects;
+	private _grantedRoots: () => readonly string[] = () => [];
+	private _projectRoots: () => readonly string[] = () => [];
 
 	constructor(
 		private readonly _options: IMissionControlHostOptions,
@@ -80,19 +95,37 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
+			logsHome: environmentService.logsHome,
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			maxFiles: 10,
+			maxSizeBytes: 750 * 1024 * 1024,
+		});
+		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
+			getRoots: () => this._grantedRoots(),
+			getProjectRoots: () => this._projectRoots(),
+		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
-			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
+			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			updateProjects: () => this._projects.initialize(),
 			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
 			onDiagnostic: event => this._reportOperation(event),
-			getSessionCount: async () => (await this._agentService.listSessions()).length,
+			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
 			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
+			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
+				logsHome: environmentService.logsHome,
+				logId: MISSION_CONTROL_AHP_LOG_ID,
+				connectionId: `${clientId}-${generation}`,
+				transport: 'mission-control',
+				retention,
+			}),
 		}));
 	}
 
@@ -136,7 +169,10 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[]): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
+		this._grantedRoots = getRoots;
+		this._projectRoots = getProjects;
+		const directory = defaultDirectory ?? roots[0];
 		const handler = this._instantiationService.createInstance(
 			ProtocolServerHandler,
 			this._agentService,
@@ -147,8 +183,11 @@ export class MissionControlHost extends Disposable {
 				allowExtensionMethods: false,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
+				advertisedModelProviders: ['copilotcli'],
+				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
-				defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
+				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
 			},
 			this._options.clientFileSystemProvider,
 		);
@@ -160,7 +199,7 @@ export class MissionControlHost extends Disposable {
 		const workspaces = summaries.flatMap(summary => summary.workingDirectories ?? [])
 			.map(directory => URI.parse(directory)).filter(directory => directory.scheme === Schemas.file).map(directory => directory.fsPath);
 		const contentRoots = readOnly ? summaries.map(summary => this._sessionDataService.getSessionDataDir(URI.parse(summary.resource)).fsPath) : [];
-		return [...grantedRoots, ...workspaces, ...contentRoots];
+		return [...grantedRoots, ...this._projects.roots, ...workspaces, ...contentRoots];
 	}
 
 	private _createMirror(environmentId: string): { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable } {
@@ -168,6 +207,15 @@ export class MissionControlHost extends Disposable {
 		const sources = new DisposableStore();
 		try {
 			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled));
+			const attachPlanHints = (provider: IAgent) => {
+				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {
+					sources.add(provider.onDidChatSessionEvent(event => this._publishPlanHint(event)));
+				}
+			};
+			sources.add(this._providerService.onDidRegisterProvider(attachPlanHints));
+			for (const provider of this._providerService.getProviders()) {
+				attachPlanHints(provider);
+			}
 			const registered = new Set<string>();
 			sources.add(this._stateManager.onDidEmitEnvelope(envelope => {
 				const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
@@ -201,5 +249,26 @@ export class MissionControlHost extends Disposable {
 			mirror.dispose();
 			throw error;
 		}
+	}
+
+	private _publishPlanHint(event: IAgentChatSessionEvent): void {
+		if (!this.environment.isEnabled || (event.type !== 'session.plan_changed' && event.type !== 'session.todos_changed')) {
+			return;
+		}
+		const session = parseChatUri(event.chat.toString())?.session;
+		const summary = session && this._stateManager.getSessionSummary(session);
+		if (!summary || summary.defaultChat !== event.chat.toString()) {
+			return;
+		}
+		const operation = isRecord(event.data) && typeof event.data.operation === 'string'
+			&& ['create', 'update', 'delete'].includes(event.data.operation) ? event.data.operation : 'unknown';
+		this._stateManager.dispatchServerAction(summary.resource, {
+			type: ActionType.SessionMetaChanged,
+			_meta: {
+				...this._stateManager.getSessionState(summary.resource)?._meta,
+				[event.type === 'session.plan_changed' ? 'copilot.planHint' : 'copilot.todosHint']:
+					{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
+			},
+		});
 	}
 }

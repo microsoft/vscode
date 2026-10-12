@@ -113,6 +113,7 @@ export class SessionStore implements ISessionStore {
 	 */
 	private openDb(): DatabaseSync {
 		if (this.dbPath !== ':memory:') {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited database initialization; ensureDb callers expect a usable DatabaseSync immediately and its parent directory must already exist.
 			mkdirSync(dirname(this.dbPath), { recursive: true });
 		}
 
@@ -145,6 +146,7 @@ export class SessionStore implements ISessionStore {
 	 */
 	private deleteDbFiles(): void {
 		for (const suffix of ['', '-wal', '-shm', '-journal']) {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited corruption recovery; all database sidecars must be removed before the immediately following reopen attempt.
 			rmSync(this.dbPath + suffix, { force: true });
 		}
 	}

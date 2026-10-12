@@ -59,7 +59,7 @@ All state flows from the `activeSession` and `activeChat` observables. Events no
 
 Editor working-set application waits until the active workspace folders match the incoming chat. Capture and asynchronous work use an immutable owner identity, not a later read of whichever chat is focused. Working-set application is serialized; owner and presentation generations guard publication after asynchronous work so superseded restores cannot publish visibility or detail/tab intent for a newer owner.
 
-In legacy mode, multiple visible sessions suppress per-session panel synchronization; desktop visibility is reveal-only as described in [DESKTOP.md](DESKTOP.md#multiple-visible-sessions). Both enabled modes restore focused-chat content regardless of visible-session or chat-group count. Visibility follows the focused owner's saved state in `chat` and the shared Existing preference in `chat-shared`.
+In legacy mode, multiple visible sessions suppress per-session panel synchronization; desktop visibility is reveal-only as described in [DESKTOP.md](DESKTOP.md#multiple-visible-sessions). Both enabled modes restore focused-chat content regardless of visible-session or chat-group count. While the side pane is visible, visibility follows the focused owner's saved state in `chat` and the shared Existing preference in `chat-shared`. A fully closed side pane remains closed across automatic session and chat activation in every mode. Explicit reveal actions may reopen it; **Toggle Side Panel** restores the focused owner's saved composition.
 
 Working-set restoration and managed-tab reconciliation run under editor-auto-visibility suppression and preserve keyboard focus. Settled restoration, rather than transient editor changes during application, drives managed-tab reconciliation. Legacy initial restoration preserves the workbench-restored part visibility; enabled-mode restoration applies the selected visibility policy without changing shared geometry.
 
@@ -73,7 +73,7 @@ The side pane combines Editor content and the docked Auxiliary Bar detail. Its v
 
 The Auxiliary Bar is visible only when it has an active view container. Browser and unsupported editor tabs may hide Details transiently; activating a supported Changes or file editor reveals the matching detail once while preserving later explicit user hides.
 
-Closing the whole side pane keeps ordinary editors available for restoration. Entering Details-only closes non-docked tabs and captures restorable editors for reopening when Editor content is shown again.
+Closing the whole side pane keeps ordinary editors available for restoration. Entering Details-only closes non-docked tabs and captures restorable editors for reopening when Editor content is shown again. Registered live editors remain in the hidden editor group instead of being disposed, preserving runtime state that cannot be reconstructed.
 
 In both enabled modes, current composition and last-open composition are distinct records: closing the whole pane remembers which Editor/Details combination to reopen. These records are per-owner in `chat` and shared across existing workspace chats in `chat-shared`. Collapsed-editor state, Files dismissal, and pending detail/tab intents remain owner-scoped and cannot leak to peers. Details-only transitions preserve existing restorable-editor and close-veto behavior. Custom-view coverage, maximization/restoration, and unsupported-editor transient detail hides are not user preferences and must not overwrite remembered composition.
 

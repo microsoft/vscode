@@ -4,15 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IViewDescriptorService } from '../../../../workbench/common/views.js';
+import { Part } from '../../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../../workbench/browser/parts/paneCompositeBar.js';
-import { Position } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts, Position } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ViewDescriptorService } from '../../../../workbench/services/views/browser/viewDescriptorService.js';
+import { TestLayoutService, workbenchInstantiationService } from '../../../../workbench/test/browser/workbenchTestServices.js';
 import { PanelPart } from '../../../browser/parts/panelPart.js';
 
 interface IPanelPartTestHarness {
@@ -35,6 +42,35 @@ interface IPanelPartTestHarness {
 const getCompositeBarOptions = Reflect.get(PanelPart.prototype, 'getCompositeBarOptions') as (this: IPanelPartTestHarness) => IPaneCompositeBarOptions;
 const transformContextMenuActionsForComposite = Reflect.get(PanelPart.prototype, 'transformContextMenuActionsForComposite') as (this: Pick<IPanelPartTestHarness, 'layoutService' | 'menuService' | 'contextKeyService'>, actions: IAction[]) => IAction[];
 
+class MutableTestLayoutService extends TestLayoutService {
+
+	private readonly _visibleParts = new Map<Parts, boolean>([
+		[Parts.PANEL_PART, true],
+		[Parts.SESSIONS_PART, true],
+		[Parts.SIDEBAR_PART, true],
+	]);
+
+	private readonly _onDidChangePartVisibility = new Emitter<IPartVisibilityChangeEvent>();
+	override readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
+
+	override isVisible(part: Parts, _targetWindow?: Window): boolean {
+		return this._visibleParts.get(part) ?? false;
+	}
+
+	override getPanelAlignment(): 'justify' {
+		return 'justify';
+	}
+
+	setVisible(part: Parts, visible: boolean): void {
+		this._visibleParts.set(part, visible);
+		this._onDidChangePartVisibility.fire({ partId: part, visible });
+	}
+
+	dispose(): void {
+		this._onDidChangePartVisibility.dispose();
+	}
+}
+
 function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	const submenu = actions.find(action => action instanceof SubmenuAction);
 	if (!submenu) {
@@ -46,7 +82,29 @@ function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 
 suite('Sessions - Panel Part', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('relayouts when Sessions visibility changes', () => {
+		const layoutService = disposables.add(new MutableTestLayoutService());
+		const instantiationService: TestInstantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		const panelPart = disposables.add(instantiationService.createInstance(PanelPart));
+		Part.prototype.layout.call(panelPart, 800, 200, 400, 0);
+		const layout = sinon.stub(panelPart, 'layout');
+
+		layoutService.setVisible(Parts.TITLEBAR_PART, false);
+		layoutService.setVisible(Parts.SESSIONS_PART, false);
+		layoutService.setVisible(Parts.SESSIONS_PART, true);
+
+		assert.deepStrictEqual(layout.args, [
+			[800, 200, 400, 0],
+			[800, 200, 400, 0],
+		]);
+	});
 
 	test('replaces only view container movement with panel alignment actions', async () => {
 		let alignment: 'center' | 'justify' = 'justify';

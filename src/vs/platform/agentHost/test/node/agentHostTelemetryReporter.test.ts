@@ -21,6 +21,7 @@ import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IA
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AgentHostProviderTiming, type IAgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -146,6 +147,40 @@ suite('AgentHostTelemetryReporter', () => {
 		}
 	});
 
+	test('provider timings keep typed measurements and strip extra data before product and OTel export', () => {
+		const service = new TestRestrictedTelemetryService();
+		const timing = new AgentHostProviderTiming(() => 0);
+		timing.markMilestone('sdkSend');
+		const row = timing.finish(0)[0];
+		const diagnostics: (readonly IAgentHostProviderTiming[] | undefined)[] = [];
+		const reporter = new AgentHostTelemetryReporter(service, {
+			...NullAgentHostOTelService,
+			emitTurnTiming: diagnostic => diagnostics.push(diagnostic.providerTimings),
+		});
+		reporter.turnCompleted({
+			provider: 'copilotcli', session, turnId: 'turn',
+			parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+			timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
+			startedWithSteering: false, receivedSteering: false,
+			totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+			permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+			isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+			directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined, modelCallCount: 0,
+			providerTimings: [Object.assign({}, row, { prompt: 'secret', server: 'secret' }), { ...row, startMs: NaN }],
+		});
+		const events = service.standardEvents.filter(event => event.eventName === 'agentHost.providerTiming');
+		assert.deepStrictEqual({
+			diagnostics,
+			events: events.map(event => ({
+				turnId: event.data?.turnId, schemaVersion: event.data?.schemaVersion, group: event.data?.group, sdkSend: event.data?.['milestone.sdkSend'],
+				prompt: event.data?.prompt, server: event.data?.server,
+			})),
+		}, {
+			diagnostics: [[row]],
+			events: [{ turnId: 'turn', schemaVersion: 2, group: 'milestones', sdkSend: 0, prompt: undefined, server: undefined }],
+		});
+	});
+
 	test('turnCompleted preserves optional root cohort fields and missing-field compatibility', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -167,6 +202,7 @@ suite('AgentHostTelemetryReporter', () => {
 				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
 				modelCallCount: 0, ...cohort,
 			});
+
 		}
 		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
 		assert.deepStrictEqual(service.standardEvents.map(event => ({
@@ -478,7 +514,7 @@ suite('AgentHostTelemetryReporter', () => {
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, chat, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
 			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
-			telemetryContext: { copilotSku: 'sku-a' },
+			telemetryContext: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
@@ -497,6 +533,7 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorMachineId: 'client-machine-id',
 				initiatorDevDeviceId: 'client-dev-device-id',
 				copilotSku: 'sku-a',
+				'common.copilotTrackingId': 'analytics-a',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				chatSessionId: getTelemetryChatSessionId(chat),
@@ -547,6 +584,7 @@ suite('AgentHostTelemetryReporter', () => {
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				initiatorClientType: 'editor_window',
 				copilotSku: 'sku-a',
+				'common.copilotTrackingId': 'analytics-a',
 				responseType: 'success',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({}),
@@ -638,7 +676,7 @@ suite('AgentHostTelemetryReporter', () => {
 		reporter.toolApproval({
 			provider: 'copilot', session, turnId: 'turn-2',
 			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
-			telemetryContext: { copilotSku: 'sku-a' },
+			telemetryContext: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
 			decisionSource: 'human_response',
@@ -683,6 +721,7 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorMachineId: 'client-machine-id',
 				initiatorDevDeviceId: 'client-dev-device-id',
 				copilotSku: 'sku-a',
+				'common.copilotTrackingId': 'analytics-a',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,

@@ -12,17 +12,19 @@ use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+use crate::auth::{Auth, AuthProvider};
 use crate::constants;
 use crate::log;
 use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host, AgentHostConfig, AgentHostManager, AgentHostReuseDecision,
-	AgentHostSidecar, LoopbackAuth,
+	AgentHostSidecar, GithubEnvironmentConfig, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
 use crate::tunnels::code_server::CodeServerArgs;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
+use crate::tunnels::legal;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
@@ -64,7 +66,11 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   port, runs the proxy accept loop, and manages the underlying VS Code
 ///   server as a regular child process so the supervisor can kill+respawn
 ///   it on update.
-pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
+pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
+	if args.github_environment {
+		args.foreground = true;
+		return run_supervisor(ctx, args).await;
+	}
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
 	}
@@ -252,6 +258,12 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	}
 
 	let platform: Platform = PreReqChecker::new().verify().await?;
+	let github_environment = if args.github_environment {
+		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
+		Some(github_environment_config(&ctx, &args).await?)
+	} else {
+		None
+	};
 
 	if !args.without_connection_token {
 		if let Some(p) = args.connection_token_file.as_deref() {
@@ -286,6 +298,8 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
+			user_data_dir: args.user_data_dir.clone(),
+			github_environment,
 			telemetry_level: if ctx.args.global_options.disable_telemetry {
 				Some(TelemetryLevel::Off)
 			} else {
@@ -343,6 +357,12 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	)
 	.await?;
 	let bound_port = sidecar.bound_addr().port();
+	if args.github_environment {
+		if let Err(error) = manager.ensure_server().await {
+			sidecar.shutdown().await;
+			return Err(error.into());
+		}
+	}
 
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = args
@@ -360,7 +380,15 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.as_deref()
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-	output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
+	if args.github_environment {
+		output::print_banner_line("Remote", "GitHub environment");
+		output::print_banner_line(
+			"Local",
+			&format!("ws://localhost:{bound_port}{token_suffix}"),
+		);
+	} else {
+		output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
+	}
 	print_manage_banner_line();
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
@@ -381,6 +409,17 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let shutdown_rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 	match (idle_timeout_duration, activity_rx) {
+		_ if args.github_environment => {
+			tokio::select! {
+				result = sidecar.serve(shutdown_rx) => {
+					result?;
+				}
+				result = manager.maintain_server() => {
+					sidecar.shutdown().await;
+					result?;
+				}
+			}
+		}
 		(Some(duration), Some(rx)) => {
 			tokio::select! {
 				result = sidecar.serve(shutdown_rx) => {
@@ -402,6 +441,82 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	sidecar.shutdown().await;
 
 	Ok(0)
+}
+
+async fn github_environment_config(
+	ctx: &CommandContext,
+	args: &AgentHostArgs,
+) -> Result<GithubEnvironmentConfig, AnyError> {
+	if args
+		.name
+		.as_deref()
+		.is_some_and(|name| name.trim().is_empty())
+	{
+		return Err(wrap("", "GitHub environment name must not be empty").into());
+	}
+	let roots = if args.github_environment_root.is_empty() {
+		vec![std::env::current_dir().map_err(|e| wrap(e, "could not resolve current directory"))?]
+	} else {
+		args.github_environment_root.clone()
+	};
+	let roots = roots
+		.iter()
+		.map(|root| {
+			let path = fs::canonicalize(root)
+				.map_err(|e| wrap(e, format!("could not resolve project {}", root.display())))?;
+			if !path.is_dir() {
+				return Err(wrap(
+					"",
+					format!("project {} is not a directory", root.display()),
+				));
+			}
+			Ok(path.to_string_lossy().into_owned())
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let mut auth = Auth::with_namespace(
+		&ctx.paths,
+		ctx.log.clone(),
+		Some("github-environments".into()),
+	);
+	auth.set_provider(AuthProvider::Github);
+	let credential = if auth.get_current_credential()?.is_some() {
+		auth.get_credential().await?
+	} else {
+		auth.login_with_scopes(
+			AuthProvider::Github,
+			Some("read:user+user:email+repo+workflow".into()),
+		)
+		.await?
+	};
+	let credential = credential.access_token().to_string();
+	if credential.is_empty() {
+		return Err(wrap("", "GitHub environment access token must not be empty").into());
+	}
+	#[derive(serde::Deserialize)]
+	struct GithubUser {
+		id: u64,
+	}
+	let response = ctx
+		.http
+		.get("https://api.github.com/user")
+		.bearer_auth(&credential)
+		.header("User-Agent", constants::get_default_user_agent())
+		.send()
+		.await?;
+	if !response.status().is_success() {
+		return Err(crate::util::errors::StatusError::from_res(response)
+			.await?
+			.into());
+	}
+	let user: GithubUser = response.json().await?;
+	Ok(GithubEnvironmentConfig {
+		base_url: "https://api.github.com".into(),
+		account_id: user.id.to_string(),
+		credential,
+		roots,
+		name: args.name.clone(),
+		live: true,
+	})
 }
 
 /// Resolve the user's `--host`/`--port` choice into a single

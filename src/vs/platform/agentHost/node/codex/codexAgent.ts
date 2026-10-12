@@ -1330,7 +1330,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
 		if (isAgentHostTelemetryService(this._telemetryService)) {
-			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
+			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
 		}
 
 		// Session titles are host-owned; Codex only observes them to correlate a
@@ -2520,7 +2520,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
 		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
 		try {
-			fs.accessSync(binaryPath, fs.constants.X_OK);
+			await fs.promises.access(binaryPath, fs.constants.X_OK);
 		} catch (err) {
 			throw new Error(`Codex binary not executable: ${binaryPath} (${err instanceof Error ? err.message : String(err)})`);
 		}
@@ -6198,7 +6198,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (cleanupPaths.length > 0) {
 				setTimeout(() => {
 					for (const p of cleanupPaths) {
-						try { fs.unlinkSync(p); } catch { /* ignore */ }
+						void fs.promises.unlink(p).catch(err => {
+							if (err.code !== 'ENOENT') {
+								this._logService.warn(`[Codex:${sessionId}] Failed to remove image attachment ${p}`, err);
+							}
+						});
 					}
 				}, 30_000);
 			}

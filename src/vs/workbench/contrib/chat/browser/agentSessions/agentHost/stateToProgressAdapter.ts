@@ -647,6 +647,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
+		case AgentSystemNotificationKind.ManagedPluginPreparationFailure:
+			return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -696,10 +698,21 @@ function withConfigureToolsLink(hostText: string): MarkdownString {
 	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
 	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
 	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	const escapedHostText = escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+	const escapedHostText = escapeHostText(hostText);
 	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
 		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
 	});
+}
+
+/**
+ * HTML-encodes and then markdown-escapes host text, so autolinks, HTML and
+ * markdown links in it render as plain text. It also escapes the characters
+ * that would turn bare URLs, `www.` addresses and email addresses into GFM
+ * autolinks.
+ */
+function escapeHostText(hostText: string): string {
+	return escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+		.replace(/:(?=\/\/)|(?<=www)\.|@/gi, '\\$&');
 }
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
@@ -766,6 +779,8 @@ export interface TurnModelLookup {
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	/** Whether a raw AHP model id names this provider's fusion routing model. */
+	isFusionModel?(rawModelId: string | undefined): boolean;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -790,10 +805,24 @@ export interface ITurnResponseModel {
 
 /** Fusion is the response-level model; constituent models remain in phase pills and usage. */
 export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
-	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
-		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
-		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
+	const isFusionModel = (modelId: string | undefined) => lookup?.isFusionModel?.(modelId) ?? false;
+	const selectedModelId = turn?.message.model?.id;
+	let isFusion = isFusionModel(selectedModelId);
+	// Turns selected as Auto, or restored without a model, learn which fusion model ran from its progress.
+	let reportedModelId: string | undefined;
+	for (const part of turn?.responseParts ?? []) {
+		if (part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase') {
+			isFusion = true;
+		} else if (part.kind === ResponsePartKind.SystemNotification) {
+			const meta = readAgentSystemNotificationMeta(part);
+			if (meta.kind === AgentSystemNotificationKind.FusionProgress) {
+				isFusion = true;
+				reportedModelId ??= isFusionModel(meta.fusionModel) ? meta.fusionModel : undefined;
+			}
+		}
+	}
+	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
 }
 
 /**
@@ -2039,7 +2068,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 		block.type === ToolResultContentType.EmbeddedResource
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {

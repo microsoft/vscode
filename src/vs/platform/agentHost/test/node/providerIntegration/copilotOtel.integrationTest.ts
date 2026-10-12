@@ -18,7 +18,6 @@ import type { IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
-import { assertExpectedFailure } from '../e2e/harness/expectedFailure.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 suite('Agent Host Provider Integration - Copilot OTel concurrency', function () {
@@ -154,12 +153,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 					assert.ok(logWrites >= 4, 'expected all concurrent event producers to run');
 					completed = true;
 				};
-				if (otelEnabled) {
-					await assertExpectedFailure('github/copilot-agent-runtime#25128',
-						/^session event delivery stalled while starting shell tools$/, run);
-				} else {
-					await run();
-				}
+				await run();
 			} finally {
 				stopLogging = true;
 				try {

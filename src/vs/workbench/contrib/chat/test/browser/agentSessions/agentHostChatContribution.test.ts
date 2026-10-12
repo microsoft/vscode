@@ -40,8 +40,10 @@ import { IAgentHostResourceService } from '../../../../../../platform/agentHost/
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { ICanvas } from '../../../../canvases/common/canvas.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -237,6 +239,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	private readonly _initializeResult = observableValue<InitializeResult | undefined>('initializeResult', undefined);
 	override readonly initializeResult: IObservable<InitializeResult | undefined> = this._initializeResult;
+	readonly canvasStates = new Map<string, CanvasState>();
+	private readonly _canvasSubscribers = new Map<string, Set<() => void>>();
+
+	setCanvasState(resource: URI, state: CanvasState): void {
+		this.canvasStates.set(resource.toString(), state);
+		for (const notify of this._canvasSubscribers.get(resource.toString()) ?? []) {
+			notify();
+		}
+	}
 
 	/** Declares what the host reported at `initialize`, for version- and scheme-gated behaviour. */
 	setInitializeResult(result: Partial<InitializeResult>): void {
@@ -498,6 +509,30 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const resourceStr = resource.toString();
+		if (_kind === StateComponents.Canvas) {
+			const emitter = new Emitter<T>();
+			const subscribers = this._canvasSubscribers.get(resourceStr) ?? new Set<() => void>();
+			this._canvasSubscribers.set(resourceStr, subscribers);
+			const self = this;
+			const notify = () => emitter.fire(self.canvasStates.get(resourceStr) as T);
+			subscribers.add(notify);
+			return {
+				object: {
+					get value() { return self.canvasStates.get(resourceStr) as T | undefined; },
+					get verifiedValue() { return self.canvasStates.get(resourceStr) as T | undefined; },
+					onDidChange: emitter.event,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				},
+				dispose: () => {
+					subscribers.delete(notify);
+					if (subscribers.size === 0) {
+						this._canvasSubscribers.delete(resourceStr);
+					}
+					emitter.dispose();
+				},
+			};
+		}
 		const pendingEntry = this._pendingErrorSubs.get(resourceStr);
 		if (pendingEntry) {
 			return { object: this._buildPendingErrorSub<T>(pendingEntry), dispose: () => { } };
@@ -925,6 +960,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
+		inspect: () => ({ policyValue: undefined }),
 		getValue: (...args: any[]) => {
 			const key = args[0];
 			if (typeof key === 'string') {
@@ -1214,6 +1250,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		requiresWorkspaceTrust: opts?.requiresWorkspaceTrust,
+		supportsCanvasPresentation: opts?.provider === 'copilotcli',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
@@ -1265,7 +1302,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'] }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin']; modeInstructions: IChatAgentRequest['modeInstructions'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1280,6 +1317,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		metadata: overrides.metadata,
 		isSystemInitiated: overrides.isSystemInitiated,
 		agentHostMessageOrigin: overrides.agentHostMessageOrigin,
+		modeInstructions: overrides.modeInstructions,
 	});
 }
 
@@ -1322,6 +1360,7 @@ async function startTurn(
 		metadata: Record<string, unknown>;
 		isSystemInitiated: boolean;
 		agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'];
+		modeInstructions: IChatAgentRequest['modeInstructions'];
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1357,6 +1396,7 @@ async function startTurn(
 			metadata: overrides?.metadata,
 			isSystemInitiated: overrides?.isSystemInitiated,
 			agentHostMessageOrigin: overrides?.agentHostMessageOrigin,
+			modeInstructions: overrides?.modeInstructions,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -1463,6 +1503,89 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
 		});
 
+	});
+
+	suite('canvases', () => {
+		test('projects subscribed canvases for the exact peer chat supplied by the provider', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli' });
+			const backend = AgentSession.uri('copilotcli', 'canvas-owner');
+			const chat = URI.parse(buildChatUri(backend.toString(), 'peer'));
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilotcli', title: 'Canvases', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const defaultChat = buildDefaultChatUri(backend.toString());
+			const canvasResource = URI.parse('ahp-canvas:/opaque-peer-resource');
+			const peerSummary = createDefaultChatSummary(summary, chat.toString());
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [createDefaultChatSummary(summary, defaultChat), peerSummary],
+			});
+			agentHostService.chatStates.set(chat.toString(), { ...createChatState(peerSummary), canvases: [{ resource: canvasResource.toString() }] });
+			const state: CanvasState = {
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+			};
+			agentHostService.setCanvasState(canvasResource, state);
+			const provided = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/canvas-owner', fragment: 'peer' }), CancellationToken.None);
+			disposables.add(provided);
+			const context = provided.canvasContext?.get();
+			assert.ok(context);
+			let canvases: readonly ICanvas[] | undefined;
+			disposables.add(autorun(reader => { canvases = context.canvases.read(reader); }));
+			const initial = canvases?.[0].source?.toString();
+			agentHostService.setCanvasState(canvasResource, { ...state, url: 'https://example.test/replacement' });
+			assert.deepStrictEqual({
+				ownerChat: context.owner.chat.toString(), ownerSession: context.owner.session.toString(),
+				resource: canvases?.[0].resource.toString(), initial, updated: canvases?.[0].source?.toString(),
+			}, {
+				ownerChat: chat.toString(), ownerSession: backend.toString(), resource: canvasResource.toString(),
+				initial: 'https://example.test/canvas', updated: 'https://example.test/replacement',
+			});
+		});
+
+		test('publishes canvas context when the first request materializes a new chat', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				provider: 'copilotcli',
+				workingDirectoryResolver: { resolve: () => URI.file('/workspace'), isNewSession: () => true },
+			});
+			const resource = URI.parse('agent-host-copilot:/first-canvas');
+			const provided = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(provided);
+			const before = provided.canvasContext?.get();
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const pending = registered.impl.invoke(makeRequest({ sessionResource: resource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const context = provided.canvasContext?.get();
+			assert.ok(context);
+			const dispatched = agentHostService.dispatchedActions.find(action => action.action.type === ActionType.ChatTurnStarted);
+			assert.ok(dispatched?.action.type === ActionType.ChatTurnStarted);
+			agentHostService.fireAction({ channel: dispatched.channel, action: dispatched.action, serverSeq: 1, origin: { clientId: dispatched.clientId, clientSeq: dispatched.clientSeq } });
+			const canvasResource = URI.parse('ahp-canvas:/opaque-first-turn');
+			agentHostService.setCanvasState(canvasResource, {
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+			});
+			agentHostService.fireAction({ channel: dispatched.channel, action: { type: ActionType.ChatCanvasesChanged, canvases: [{ resource: canvasResource.toString() }] }, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatched.channel, action: { type: ActionType.ChatTurnComplete, turnId: dispatched.action.turnId, duration: 1 }, serverSeq: 3, origin: undefined });
+			await pending;
+			assert.deepStrictEqual({ before, owner: context.owner.chat.toString(), count: context.canvases.get()?.length }, {
+				before: undefined, owner: dispatched.channel, count: 1,
+			});
+		});
+
+		test('does not expose a context for an unsupported provider', async () => {
+			const { sessionHandler } = createContribution(disposables);
+			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/no-canvases'), CancellationToken.None);
+			disposables.add(provided);
+			assert.strictEqual(provided.canvasContext?.get(), undefined);
+		});
+
+		test('accepts a host with no optional canvas membership without making canvas requests', async () => {
+			const { sessionHandler } = createContribution(disposables, { provider: 'copilotcli' });
+			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/no-membership'), CancellationToken.None);
+			disposables.add(provided);
+			assert.deepStrictEqual(provided.canvasContext?.get()?.canvases.get(), []);
+		});
 	});
 
 	suite('metadata wire-to-feature', () => {
@@ -7291,7 +7414,7 @@ suite('AgentHostChatContribution', () => {
 					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion' })],
 					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
 				]);
-				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const cts = disposables.add(new CancellationTokenSource());
 				const { turnPromise, session, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 					userSelectedModelId: 'agent-host-copilot:hydrafusion', cancellationToken: cts.token,
@@ -7318,7 +7441,7 @@ suite('AgentHostChatContribution', () => {
 					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion Preview', pricing: '2x' })],
 					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol', pricing: '1x' })],
 				]);
-				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { userSelectedModelId: 'agent-host-copilot:hydrafusion' });
 				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { cost } } } as ChatAction);
 				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -7947,6 +8070,31 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('plan-review rejection dispatches a decline without selecting an implementation action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-reject',
+				planReview: {
+					title: 'Review Plan', content: 'Plan', canProvideFeedback: true, answerQuestionId: 'action',
+					actions: [{ id: 'interactive', label: 'Implement Plan', default: true }],
+				},
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			agentHostService.dispatchedActions.length = 0;
+			review.completion.complete({ rejected: true });
+			await timeout(10);
+			assert.deepStrictEqual(agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatInputCompleted)?.action, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'plan-reject',
+				response: ChatInputResponseKind.Decline,
+			});
 			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
@@ -10382,34 +10530,77 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
-		test('restored Fusion response footers keep their workflow label independently of other turns', async () => {
-			const languageModels = new Map<string, ILanguageModelChatMetadata>([
-				['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
-			]);
-			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
-			const sessionUri = AgentSession.uri('copilot', 'sess-fusion-footers');
-			const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
-			const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
-			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({
-					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
-					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
-				}),
-				lifecycle: SessionLifecycle.Ready,
-				turns: [
-					{ id: 'fusion', message: fusionMessage, responseParts: [], usage, state: TurnState.Complete },
-					{ id: 'ordinary', message: { ...fusionMessage, model: { id: 'gpt-5.6-sol' } }, responseParts: [], usage, state: TurnState.Complete },
-				],
-				activeTurn: { id: 'active-fusion', startedAt: '2025-01-01T00:00:00.000Z', message: fusionMessage, responseParts: [], usage },
+		test('restored Fusion response footers keep their workflow label independently of other turns, only for Copilot CLI', async () => {
+			const footers = async (provider: string) => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider });
+				const sessionUri = AgentSession.uri(provider, 'sess-fusion-footers');
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider, title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [
+						{ id: 'fusion', message: fusionMessage, responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'ordinary', message: { ...fusionMessage, model: { id: 'gpt-5.6-sol' } }, responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'max', message: { ...fusionMessage, model: { id: 'hydrafusion-max' } }, responseParts: [], usage, state: TurnState.Complete },
+					],
+					activeTurn: { id: 'active-fusion', startedAt: '2025-01-01T00:00:00.000Z', message: fusionMessage, responseParts: [], usage },
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				return {
+					details: session.history.filter(item => item.type === 'response').map(item => item.details),
+					activeActualModel: session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId,
+				};
+			};
+			assert.deepStrictEqual({ copilotCli: await footers('copilotcli'), other: await footers('claude') }, {
+				copilotCli: {
+					details: ['HydraFusion • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'HydraFusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+					activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+				},
+				other: {
+					details: ['GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits'],
+					activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+				},
 			});
-			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-			assert.deepStrictEqual({
-				details: session.history.filter(item => item.type === 'response').map(item => item.details),
-				activeActualModel: session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId,
-			}, {
-				details: ['HydraFusion • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'HydraFusion • 15.5 credits'],
-				activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+		});
+
+		test('Fusion response footers name the Ensemble tier they ran as', async () => {
+			const footers = async (intelligenceUsesHydraFusion: boolean) => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
+						name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'High'] } } },
+					})],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
+				const sessionUri = AgentSession.uri('copilotcli', 'sess-ensemble-footers');
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const message = (model: string) => ({ text: 'Ensemble request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [
+						{ id: 'max', message: message('hydrafusion-max'), responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'intelligence', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
+					],
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-ensemble-footers' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				return session.history.filter(item => item.type === 'response').map(item => item.details);
+			};
+			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
+				routed: ['Ensemble Max • 15.5 credits', 'Ensemble High • 15.5 credits'],
+				notRouted: ['Ensemble Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});
 
@@ -15912,6 +16103,21 @@ suite('AgentHostChatContribution', () => {
 	// ---- Customizations dispatch ------------------------------------------
 
 	suite('customizations', () => {
+
+		test('maps built-in custom agent URIs for turns', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const agentUri = toAgentHostUri(URI.parse('copilot-builtin:/agents/ask.agent.md'), LOCAL_AGENT_HOST_AUTHORITY);
+
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				modeInstructions: { uri: agentUri, name: 'Ask', content: '', toolReferences: [] },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId: turnId!, duration: 1000 });
+			await turnPromise;
+
+			assert.deepStrictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.agent, {
+				uri: 'copilot-builtin:/agents/ask.agent.md',
+			});
+		}));
 
 		test('dispatches activeClientSet when a new session is created', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);

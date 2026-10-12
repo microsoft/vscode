@@ -159,7 +159,7 @@ suite('Agent host _meta readers', () => {
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
 				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
 				readMcpServerSource(server(undefined)),
 			],
@@ -168,7 +168,7 @@ suite('Agent host _meta readers', () => {
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
 			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
-			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,
@@ -305,15 +305,19 @@ suite('Agent host _meta readers', () => {
 			});
 		});
 
-		test('round trips the namespaced Fusion description and drops malformed values', () => {
+		test('round trips the namespaced Fusion description and drops malformed Fusion values', () => {
 			assert.deepStrictEqual({
 				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
 				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
 				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+				emptyModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': '' } }).fusionModel,
+				invalidModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': 1 } }).fusionModel,
 			}, {
 				valid: 'Workflow description.',
 				empty: '',
 				invalid: undefined,
+				emptyModel: undefined,
+				invalidModel: undefined,
 			});
 		});
 	});

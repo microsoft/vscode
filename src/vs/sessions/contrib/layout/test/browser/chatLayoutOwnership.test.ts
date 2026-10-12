@@ -268,6 +268,9 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 						const peer = addPeerChat(session, URI.parse('chat:default-peer'));
 						setActiveChat(session, peer);
 						await settle();
+						const peerComposition = composition.editor && composition.auxiliaryBar
+							? { editor: false, auxiliaryBar: false }
+							: composition;
 						snapshots.push({
 							composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART),
 						});
@@ -276,10 +279,18 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 							savedComposition: controller.composition(controller.ownerKeyFor(session)),
 							savedPanel: controller.capturedPanelVisibility(controller.ownerKeyFor(session)),
 						}, { editors: [], savedComposition: composition, savedPanel: panel });
+						assert.deepStrictEqual(visible(), peerComposition);
 					}
 					controller.dispose();
 				}
-				assert.deepStrictEqual(snapshots, Array.from({ length: 3 }, () => ({ composition, panel })));
+				const peerComposition = composition.editor && composition.auxiliaryBar
+					? { editor: false, auxiliaryBar: false }
+					: composition;
+				assert.deepStrictEqual(snapshots, [
+					{ composition, panel },
+					{ composition, panel },
+					{ composition: peerComposition, panel },
+				]);
 			});
 		}
 	}
@@ -515,10 +526,13 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			await settle();
 			setActiveChat(session, peer);
 			await settle();
+			const expectedComposition = composition.editor && composition.auxiliaryBar
+				? { editor: false, auxiliaryBar: false }
+				: composition;
 			assert.deepStrictEqual({
 				composition: visible(),
 				ordinaryEditors: harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path),
-			}, { composition, ordinaryEditors: [] });
+			}, { composition: expectedComposition, ordinaryEditors: [] });
 		});
 	}
 
@@ -1165,8 +1179,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(controllerB.preHideComposition(ownerKeyB), { editor: false, auxiliaryBar: true }, 'B\'s own persisted normal-toggle last-open composition must also survive the reconstruction, unaffected by A\'s restore');
 	});
 
-	test('[R5] enabled: all four Editor/Details compositions round-trip per owner', async () => {
-		createDesktopController({ chatLayoutMode: 'chat' });
+	test('[R5] enabled: focusing owners preserves saved compositions without revealing a closed side pane', async () => {
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1194,7 +1208,20 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		for (const c of cases) {
 			setActiveChat(session, c.chat);
 			await settle();
-			assert.deepStrictEqual(visible(), { editor: c.editor, auxiliaryBar: c.auxiliaryBar }, `composition for ${c.chat.resource.toString()} did not round-trip`);
+			assert.deepStrictEqual({
+				visible: visible(),
+				stored: controller.composition(controller.ownerKeyFor(session)),
+			}, {
+				visible: { editor: false, auxiliaryBar: false },
+				stored: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
+			}, `focusing ${c.chat.resource.toString()} must not reveal its saved composition`);
+			if (c.editor || c.auxiliaryBar) {
+				harness.layoutService.toggleSidePane();
+				await settle();
+				assert.deepStrictEqual(visible(), { editor: c.editor, auxiliaryBar: c.auxiliaryBar }, `explicitly reopening ${c.chat.resource.toString()} must restore its saved composition`);
+				harness.partVisibility.set(Parts.EDITOR_PART, false);
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+			}
 		}
 	});
 
@@ -1225,7 +1252,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'focusing A while both remain visible must show A\'s own composition');
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'focusing A while both remain visible must not reveal its saved composition');
 
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();

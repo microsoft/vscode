@@ -193,6 +193,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSnapshot(resource), undefined);
 	});
 
+	test('listener-owned envelopes share global ordering without mutating or emitting host state', () => {
+		const root = manager.rootState;
+		const previous = manager.serverSeq;
+		const hostEnvelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(envelope => hostEnvelopes.push(envelope)));
+		const action = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [] } } } as const;
+		const relay = manager.createServerActionEnvelope(ROOT_STATE_URI, action);
+		manager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: 1 });
+		assert.deepStrictEqual({
+			relay,
+			sharedConfigPreserved: manager.rootState.config === root.config,
+			hostSequences: hostEnvelopes.map(envelope => envelope.serverSeq),
+			snapshotSequence: manager.getSnapshot(ROOT_STATE_URI)?.fromSeq,
+		}, {
+			relay: { channel: ROOT_STATE_URI, action, serverSeq: previous + 1, origin: undefined }, sharedConfigPreserved: true,
+			hostSequences: [previous + 2], snapshotSequence: previous + 2,
+		});
+	});
+
 	test('getSnapshot returns root snapshot', () => {
 		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
 		assert.ok(snapshot);

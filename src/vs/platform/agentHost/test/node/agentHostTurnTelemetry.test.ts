@@ -16,7 +16,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -24,7 +24,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -575,19 +575,38 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('does not record resuming the same failed turn as a new send', () => {
 		setupSession();
 		startTurn('resumed');
+		const previousRecorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'resumed');
 		fire({ type: ActionType.ChatError, turnId: 'resumed', duration: 100, part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true) });
 		const turn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
 		assert.ok(turn);
 		const action: ChatAction = { type: ActionType.ChatTurnResume, turnId: turn.id };
 		stateManager.dispatchServerAction(defaultChatUri, action);
-		agent.chats.resumeTurn = async () => { };
+		agent.chats.resumeTurn = async (_chat, _turnId, context) => {
+			if (!URI.isUri(context)) {
+				const operation = context.sendStageRecorder?.startOperation?.('permission');
+				operation?.start();
+				operation?.end(false);
+				context.sendStageRecorder?.markMilestone?.('sdkSend');
+			}
+			previousRecorder.markMilestone?.('sdkText');
+		};
 		sideEffects.handleAction(defaultChatUri, action, 'test', AgentHostClientType.EditorWindow, turn);
 		fire({ type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1000 });
 
 		assert.deepStrictEqual({
 			sends: sentEvents().map(event => event.data?.turnId),
 			completions: completedEvents().length,
-		}, { sends: ['resumed'], completions: 2 });
+			timings: telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+				group: event.data?.group, result: event.data?.result,
+				permissionCount: event.data?.['permission.count'], staleText: event.data?.['milestone.sdkText'],
+			})),
+		}, {
+			sends: ['resumed'], completions: 2,
+			timings: [
+				{ group: 'permissions', result: 'success', permissionCount: 1, staleText: undefined },
+				{ group: 'milestones', result: 'success', permissionCount: undefined, staleText: undefined },
+			],
+		});
 	});
 
 	test('does not record provider-promoted turns as admitted sends', () => {
@@ -1622,6 +1641,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		agent.setModels([
 			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MAX_MODEL_ID, name: 'HydraFusion Max', supportsVision: false },
 			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
 		]);
 		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
@@ -1631,6 +1651,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		agent.chatModel = { id: COPILOT_HYDRA_FUSION_MODEL_ID };
 		startTurn('turn-default');
 		fire({ type: ActionType.ChatError, turnId: 'turn-default', duration: 1000, part: createErrorResponsePart({ errorType: 'query', message: 'failed before routing' }) });
+
+		startTurn('turn-max', 'hello', COPILOT_HYDRA_FUSION_MAX_MODEL_ID);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-max', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-max', duration: 1000 });
 
 		assert.deepStrictEqual(completedEvents().map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -1642,6 +1666,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusion', result: 'success' },
 			{ model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID }, modelSelectionKind: 'hydrafusion', result: 'error' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusionMax', result: 'success' },
 		]);
 	});
 
@@ -1964,6 +1989,44 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, 2_000_000_000);
+	});
+
+	test('provider timing survives cancellation and late recorders cannot affect a reused turn ID', () => {
+		setupSession();
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-timing');
+		const pending = recorder.startOperation!('permission')!;
+		pending.start();
+		recorder.markMilestone!('sdkSend');
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'cancelled');
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		recorder.markMilestone!('sdkText');
+		pending.end(false);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'success');
+		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+			group: event.data?.group, result: event.data?.result, count: event.data?.['permission.count'], incompleteCount: event.data?.['permission.incompleteCount'],
+		})), [
+			{ group: 'permissions', result: 'cancelled', count: 1, incompleteCount: 1 },
+			{ group: 'milestones', result: 'cancelled', count: undefined, incompleteCount: undefined },
+		]);
+	});
+
+	test('detailed provider timing logs require Debug level', () => {
+		setupSession();
+		const level = sinon.stub(logService, 'getLevel');
+		const debug = sinon.spy(logService, 'debug');
+		const info = sinon.spy(logService, 'info');
+		for (const verbosity of [LogLevel.Info, LogLevel.Debug]) {
+			level.returns(verbosity);
+			const turnId = `timing-log-${verbosity}`;
+			turnTracker.turnStarted(agent, defaultChatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+			turnTracker.createProviderStageRecorder(defaultChatUri, turnId).markMilestone!('sdkSend');
+			turnTracker.turnCompleted(defaultChatUri, turnId, 'success');
+		}
+		assert.deepStrictEqual({
+			debug: debug.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+			info: info.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+		}, { debug: 1, info: 0 });
 	});
 
 	test('does not report billed nano-AIU when the provider does not supply it', () => {

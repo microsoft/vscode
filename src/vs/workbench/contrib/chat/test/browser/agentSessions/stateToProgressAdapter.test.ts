@@ -9,18 +9,19 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
-import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
@@ -111,6 +112,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			return r ? `${prefix}${r}` : undefined;
 		},
 		toModelDisplayName: raw => displayNames[raw],
+		isFusionModel: raw => isCopilotHydraFusionModelId(raw),
 		toResponseDetails: (raw, usage, responseModelId) => {
 			if (responseModelId) {
 				return formatTurnResponseDetails({ name: displayNames[responseModelId] ?? 'HydraFusion' }, undefined, usage);
@@ -1045,6 +1047,48 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('successful remote MCP App preserves resource provenance in live rendering and restored history', () => {
+			const backendSession = URI.parse('custom-host-session:/opaque-session');
+			const connectionAuthority = 'remote-host';
+			const tc = createToolCallState({
+				toolName: 'github-get_me',
+				toolInput: '{}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+				_meta: {
+					mcpServerName: 'GitHub',
+					ui: { resourceUri: 'ui://github-mcp-server/get-me', channel: 'mcp://opaque-host-channel/GitHub' },
+				},
+			});
+			const live = rawToolCallStateToInvocation(tc, undefined, backendSession, connectionAuthority);
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, success: true });
+			rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+			const history = rawTurnsToHistory(backendSession, [createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+			})], 'p', connectionAuthority);
+			const response = history[1];
+			assert.ok(response.type === 'response');
+			const restored = response.parts[0];
+			assert.ok(restored.kind === 'toolInvocationSerialized');
+			const expected = {
+				originMessage: 'GitHub (MCP Server)',
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: {},
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/get-me',
+						connectionAuthority,
+						serverId: 'github-customization',
+						channel: 'mcp://opaque-host-channel/GitHub',
+					},
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(invocation => ({
+				originMessage: invocation.originMessage,
+				toolSpecificData: invocation.toolSpecificData,
+			})), [expected, expected]);
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1169,10 +1213,18 @@ suite('stateToProgressAdapter', () => {
 					}]
 				}),
 				createTurn({ usage }),
+				createTurn({ message: { ...message('Max before usage'), model: { id: 'hydrafusion-max' } } }),
+				createTurn({
+					message: { ...message('Max via Auto'), model: { id: 'auto' } },
+					usage, responseParts: [{
+						kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionModel: 'hydrafusion-max' }),
+					}]
+				}),
 			];
-			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'hydrafusion'));
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'hydrafusion-max': 'HydraFusion Max' }, 'hydrafusion'));
 			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.details), [
-				'HydraFusion', 'HydraFusion • 0 credits', 'HydraFusion • 0 credits', 'GPT-5',
+				'HydraFusion', 'HydraFusion • 0 credits', 'HydraFusion • 0 credits', 'GPT-5', 'HydraFusion Max', 'HydraFusion Max • 0 credits',
 			]);
 		});
 
@@ -1959,7 +2011,7 @@ suite('stateToProgressAdapter', () => {
 						const content: ToolResultContent[] = resourceReference
 							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
 							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
-						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
 						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
 						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
 						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
@@ -1976,7 +2028,7 @@ suite('stateToProgressAdapter', () => {
 						assert.ok(restored.kind === 'toolInvocationSerialized');
 
 						const expected = {
-							toolSpecificData: { kind: 'generatedImage' },
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
 							resultDetails: {
 								input: toolInput ?? '',
 								inputLanguage: 'json',
@@ -2041,6 +2093,59 @@ suite('stateToProgressAdapter', () => {
 
 	suite('toolCallStateToInvocation', () => {
 		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('live sampling uses standard tool confirmation with server-scoped options', () => {
+			const options = [
+				{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+				{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: ConfirmationOptionKind.Approve, group: 1 },
+				{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+			];
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'sampling-1', toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow Sampling from test-server?',
+				invocationMessage: 'MCP server test-server wants to sample a model.',
+				toolInput: '{"messages":[],"maxTokens":100}',
+				options,
+			});
+			const state = invocation.state.get();
+			assert.deepStrictEqual({
+				kind: invocation.kind,
+				state: state.type,
+				confirmation: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined,
+			}, {
+				kind: 'toolInvocation',
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				confirmation: {
+					title: 'Allow Sampling from test-server?',
+					message: 'MCP server test-server wants to sample a model.',
+					approvalReason: undefined,
+					customOptions: options,
+				},
+			});
+		});
+
+		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
+			const cases = [
+				{ toolName: 'grep', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'rg', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'web_fetch', input: 'https://example.com', parameters: { url: 'https://example.com' }, invocationMessage: 'Fetching example.com', pastTenseMessage: 'Fetched example.com' },
+			];
+			for (const { input, parameters, ...fields } of cases) {
+				const calls = [input, JSON.stringify(parameters)].map(toolInput => {
+					const running = createToolCallState({ ...fields, toolInput });
+					const live = toolCallStateToInvocation(running);
+					const completed = createCompletedToolCall({ ...fields, toolInput });
+					finalizeToolInvocation(live, completed);
+					const restored = completedToolCallToSerialized(completed, undefined, URI.file('/repo'), '');
+					return { live: [live.invocationMessage, live.pastTenseMessage], restored: [restored.invocationMessage, restored.pastTenseMessage] };
+				});
+				assert.deepStrictEqual(calls, [input, parameters].map(() => ({
+					live: [fields.invocationMessage, fields.pastTenseMessage],
+					restored: [fields.invocationMessage, fields.pastTenseMessage],
+				})));
+			}
+		});
 
 		test('preserves deterministic tool summaries in live and restored host calls', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
@@ -2402,6 +2507,40 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
 		});
 
+		test('presents a structured ask_user batch as one carousel with stable question IDs and freeform choices', () => {
+			const carousel = createInputRequestCarousel({
+				id: 'bulk-input',
+				message: 'Choose deployment preferences',
+				questions: [
+					{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, title: 'Environment', message: 'Where should we deploy?', options: [{ id: 'dev', label: 'Development' }, { id: 'prod', label: 'Production' }], allowFreeformInput: true },
+					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, message: 'Which features?', options: [{ id: 'logs', label: 'Logs' }], allowFreeformInput: true },
+					{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Deployment name', defaultValue: 'deployment' },
+				],
+			}, 'local');
+
+			assert.deepStrictEqual({
+				resolveId: carousel.resolveId,
+				message: typeof carousel.message === 'string' ? carousel.message : carousel.message?.value,
+				answerPresentation: carousel.answerPresentation,
+				questions: carousel.questions.map(question => ({
+					id: question.id,
+					type: question.type,
+					allowFreeformInput: question.allowFreeformInput,
+					options: question.options,
+					defaultValue: question.defaultValue,
+				})),
+			}, {
+				resolveId: 'bulk-input',
+				message: 'Choose deployment preferences',
+				answerPresentation: 'conversation',
+				questions: [
+					{ id: 'environment', type: 'singleSelect', allowFreeformInput: true, options: [{ id: 'dev', label: 'Development', value: 'dev' }, { id: 'prod', label: 'Production', value: 'prod' }], defaultValue: undefined },
+					{ id: 'features', type: 'multiSelect', allowFreeformInput: true, options: [{ id: 'logs', label: 'Logs', value: 'logs' }], defaultValue: undefined },
+					{ id: 'name', type: 'text', allowFreeformInput: undefined, options: undefined, defaultValue: 'deployment' },
+				],
+			});
+		});
+
 		test('does not repeat the question as the carousel message', () => {
 			const question = {
 				id: 'q1',
@@ -2596,6 +2735,26 @@ suite('stateToProgressAdapter', () => {
 			invocation.setAuthenticationResolved();
 			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
+
+		for (const toolInput of ['ls -la\nwc -l', JSON.stringify({ command: 'ls -la\nwc -l', description: 'Inspect the workspace' })]) {
+			test(`terminal command input supports ${toolInput.startsWith('{') ? 'JSON arguments' : 'plain commands'} in live state and history`, () => {
+				const fields = {
+					toolName: 'bash',
+					toolInput,
+					intention: 'Understand the project layout',
+					_meta: { toolKind: 'terminal' },
+				};
+				const live = toolCallStateToInvocation(createToolCallState(fields)).toolSpecificData;
+				const history = completedToolCallToSerialized(createCompletedToolCall(fields), undefined, URI.file('/repo'), '').toolSpecificData;
+				assert.deepStrictEqual([live, history].map(data => data?.kind === 'terminal' ? {
+					command: data.commandLine.original,
+					intention: data.intention,
+				} : undefined), [
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+				]);
+			});
+		}
 
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
@@ -3912,6 +4071,37 @@ suite('stateToProgressAdapter', () => {
 				}, {
 					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
 					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();

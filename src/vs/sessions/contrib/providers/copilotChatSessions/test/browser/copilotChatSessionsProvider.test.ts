@@ -37,7 +37,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, CloudSandboxRequestError, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -66,6 +66,12 @@ import { CloudSandboxModels } from '../../../../../../workbench/contrib/chat/bro
 import { createCloudSandboxSessionConfig } from '../../browser/cloudSandboxSessionConfig.js';
 import { AutomationModelConfiguration } from '../../../../automations/browser/automationModelConfiguration.js';
 import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
+import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
+import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -319,6 +325,9 @@ function createProviderWithConfig(
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
+	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, opts?.consolidatedRemoteWorkspaces ?? false);
@@ -407,12 +416,15 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; languageModelsService?: Partial<ILanguageModelsService>; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; chatContentProviders?: IChatSessionContentProvider[]; storageService?: IStorageService; sandboxModels?: readonly ILanguageModelChatMetadataAndIdentifier[] },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; languageModelsService?: Partial<ILanguageModelsService>; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; updateChatSessionMetadata?: IChatSessionsService['updateChatSessionMetadata']; chatContentProviders?: IChatSessionContentProvider[]; storageService?: IStorageService; sandboxModels?: readonly ILanguageModelChatMetadataAndIdentifier[] },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: opts?.sandboxModels ?? [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
+	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
@@ -435,9 +447,11 @@ function createProviderForSendTests(
 			return { onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } };
 		},
 		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
+		canResolveChatSession: async () => true,
 		getOptionGroupsForSessionType: () => opts?.getOptionGroups?.(),
 		supportsAutoModelForSessionType: () => true,
 		updateSessionOptions: () => true,
+		updateChatSessionMetadata: opts?.updateChatSessionMetadata ?? (() => true),
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
 		onDidChangeOptionGroups: Event.None,
@@ -2336,6 +2350,140 @@ suite('CopilotChatSessionsProvider', () => {
 	suite('Automation session configuration', () => {
 		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
 
+		async function createAutomationProvider() {
+			const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: true } } } });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const rawModel = 'claude-opus-5.5';
+			const sandboxModel: ILanguageModelChatMetadataAndIdentifier = {
+				identifier: `default-copilot-sandbox-models:${rawModel}`,
+				metadata: {
+					extension: new ExtensionIdentifier('test'), id: rawModel, name: 'Claude Opus 5.5',
+					vendor: 'copilot', family: rawModel, version: '1', maxInputTokens: 1_000_000, maxOutputTokens: 32_000,
+					isDefaultForLocation: {},
+					configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } },
+				},
+			};
+			const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Capture must not send a request.'); }, {
+				configurationService, sandboxModels: [sandboxModel],
+				getOptionGroups: () => [{ id: 'models', name: 'Models', items: [{ id: rawModel, name: 'Claude Opus 5.5' }] }],
+			});
+			return { provider, configurationService, rawModel, sandboxModel };
+		}
+
+		test('automation drafts capture scheduled Cloud models with sandbox routing enabled', async () => {
+			const { provider, rawModel } = await createAutomationProvider();
+			const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
+			const snapshot = provider.getModelsSnapshot(draft.sessionId);
+			const selected = snapshot.models[0].identifier;
+			provider.setModel(draft.sessionId, draft.mainChat.get().resource, selected, ChatModelSource.Chosen);
+			const capture = await provider.getAutomationSessionConfiguration(draft.sessionId).then(
+				configuration => ({ configuration }),
+				(error: Error) => ({ error: error.message }),
+			);
+			assert.deepStrictEqual({
+				modelTarget: snapshot.modelTarget, selected,
+				modelConfiguration: provider.getAutomationModelConfiguration(draft.sessionId)?.captureModelConfiguration(selected),
+				capture,
+			}, {
+				modelTarget: AgentSessionProviders.Cloud, selected: rawModel, modelConfiguration: undefined,
+				capture: { configuration: { sessionTemplate: { modelId: rawModel } } },
+			});
+		});
+
+		test('automation purpose survives sandbox setting changes without changing ordinary Cloud drafts', async () => {
+			const { provider, configurationService, rawModel, sandboxModel } = await createAutomationProvider();
+			const sessionTemplate = { modelId: rawModel, config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } };
+			const restored = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true, automationConfiguration: { sessionTemplate } });
+			const ordinary = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+			const quickChat = provider.createQuickChat(CopilotCloudSessionType.id);
+			for (const enabled of [true, false, true]) {
+				await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, enabled);
+				const fresh = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
+				assert.deepStrictEqual({
+					restoredModels: provider.getModelsSnapshot(restored.sessionId).models.map(model => model.identifier),
+					freshModels: provider.getModelsSnapshot(fresh.sessionId).models.map(model => model.identifier),
+					config: provider.getSessionConfig(restored.sessionId),
+					picker: provider.getModelPickerOptions(restored.sessionId).showAutoModel,
+					captured: await provider.getAutomationSessionConfiguration(restored.sessionId),
+					ordinaryModels: provider.getModelsSnapshot(ordinary.sessionId).models.map(model => model.identifier),
+					ordinaryConfig: provider.getSessionConfig(ordinary.sessionId) !== undefined,
+					creationModels: provider.getModelsSnapshotForCreation(workspace, CopilotCloudSessionType.id).models.map(model => model.identifier),
+					quickChatModels: provider.getModelsSnapshot(quickChat.sessionId).models.map(model => model.identifier),
+				}, {
+					restoredModels: [rawModel], freshModels: [rawModel], config: undefined, picker: true,
+					captured: { sessionTemplate },
+					ordinaryModels: [enabled ? sandboxModel.identifier : rawModel], ordinaryConfig: enabled,
+					creationModels: [enabled ? sandboxModel.identifier : rawModel], quickChatModels: [sandboxModel.identifier],
+				});
+				provider.deleteNewSession(fresh.sessionId);
+			}
+		});
+
+		test('shared model selection captures raw Cloud models for automation drafts', async () => {
+			const { provider, configurationService, rawModel } = await createAutomationProvider();
+			const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
+			const session = disposables.add(new VisibleSession(draft, draft.mainChat.get()));
+			const providers = upcastPartial<ISessionsProvidersService>({
+				onDidChangeProviders: Event.None,
+				getProvider: <T extends ISessionsProvider>(id: string) => {
+					const result: ISessionsProvider | undefined = id === provider.id ? provider : undefined;
+					return result as T | undefined;
+				},
+			});
+			const selection = disposables.add(new SessionModelSelection(
+				constObservable(session), { modelConfiguration: true }, providers,
+				disposables.add(new TestStorageService()), configurationService, disposables.add(new NullLogService()),
+			));
+			const selected = selection.selectModel(rawModel);
+			assert.deepStrictEqual({
+				selected, id: draft.modelId.get(),
+				preferences: selection.modelConfiguration?.getModelConfiguration(rawModel),
+				captured: await provider.getAutomationSessionConfiguration(draft.sessionId),
+			}, { selected: true, id: rawModel, preferences: undefined, captured: { sessionTemplate: { modelId: rawModel } } });
+		});
+
+		test('automation drafts still reject unsupported configuration', async () => {
+			const { provider, rawModel } = await createAutomationProvider();
+			const configurations: IAutomationSessionConfiguration[] = [
+				{ mode: 'plan' },
+				{ permissionLevel: 'autopilot' },
+				{ sessionTemplate: { modelId: rawModel, modelConfiguration: { reasoningEffort: 'high' } } },
+				{ sessionTemplate: { modelId: rawModel, modelConfiguration: {} } },
+			];
+			for (const configuration of configurations) {
+				const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true, automationConfiguration: configuration });
+				await assert.rejects(provider.getAutomationSessionConfiguration(draft.sessionId), /Cloud automations do not support/);
+			}
+			assert.throws(() => provider.createNewSession(workspace, CopilotCloudSessionType.id, {
+				isAutomationDraft: true, automationConfiguration: { sessionTemplate: { agent: { uri: 'file:///agent.md' } } },
+			}), /does not support custom agents/);
+		});
+
+		test('sandbox-only providers reject fresh automation purpose without requiring configuration', async () => {
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Must not send.'); }, {
+				configurationService, providerMode: 'sandbox',
+			});
+			assert.throws(() => provider.createNewSession(workspace, CopilotSandboxSessionType.id, { isAutomationDraft: true }), /not supported/);
+			assert.throws(() => provider.createQuickChat(CopilotSandboxSessionType.id, { isAutomationDraft: true }), /not supported/);
+		});
+
+		test('enabled cloud automations capture model and opaque tools without local approval defaults', async () => {
+			const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: true } } } });
+			const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Configuration must not send a request.'); }, { configurationService });
+			const sessionTemplate = { modelId: 'cloud-model', config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } };
+			const session = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration: { sessionTemplate } });
+			assert.deepStrictEqual({
+				canConfigure: provider.supportsAutomationSessionConfiguration,
+				captured: await provider.getAutomationSessionConfiguration(session.sessionId),
+			}, { canConfigure: true, captured: { sessionTemplate } });
+		});
+
 		test('restores and captures Automation session configuration', async () => {
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
 			const sessionTemplate = {
@@ -2579,7 +2727,7 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		});
 
-		function createSandboxProvider(opts: { enabled?: boolean; remoteHostsEnabled?: boolean; provision?: CloudSandboxAgentHostContribution['provisionSession']; prepare?: CloudSandboxAgentHostContribution['prepareSession']; trackProgress?: CloudSandboxAgentHostContribution['trackSessionCreationProgress']; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; sandboxModels?: readonly ILanguageModelChatMetadataAndIdentifier[]; storageService?: IStorageService } = {}) {
+		function createSandboxProvider(opts: { enabled?: boolean; remoteHostsEnabled?: boolean; provision?: CloudSandboxAgentHostContribution['provisionSession']; prepare?: CloudSandboxAgentHostContribution['prepareSession']; trackProgress?: CloudSandboxAgentHostContribution['trackSessionCreationProgress']; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; updateChatSessionMetadata?: IChatSessionsService['updateChatSessionMetadata']; sandboxModels?: readonly ILanguageModelChatMetadataAndIdentifier[]; storageService?: IStorageService } = {}) {
 			const configurationService = new TestConfigurationService();
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
 			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
@@ -2592,7 +2740,7 @@ suite('CopilotChatSessionsProvider', () => {
 				cloudSends.push(message);
 				// Never settles: these tests only assert which path the send took.
 				return new Promise<ChatSendResult>(() => { });
-			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications, providerMode: opts.providerMode, onGetChatSession: opts.onGetChatSession, chatContentProviders, sandboxModels: opts.sandboxModels, storageService: opts.storageService });
+			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications, providerMode: opts.providerMode, onGetChatSession: opts.onGetChatSession, updateChatSessionMetadata: opts.updateChatSessionMetadata, chatContentProviders, sandboxModels: opts.sandboxModels, storageService: opts.storageService });
 
 			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
 			provider.sandboxContribution = {
@@ -2710,6 +2858,142 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		for (const providerMode of ['default', 'sandbox'] as const) {
+			const sessionTypeId = providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id;
+
+			test(`${providerMode} creates a repo-less quick-chat draft without provisioning a sandbox`, () => {
+				const { provider, provisionRequests } = createSandboxProvider({ providerMode });
+				const draft = provider.createQuickChat(sessionTypeId);
+				const session = provider.getSession(draft.sessionId);
+				assert.ok(session instanceof RemoteNewSession);
+
+				assert.deepStrictEqual({
+					supportsQuickChats: provider.supportsQuickChats,
+					sessionType: draft.sessionType,
+					quickChat: draft.isQuickChat?.get(),
+					workspace: draft.workspace.get(),
+					chatWorkspace: draft.mainChat.get().workspace.get(),
+					disabled: session.disabled,
+					repository: session.repoNwo,
+					options: [...session.selectedOptions],
+					provisionRequests,
+					listed: provider.getSessions(),
+				}, {
+					supportsQuickChats: true,
+					sessionType: sessionTypeId,
+					quickChat: true,
+					workspace: undefined,
+					chatWorkspace: undefined,
+					disabled: false,
+					repository: undefined,
+					options: [],
+					provisionRequests: [],
+					listed: [],
+				});
+			});
+
+			test(`${providerMode} sends a repo-less quick chat to a sandbox without repository preparation`, async () => {
+				const cloudModel = sandboxModel('cloud-model');
+				const sent: { resource: string; options: ISendRequestOptions }[] = [];
+				const metadataUpdates: { resource: string; metadata: Record<string, unknown> }[] = [];
+				const provisioned = provisionedSession(async (_sessionId, resource, options) => {
+					sent.push({ resource: resource.toString(), options });
+					return provisioned.session;
+				}, () => [cloudModel]);
+				const { provider, provisionRequests, cloudSends } = createSandboxProvider({
+					providerMode,
+					provision: async () => provisioned,
+					prepare: async () => assert.fail('Repo-less chats must not prepare a repository'),
+					trackProgress: () => assert.fail('Repo-less chats must not track repository cloning'),
+					onGetChatSession: () => assert.fail('Repo-less chats must not load an extension Cloud session'),
+					updateChatSessionMetadata: (resource, metadata) => {
+						metadataUpdates.push({ resource: resource.toString(), metadata });
+						return true;
+					},
+					sandboxModels: [cloudModel],
+				});
+				const draft = provider.createQuickChat(sessionTypeId);
+				const chat = await provider.createNewChat(draft.sessionId);
+				provider.setModel(draft.sessionId, chat.resource, cloudModel.identifier, ChatModelSource.Chosen);
+				await provider.setSessionConfigValue(draft.sessionId, 'mode', 'plan');
+				const replacements: { from: string; to: string; quickChat: boolean | undefined }[] = [];
+				disposables.add(provider.onDidReplaceSession(({ from, to }) => replacements.push({ from: from.sessionId, to: to.sessionId, quickChat: from.isQuickChat?.get() })));
+
+				const committed = await provider.sendRequest(draft.sessionId, chat.resource, { query: 'hello' });
+
+				assert.deepStrictEqual({
+					committed: committed.sessionId,
+					provisionRequests,
+					cloudSends,
+					sent,
+					metadataUpdates,
+					modelSelections: provisioned.modelSelections,
+					published: provisioned.published,
+					replacements,
+				}, {
+					committed: provisioned.session.sessionId,
+					provisionRequests: [{ prompt: 'hello' }],
+					cloudSends: [],
+					sent: [{ resource: provisioned.session.mainChat.get().resource.toString(), options: { query: 'hello', sessionConfig: { mode: 'plan', approvalMode: 'assisted' } } }],
+					metadataUpdates: [{ resource: provisioned.session.mainChat.get().resource.toString(), metadata: { workspaceless: true } }],
+					modelSelections: [{ modelId: cloudModel.identifier, source: ChatModelSource.CarriedOver }],
+					published: ['sess-new'],
+					replacements: [{ from: draft.sessionId, to: provisioned.session.sessionId, quickChat: true }],
+				});
+			});
+
+			for (const [setting, disabledValue] of [[CloudSandboxEnabledSettingId, false], [RemoteAgentHostsEnabledSettingId, false], [ChatAIDisabledSettingId, true]] as const) {
+				test(`${providerMode} withdraws quick chats and never falls back to legacy Cloud when ${setting} changes`, async () => {
+					const { provider, provisionRequests, cloudSends, configurationService } = createSandboxProvider({
+						providerMode,
+						onGetChatSession: () => assert.fail('Repo-less chats must not fall back to an extension Cloud session'),
+					});
+					const draft = provider.createQuickChat(sessionTypeId);
+					const availability = {
+						sessionTypes: [provider.supportsQuickChats],
+						capabilities: [provider.supportsQuickChats],
+					};
+					disposables.add(provider.onDidChangeSessionTypes(() => availability.sessionTypes.push(provider.supportsQuickChats)));
+					disposables.add(provider.onDidChangeCapabilities(() => availability.capabilities.push(provider.supportsQuickChats)));
+					await configurationService.setUserConfiguration(setting, disabledValue);
+					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: key => key === setting,
+					}));
+
+					assert.throws(() => provider.createQuickChat(sessionTypeId), /not enabled/);
+					const chat = await provider.createNewChat(draft.sessionId);
+					await assert.rejects(provider.sendRequest(draft.sessionId, chat.resource, { query: 'hello' }), /no longer available/);
+
+					await configurationService.setUserConfiguration(setting, !disabledValue);
+					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: key => key === setting,
+					}));
+					assert.deepStrictEqual({ availability, provisionRequests, cloudSends }, {
+						availability: {
+							sessionTypes: [true, false, true],
+							capabilities: [true, false, true],
+						},
+						provisionRequests: [],
+						cloudSends: [],
+					});
+				});
+			}
+
+			test(`${providerMode} does not send a repo-less prompt if the sandbox cannot retain its workspace-less metadata`, async () => {
+				const provisioned = provisionedSession(async () => assert.fail('The prompt must not be sent'));
+				const { provider, cloudSends } = createSandboxProvider({
+					providerMode,
+					provision: async () => provisioned,
+					updateChatSessionMetadata: () => false,
+				});
+				const draft = provider.createQuickChat(sessionTypeId);
+
+				await assert.rejects(provider.sendRequest(draft.sessionId, draft.resource, { query: 'hello' }), /Your prompt was not sent/);
+
+				assert.deepStrictEqual({ published: provisioned.published, cloudSends, listed: provider.getSessions() }, {
+					published: ['sess-new'], cloudSends: [], listed: [],
+				});
+			});
+
 			test(`${providerMode} creation uses initial title synchronization instead of an explicit rename`, async () => {
 				const sent: string[] = [];
 				const provisioned = provisionedSession(async (_sessionId, _resource, options) => {

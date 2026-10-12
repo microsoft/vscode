@@ -16,7 +16,7 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
@@ -48,6 +48,8 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService,
 import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
+import type { ICanvasContext } from '../../../canvases/common/canvas.js';
+import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 
 
 /**
@@ -449,7 +451,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly requestTimestamp: number | undefined;
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
-	public readonly modelId?: string;
+	private _modelId?: string;
 	public readonly modelConfiguration?: IStringDictionary<unknown>;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
@@ -496,6 +498,15 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
+	public get modelId(): string | undefined {
+		return this._modelId;
+	}
+
+	public set modelId(modelId: string | undefined) {
+		this._version++;
+		this._modelId = modelId;
+	}
+
 	public get agentHostMetadata(): Record<string, unknown> | undefined {
 		return this._agentHostMetadata;
 	}
@@ -539,7 +550,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._locationData = params.locationData;
 		this._attachedContext = params.attachedContext;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
-		this.modelId = params.modelId;
+		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
@@ -788,6 +799,9 @@ class AbstractResponse implements IResponse {
 	}
 
 	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+		if (IChatToolInvocation.isStreaming(toolInvocation) && IChatToolInvocation.isImageGeneration(toolInvocation)) {
+			return { text: '' };
+		}
 		const getTerminalDisplayInput = (terminalData: ReturnType<typeof migrateLegacyTerminalToolSpecificData>) => terminalData.presentationOverrides?.commandLine
 			?? terminalData.commandLine.forDisplay
 			?? terminalData.commandLine.userEdited
@@ -1154,6 +1168,14 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		}
+	}
+
+	replaceAutoModeResolutions(parts: readonly IChatAutoModeResolutionPart[]): void {
+		if (equals(this._responseParts.filter(part => part.kind === 'autoModeResolution'), parts)) {
+			return;
+		}
+		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		this._contentChanged();
 	}
 
 	/**
@@ -1739,6 +1761,22 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._setUsage(this._withSubagentCopilotCredits(usage), true);
 	}
 
+	/** Replaces settled history metadata without recreating the response or accumulating replayed usage. */
+	updateHistoryMetadata(details: string | undefined, parts: readonly (IChatUsage | IChatAutoModeResolutionPart)[]): void {
+		transaction(tx => {
+			this._parentUsage = undefined;
+			this._usageObs.set(undefined, tx);
+			this._completionTokenCountObs.set(undefined, tx);
+			for (const part of parts) {
+				if (part.kind === 'usage') {
+					this.setUsage(part);
+				}
+			}
+			this._response.replaceAutoModeResolutions(parts.filter(part => part.kind === 'autoModeResolution'));
+			this.setResult({ ...this._result, details });
+		});
+	}
+
 	setSubagentCopilotCredits(subagentCallId: string, copilotCredits: number): void {
 		const currentCredits = this._subagentCopilotCredits.get(subagentCallId);
 		if (!Number.isFinite(copilotCredits) || copilotCredits < 0 || (currentCredits !== undefined && copilotCredits <= currentCredits)) {
@@ -1995,8 +2033,10 @@ export interface IChatModel extends IDisposable {
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
+	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -2854,7 +2894,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
+	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -2970,7 +3012,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; backgroundShellCount?: IObservable<number | undefined> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>; backgroundShellCount?: IObservable<number | undefined>; canvasContext?: IObservable<ICanvasContext | undefined> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -3031,7 +3073,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._canUseTools = initialModelProps.canUseTools;
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
 		this.isInputBlocked = initialModelProps.isInputBlocked ?? constObservable(false);
+		this.historyStatus = initialModelProps.historyStatus ?? constObservable(undefined);
 		this.backgroundShellCount = initialModelProps.backgroundShellCount;
+		this.canvasContext = initialModelProps.canvasContext;
 
 		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 
@@ -3451,6 +3495,13 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.agentHostMetadata = agentHostMetadata;
 		}
 		this._onDidChange.fire({ kind: 'changedRequest', request });
+	}
+
+	updateRequestModelId(request: ChatRequestModel, modelId: string | undefined): void {
+		if (request.modelId !== modelId) {
+			request.modelId = modelId;
+			this._onDidChange.fire({ kind: 'changedRequest', request });
+		}
 	}
 
 	adoptRequest(request: ChatRequestModel): void {

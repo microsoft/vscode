@@ -5,7 +5,9 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { sumBy } from '../../../../base/common/arrays.js';
 import { IntervalTimer, raceTimeout, SequencerByKey } from '../../../../base/common/async.js';
+import { groupByMap } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -47,10 +49,13 @@ interface IAttributedInterval {
 
 interface ISourceStatistics {
 	readonly trackingKey: string;
+	readonly groupKey: string;
 	readonly sourceKey: string;
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
+	readonly autoTier: string | undefined;
 	readonly conversationId: string;
+	readonly agentSessionId: string;
 	readonly chatSessionId: string | undefined;
 	readonly requestId: string;
 	readonly harness: string;
@@ -305,19 +310,28 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 		const provider = edit.provider ?? getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
-		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
+		// Matches the workbench edit-source key order ($modelId, $autoTier, ..., $harness, $origin).
+		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
+		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}-$harness:${provider}-$origin:agentHost`;
+		const groupSourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		const conversationId = AgentSession.id(edit.sessionUri);
 		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
+		const attributionSession = chatUri ?? edit.sessionUri;
+		const agentSessionId = AgentSession.id(isAhpChatChannel(attributionSession) ? parseRequiredSessionUriFromChatUri(attributionSession) : attributionSession);
 		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
-		const trackingKey = chatSessionId === undefined ? sourceKey : JSON.stringify([sourceKey, conversationId, chatSessionId]);
+		const toTrackingKey = (key: string) => JSON.stringify([key, agentSessionId, conversationId, chatSessionId]);
+		const trackingKey = toTrackingKey(sourceKey);
 		let source = resource.sources.get(trackingKey);
 		if (!source) {
 			source = {
 				trackingKey,
+				groupKey: toTrackingKey(groupSourceKey),
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
+				autoTier: edit.autoTier,
 				conversationId,
+				agentSessionId,
 				chatSessionId,
 				requestId: edit.turnId,
 				harness: provider,
@@ -335,7 +349,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			afterDigest: createFileEditContentDigest(edit.afterText),
 			source: {
 				modelId: edit.modelId,
+				...(edit.autoTier !== undefined ? { autoTier: edit.autoTier } : {}),
 				conversationId,
+				agentSessionId,
 				...(chatSessionId !== undefined ? { chatSessionId } : {}),
 				requestId: edit.turnId,
 				harness: provider,
@@ -758,9 +774,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				trigger,
 				statsUuid,
 				languageId: undefined,
-				sources: Array.from(resource.sources.values())
-					.toSorted((a, b) => (retainedBySource.get(b.trackingKey) ?? 0) - (retainedBySource.get(a.trackingKey) ?? 0))
-					.slice(0, 30),
+				sources: selectReportedSources(resource.sources.values(), retainedBySource),
 				retainedBySource,
 				agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
 				externalModifiedCount,
@@ -797,10 +811,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				extensionId: undefined,
 				extensionVersion: undefined,
 				modelId: source.modelId,
+				...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
 				trigger: prepared.trigger,
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
 				conversationId: source.conversationId,
+				agentSessionId: source.agentSessionId,
 				...(source.chatSessionId !== undefined ? { chatSessionId: source.chatSessionId } : {}),
 				requestId: source.requestId,
 				origin: 'agentHost',
@@ -819,10 +835,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					extensionId: '',
 					extensionVersion: '',
 					modelId: data.modelId ?? '',
+					...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
 					trigger: data.trigger,
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,
 					conversationId: data.conversationId,
+					agentSessionId: data.agentSessionId,
 					...(data.chatSessionId !== undefined ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					origin: data.origin,
@@ -1159,6 +1177,17 @@ function resourceKey(sessionUri: string, fileKey: string): string {
 	return `${sessionUri}\0${fileKey}`;
 }
 
+const MAX_REPORTED_SOURCE_GROUPS = 30;
+
+/** Caps reported sources before subdividing them by Auto tier, so tiers never displace other sources. */
+function selectReportedSources(sources: Iterable<ISourceStatistics>, retainedBySource: ReadonlyMap<string, number>): ISourceStatistics[] {
+	const retained = (source: ISourceStatistics) => retainedBySource.get(source.trackingKey) ?? 0;
+	return Array.from(groupByMap(Array.from(sources), source => source.groupKey).values(), group => ({ group, retained: sumBy(group, retained) }))
+		.toSorted((a, b) => b.retained - a.retained)
+		.slice(0, MAX_REPORTED_SOURCE_GROUPS)
+		.flatMap(({ group }) => group.toSorted((a, b) => retained(b) - retained(a)));
+}
+
 function combinePreparedFlushes(
 	flushes: readonly IPreparedFlush[],
 	fileKey: string,
@@ -1195,9 +1224,7 @@ function combinePreparedFlushes(
 		trigger,
 		statsUuid,
 		languageId,
-		sources: Array.from(sources.values())
-			.toSorted((a, b) => (retainedBySource.get(b.trackingKey) ?? 0) - (retainedBySource.get(a.trackingKey) ?? 0))
-			.slice(0, 30),
+		sources: selectReportedSources(sources.values(), retainedBySource),
 		retainedBySource,
 		agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
 		externalModifiedCount: flushes.reduce((sum, flush) => sum + flush.externalModifiedCount, 0),

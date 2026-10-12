@@ -24,7 +24,7 @@ import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
-import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -101,6 +101,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
+		override readonly onDidChangeSessionTypes = Event.None;
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -119,7 +120,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	return { instantiationService, configurationService, contextKeyService, chatViews };
 }
 
-export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService }) {
+export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService; compactLayout?: () => boolean; chatBackground?: ISessionsChatBackground }) {
 	const services = createSessionViewTestServices(store, options?.instantiationService);
 	const container = options?.container ?? document.createElement('div');
 	container.classList.toggle('phone-layout', mobile);
@@ -129,11 +130,11 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		override readonly mainContainerDimension = { width: 1200, height: 800 };
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
-		override isModernUICompact() { return false; }
+		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
 	}());
 	services.instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
-		override getBackground() { return undefined; }
+		override getBackground() { return options?.chatBackground; }
 	}());
 	if (!options?.container) {
 		document.body.appendChild(container);

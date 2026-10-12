@@ -151,6 +151,43 @@ export default defineConfig(
 			]
 		},
 	},
+	// Production filesystem operations must not block the event loop.
+	{
+		files: [
+			'src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+			'extensions/**/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+		],
+		ignores: [
+			// Bootstrap entry points and the AMD loader retain their startup I/O.
+			'src/*',
+			'src/vs/amdX.ts',
+			'src/vs/code/electron-main/main.ts',
+			// Core synchronous helpers and startup/shutdown infrastructure.
+			'src/vs/base/node/pfs.ts',
+			'src/vs/platform/environment/node/wait.ts',
+			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
+			'src/vs/server/node/server.main.ts',
+			'src/vs/workbench/api/node/extHostCLIServer.ts',
+			'src/vs/workbench/api/node/extHostExtensionService.ts',
+			'src/vs/workbench/api/node/extHostStoragePaths.ts',
+			'**/test/**',
+			'**/tests/**',
+			'**/fixtures/**',
+			'**/*.{test,spec,stest,integrationTest}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+			'**/scripts/**',
+			'**/script/**',
+			'**/build/**',
+			'extensions/vscode-test-resolver/**',
+			'extensions/vscode-api-tests/**',
+			// These isolated CLI/askpass processes do not share the application's event loop.
+			'src/vs/code/node/cli.ts',
+			'src/vs/server/node/server.cli.ts',
+			'extensions/git/src/askpass-main.ts',
+		],
+		rules: {
+			'local/code-no-sync-fs': 'error',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
@@ -1599,7 +1636,6 @@ export default defineConfig(
 						'zod',
 						'@microsoft/dev-tunnels-contracts',
 						'@microsoft/dev-tunnels-management',
-						'@microsoft/mxc-sdk/v1',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',

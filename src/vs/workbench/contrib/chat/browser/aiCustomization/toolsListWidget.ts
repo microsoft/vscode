@@ -913,6 +913,10 @@ export class ToolsListWidget extends Disposable {
 		this._searchInput.select();
 	}
 
+	setSearchQuery(query: string): void {
+		this._searchInput.value = query;
+	}
+
 	/** Re-emit the current item count. Called once at startup to seed the section badge. */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this._lastCount === -1 ? 0 : this._lastCount);
@@ -1150,12 +1154,11 @@ export class ToolsListWidget extends Disposable {
 				buttonSecondaryBorder: undefined,
 			}),
 			secondary: true,
-			supportIcons: true,
 			title: browseLabel,
 			ariaLabel: browseLabel,
 		}));
 		browseButton.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
-		browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
+		browseButton.label = browseLabel;
 		disposables.add(browseButton.onDidClick(() => void this._browseMarketplace()));
 	}
 

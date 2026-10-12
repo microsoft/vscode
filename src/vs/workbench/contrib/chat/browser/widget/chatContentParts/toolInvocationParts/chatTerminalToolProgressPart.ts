@@ -558,7 +558,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const extracted = extractImagesFromToolInvocationOutputDetails(toolInvocation, context.element.sessionResource);
 			const imageParts: IChatCollapsibleIODataPart[] = extracted.map(img => ({
 				kind: 'data',
-				value: img.data.buffer,
+				value: img.data?.buffer,
 				mimeType: img.mimeType,
 				uri: img.uri,
 			}));

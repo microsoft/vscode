@@ -1155,7 +1155,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		combinedFilterMatches = this.sortResults(combinedFilterMatches);
 		const result = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult.exactMatch // remote results should never have an exact match
+			exactMatch: localResult?.exactMatch ?? false // remote results should never have an exact match
 		};
 		this.cachedUniqueSearchResults.set(false, result);
 		return result;

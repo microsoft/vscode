@@ -17,7 +17,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { canMoveModalEditorToEditorArea, EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isDiffEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -1457,12 +1457,12 @@ function registerModalEditorCommands(): void {
 				category: Categories.View,
 				f1: true,
 				icon: Codicon.openInProduct,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
 					order: 0,
-					when: IsSessionsWindowContext.negate()
+					when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
 				}
 			});
 		}
@@ -1471,6 +1471,9 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
+					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+						return;
+					}
 					await part.close({ mergeAllEditorsToMainPart: true });
 					break;
 				}
@@ -1486,12 +1489,12 @@ function registerModalEditorCommands(): void {
 				category: Categories.View,
 				f1: true,
 				icon: Codicon.emptyWindow,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
 				menu: [{
 					id: MenuId.ModalEditorTitleContext,
 					group: '1_window',
 					order: 0,
-					when: IsSessionsWindowContext
+					when: ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalCanMoveToEditorAreaContext)
 				}]
 			});
 		}
@@ -1500,6 +1503,9 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
+					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+						return;
+					}
 					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
 					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {

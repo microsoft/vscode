@@ -102,6 +102,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 	/**
@@ -187,6 +188,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
@@ -336,6 +338,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
+		this.isVisibleInEnvironmentPicker = config.isVisibleInEnvironmentPicker;
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;
@@ -900,8 +903,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._onDidChangeSessionTypes.fire();
 	}
 
-	/** Seed offline rows, optionally refreshing discovery-owned title, timestamp and project fields. */
-	seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void {
+	/** Seed offline rows, optionally refreshing discovery-owned display metadata and workspace-less intent. */
+	seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void {
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
 		for (const rawMeta of metas) {
@@ -914,7 +917,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				if (source?.source !== 'discovery' || meta.modifiedTime >= source.modifiedTime) {
 					transaction(tx => {
 						didChange = options?.updateExisting
-							? existing.updateDiscoveryMetadata({ ...meta, modifiedTime: Math.max(meta.modifiedTime, existing.updatedAt.get().getTime()) })
+							? existing.updateDiscoveryMetadata({ ...meta, modifiedTime: Math.max(meta.modifiedTime, existing.updatedAt.get().getTime()) }, options.workspaceless)
 							: existing.backfillProject(meta.project);
 						if (!this._connection && source?.source !== 'host') {
 							if (meta.status !== undefined) {
@@ -935,7 +938,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			}
 			const adapter = this.createAdapter(meta);
 			if (options?.updateExisting) {
-				adapter.updateDiscoveryMetadata(meta);
+				adapter.updateDiscoveryMetadata(meta, options.workspaceless);
 			}
 			this._activitySources.set(adapter, { source: 'discovery', modifiedTime: meta.modifiedTime });
 			this._sessionCache.set(rawId, adapter);

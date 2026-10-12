@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../base/common/codicons.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../browser/parts/sessionReadOnlyBanner.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
@@ -49,12 +49,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
 	}),
 });
 
-function renderBanner({ container, disposableStore }: ComponentFixtureContext, content: ISessionReadOnlyBannerContent): void {
+function renderBanner({ container, disposableStore, theme }: ComponentFixtureContext, content: ISessionReadOnlyBannerContent): void {
 	container.style.width = '480px';
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
-	const banner = disposableStore.add(new SessionReadOnlyBanner());
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const banner = disposableStore.add(instantiationService.createInstance(SessionReadOnlyBanner));
 	banner.setContent(content);
 	banner.setVisible(true);
 	container.appendChild(banner.domNode);

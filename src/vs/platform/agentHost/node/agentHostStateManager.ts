@@ -1874,6 +1874,11 @@ export class AgentHostStateManager extends Disposable {
 
 	// ---- Action dispatch ----------------------------------------------------
 
+	/** Allocates an ordered action for listener-owned state without applying it to shared host state. */
+	createServerActionEnvelope(channel: URI, action: StateAction): ActionEnvelope {
+		return { channel, action, serverSeq: ++this._serverSeq, origin: undefined };
+	}
+
 	/**
 	 * Dispatch a server-originated action (from the agent backend).
 	 * The action is applied to state via the reducer and emitted as an
