@@ -6,6 +6,7 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -440,7 +441,7 @@ export class CopilotGitHubTelemetryForwarder {
 			copilot_tracking_id: event.copilot_tracking_id,
 			kind: event.kind,
 			restricted: notification.restricted,
-			...telemetryContext,
+			...toCopilotTelemetryData(telemetryContext),
 		};
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;

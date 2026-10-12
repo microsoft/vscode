@@ -207,7 +207,7 @@ const RELAYED_MODELS = [
 ];
 /** The research preview the Copilot agent host adds when enabled, offered as Auto's last tier. */
 const HYDRA_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
-	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', detail: 'Research preview' });
+	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
 })();
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];

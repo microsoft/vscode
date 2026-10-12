@@ -1456,7 +1456,8 @@ export class CodeApplication extends Disposable {
 				// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
 				'onDidBlurMainWindow',
 				// GPU subscribers read current state explicitly; do not replay obsolete capabilities.
-				'onDidChangeGPUCompositing'
+				'onDidChangeGPUCompositing',
+				'onDidProgressZipFile'
 			]
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);

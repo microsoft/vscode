@@ -45,6 +45,7 @@ import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { getSessionToolbarSecondaryActionsPosition } from './sessionHeaderBar.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -191,6 +192,7 @@ export class ChatCompositeBar extends Disposable {
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 		}));
 

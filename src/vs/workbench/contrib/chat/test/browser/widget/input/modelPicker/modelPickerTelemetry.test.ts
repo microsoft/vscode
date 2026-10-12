@@ -243,7 +243,7 @@ suite('ModelPickerTelemetry', () => {
 						delete normalized.chatSessionId;
 					}
 				}
-				if (name !== 'chat.modelPickerInteraction') {
+				if (name !== 'chat.modelPickerInteraction' && name !== 'experimentTrigger') {
 					assert.strictEqual(normalized.provider, 'copilotcli');
 					delete normalized.provider;
 				}
@@ -343,7 +343,7 @@ suite('ModelPickerTelemetry', () => {
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
-			const hydraFusion = createModel('hydrafusion');
+			const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
 			const result = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model], entitlement);
 			assert.deepStrictEqual({
 				selected: result.picker.selectedModel?.identifier,
@@ -358,7 +358,7 @@ suite('ModelPickerTelemetry', () => {
 	}
 
 	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
-		const hydraFusion = createModel('hydrafusion');
+		const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
 		const result = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free, false);
 		assert.deepStrictEqual({
 			selected: result.picker.selectedModel?.identifier,
@@ -433,6 +433,67 @@ suite('ModelPickerTelemetry', () => {
 
 		assert.strictEqual(result.contextViewLayer, 1);
 		result.hide();
+	});
+
+	test('the input shows a HydraFusion tier as Ensemble with that tier, and opening on an Ensemble that can route Intelligence reports its trigger', () => {
+		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const triggers = (picker: ReturnType<typeof createPicker>) => picker.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []);
+		const plain = createPicker(max, undefined, [autoModel, hydraFusion, max, model]);
+		const withoutHydraFusion = createPicker(max, undefined, [ensemble, max, model]);
+		const result = createPicker(max, undefined, [ensemble, hydraFusion, max, model]);
+		result.picker.render(result.container);
+		assert.deepStrictEqual({
+			input: Array.from(result.container.querySelectorAll('.chat-input-picker-label'), label => label.textContent),
+			ensembleTriggers: triggers(result),
+			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
+			autoTriggers: triggers(plain),
+		}, {
+			input: ['Ensemble', 'Max'],
+			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
+			withoutHydraFusionTriggers: [],
+			autoTriggers: [],
+		});
+	});
+
+	test('a chat moves between HydraFusion and Ensemble\'s Intelligence as Ensemble routes Intelligence', async () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const open = async (intelligenceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'ensembleIntelligence') => {
+			const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion } } };
+			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [ensemble, hydraFusion, model]);
+			if (selected === 'ensembleIntelligence') {
+				result.configurations.set(ensemble.identifier, { tier: 'intelligence' });
+				result.picker.setSelectedModel(ensemble);
+			}
+			await timeout(0);
+			return {
+				selected: result.picker.selectedModel?.identifier,
+				tier: result.configurations.get(ensemble.identifier)?.tier,
+				triggers: result.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []),
+			};
+		};
+		const triggers = ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'];
+		assert.deepStrictEqual({
+			hydraFusionNotRouted: await open(false, 'hydraFusion'),
+			hydraFusionRouted: await open(true, 'hydraFusion'),
+			ensembleIntelligenceRouted: await open(true, 'ensembleIntelligence'),
+			ensembleIntelligenceNotRouted: await open(false, 'ensembleIntelligence'),
+		}, {
+			hydraFusionNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
+			ensembleIntelligenceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
+			ensembleIntelligenceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+		});
+	});
+
+	test('normalizing a matching HydraFusion selection does not persist it again', () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
+		const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+		result.picker.setSelectedModel({ ...hydraFusion });
+
+		assert.deepStrictEqual(result.programmaticDelegateSelections, []);
 	});
 
 	test('the input readout opens details directly and restores the invoking control', () => {
