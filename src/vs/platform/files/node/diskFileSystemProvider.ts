@@ -38,6 +38,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private static TRACE_LOG_RESOURCE_LOCKS = false; // not enabled by default because very spammy
 
+	/**
+	 * Renames are only retried on Windows, by default for up to a minute, because
+	 * antivirus software briefly locks files that were just written (for example
+	 * during atomic saves). A folder however is typically locked because something
+	 * inside it is in use by another application, which rarely resolves by itself,
+	 * so we only retry briefly to report the error quickly.
+	 */
+	private static readonly FOLDER_RENAME_RETRY_TIMEOUT = 1000;
+
 	//#region File Capabilities
 
 	readonly onDidChangeCapabilities = Event.None;
@@ -705,15 +714,26 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 
 			// Validate the move operation can perform
-			await this.validateMoveCopy(from, to, 'move', opts.overwrite);
+			const fromStat = await this.validateMoveCopy(from, to, 'move', opts.overwrite);
 
 			// Rename
-			await Promises.rename(fromFilePath, toFilePath);
+			await Promises.rename(fromFilePath, toFilePath, (fromStat.type & FileType.Directory) !== 0 ? DiskFileSystemProvider.FOLDER_RENAME_RETRY_TIMEOUT : undefined);
 		} catch (error) {
+
+			// On Windows, a rename fails when the file or folder (or anything inside
+			// the folder) is in use by another application. node.js reports this with
+			// the same error codes as a permission problem, so we mention both causes.
+			if (isWindows && (error.code === 'EPERM' || error.code === 'EACCES' || error.code === 'EBUSY')) {
+				const message = isEqual(dirname(fromFilePath), dirname(toFilePath), true /* ignore case */) ?
+					localize('renameInUseError', "Unable to rename '{0}' to '{1}'. It may be in use by another application, or you may not have permission ({2}).", basename(fromFilePath), basename(toFilePath), error.toString()) :
+					localize('moveInUseError', "Unable to move '{0}' into '{1}'. It may be in use by another application, or you may not have permission ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString());
+
+				error = createFileSystemProviderError(message, error.code === 'EBUSY' ? FileSystemProviderErrorCode.Unknown : FileSystemProviderErrorCode.NoPermissions);
+			}
 
 			// Rewrite some typical errors that can happen especially around symlinks
 			// to something the user can better understand
-			if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
+			else if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
 				error = new Error(localize('moveError', "Unable to move '{0}' into '{1}' ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString()));
 			}
 
@@ -748,9 +768,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	private async validateMoveCopy(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
+	private async validateMoveCopy(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<IStat> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
+
+		const fromStat = await this.statIgnoreError(from);
+		if (!fromStat) {
+			throw createFileSystemProviderError(localize('fileMoveCopyErrorNotFound', "File to move/copy does not exist"), FileSystemProviderErrorCode.FileNotFound);
+		}
 
 		let isSameResourceWithDifferentPathCase = false;
 		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
@@ -769,7 +794,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// You can move the same file to the same location with different
 			// path case on case insensitive file systems
 			else if (mode === 'move') {
-				return;
+				return fromStat;
 			}
 		}
 
@@ -777,14 +802,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// We need to respect the `overwrite` option to throw in case the
 		// target exists.
 
-		const fromStat = await this.statIgnoreError(from);
-		if (!fromStat) {
-			throw createFileSystemProviderError(localize('fileMoveCopyErrorNotFound', "File to move/copy does not exist"), FileSystemProviderErrorCode.FileNotFound);
-		}
-
 		const toStat = await this.statIgnoreError(to);
 		if (!toStat) {
-			return; // target does not exist so we are good
+			return fromStat; // target does not exist so we are good
 		}
 
 		if (!overwrite) {
@@ -793,10 +813,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		// Handle existing target for move/copy
 		if ((fromStat.type & FileType.File) !== 0 && (toStat.type & FileType.File) !== 0) {
-			return; // node.js can move/copy a file over an existing file without having to delete it first
+			return fromStat; // node.js can move/copy a file over an existing file without having to delete it first
 		} else {
 			await this.delete(to, { recursive: true, useTrash: false, atomic: false });
 		}
+
+		return fromStat;
 	}
 
 	//#endregion
