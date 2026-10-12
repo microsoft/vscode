@@ -59,24 +59,28 @@ function normalizeAccountsMenuLabel(accountsMenuLabel: string | undefined): stri
 	return label || undefined;
 }
 
-/** Accounts menu title. A custom label replaces the extension name and keeps the badge marker. */
+/** Accounts menu title. A custom label is added to VS Code's own provider and extension text. */
 function accountsMenuTitle(kind: 'signIn' | 'access', providerLabel: string, extensionName: string, accountsMenuLabel: string | undefined): string {
-	if (accountsMenuLabel) {
-		return nls.localize({
-			key: 'accountsMenuRequest',
-			comment: ['{0} is an extension-provided label for this Accounts menu entry. (1) indicates that this menu item contributes to a badge count.']
-		}, "{0} (1)", accountsMenuLabel);
-	}
 	if (kind === 'signIn') {
-		return nls.localize({
-			key: 'signInRequest',
-			comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
-		}, "Sign in with {0} to use {1} (1)", providerLabel, extensionName);
+		return accountsMenuLabel
+			? nls.localize({
+				key: 'signInRequestLabeled',
+				comment: ['{0} is the authentication provider label. {1} is the extension name. {2} is an extension-provided label that distinguishes this request from other requests by the same extension. (1) indicates that this menu item contributes to a badge count.']
+			}, "Sign in with {0} to use {1} ({2}) (1)", providerLabel, extensionName, accountsMenuLabel)
+			: nls.localize({
+				key: 'signInRequest',
+				comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
+			}, "Sign in with {0} to use {1} (1)", providerLabel, extensionName);
 	}
-	return nls.localize({
-		key: 'accessRequest',
-		comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
-	}, "Grant access to {0} for {1}... (1)", providerLabel, extensionName);
+	return accountsMenuLabel
+		? nls.localize({
+			key: 'accessRequestLabeled',
+			comment: [`{0} is the authentication provider''s label. {1} is the extension name. {2} is an extension-provided label that distinguishes this request from other requests by the same extension. (1) indicates that this menu item contributes to a badge count.`]
+		}, "Grant access to {0} for {1} ({2})... (1)", providerLabel, extensionName, accountsMenuLabel)
+		: nls.localize({
+			key: 'accessRequest',
+			comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
+		}, "Grant access to {0} for {1}... (1)", providerLabel, extensionName);
 }
 
 // TODO@TylerLeonhardt: This should all go in MainThreadAuthentication

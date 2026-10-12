@@ -17951,16 +17951,17 @@ declare module 'vscode' {
 		account?: AuthenticationSessionAccountInformation;
 
 		/**
-		 * A custom label for the Accounts menu entry created by a quiet sign-in or access request.
+		 * Text that distinguishes one quiet sign-in or access request from another by the same extension.
 		 *
 		 * When {@link AuthenticationGetSessionOptions.createIfNone createIfNone} is `false` and no usable session is available,
-		 * VS Code adds an entry to the Accounts menu. By default that entry is named after the extension, so several requests
-		 * from one extension look the same. Set this to text that distinguishes them, for example one label per account.
+		 * VS Code adds an entry to the Accounts menu. The entry always names the authentication provider and the extension.
+		 * Set this to a short distinguisher, such as an account or environment name, when one extension makes several requests.
+		 * It is inserted into VS Code's own menu text. It does not replace the provider or extension name.
 		 *
-		 * The label is shown with a trailing `(1)`, which marks the entry as contributing to the Accounts badge.
-		 * Each distinct label is its own menu entry. Signing in from one entry does not remove an entry that uses a different label.
-		 * The label is not passed to the authentication provider and does not select the account. Pass {@link account} or other
-		 * session options when the provider needs to tell the accounts apart.
+		 * A sign-in entry is `Sign in with {provider} to use {extension} ({label}) (1)`. The trailing `(1)` marks the entry as
+		 * contributing to the Accounts badge. Each distinct label is its own menu entry. Signing in from one entry does not
+		 * remove an entry that uses a different label. The label is not passed to the authentication provider and does not
+		 * select the account. Pass {@link account} or other session options when the provider needs to tell the accounts apart.
 		 *
 		 * This does not change the modal dialog used when `createIfNone` or `forceNewSession` is set. Use
 		 * {@link AuthenticationGetSessionPresentationOptions.detail detail} for that message.

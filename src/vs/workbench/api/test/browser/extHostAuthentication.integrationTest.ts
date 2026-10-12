@@ -681,8 +681,8 @@ suite('ExtHostAuthentication', () => {
 
 			const requests = getRequests('context-provider', '2_signInRequests');
 			assert.deepStrictEqual(getRequestTitles('context-provider', '2_signInRequests'), [
-				'Authorize Production (1)',
-				'Authorize Lab (1)'
+				'Sign in with context-provider to use Null Extension Description (Authorize Production) (1)',
+				'Sign in with context-provider to use Null Extension Description (Authorize Lab) (1)'
 			]);
 			assert.ok(provider.requests.every(request => !Object.hasOwn(request.options, 'accountsMenuLabel')));
 
@@ -696,7 +696,7 @@ suite('ExtHostAuthentication', () => {
 			}, {
 				created: 1,
 				sentLabel: false,
-				pending: ['Authorize Lab (1)']
+				pending: ['Sign in with context-provider to use Null Extension Description (Authorize Lab) (1)']
 			});
 		});
 
@@ -725,7 +725,10 @@ suite('ExtHostAuthentication', () => {
 				titles: getRequestTitles('context-provider', '3_accessRequests'),
 				sentLabel: provider.requests.some(request => Object.hasOwn(request.options, 'accountsMenuLabel'))
 			}, {
-				titles: ['Allow Production (1)', 'Allow Lab (1)'],
+				titles: [
+					'Grant access to context-provider for Null Extension Description (Allow Production)... (1)',
+					'Grant access to context-provider for Null Extension Description (Allow Lab)... (1)'
+				],
 				sentLabel: false
 			});
 		});
