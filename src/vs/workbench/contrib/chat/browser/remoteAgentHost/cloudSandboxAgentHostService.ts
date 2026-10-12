@@ -79,6 +79,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _stagedConnections = new Map<string, IStagedCloudSandboxConnection>();
+	private readonly _pendingConnections = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTelemetry = this._register(new DisposableMap<string, ICloudSandboxConnectionTelemetry>());
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
 	private readonly _surface: CloudSandboxConnectionSurface;
@@ -150,6 +151,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	stageConfiguration(options: ICloudSandboxConnectOptions, clientToken: ICloudSandboxClientToken): IRemoteAgentHostEntry {
 		const address = cloudSandboxAddress(options.environmentId);
+		this._pendingConnections.deleteAndDispose(address);
 		const entry: IRemoteAgentHostEntry = {
 			name: options.name,
 			connection: {
@@ -175,6 +177,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	}
 
 	unstageConfiguration(address: string): void {
+		this._pendingConnections.deleteAndDispose(address);
 		this._stagedConnections.delete(address);
 		this._updateEntries();
 	}
@@ -212,6 +215,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
+		this._pendingConnections.set(address, store);
 		try {
 			const telemetry = this._connectionTelemetry.get(address);
 			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
@@ -229,6 +233,29 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					staged.refresher = undefined;
 				}
 			}));
+			const prepareCredentials = (refreshConnection: boolean) => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
+				try {
+					if (refreshConnection) {
+						await refresher.refreshConnectionCredentials();
+					} else {
+						await refresher.ensureUnexpiredCredentials();
+					}
+				} catch (error) {
+					if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
+						throw new CancellationError();
+					}
+					if (staged.refreshState.permanentFailure) {
+						this.unstageConfiguration(address);
+						throw new NonReconnectableTransportError('Mission Control refused connection recovery; reconnect after resolving environment availability or account authorization.',
+							staged.refreshState.permanentFailureStatus === 404 ? AgentHostTransportFailureReason.HostNotRunning : AgentHostTransportFailureReason.Unknown);
+					}
+					throw error;
+				}
+				if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
+					throw new CancellationError();
+				}
+			});
+			await prepareCredentials(false);
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const transportFactory = (): IProtocolTransport => this._instantiationService.createInstance(WebPubSubRelayTransport, {
 				clientConnectionKind: staged.options.environmentKind === 'user-local' ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
@@ -257,29 +284,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
 					onDidSuspend: this._powerService.onDidSuspend,
 					onDidResume: this._powerService.onDidResume,
-					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
-						try {
-							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {
-								await refresher.refreshConnectionCredentials();
-							} else {
-								await refresher.ensureUnexpiredCredentials();
-							}
-						} catch (error) {
-							if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
-								throw new CancellationError();
-							}
-							if (staged.refreshState.permanentFailure) {
-								this.unstageConfiguration(address);
-								throw new NonReconnectableTransportError('Mission Control refused connection recovery; reconnect after resolving environment availability or account authorization.',
-									staged.refreshState.permanentFailureStatus === 404 ? AgentHostTransportFailureReason.HostNotRunning : AgentHostTransportFailureReason.Unknown);
-							}
-							throw error;
-						}
-						if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
-							throw new CancellationError();
-						}
+					prepareReconnect: async () => {
+						await prepareCredentials(staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local');
 						staged.reconnectRequiresRefresh = true;
-					}),
+					},
 					prepareAuthentication: async () => {
 						if (staged.lastAuthenticationToken && staged.lastAuthenticationToken === staged.creds.token.encrypted_github_token) {
 							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshAuthenticationCredentials());
@@ -293,6 +301,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		} catch (error) {
 			store.dispose();
 			throw error;
+		} finally {
+			if (this._pendingConnections.get(address) === store) {
+				this._pendingConnections.deleteAndLeak(address);
+			}
 		}
 	}
 

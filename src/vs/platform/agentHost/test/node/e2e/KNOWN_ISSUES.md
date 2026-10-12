@@ -398,9 +398,7 @@ A user can reopen an Agent Host session and ask Copilot to edit a file. The file
     --grep "client plugin exposes"
   ```
 
-  To evaluate the Codex model-backed path, include Codex in `modelBackedEnabled`
-  in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting
-  Responses fixtures before enabling the group.
+  To evaluate the Codex model-backed path, include Codex in `modelBackedEnabled` in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting Responses fixtures before enabling the group.
 
 ### Automation restart execution coverage is Copilot-scoped
 

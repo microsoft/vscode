@@ -132,6 +132,8 @@ export interface ChatInputFixtureOptions {
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	readonly voiceInputMode?: boolean;
+	/** Gives the matching standalone control or segmented control cell keyboard focus. */
+	readonly focusVoiceControl?: 'dictation' | 'voice';
 	/**
 	 * Docks a notification above the input. Drives the real notification service,
 	 * so the seam between the notice and the input is produced by the stack
@@ -146,7 +148,7 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, focusVoiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = fixtureOptions.sessionResource ?? (agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined);
@@ -377,6 +379,18 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			// screenshot is deterministic.
 			(item as HTMLElement | null)?.style.setProperty('--dictation-mic-level', '0.6');
 		}
+	}
+
+	if (focusVoiceControl) {
+		const focusTarget = session.querySelector<HTMLElement>(
+			fixtureOptions.voiceInputMode
+				? `.chat-voice-input-mode-cell.${focusVoiceControl}:not(.collapsed)`
+				: '.chat-execute-toolbar .action-item:not(.chat-submit-button) > .action-label'
+		);
+		if (!focusTarget) {
+			throw new Error('Expected a visible voice control to focus.');
+		}
+		context.focus(focusTarget);
 	}
 
 	if (pet) {

@@ -294,9 +294,19 @@ suite('customizationMigration', () => {
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
-		const warning = 'Removes \'gallery\'. Registry updates will stop.';
-
-		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
+		assert.deepStrictEqual({
+			galleryEnabled: category.getCandidateWarnings?.(server, 'Copilot'),
+			galleryEnabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: 'https://registry.example', version: '1.0.0' } }, 'Copilot'),
+			galleryDisabled: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false } }, 'Copilot'),
+			galleryDisabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false, version: '1.0.0' } }, 'Copilot'),
+			versionOnly: category.getCandidateWarnings?.({ ...server, removedProperties: { version: '1.0.0' } }, 'Copilot'),
+		}, {
+			galleryEnabled: ['Migrating will stop auto-updates from the MCP registry.'],
+			galleryEnabledWithVersion: ['Migrating will stop auto-updates from the MCP registry.'],
+			galleryDisabled: [],
+			galleryDisabledWithVersion: [],
+			versionOnly: [],
+		});
 	});
 
 	test('explains MCP target conflicts and prioritizes rollback guidance', () => {

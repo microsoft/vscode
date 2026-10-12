@@ -23,7 +23,7 @@ import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectW
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, derived, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
@@ -96,6 +96,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 	private readonly _isVisibleObs = observableValue(this, true);
+	readonly shownChatCount: IObservable<number>;
 
 	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.preparationProgress?.read(reader)
 		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
@@ -145,6 +146,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView));
 		this._contentContainer.appendChild(this._groupsView.element);
+		this.shownChatCount = derived(this, reader => {
+			if (!this._isVisibleObs.read(reader)) {
+				return 0;
+			}
+			return this._standaloneView.read(reader) ? 1 : this._groupsView.groupCount.read(reader);
+		});
 
 		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);

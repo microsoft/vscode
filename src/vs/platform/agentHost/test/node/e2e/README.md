@@ -265,13 +265,7 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
-The Copilot managed-settings diagnostics suite waits for the authenticated
-provider's model catalog before requesting diagnostics. Authentication schedules
-runtime startup asynchronously; the catalog establishes a completed runtime RPC
-without creating a session or making a model request. The policy probe still
-fetches server settings afresh and retains the production 4.5-second overall and
-3.5-second query deadlines. Cold-start deadline behavior is covered by the
-Copilot agent unit tests.
+The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 
 The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
 
@@ -285,25 +279,11 @@ Provider availability:
 
 ### Expected failures
 
-Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
-operation while keeping its desired-behavior assertions. It logs and accepts
-only the specified error. An unexpected pass fails the run and identifies the
-marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
-Setup errors, different failures, and teardown errors remain failures.
-Skip these scenarios while recording so a known early failure cannot overwrite
-a complete fixture with a partial recording. Remove that recording skip together
-with the marker when the upstream fix is adopted.
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing operation while keeping its desired-behavior assertions. It logs and accepts only the specified error. An unexpected pass fails the run and identifies the marker to remove, so SDK rolls detect when an upstream fix reaches the bundle. Setup errors, different failures, and teardown errors remain failures. Skip these scenarios while recording so a known early failure cannot overwrite a complete fixture with a partial recording. Remove that recording skip together with the marker when the upstream fix is adopted.
 
-The native inherited-identity redaction scenario runs this way by default.
-Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
-Do not replace an expected-failure marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default. Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`. Do not replace an expected-failure marker with a permanent negative assertion.
 
-If a recognized failure prevents later model turns, pass
-`{ allowUnconsumedResponses: true }` to the lease's replay verification at
-release, only after `assertExpectedFailure` returns. This permits unused future
-responses without accepting unrecorded requests or request mismatches. The
-option is per release; normal tests still require complete replay consumption.
+If a recognized failure prevents later model turns, pass `{ allowUnconsumedResponses: true }` to the lease's replay verification at release, only after `assertExpectedFailure` returns. This permits unused future responses without accepting unrecorded requests or request mismatches. The option is per release; normal tests still require complete replay consumption.
 
 ---
 
@@ -478,11 +458,7 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 ### Managed-settings schema snapshot
 
-[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts)
-snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime.
-This is a sessionless SDK integration test, not an AHP scenario: it creates no chat,
-calls no model, and starts no MCP servers. It uses an isolated home without login credentials.
-The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
 
 ```bash
 # Compare with the committed baseline.
@@ -708,9 +684,17 @@ Check for the preceding execution's `session.error`, a new host turn, a late roo
 
 Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
 
+### A subagent response is duplicated or stops streaming after its parent finishes
+
+Correlate the child's streaming deltas and assembled message with the parent's idle or replacement turn. A child can outlive its parent: its markdown/reasoning part identifiers and assembled-message deduplication state belong to the child, not the current root turn. Clear that state at the child's own user-message, tool-round, and confirmed-completion boundaries. Assert the child's actual transcript across parent completion and replacement; do not deduplicate by text, since separate child requests can legitimately return identical answers.
+
 ### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
 
 Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComplete(...)` for imperative completion waits: it matches the exact chat and turn, rejects errors, then waits for `chat/isReadChanged` with `isRead: false` and a greater `serverSeq`. Pass the preceding error's sequence when resuming the same turn so an earlier outcome cannot satisfy the wait. Snapshot scenarios use the same helper and exclude outcomes from earlier rounds; the turn driver shares its unread barrier. Do not remove the unread action from the snapshot or add a sleep.
+
+### A retained-subagent snapshot differs only in parent/child event interleaving
+
+Parent coordination-tool completions and child replies arrive on independent chat streams. The retained-subagent follow-up scenario uses `orderIndependentActionTypes` to compare each chat's ordered transcript rather than imposing a cross-chat total order. All event fields and counts are retained; same-chat reordering, failed tools, and missing or duplicated replies still fail. Keep the exact parent tool sequence and child response/turn-state assertions as the primary contract.
 
 ### A later test fails on unexpected console output after a snapshot mismatch
 
