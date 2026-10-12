@@ -4308,7 +4308,8 @@ export class CommandCenter {
 		try {
 			await repository.sync(HEAD, rebase);
 		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.NoRemoteReference || !HEAD.name) {
+			const missingRef = /couldn't find remote ref (?<ref>.+)$/im.exec(err.stderr ?? '')?.groups?.ref;
+			if (err.gitErrorCode !== GitErrorCodes.NoRemoteReference || missingRef !== HEAD.upstream.name || !HEAD.name || !remote || isReadonly) {
 				throw err;
 			}
 
