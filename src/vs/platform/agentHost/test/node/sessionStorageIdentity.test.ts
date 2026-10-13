@@ -1244,6 +1244,20 @@ suite('Session storage identity compatibility', () => {
 			const state = getTestAgentStateManager(restarted).getSessionState(created.toString());
 			const parentChat = state?.defaultChat;
 			const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
+			const resolvedChat = subagent && await getTestAgentStateManager(restarted).resolveChatState(subagent.resource);
+			const subagentResource = subagent?.resource;
+			await second.close();
+
+			const third = await database();
+			const again = createService(third);
+			const freshAgent = store.add(new MockAgent('copilotcli'));
+			freshAgent.sessionMessages = agent.sessionMessages;
+			await freshAgent.chats.createChat(URI.parse(originalDefault), created);
+			registerTestAgentProvider(again, freshAgent);
+			await again.restoreSession(created);
+			await timeout(50);
+			const secondRestore = getTestAgentStateManager(again).getSessionState(created.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource);
+			assert.deepStrictEqual({ resolved: resolvedChat !== undefined, secondRestore }, { resolved: true, secondRestore: [subagentResource] });
 			assert.deepStrictEqual({
 				origin: subagent?.origin,
 				opaque: subagent?.resource.startsWith('ahp-chat:/') && !subagent.resource.startsWith('ahp-chat://'),

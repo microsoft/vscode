@@ -103,7 +103,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
@@ -1165,6 +1165,17 @@ class ActiveClientEntry extends Disposable {
 			}
 		}, delay).catch(() => { /* delayer disposed */ });
 	}
+}
+
+function isSettledSubagentChat(status: SessionStatus): boolean {
+	return (status & (SessionStatus.Idle | SessionStatus.Error)) !== 0 && (status & SessionStatus.InProgress) === 0;
+}
+
+/** A settled child is not observed until it is opened, so its pill is shown as an openable, inactive chat. */
+function markSettledSubagentOpenable(data: IChatSubagentToolInvocationData): void {
+	data.isChatAvailable = true;
+	data.isActive = false;
+	delete data.hasStarted;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -4685,9 +4696,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Only positively identified older hosts get a derived URI; any other host stamps the resource or lists the chat in the catalog.
 		const chatResource = childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
 		const childChatUri = chatResource ?? this._getOlderHostSubagentChatUri(opts.backendSession.toString(), toolCallId);
+		// A settled child that registers after restore is deferred like one registered at restore, but must stay openable.
+		const isSettledDeferred = !observation && !!opts.subagentSnapshot?.waitForActivity && !!childChat && isSettledSubagentChat(childChat.status);
 		const isChatAvailable = observation
 			? observation.chatResource === childChatUri && observation.isChatAvailable
-			: currentData?.isChatAvailable === true;
+			: currentData?.isChatAvailable === true || isSettledDeferred;
 		const description = protocolData.description ?? currentData?.description;
 		const agentName = protocolData.agentName ?? currentData?.agentName;
 		const isPhase = protocolData.presentation === 'phase';
@@ -4706,6 +4719,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				agentName,
 				isActive: isPhase ? protocolData.isActive : currentData?.isActive ?? isObserved,
 			};
+			invocation.notifyToolSpecificDataChanged();
+		}
+		if (isSettledDeferred && invocation.toolSpecificData?.kind === 'subagent'
+			&& (invocation.toolSpecificData.hasStarted !== undefined || invocation.toolSpecificData.isActive !== false)) {
+			markSettledSubagentOpenable(invocation.toolSpecificData);
 			invocation.notifyToolSpecificDataChanged();
 		}
 
@@ -5314,13 +5332,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (childChatUri !== undefined) {
 						part.toolSpecificData.chatResource = childChatUri;
 					}
-					const waitForActivity = !!subagentChat
-						&& (subagentChat.status & (SessionStatus.Idle | SessionStatus.Error)) !== 0
-						&& (subagentChat.status & SessionStatus.InProgress) === 0;
+					const waitForActivity = !!subagentChat && isSettledSubagentChat(subagentChat.status);
 					if (waitForActivity) {
-						part.toolSpecificData.isChatAvailable = true;
-						part.toolSpecificData.isActive = false;
-						delete part.toolSpecificData.hasStarted;
+						markSettledSubagentOpenable(part.toolSpecificData);
 						if (!parentToolCall || !requestId) {
 							continue;
 						}
