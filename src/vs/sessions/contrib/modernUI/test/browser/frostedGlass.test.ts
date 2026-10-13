@@ -87,20 +87,22 @@ suite('Agents frosted glass styles', () => {
 		assert.deepStrictEqual(state(), before);
 	});
 
-	test('keeps sticky picker headings and the automation titlebar solid', () => {
+	test('keeps sticky picker headings solid while the automation titlebar shares the dialog glass', () => {
 		const { root, quickInput, dialog } = createOverlays();
 		dialog.classList.add('automation-dialog');
 		const titlebar = append(dialog, 'automation-titlebar');
 		const sticky = append(quickInput, 'monaco-tree-sticky-container');
 		sticky.style.backgroundColor = 'var(--vscode-quickInput-background)';
-		const original = [titlebar, sticky].map(element => readColor(element).rgba);
+		const originalSticky = readColor(sticky).rgba;
 		root.classList.add('modern-ui-frosted-glass');
 		root.style.setProperty('--modern-ui-glass-opacity', '50%');
 		assert.deepStrictEqual({
-			headings: [titlebar, sticky].map(element => readColor(element).rgba),
+			titlebar: readColor(titlebar).rgba,
+			sticky: readColor(sticky).rgba,
 			dialogTint: Math.round(readColor(dialog, '::before').rgba.a * 100),
 		}, {
-			headings: original,
+			titlebar: new RGBA(0, 0, 0, 0),
+			sticky: originalSticky,
 			dialogTint: supportsGlass(root) ? 50 : 0,
 		});
 	});

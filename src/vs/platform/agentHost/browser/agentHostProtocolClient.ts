@@ -24,7 +24,8 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
+import { CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
@@ -1201,6 +1202,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _restoreAuthentication(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
 		const state = this._state;
+		const transport = this._transport;
 		this._authenticationRestorePending = true;
 		if (this._prepareAuthentication) {
 			await this._raceClose(this._prepareAuthentication());
@@ -1228,7 +1230,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw new InitialAuthenticationError(error);
 			}
 		}
-		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
+		const authenticationKeys = [...this._authentication.keys()];
+		const restoreAuthentication = async (key: string) => {
+			if (this._state !== state || this._transport !== transport) {
+				throw transportLostError(this._address);
+			}
+			const authentication = this._authentication.get(key);
+			if (!authentication) {
+				return;
+			}
 			const now = Date.now();
 			if (isExpired(authentication.expiresAt, now)) {
 				this._authentication.delete(key);
@@ -1262,7 +1272,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource}: ${error instanceof Error ? error.message : String(error)}`);
 			}
-		}));
+		};
+		if (this._isWebPubSubRelay()) {
+			// Relay identity validation must finish before another credential can supersede it.
+			if (initialAuthenticationKey !== undefined) {
+				await restoreAuthentication(initialAuthenticationKey);
+			}
+			for (const key of authenticationKeys) {
+				if (key !== initialAuthenticationKey) {
+					await restoreAuthentication(key);
+				}
+			}
+		} else {
+			await Promise.all(authenticationKeys.map(restoreAuthentication));
+		}
 		await this._refreshRelayRootSnapshot();
 		this._authenticationRestorePending = false;
 	}
@@ -1626,6 +1649,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
 	}
 
+	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		const result = await this._sendExtensionRequest(StopBackgroundWorkExtensionMethod, { chat: chat.toString(), id });
+		return result.stopped;
+	}
+
 	refreshSubscription(resource: URI): Promise<void> {
 		return this._subscriptionManager.refreshSubscription(resource);
 	}
@@ -1850,11 +1878,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return toAgentHostUri(resource, this._connectionAuthority);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
 			session: session?.toString(),
 			chat: chat?.toString(),
 			kind,
+			...(progressToken ? { progressToken } : {}),
 		});
 		if (result.kind !== kind) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned ${result.kind} debug logs for a ${kind} request`);
@@ -1895,16 +1924,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		};
 	}
 
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		if (!supportsAgentHostDebugLogsCancellation(this._initializeResult.get())) {
+			this._logService.debug('[ExportAgentHostDebugLogs] Host does not support collection cancellation');
+			return;
+		}
+		await this._dispatchRequest(CancelAgentHostDebugLogsExtensionMethod, { progressToken }, { timeoutMs: 10_000 });
+	}
+
 	/**
 	 * Read one bounded slice of a debug-log artifact previously returned by
 	 * {@link collectDebugLogs}. `resource` is the agent-host URI handed out by
 	 * that call; it is unwrapped back to the host-local path here.
 	 */
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
-		const result = await this._sendExtensionRequest(ReadAgentHostDebugLogsChunkExtensionMethod, {
+		const result = await this._dispatchRequest<IAgentHostExtensionCommandMap[typeof ReadAgentHostDebugLogsChunkExtensionMethod]['result']>(ReadAgentHostDebugLogsChunkExtensionMethod, {
 			resource: fromAgentHostUri(resource).toString(),
 			position,
-		});
+		}, { timeoutMs: 60_000 });
 		const data = decodeBase64(result.data);
 		if (data.byteLength > AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an oversized debug log chunk');

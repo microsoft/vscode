@@ -1029,6 +1029,14 @@ export class SessionDatabase implements ISessionDatabase {
 		})));
 	}
 
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(() => this._queueTransaction(async db => {
+			const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
+			const value = update(row?.value as string | undefined);
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+		})));
+	}
+
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 		return this._track(() => this._metadataSequencer.queue(() =>
 			this._queueTransaction(async db => {

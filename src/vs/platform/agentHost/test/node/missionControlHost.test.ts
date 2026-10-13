@@ -25,16 +25,22 @@ import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus } from 
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
 import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
+import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
+import { IFileService } from '../../../files/common/files.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,12 +76,13 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
-	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService) {
+	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
 			override readonly isBuilt = true;
 			override readonly userDataPath = '/unused-mission-control-test-profile';
+			override readonly logsHome = URI.file('/mission-control-test-logs');
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
 			override readonly quality = 'stable';
@@ -91,8 +98,9 @@ suite('Mission Control host integration', () => {
 			override readonly onDidChange = Event.None;
 			override getApiBaseUri(): string { return 'https://api.github.com'; }
 		}());
-		instantiation.stub(IAgentService, new class extends mock<IAgentService>() { }());
+		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
+		instantiation.stub(IAgentHostChatOwnershipService, stateManager ? createTestChatOwnershipService(stateManager) : new class extends mock<IAgentHostChatOwnershipService>() { }());
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
 		instantiation.stubInstance(MissionControlProjects, new class extends mock<MissionControlProjects>() {
@@ -100,6 +108,7 @@ suite('Mission Control host integration', () => {
 			override dispose(): void { }
 		}());
 		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(IFileService, new class extends mock<IFileService>() { }());
 		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: ITelemetryData): void {
 				events.push({ eventName, data });
@@ -115,6 +124,27 @@ suite('Mission Control host integration', () => {
 		}));
 		return { host, counts, events };
 	}
+
+	test('registration counts registry identities without requesting session metadata', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		let countReads = 0;
+		const agentService = new class extends mock<IAgentService>() {
+			override async getSessionCount(): Promise<number> {
+				countReads++;
+				return 42;
+			}
+			override async listSessions(): Promise<never> {
+				throw new Error('Mission Control must not load provider metadata to count sessions');
+			}
+		}();
+		createHost(instantiation, undefined, undefined, agentService);
+		const creation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
+		assert.ok(creation);
+		const options = creation.args[1] as IMissionControlEnvironmentHost;
+		assert.deepStrictEqual({ count: await options.getSessionCount?.(), countReads }, { count: 42, countReads: 1 });
+	});
 
 	function createMirror() {
 		const instantiation = store.add(new TestInstantiationService());
@@ -184,7 +214,7 @@ suite('Mission Control host integration', () => {
 	test('continues mirroring restored sessions even when their history is empty', () => {
 		const f = createMirror();
 		const session = 'ahp-session:/restored';
-		f.state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, []);
+		f.state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
 		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 		f.clock.runAll();
 		assert.deepStrictEqual(f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),
@@ -214,7 +244,7 @@ suite('Mission Control host integration', () => {
 		assert.ok(environmentCreation);
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
 		const relay = new class extends mock<MissionControlProtocolServer>() { }();
-		store.add(options.attach(relay, [], () => []));
+		store.add(options.attach(relay, [], () => [], () => []));
 		const handlerCreation = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler);
 		assert.ok(handlerCreation);
 		const config = handlerCreation.args[4] as IProtocolServerConfig;
@@ -222,7 +252,73 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'] });
+			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
+	});
+
+	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() { override dispose(): void { } }());
+		const state = new class extends mock<AgentHostStateManager>() {
+			override getOverlaySessionSummaries() { return []; }
+		}();
+		createHost(instantiation, state);
+		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		const projectOptions = creations.getCalls().find(call => call.args[0] === MissionControlProjects)!.args[1] as ConstructorParameters<typeof MissionControlProjects>[0];
+		const home = '/home/test';
+		let projects = ['/home/test/code/project'];
+		const relay = new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }();
+		store.add(environment.attach(relay, [home], () => [home], () => projects, `${home}/.copilot`));
+		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
+		const initialProjects = projectOptions.getProjectRoots!();
+		projects = ['/another-drive/project'];
+		assert.deepStrictEqual({
+			defaultDirectory: config.defaultDirectory,
+			grants: config.relayResourceRoots!(false),
+			initialProjects,
+			updatedProjects: projectOptions.getProjectRoots!(),
+			catalogueGrants: projectOptions.getRoots(),
+		}, {
+			defaultDirectory: URI.file(`${home}/.copilot`).toString(),
+			grants: [home], initialProjects: ['/home/test/code/project'],
+			updatedProjects: ['/another-drive/project'], catalogueGrants: [home],
+		});
+	});
+
+	test('creates lane-owned Mission Control JSONL loggers in the host log directory', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() {
+			override dispose(): void { }
+		}());
+		createHost(instantiation);
+		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!;
+		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
+		store.add(options.createAhpLogger!('mobile-client', 42));
+		store.add(options.createAhpLogger!('mobile-client', 43));
+		const loggerCreations = creations.getCalls().filter(call => call.args[0] === AhpJsonlLogger);
+		const loggerOptions = loggerCreations[0].args[1] as ConstructorParameters<typeof AhpJsonlLogger>[0];
+		const nextLoggerOptions = loggerCreations[1].args[1] as ConstructorParameters<typeof AhpJsonlLogger>[0];
+		const retentionCreation = creations.getCalls().find(call => call.args[0] === AhpJsonlLogRetention)!;
+		assert.deepStrictEqual({
+			...loggerOptions,
+			retention: loggerOptions.retention instanceof AhpJsonlLogRetention,
+			sharedRetention: loggerOptions.retention === nextLoggerOptions.retention,
+		}, {
+			logsHome: URI.file('/mission-control-test-logs'),
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			connectionId: 'mobile-client-42',
+			transport: 'mission-control',
+			retention: true,
+			sharedRetention: true,
+		});
+		assert.deepStrictEqual(retentionCreation.args[1], {
+			logsHome: URI.file('/mission-control-test-logs'), logId: MISSION_CONTROL_AHP_LOG_ID,
+			maxFiles: 10, maxSizeBytes: 750 * 1024 * 1024,
+		});
 	});
 
 	test('reports bounded host lifecycle metadata without exporting errors or successful heartbeat traffic', () => {
@@ -295,12 +391,15 @@ suite('Mission Control host integration', () => {
 		const enabled = sinon.stub(host.environment, 'isEnabled').get(() => true);
 		store.add(toDisposable(() => enabled.restore()));
 		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
-		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => []));
+		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => [], () => []));
 		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
-		const result = await config.copilotSessionRequest!('extensions/getPlan', { channel: session.toString() });
-		await config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: true });
-		await assert.rejects(config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: 'true' })!, ProtocolError);
-		await assert.rejects(config.copilotSessionRequest!('extensions/getPlan', { channel: 'ahp-session:/missing' })!, ProtocolError);
+		const requests = config.extension!.requests;
+		const getPlan = requests.get('extensions/getPlan')!;
+		const setApproveAll = requests.get('extensions/setSessionApproveAll')!;
+		const result = await getPlan.handle({ channel: session.toString() }, () => { });
+		await setApproveAll.handle({ channel: session.toString(), enabled: true }, () => { });
+		await assert.rejects(setApproveAll.handle({ channel: session.toString(), enabled: 'true' }, () => { }), ProtocolError);
+		await assert.rejects(getPlan.handle({ channel: 'ahp-session:/missing' }, () => { }), ProtocolError);
 		const mirror = environment.createMirror!('environment');
 		store.add(mirror.source);
 		store.add(mirror.mirror);
@@ -313,12 +412,22 @@ suite('Mission Control host integration', () => {
 		assert.deepStrictEqual({
 			result, calls,
 			meta: state.getSessionState(session.toString())?._meta,
-			projects: config.copilotProjects !== undefined,
+			extension: {
+				meta: config.extension?.rootMeta,
+				methods: [...requests.keys()],
+				plan: { readOnly: getPlan.readOnly, requiresChannel: getPlan.requiresChannel },
+				approval: { readOnly: setApproveAll.readOnly, requiresChannel: setApproveAll.requiresChannel },
+			},
 		}, {
 			result: plan,
 			calls: [{ session: session.toString() }, { session: session.toString(), enabled: true }],
 			meta: { existing: 'keep', 'copilot.planHint': { operation: 'update', eventId: 'plan-1' }, 'copilot.todosHint': { eventId: 'todos-1' } },
-			projects: true,
+			extension: {
+				meta: { 'copilot.projectManagement': { available: true } },
+				methods: ['extensions/listProjects', 'extensions/addProject', 'extensions/removeProject', 'extensions/cloneProject', 'extensions/getPlan', 'extensions/setSessionApproveAll'],
+				plan: { readOnly: true, requiresChannel: true },
+				approval: { readOnly: false, requiresChannel: true },
+			},
 		});
 	});
 });

@@ -26,6 +26,7 @@ import {
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
 	parseChangesetUri,
+	changesetSession,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
 	parseFolderChangesetOwnerUri,
@@ -114,13 +115,18 @@ suite('changesetUri', () => {
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
 	});
 
-	test('parseChangesetUri preserves chat ownership and resolves the containing session', () => {
+	test('parseChangesetUri preserves chat ownership and resolves the containing session from the recorded owner', () => {
 		const chatUri = buildChatUri(sessionUri, 'peer');
-		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(chatUri)), {
-			ownerUri: chatUri,
-			sessionUri,
-			changesetId: 'session',
-			kind: ChangesetKind.Session,
+		const recordedOwner = 'copilot:/recorded-owner';
+		const parsed = parseChangesetUri(buildSessionChangesetUri(chatUri));
+		assert.deepStrictEqual({
+			parsed,
+			session: parsed && changesetSession(parsed, chat => chat === chatUri ? recordedOwner : undefined),
+			unknown: parsed && changesetSession(parsed, () => undefined),
+		}, {
+			parsed: { ownerUri: chatUri, sessionUri: undefined, changesetId: 'session', kind: ChangesetKind.Session },
+			session: recordedOwner,
+			unknown: undefined,
 		});
 	});
 
@@ -150,7 +156,7 @@ suite('changesetUri', () => {
 
 	test('parseTurnChangesetUri only matches expanded turn URIs', () => {
 		assert.deepStrictEqual(parseTurnChangesetUri(buildTurnChangesetUri(sessionUri, 't42')),
-			{ sessionUri, turnId: 't42' });
+			{ ownerUri: sessionUri, turnId: 't42' });
 		assert.strictEqual(parseTurnChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')), undefined);
@@ -158,7 +164,7 @@ suite('changesetUri', () => {
 
 	test('parseCompareTurnsChangesetUri only matches expanded compare URIs', () => {
 		assert.deepStrictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
-			{ sessionUri, originalTurnId: 't1', modifiedTurnId: 't2' });
+			{ ownerUri: sessionUri, originalTurnId: 't1', modifiedTurnId: 't2' });
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);

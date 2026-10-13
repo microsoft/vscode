@@ -47,6 +47,11 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		return result.snapshot!.state as SessionState;
 	}
 
+	/** Host-reported read-only values are outside the client's replacement payload. */
+	function writableConfigValues(state: SessionState): Record<string, unknown> | undefined {
+		return state.config && Object.fromEntries(Object.entries(state.config.values).filter(([key]) => !state.config?.schema.properties[key]?.readOnly));
+	}
+
 	async function chatState(chatUri: string): Promise<ChatState> {
 		const result = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 		return result.snapshot!.state as ChatState;
@@ -190,7 +195,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			replace: true,
 		});
 
-		assert.deepStrictEqual((await sessionState(sessionUri)).config?.values, {
+		assert.deepStrictEqual(writableConfigValues(await sessionState(sessionUri)), {
 			[SessionConfigKey.AutoApprove]: 'default',
 		});
 	});
@@ -208,7 +213,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			replace: true,
 		});
 
-		assert.deepStrictEqual((await sessionState(sessionUri)).config?.values, {});
+		assert.deepStrictEqual(writableConfigValues(await sessionState(sessionUri)), {});
 	});
 
 	conformanceTest(context, 'active client set adds a session participant', async function () {

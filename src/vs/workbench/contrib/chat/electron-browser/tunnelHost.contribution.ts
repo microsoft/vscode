@@ -12,7 +12,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -32,7 +32,7 @@ const CATEGORY = localize2('tunnelHost.category', 'Remote Connections');
 export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
 	const remoteTunnelService = accessor.get(IRemoteTunnelService);
 	const configurationService = accessor.get(IConfigurationService);
-	if (configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl') {
+	if (isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 		const sharingService = accessor.get(IMissionControlSharingService);
 		const enabled = sharingService.state.get() !== 'disabled';
 		if (!enabled) {
@@ -125,7 +125,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 	}
 
 	private _enforceSharingBackend(): void {
-		if (this._mode.active && this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl') {
+		if (this._mode.active && isGitHubEnvironmentBackend(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 			this._stopDevTunnelSharing();
 		}
 	}
@@ -138,7 +138,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 	}
 
 	private _updateSharingContext(): void {
-		this._sharingContext.set(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl'
+		this._sharingContext.set(isGitHubEnvironmentBackend(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))
 			? this.missionControlSharingService.state.get() === 'enabled'
 			: getRemoteTunnelAccessState(this._mode, this._status).isSharing);
 	}

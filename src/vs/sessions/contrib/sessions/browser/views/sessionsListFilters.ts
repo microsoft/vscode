@@ -33,7 +33,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 		{ filter: { kind: 'harness', id: 'codex' }, label: localize('harness.codex', "Codex"), group: '1_harnesses' },
 	];
 	const byId = new Map<string, ISessionEnvironment>([
-		['local', { id: 'local', label: localize('environment.local', "Local") }],
+		['local', { id: 'local', label: localize('environment.local', "This Computer") }],
 		['cloud', { id: 'cloud', label: localize('environment.cloud', "Cloud") }],
 	]);
 	for (const environment of environments) {

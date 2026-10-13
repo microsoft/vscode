@@ -1052,6 +1052,15 @@ export interface IWorkbenchMcpServer {
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
+
+/** A server configuration read from its file, together with how to write changes back. */
+export interface IEditableMcpServerConfiguration {
+	readonly config: IMcpServerConfiguration;
+	/** Format of the file, which limits the properties that can be stored. */
+	readonly format: McpResourceFormat;
+	/** Writes {@link config} over {@link previous}, the configuration that was edited. */
+	save(previous: IMcpServerConfiguration, config: IMcpServerConfiguration): Promise<void>;
+}
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
@@ -1064,10 +1073,15 @@ export interface IMcpWorkbenchService {
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	getMcpServerFromGallery(name: string, manifest?: IMcpGalleryManifest): Promise<IWorkbenchMcpServer | undefined>;
-	getMcpServerFromAgentFinder(name: string, version: string, token?: CancellationToken): Promise<IWorkbenchMcpServer | undefined>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	/**
+	 * Resolves the configuration of server {@link name} for editing when {@link source} is a file
+	 * shared with other MCP clients: a workspace root `.mcp.json` or the Copilot CLI's global
+	 * `mcp-config.json`. Returns undefined for any other source, including VS Code's own `mcp.json`.
+	 */
+	resolveEditableMcpServerConfiguration(source: URI, name: string): Promise<IEditableMcpServerConfiguration | undefined>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
 	openSearch(searchValue: string, preserveFocus?: boolean): Promise<void>;

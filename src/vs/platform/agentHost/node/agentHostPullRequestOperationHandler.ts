@@ -23,7 +23,8 @@ import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubRequestTimeoutError } from '../../github/common/githubTypes.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, IAgentHostUtilityModelService, type IAgentHostUtilityModelContext } from './agentHostUtilityModelService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -106,7 +107,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
-		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentHostUtilityModelService private readonly _utilityModelService: IAgentHostUtilityModelService,
 		@IAgentBranchNameGenerator private readonly _branchNameGenerator: IAgentBranchNameGenerator,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
@@ -120,7 +121,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		return this._withAbortSignal(token, async (signal, client) => {
 			const expectedContext = readPullRequestValidationMeta(params);
-			const { sessionUri, sourceUri, ownerUri, conversationState, workingDirectory, gitHubState, branchName, baseBranchName, preparationContext } = await this._resolveContext(params, token, expectedContext);
+			const { sessionUri, sourceUri, ownerUri, conversationState, conversationChat, workingDirectory, gitHubState, branchName, baseBranchName, preparationContext } = await this._resolveContext(params, token, expectedContext);
 			if (expectedContext) {
 				return {};
 			}
@@ -139,7 +140,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			let description = '';
 			let generationError: string | undefined;
 			try {
-				({ title, description } = await this._generateTitleAndDescription(conversationState, workingDirectory, branchName, baseBranchName, branchChanges, signal, token));
+				({ title, description } = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat }, workingDirectory, branchName, baseBranchName, branchChanges, signal, token));
 			} catch (err) {
 				this._throwIfCancelled(token);
 				generationError = this._reportGenerationError(err);
@@ -399,7 +400,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		let generated: { title: string; description: string } | undefined;
 		if (!submitted) {
 			try {
-				generated = await this._generateTitleAndDescription(conversationState, workingDirectory, branchName, baseBranchName, branchChanges, signal, token);
+				generated = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat }, workingDirectory, branchName, baseBranchName, branchChanges, signal, token);
 			} catch (err) {
 				this._throwIfCancelled(token);
 				this._reportGenerationError(err);
@@ -630,6 +631,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	/** Generates from bounded conversation and file context; callers decide how to surface failures. */
 	private async _generateTitleAndDescription(
 		sessionState: ISessionWithDefaultChat,
+		modelContext: IAgentHostUtilityModelContext,
 		workingDirectory: URI,
 		branchName: string,
 		base: string,
@@ -637,30 +639,40 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		signal: AbortSignal,
 		token: CancellationToken,
 	): Promise<{ title: string; description: string }> {
-		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const authToken = this._authenticationService.getAuthToken({
-			resource: copilotResource.resource,
-			scopes: copilotResource.scopes_supported,
-		});
-		if (!authToken) {
-			throw new Error(localize('agentHost.changeset.pr.generationAuthRequired', "Sign in to Copilot to generate a pull request title and description, or enter them manually."));
-		}
-
 		const conversation = buildConversationContext(sessionState.turns, { maxChars: MAX_PR_CONVERSATION_CONTEXT_CHARS });
 		const changeSummary = this._summarizeDiffsForPrompt(branchChanges, workingDirectory);
 		if (!conversation && !changeSummary) {
 			throw new Error(localize('agentHost.changeset.pr.generationNoContext', "There is no conversation or change context to generate a pull request title and description."));
 		}
 
-		const raw = await this._copilotApiService.utilityChatCompletion(authToken, {
-			messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
-		}, { signal });
+		let raw: string;
+		try {
+			raw = await this._utilityModelService.chatCompletion(modelContext, {
+				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
+			}, { signal });
+		} catch (err) {
+			if (err instanceof AgentHostUtilityModelUnavailableError) {
+				throw new Error(this._utilityModelUnavailableMessage(err.reason));
+			}
+			throw err;
+		}
 		this._throwIfCancelled(token);
 		const generated = this._parseTitleAndDescription(raw);
 		if (!generated) {
 			throw new Error(localize('agentHost.changeset.pr.generationInvalidResponse', "The model did not return a pull request title and description. Enter them manually."));
 		}
 		return generated;
+	}
+
+	private _utilityModelUnavailableMessage(reason: AgentHostUtilityModelUnavailableReason): string {
+		switch (reason) {
+			case AgentHostUtilityModelUnavailableReason.CopilotSignInRequired:
+				return localize('agentHost.changeset.pr.generationAuthRequired', "Sign in to Copilot to generate a pull request title and description, or enter them manually.");
+			case AgentHostUtilityModelUnavailableReason.NotConfigured:
+				return localize('agentHost.changeset.pr.generationUtilityModelNotConfigured', "No utility model is configured for the selected BYOK model. Configure {0} or {1} to generate a pull request title and description, or enter them manually.", 'chat.utilitySmallModel', 'chat.byokUtilityModelDefault');
+			case AgentHostUtilityModelUnavailableReason.ByokModelUnavailable:
+				return localize('agentHost.changeset.pr.generationByokModelUnavailable', "The BYOK model used to generate a pull request title and description is unavailable. Enter them manually.");
+		}
 	}
 
 	private _reportGenerationError(error: unknown): string {
