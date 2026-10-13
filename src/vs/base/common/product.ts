@@ -456,6 +456,11 @@ export interface IDefaultChatAgent {
 	readonly tokenEntitlementUrl: string;
 	readonly mcpRegistryDataUrl: string;
 	readonly mcpConnectorsUrl?: string;
+	readonly agentFinderCustomizationFeedIds?: {
+		readonly editorsPicks: string;
+		readonly planBuildAndShip: string;
+		readonly connectYourWork: string;
+	};
 	readonly managedSettingsUrl: string;
 
 	readonly chatQuotaExceededContext: string;

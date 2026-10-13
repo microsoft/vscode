@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -81,6 +81,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		installedPlugins: readonly IAgentPlugin[] = [],
 		setupUrl?: URI,
 		installedIdentifiers: readonly string[] = [],
+		browseSections?: ICustomizationMarketplaceBrowseSections,
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -139,6 +140,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly allSources = sources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
+			override async getBrowseSections() { return browseSections; }
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
 				requests.push({ options, token, result });
@@ -1671,6 +1673,112 @@ suite('AICustomizationDiscoveryPage', () => {
 			id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
 			args: [],
 		}]);
+	});
+
+	test('renders curated Browse sections in feed order using existing cards', async () => {
+		const editorsPicks = [
+			resource('impeccable', { displayName: 'Impeccable', mediaType: CustomizationMarketplaceMediaType.Skill, description: 'Improve interface design.' }),
+			resource('foundry', { displayName: 'Foundry canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, description: 'Design hosted agents.' }),
+		];
+		const planBuildAndShip = [
+			resource('figma', { displayName: 'Figma MCP', description: 'Use Figma context.' }),
+			resource('playwright', { displayName: 'Playwright MCP', description: 'Automate browsers.' }),
+		];
+		const connectYourWork = [
+			resource('workiq', { displayName: 'WorkIQ', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, description: 'Connect Microsoft 365.' }),
+			resource('azure-devops', { displayName: 'Azure DevOps MCP', description: 'Connect Azure DevOps.' }),
+		];
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [{
+					id: 'editors',
+					title: 'Editor\'s picks',
+					items: editorsPicks,
+				}, {
+					id: 'plan',
+					title: 'Plan, build, and ship',
+					items: planBuildAndShip,
+				}, {
+					id: 'connect',
+					title: 'Connect your work',
+					items: connectYourWork,
+				}],
+			},
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('catalog-fallback')] });
+		await timeout(0);
+
+		const sections = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-section')].map(section => ({
+			title: section.querySelector('.customization-discovery-section-title')?.textContent,
+			featured: section.classList.contains('featured'),
+			items: [...section.querySelectorAll('.customization-discovery-card-name')].map(element => element.textContent),
+		}));
+		const accessible = fixture.page.getAccessibilityContent();
+		const headingPositions = [
+			accessible.indexOf('Editor\'s picks'),
+			accessible.indexOf('Plan, build, and ship'),
+			accessible.indexOf('Connect your work'),
+		];
+		assert.deepStrictEqual({
+			sections,
+			fallbackVisible: accessible.includes('catalog-fallback'),
+			headingOrder: headingPositions.every(position => position >= 0)
+				&& headingPositions[0] < headingPositions[1]
+				&& headingPositions[1] < headingPositions[2],
+		}, {
+			sections: [{
+				title: 'Editor\'s picks',
+				featured: true,
+				items: ['Impeccable', 'Foundry canvas'],
+			}, {
+				title: 'Plan, build, and ship',
+				featured: false,
+				items: ['Figma MCP', 'Playwright MCP'],
+			}, {
+				title: 'Connect your work',
+				featured: false,
+				items: ['WorkIQ', 'Azure DevOps MCP'],
+			}],
+			fallbackVisible: false,
+			headingOrder: true,
+		});
+	});
+
+	test('falls back to catalog Browse groups when curated feeds fail', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [],
+				error: 'Curated feeds unavailable',
+			},
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('catalog-skill', { mediaType: CustomizationMarketplaceMediaType.Skill })],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			headings: [...fixture.container.querySelectorAll('.customization-discovery-section-title')].map(element => element.textContent),
+			warning: fixture.page.getAccessibilityContent().includes('Curated feeds unavailable'),
+			item: fixture.container.querySelector('.customization-discovery-card-name')?.textContent,
+		}, {
+			headings: ['Expand your agent\'s horizons'],
+			warning: true,
+			item: 'catalog-skill',
+		});
 	});
 
 
