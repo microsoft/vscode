@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-required.
+    response:
+      content: turn-required
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-withdrawn.
+    response:
+      content: turn-withdrawn
+      stopReason: end_turn

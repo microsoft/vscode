@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-install-v1.
+    response:
+      content: turn-install-v1
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-apply-update.
+    response:
+      content: turn-apply-update
+      stopReason: end_turn

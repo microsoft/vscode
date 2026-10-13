@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-install-failure.
+    response:
+      content: turn-install-failure
+      stopReason: end_turn

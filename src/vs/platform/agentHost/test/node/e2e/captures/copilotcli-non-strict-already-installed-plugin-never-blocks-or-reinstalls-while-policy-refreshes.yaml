@@ -1,0 +1,34 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-install-setup.
+    response:
+      content: turn-install-setup
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-refresh-pending.
+    response:
+      content: turn-refresh-pending
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-refresh-pending.
+        - role: assistant
+          content: turn-refresh-pending
+        - role: user
+          content: Reply with exactly turn-after-refresh.
+    response:
+      content: turn-after-refresh
+      stopReason: end_turn
