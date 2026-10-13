@@ -72,23 +72,28 @@ suite('TerminalProcess startup disposal', () => {
 		};
 	}
 
-	async function shutdown(terminal: TerminalProcess): Promise<void> {
+	async function shutdown(terminal: TerminalProcess, immediate = true): Promise<void> {
 		const exited = new Promise<void>(resolve => store.add(Event.once(terminal.onProcessExit)(() => resolve())));
-		terminal.shutdown(true);
+		terminal.shutdown(immediate);
 		await exited;
 	}
 
-	test('does not spawn after shutdown during asynchronous validation', async () => {
-		const fixture = createTerminal();
-		try {
-			const startup = fixture.terminal.start();
-			await shutdown(fixture.terminal);
-			await startup;
-			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 0, nativePtyPresent: false, titlePolling: false });
-		} finally {
-			fixture.cleanup();
-		}
-	});
+	for (const immediate of [true, false]) {
+		test(`does not spawn after shutdown during asynchronous validation (immediate: ${immediate})`, async () => {
+			const throttle = new DeferredPromise<void>();
+			const fixture = createTerminal(undefined, process.cwd(), () => throttle.p);
+			try {
+				const startup = fixture.terminal.start();
+				await shutdown(fixture.terminal, immediate);
+				await throttle.complete();
+				await startup;
+				assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 0, nativePtyPresent: false, titlePolling: false });
+			} finally {
+				await throttle.complete();
+				fixture.cleanup();
+			}
+		});
+	}
 
 	test('does not spawn when started after shutdown', async () => {
 		const fixture = createTerminal();
