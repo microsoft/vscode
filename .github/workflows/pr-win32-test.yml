@@ -239,6 +239,8 @@ jobs:
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
         env:
           VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)

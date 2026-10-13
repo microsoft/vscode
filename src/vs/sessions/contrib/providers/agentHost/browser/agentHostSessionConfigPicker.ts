@@ -1271,7 +1271,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					? worktreeDisabled
 						? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
 						: localize('agentHostSessionConfig.isolation.worktreeDescription', "Creates a separate copy for this session")
-					: localize('agentHostSessionConfig.isolation.branchDescription', "Works in the repository already on your machine"),
+					: localize('agentHostSessionConfig.isolation.branchDescription', "Works in the repository already on this computer"),
 				disabled: value === 'worktree' && worktreeDisabled,
 			}));
 		}

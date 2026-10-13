@@ -373,14 +373,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& candidate.source.url === request.itemUrl
 			);
 			if (!matched || matched.kind === 'plugin') {
-				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 			}
 			candidate = matched;
 			searchId = search.searchId;
 		}
 		if (candidate.kind !== (request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server')) {
 			retained?.dispose();
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
 		try {
 			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId);
@@ -404,7 +404,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			}
 			const plan = result.outcome.plan;
 			if (request.version !== undefined && plan.review.catalogue.version !== request.version) {
-				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Discover and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Browse and try again."));
 			}
 			const review = this.toSkillReview(generateUuid(), 'install', plan.review);
 			this.addOperation(new PendingCustomizationInstallation(
@@ -431,7 +431,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			|| request.displayName !== candidate.displayName
 			|| request.description !== (candidate.description ?? '')
 		) {
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
 		const planned = await client.rpc.mcp.planInstall({
 			contract: {
@@ -452,7 +452,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			choice?.installMethod === 'remote' && choice.secretPlaceholders.length === 0
 		);
 		if (!choice || choice.installMethod !== 'remote') {
-			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Discover cannot collect yet."));
+			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Browse cannot collect yet."));
 		}
 		const prepared = await client.rpc.mcp.prepareInstall({
 			contract: mcpInstallationContract,

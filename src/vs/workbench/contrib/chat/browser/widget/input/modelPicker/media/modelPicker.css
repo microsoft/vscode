@@ -781,7 +781,7 @@
 	pointer-events: auto;
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) {
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-image-model, .chat-model-picker-image-off) {
 	padding-top: var(--vscode-spacing-size60);
 	padding-bottom: var(--vscode-spacing-size60);
 }
@@ -803,11 +803,11 @@
 	content: none;
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) > .codicon:first-child {
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-image-model, .chat-model-picker-image-off) > .codicon:first-child {
 	height: var(--vscode-spacing-size200);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) .detail {
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-image-model, .chat-model-picker-image-off) .detail {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
@@ -816,18 +816,6 @@
 	line-height: var(--vscode-spacing-size160);
 	white-space: normal;
 	opacity: 1;
-}
-
-/* WebKit can't float inside a -webkit-box, so a detail with a link is clamped by height, with a spacer pushing the link to the second line. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link {
-	display: block;
-	max-height: 2lh;
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link::before {
-	content: '';
-	float: right;
-	height: 1lh;
 }
 
 .chat-model-picker-welcome {

@@ -9,7 +9,8 @@ import type { IAgentChatUsageSignal } from '../../../common/agent.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { readChatUsage, withChatUsage, type IAgentChatUsage } from '../../../common/meta/agentUsageMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { parseRequiredSessionUriFromChatUri, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import type { URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Publishes exact-chat aggregate billing independently of turn usage and content. */
@@ -18,25 +19,25 @@ export class ChatUsageContribution extends Disposable implements IAgentHostChatC
 	static readonly id = 'chatUsage';
 	readonly order = 100;
 	/** Resume can report billing before the orchestrator restores the chat catalog. */
-	private readonly _pendingUsage = new Map<ProtocolURI, IAgentChatUsage>();
+	private readonly _pendingUsage = new Map<ProtocolURI, { readonly usage: IAgentChatUsage; readonly removedSessions: Set<ProtocolURI> }>();
 
 	constructor(
 		_context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._register(_stateManager.onDidRemoveSession(session => {
-			for (const chat of this._pendingUsage.keys()) {
-				if (parseRequiredSessionUriFromChatUri(chat) === session) {
-					this._pendingUsage.delete(chat);
-				}
+			for (const pending of this._pendingUsage.values()) {
+				// Ownership may not exist yet. Reject the receipt if its eventual owner was removed.
+				pending.removedSessions.add(session);
 			}
 		}));
 	}
 
 	onChatUsage(signal: IAgentChatUsageSignal): void {
 		const chat = signal.chat.toString();
-		this._pendingUsage.set(chat, signal.usage);
+		this._pendingUsage.set(chat, { usage: signal.usage, removedSessions: new Set() });
 		this._publishChatUsage(chat);
 	}
 
@@ -59,16 +60,23 @@ export class ChatUsageContribution extends Disposable implements IAgentHostChatC
 	}
 
 	private _publishChatUsage(chat: ProtocolURI): void {
-		const usage = this._pendingUsage.get(chat);
-		if (!usage) {
+		const pending = this._pendingUsage.get(chat);
+		if (!pending) {
 			return;
 		}
-		const session = parseRequiredSessionUriFromChatUri(chat);
+		const session = this._chatOwnership.getChatOwner(chat);
+		if (session === undefined) {
+			return;
+		}
 		const state = this._stateManager.getSessionState(session);
 		if (!state?.chats.some(summary => summary.resource === chat)) {
 			return;
 		}
 		this._pendingUsage.delete(chat);
+		if (pending.removedSessions.has(session)) {
+			return;
+		}
+		const { usage } = pending;
 		if (!equals(readChatUsage(state, chat), usage)) {
 			this._stateManager.setSessionMeta(session, withChatUsage(state, chat, usage));
 		}

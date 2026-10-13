@@ -118,6 +118,8 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+	/** Resource the chat's persisted data is keyed by, recorded for the chat being hydrated. */
+	readonly storageResource: ProtocolURI;
 	/** Workspace transitions preloaded from this chat's backing storage, when present. */
 	readonly workspaceTransitions?: ReadonlyMap<string, string>;
 }

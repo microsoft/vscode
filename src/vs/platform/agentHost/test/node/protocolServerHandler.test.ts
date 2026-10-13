@@ -55,7 +55,7 @@ import { missionControlSessionConfigAdapter } from '../../node/missionControl/mi
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -73,6 +73,8 @@ import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
+import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -187,6 +189,18 @@ class TestTelemetryService implements ITelemetryService {
 	setCommonProperty(): void { }
 }
 
+/** Resolves chat owners from the live registry, then from owners a test records for chats that are not registered. */
+class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
+	constructor(stateManager: AgentHostStateManager, private readonly _coldOwners: ReadonlyMap<string, string>) {
+		super(stateManager, new EmptyOwnershipDatabase());
+	}
+
+	override async resolveChatOwner(chat: string): Promise<IChatOwnerResolution | undefined> {
+		const owner = this.getChatOwner(chat) ?? this._coldOwners.get(chat);
+		return owner === undefined ? undefined : { owner, spawnedBy: undefined };
+	}
+}
+
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
@@ -285,12 +299,14 @@ class MockAgentService implements IAgentService {
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
-		this._stateManager.addChat(session.toString(), chat.toString());
+		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
+	readonly chatOwners = new Map<string, string>();
 	async getSessionCount(): Promise<number> {
 		return this.listedSessions.length;
 	}
@@ -481,6 +497,31 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
+	function startPendingClientToolCall(chat: string, clientId: string): void {
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			invocationMessage: 'Run Task',
+			toolInput: '{}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+	}
+
 	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
 		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
@@ -521,6 +562,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			devContainerService = disposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 	});
 
@@ -1183,6 +1225,7 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-debug-logs');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 12);
+		agentService.chatOwners.set(buildChatUri('copilotcli:/session-1', 'peer-1'), 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
 			session: 'copilotcli:/session-1',
@@ -1236,6 +1279,7 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 17);
 		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
+		agentService.chatOwners.set(chat, 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',
@@ -1263,6 +1307,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService,
 			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1315,6 +1360,7 @@ suite('ProtocolServerHandler', () => {
 				...NullAgentHostOTelService, diagnosticsEnabled: true,
 				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
 			},
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1730,6 +1776,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1776,7 +1823,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayRoots: [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const root = URI.file(process.cwd()).toString();
 		const connect = (lane: string, claimed: string, passive: boolean) => {
@@ -1828,7 +1875,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayRoots: [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-lane', false));
 			relay.simulateConnection(transport);
@@ -1914,7 +1961,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, relayRootMeta: relay.rootMeta, defaultDirectory: URI.file(roots[0]).toString() },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 				);
 				return relayHandler;
 			},
@@ -2874,7 +2921,7 @@ suite('ProtocolServerHandler', () => {
 						return [process.cwd()];
 					}
 				},
-				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			let reads = 0;
 			agentService.resourceRead = async () => { reads++; return { data: 'protected', encoding: ContentEncoding.Utf8 }; };
@@ -2956,7 +3003,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, advertisedModelProviders: ['copilotcli'] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const connectRelay = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'model-relay', false, AgentHostClientConnectionKind.WebPubSub));
@@ -3105,7 +3152,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const connect = (clientId: string, passive: boolean) => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, passive));
@@ -3301,6 +3348,7 @@ suite('ProtocolServerHandler', () => {
 			override getProviderForSession() { return provider; }
 		}());
 		instantiation.stub(IAgentHostStateManager, stateManager);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 		const extension = instantiation.createInstance(MissionControlCopilotExtension, projects);
 		stateManager.createSession(makeSessionSummary());
 		const relay = disposables.add(new MockProtocolServer());
@@ -3310,7 +3358,7 @@ suite('ProtocolServerHandler', () => {
 				allowExtensionMethods: false, extension,
 			},
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
 		active.relayAuthenticated = false;
@@ -3399,7 +3447,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { sessionConfigAdapter: missionControlSessionConfigAdapter },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const connect = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-config', false));
@@ -3618,7 +3666,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'case-plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -3652,7 +3700,7 @@ suite('ProtocolServerHandler', () => {
 			await Promise.all([writeFile(plan.fsPath, '# Full plan'), writeFile(privateFile.fsPath, 'private'), writeFile(otherPlan.fsPath, 'unrelated')]);
 			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
 			const chat = buildChatUri(sessionUri, 'opaque-peer');
-			stateManager.addChat(sessionUri, chat);
+			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat));
 			agentService.getSessionPlanFile = (session, resource) => session.toString() === sessionUri && resource.toString() === chat ? plan : undefined;
 			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
 			agentService.resourceResolve = async params => ({ uri: params.uri, type: ResourceType.File });
@@ -3664,7 +3712,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -3776,7 +3824,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mcp-lane', false));
 		transport.relayAuthenticated = true;
@@ -3832,7 +3880,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		let mcpCalls = 0;
 		let fileReads = 0;
@@ -3878,7 +3926,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace, content] : [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'scoped-lane', false));
 			transport.relayAuthenticated = true;
@@ -3913,8 +3961,8 @@ suite('ProtocolServerHandler', () => {
 				await previews.mkdir(URI.parse(uri).with({ path: dirname(URI.parse(uri).path) }));
 				await previews.writeFile(URI.parse(uri), VSBuffer.fromString(data).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
 			}
-			stateManager.addChat(sessionUri, peerChat);
-			stateManager.addChat(sessionUri, workerChat, { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
 			for (const [chat, tool, uri] of [[buildDefaultChatUri(sessionUri), 'tool-call', pendingContent], [peerChat, 'peer-tool', peerContent], [workerChat, 'worker-tool', workerContent]]) {
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'preview-turn', startedAt: '2026-09-30T19:00:00.000Z',
@@ -4035,7 +4083,7 @@ suite('ProtocolServerHandler', () => {
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay, { allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'local-client', false));
 		relay.simulateConnection(transport);
@@ -4411,7 +4459,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ relayResourceRoots: () => [process.cwd()] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'ordered-relay', false));
 				transport.relayAuthenticated = true;
@@ -4446,7 +4494,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ relayResourceRoots: () => [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const connect = (clientId: string) => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
@@ -4776,7 +4824,7 @@ suite('ProtocolServerHandler', () => {
 				_meta: { live: 'current' },
 			};
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4828,7 +4876,7 @@ suite('ProtocolServerHandler', () => {
 	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			const listedSession: IAgentSessionMetadata = {
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4879,7 +4927,7 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -5407,7 +5455,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat);
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
@@ -5884,6 +5932,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			)));
 		}
 
@@ -5931,6 +5980,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -5981,6 +6031,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -6032,6 +6083,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -6075,6 +6127,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -6126,6 +6179,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -6295,7 +6349,7 @@ suite('ProtocolServerHandler', () => {
 			subscribeCalls.push(resource.toString());
 			let snapshot = stateManager.getSnapshot(resource.toString());
 			if (!snapshot) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				snapshot = stateManager.getSnapshot(resource.toString())!;
 			}
 			return snapshot;
@@ -6345,7 +6399,7 @@ suite('ProtocolServerHandler', () => {
 		// restarted host restored its sessions while answering the reconnect.
 		agentService.subscribe = async (resource, _clientId) => {
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			}
 			return stateManager.getSnapshot(resource.toString())!;
@@ -6391,7 +6445,7 @@ suite('ProtocolServerHandler', () => {
 				throw new Error('No agent for session: ' + deadTerminal);
 			}
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			}
 			return stateManager.getSnapshot(resource.toString())!;
 		};
@@ -7123,6 +7177,125 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 	});
 
+	const retainedSubscriptionCases: readonly {
+		readonly name: string;
+		readonly subscriptions: (peerChat: string, siblingChat: string) => readonly string[];
+		readonly unsubscribe: (peerChat: string) => string;
+	}[] = [
+			{
+				name: 'parent session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'sibling nested session subscription',
+				subscriptions: (peerChat, siblingChat) => [peerChat, siblingChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'nested session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: () => sessionUri,
+			},
+		];
+	for (const { name, subscriptions, unsubscribe } of retainedSubscriptionCases) {
+		test(`unsubscribe retains active client and pending tool calls with a remaining ${name}`, async () => {
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const siblingChat = buildChatUri(sessionUri, 'sibling');
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat));
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			startPendingClientToolCall(peerChat, 'client-tools');
+
+			const transport = connectClient('client-tools', subscriptions(peerChat, siblingChat));
+			await handler.whenIdle();
+			transport.simulateMessage(notification('unsubscribe', { channel: unsubscribe(peerChat) }));
+
+			const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+			}, {
+				activeClients: ['client-tools'],
+				toolCallStatus: ToolCallStatus.Running,
+			});
+
+			transport.simulateClose();
+		});
+	}
+
+	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.createSession(makeSessionSummary());
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(peerChat, 'client-tools');
+
+		const transport = connectClient('client-tools', [peerChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: peerChat }));
+
+		const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCall: part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined,
+		}, {
+			activeClients: [],
+			toolCall: {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			},
+		});
+
+		transport.simulateClose();
+	});
+
+	test('malformed nested session subscription does not interrupt active-client reconciliation', async () => {
+		const malformedChat = 'ahp-chat://malformed';
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(defaultChatUri, 'client-tools');
+
+		const transport = connectClient('client-tools', [sessionUri, malformedChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+		}, {
+			activeClients: [],
+			toolCallStatus: ToolCallStatus.Completed,
+		});
+
+		transport.simulateClose();
+	});
+
 	test('reconnect without resubscription removes the active client and fails its owned tool calls', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -7395,6 +7568,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -7536,6 +7710,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -7677,6 +7852,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(otlpStateManager, otlpAgentService.chatOwners),
 			));
 		});
 
@@ -7851,6 +8027,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(dlStateManager, dlAgentService.chatOwners),
 			));
 		});
 

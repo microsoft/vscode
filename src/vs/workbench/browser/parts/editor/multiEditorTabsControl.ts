@@ -289,7 +289,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// is created and the last tab remains the last child of the tabs
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
-			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
+			this.tabsContainer.classList.add('has-add-tab');
+			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
 		}
 
 		// Create Editor Toolbar
@@ -417,6 +418,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsScrollbar.setScrollPosition({
 					scrollLeft: tabsContainer.scrollLeft // during DND the container gets scrolled so we need to update the custom scrollbar
 				});
+				this.updateConnectedTabClipping(tabsContainer.scrollLeft);
 			}
 		}));
 
@@ -2001,7 +2003,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			height = 0;
 		} else if (
 			(this.groupsView.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) ||
-			(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && this.tabsAndActionsContainer?.classList.contains('connected-tab-upper-bar'))
+			(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && this.tabsAndActionsContainer)
 		) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
@@ -2090,7 +2092,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.connectedTabLabels = connected;
 			this.forEachTab((editor, index, tab, widget, label) => this.redrawTabLabel(editor, index, tab, widget, label));
 		}
-		this.layoutConnectedTabLabels(connected);
 		this.layoutFitTabsWithoutReservedActions();
 
 		// Always first layout tabs with wrapping support even if wrapping
@@ -2098,19 +2099,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
-		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
-		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		if (connected && tabsWrapMultiLine !== didTabsWrapMultiLine) {
-			this.layoutConnectedTabLabels(connected);
-			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {
-				this.doLayoutTabsWrapping(dimensions, true);
-				this.layoutConnectedTabLabels(connected);
-				tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions, true);
-			} else {
-				tabsWrapMultiLine = remeasuredTabsWrapMultiLine;
-			}
-		}
+		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		const top = this.getTabAtIndex(0)?.offsetTop;
 		const bottom = this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
@@ -2134,16 +2123,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private layoutConnectedTabLabels(connected: boolean): void {
-		this.forEachTab((_editor, _index, tab) => {
-			tab.classList.remove('connected-tab-narrow');
-			tab.style.removeProperty('--connected-tab-min-width');
-			if (connected && !tab.classList.contains('sticky-compact') && !tab.classList.contains('sizing-fit')) {
-				tab.classList.toggle('connected-tab-narrow', tab.offsetWidth < 102);
-			}
-		});
-	}
-
 	private layoutFitTabsWithoutReservedActions(): void {
 		if (this.parent.classList.contains('tab-actions-reserve-space') || !this.parent.closest('.modern-ui-tabs')) {
 			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('--tab-sizing-fit-width'));
@@ -2157,7 +2136,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabs.push(tab);
 			}
 		});
-		const widths = tabs.map(tab => this.getFitTabWidth(tab));
+		const widths = this.getFitTabWidths(tabs);
 		for (const [index, tab] of tabs.entries()) {
 			const width = widths[index];
 			tab.style.setProperty('--tab-sizing-fit-width', `${width}px`);
@@ -2171,20 +2150,46 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		tab.classList.toggle('tab-action-sizing-rest', !tab.classList.contains('dirty') && !tab.classList.contains('sticky'));
-		tab.style.setProperty('--tab-sizing-fit-width', `${this.getFitTabWidth(tab)}px`);
+		tab.style.setProperty('--tab-sizing-fit-width', `${this.getFitTabWidths([tab])[0]}px`);
 		tab.classList.remove('tab-action-sizing-rest');
 	}
 
+	private getFitTabWidths(tabs: readonly HTMLElement[]): number[] {
+		// Cache intrinsic width, not the current wrapped row's constraint.
+		const maxWidths = tabs.map(tab => tab.style.maxWidth);
+		for (const tab of tabs) {
+			tab.style.maxWidth = 'none';
+		}
+		try {
+			return tabs.map(tab => this.getFitTabWidth(tab));
+		} finally {
+			for (const [index, tab] of tabs.entries()) {
+				tab.style.maxWidth = maxWidths[index];
+			}
+		}
+	}
+
 	private getFitTabWidth(tab: HTMLElement): number {
-		const style = getWindow(tab).getComputedStyle(tab);
+		const targetWindow = getWindow(tab);
+		const style = targetWindow.getComputedStyle(tab);
 		const width = Number.parseFloat(style.width);
 		if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
 			return width;
 		}
 		const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
 		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
-		// A frozen border-box cannot be narrower than the padding needed when its action appears.
-		return Math.max(width, labelPadding + actionPadding + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth));
+		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		const label = tab.querySelector<HTMLElement>('.tab-label');
+		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
+		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
+		/* eslint-enable no-restricted-syntax */
+		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
+		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
+		const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);
+		const shortNameWidth = Math.max(Number.parseFloat(style.fontSize), MultiEditorTabsControl.TAB_WIDTH.fit - labelPadding - actionPadding - adornmentWidth - borderWidth);
+		const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, shortNameWidth);
+		// Keep short fit names complete without reserving the action column on naturally wider tabs.
+		return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
@@ -2192,6 +2197,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
 		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+		const addTabContainer = this.addTabContainer;
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
@@ -2199,6 +2205,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
 		let tabsWrapMultiLine = didTabsWrapMultiLine;
+		tabsContainer.style.setProperty('--last-tab-add-tab-width', `${addTabContainer?.offsetWidth ?? 0}px`);
 
 		function updateTabsWrapping(enabled: boolean): void {
 			tabsWrapMultiLine = enabled;
@@ -2232,7 +2239,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
+				const modernFit = lastTab.classList.contains('sizing-fit') && !!this.parent.closest('.modern-ui-tabs');
+				let terminalGutter = 0;
+				if (modernFit) {
+					const marginInlineEnd = lastTab.style.marginInlineEnd;
+					lastTab.style.marginInlineEnd = 'var(--modern-ui-tab-terminal-gutter)';
+					try {
+						terminalGutter = Number.parseFloat(getWindow(lastTab).getComputedStyle(lastTab).marginInlineEnd);
+					} finally {
+						lastTab.style.marginInlineEnd = marginInlineEnd;
+					}
+				}
+				const availableLastTabWidth = dimensions.available.width - editorToolbarWidth() - (this.addTabContainer?.offsetWidth ?? 0) - terminalGutter;
+				const lastTabWidth = modernFit ? Math.max(MultiEditorTabsControl.TAB_WIDTH.shrink, Math.min(lastTab.offsetWidth, availableLastTabWidth)) : lastTab.offsetWidth;
+				const lastTabOverlapWithToolbarWidth = lastTabWidth + editorToolbarWidth() + (this.addTabContainer?.offsetWidth ?? 0) + terminalGutter - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385
@@ -2541,11 +2561,45 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-background');
 		this.connectedTabBounds = undefined;
+		this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
 	}
 
 	private updateConnectedTabClipping(scrollLeft: number): void {
-		if (this.connectedTabBounds) {
-			updateConnectedTabClipping(this.connectedTabBounds, scrollLeft);
+		const terminalTab = this.getLastTab();
+		if (this.addTabContainer && this.addTabContainer.offsetWidth > 0 && this.tabsContainer && terminalTab && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && !this.tabsAndActionsContainer?.classList.contains('wrapping')) {
+			const tabsBounds = this.tabsContainer.getBoundingClientRect();
+			const addBounds = this.addTabContainer.getBoundingClientRect();
+			const scale = this.tabsContainer.offsetWidth > 0 ? tabsBounds.width / this.tabsContainer.offsetWidth : 1;
+			const rtl = getWindow(this.tabsContainer).getComputedStyle(this.tabsContainer).direction === 'rtl';
+			const shoulderSpace = Number.parseFloat(getWindow(terminalTab).getComputedStyle(terminalTab).marginInlineEnd);
+			const viewportEdge = rtl ? addBounds.right + shoulderSpace * scale : addBounds.left - shoulderSpace * scale;
+			const clipping: { tab: HTMLElement; clipped: number }[] = [];
+			this.forEachTab((_editor, _index, tab) => {
+				const bounds = tab.getBoundingClientRect();
+				clipping.push({ tab, clipped: Math.max(0, (rtl ? viewportEdge - bounds.left : bounds.right - viewportEdge) / scale) });
+			});
+			if (this.connectedTabBounds) {
+				const activeLeft = this.connectedTabBounds.tab.getBoundingClientRect().left;
+				const viewportLeft = rtl
+					? Math.max(this.connectedTabBounds.viewportLeft, ((activeLeft < viewportEdge ? viewportEdge : addBounds.right) - tabsBounds.left) / scale)
+					: this.connectedTabBounds.viewportLeft;
+				const viewportRight = rtl ? this.tabsContainer.offsetWidth : (addBounds.left - tabsBounds.left) / scale;
+				this.connectedTabBounds.overflowEdge.style.left = `${viewportLeft}px`;
+				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer.offsetWidth - viewportRight}px`;
+				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportLeft, viewportRight }, scrollLeft);
+			}
+			const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
+			for (const { tab, clipped } of clipping) {
+				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
+			}
+		} else {
+			if (this.connectedTabBounds) {
+				const viewportRight = this.addTabContainer?.offsetWidth === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;
+				this.connectedTabBounds.overflowEdge.style.left = `${this.connectedTabBounds.viewportLeft}px`;
+				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
+				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);
+			}
+			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
 		}
 	}
 

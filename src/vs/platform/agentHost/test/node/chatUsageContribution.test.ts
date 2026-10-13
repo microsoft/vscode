@@ -14,10 +14,12 @@ import type { IAgentChatUsageSignal } from '../../common/agent.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { readChatUsage, type IAgentChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, isAhpChatChannel, parseRequiredSessionUriFromChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, isAhpChatChannel, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ChatUsageContribution } from '../../node/chatContributions/chatUsage/chatUsageContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 abstract class UsageObserver extends Disposable implements IAgentHostChatContribution {
 	constructor(_context: IAgentHostChatContributionContext) {
@@ -35,15 +37,17 @@ suite('ChatUsageContribution', () => {
 	function createContext() {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const chatOwnership = createTestChatOwnershipService(stateManager);
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, chatOwnership],
 		), true));
 		const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		const registration = disposables.add(contributions.registerContribution(ChatUsageContribution));
 		disposables.add(stateManager.onDidEmitEnvelope(envelope => contributions.didDispatchAction({
 			channel: envelope.channel,
-			session: isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel,
+			session: isAhpChatChannel(envelope.channel) ? chatOwnership.requireChatOwner(envelope.channel) : envelope.channel,
 			action: envelope.action,
 			rejectionReason: envelope.rejectionReason,
 		})));
@@ -65,7 +69,7 @@ suite('ChatUsageContribution', () => {
 		context.report(peer, { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' });
 		context.createSession();
 		const beforePeer = context.stateManager.getSessionState(session)?._meta;
-		context.stateManager.addChat(session, peer, { title: 'Peer' });
+		context.stateManager.addChat(session, peer, peer, { title: 'Peer' });
 		assert.deepStrictEqual({
 			beforePeer,
 			afterPeer: context.stateManager.getSessionState(session)?._meta,
@@ -104,7 +108,7 @@ suite('ChatUsageContribution', () => {
 			rejectionReason: 'not applied',
 		} as const;
 		context.contributions.didDispatchAction(rejected);
-		context.stateManager.addChat(session, peer, { title: 'Peer' });
+		context.stateManager.addChat(session, peer, peer, { title: 'Peer' });
 		context.contributions.didDispatchAction(rejected);
 		const afterRejection = readChatUsage(context.stateManager.getSessionState(session), peer);
 		context.stateManager.removeChat(session, peer);
@@ -126,13 +130,34 @@ suite('ChatUsageContribution', () => {
 		context.report(otherPeer);
 		context.stateManager.removeSession(session);
 		context.createSession();
-		context.stateManager.addChat(session, peer, { title: 'Peer' });
+		context.stateManager.addChat(session, peer, peer, { title: 'Peer' });
 		context.createSession(otherSession);
-		context.stateManager.addChat(otherSession, otherPeer, { title: 'Other peer' });
+		context.stateManager.addChat(otherSession, otherPeer, otherPeer, { title: 'Other peer' });
+		const removed = readChatUsage(context.stateManager.getSessionState(session), peer);
+		const newUsage = { totalNanoAiu: 125_000_000 };
+		context.report(peer, newUsage);
 		assert.deepStrictEqual({
-			removed: readChatUsage(context.stateManager.getSessionState(session), peer),
+			removed,
+			newReceipt: readChatUsage(context.stateManager.getSessionState(session), peer),
 			other: readChatUsage(context.stateManager.getSessionState(otherSession), otherPeer),
-		}, { removed: undefined, other: usage });
+		}, { removed: undefined, newReceipt: newUsage, other: usage });
+	});
+
+	test('publishes buffered usage to the recorded owner rather than the session in the chat URI', () => {
+		const context = createContext();
+		const mintedSession = 'copilot:/original-usage-owner';
+		const movedChat = buildChatUri(mintedSession, 'moved-peer');
+		context.createSession(mintedSession);
+		context.createSession();
+		context.report(movedChat);
+		context.stateManager.removeSession(mintedSession);
+		context.stateManager.addChat(session, movedChat, movedChat, { title: 'Moved peer' });
+		context.createSession(mintedSession);
+
+		assert.deepStrictEqual({
+			recordedOwner: readChatUsage(context.stateManager.getSessionState(session), movedChat),
+			mintedOwner: readChatUsage(context.stateManager.getSessionState(mintedSession), movedChat),
+		}, { recordedOwner: usage, mintedOwner: undefined });
 	});
 
 	test('unregistering the contribution stops publication and drops buffered usage', () => {

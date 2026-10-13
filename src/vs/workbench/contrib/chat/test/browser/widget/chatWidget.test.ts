@@ -61,6 +61,7 @@ import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModel
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewWelcomeController.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -937,6 +938,97 @@ suite('ChatWidget', () => {
 			empty: true,
 			progress: false,
 			message: false,
+		});
+	});
+
+	test('agent-host harnesses share the local welcome content in each chat mode', () => {
+		const input = { currentModeKind: ChatModeKind.Agent };
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			inputPartDisposable: { value: input },
+			chatSessionsService: { getChatSessionContribution: () => undefined },
+		}) as {
+			_lockedAgent?: { id: string; prefix: string; agentHostProviderId?: string };
+			getWelcomeViewContent(additionalMessage: string): IChatViewWelcomeContent;
+		};
+		const results = [];
+		const expected = [];
+		for (const mode of [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit]) {
+			input.currentModeKind = mode;
+			widget._lockedAgent = undefined;
+			const local = widget.getWelcomeViewContent('Additional welcome message');
+			for (const id of [SessionType.AgentHostCopilot, 'remote-test-copilotcli', 'agent-host-claude']) {
+				widget._lockedAgent = { id, prefix: `@${id} `, agentHostProviderId: id.endsWith('claude') ? 'claude' : 'copilotcli' };
+				results.push(widget.getWelcomeViewContent('Additional welcome message'));
+				expected.push(local);
+			}
+		}
+		widget._lockedAgent = { id: 'cloud', prefix: '@copilot ' };
+		const cloud = widget.getWelcomeViewContent('Additional welcome message');
+
+		assert.deepStrictEqual({
+			agentHost: results,
+			cloud: cloud.title,
+		}, {
+			agentHost: expected,
+			cloud: 'Delegate to @copilot ',
+		});
+	});
+
+	test('switching to an agent-host harness preserves the signed-out welcome and instructions hint', () => {
+		const container = dom.$('.chat-welcome-view-container');
+		const contents: IChatViewWelcomeContent[] = [];
+		let instructionsHintCalls = 0;
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_location: { location: ChatAgentLocation.Chat },
+			_viewModel: { getItems: () => [] },
+			inputPartDisposable: { value: { currentModeKind: ChatModeKind.Agent } },
+			viewOptions: {},
+			lifecycleService: { willShutdown: false },
+			chatAgentService: { getDefaultAgent: () => undefined },
+			chatEntitlementService: { anonymous: false, sentiment: { completed: false } },
+			chatSessionsService: { getChatSessionContribution: () => undefined },
+			welcomePart: store.add(new MutableDisposable()),
+			welcomeMessageContainer: container,
+			instantiationService: {
+				createInstance: (_ctor: object, content: IChatViewWelcomeContent) => {
+					contents.push(content);
+					return Object.assign(toDisposable(() => { }), {
+						element: dom.$('div', undefined, content.title),
+						needsRerender: () => true,
+					});
+				},
+			},
+			_getGenerateInstructionsMessage: () => {
+				instructionsHintCalls++;
+				return 'Generate Agent Instructions';
+			},
+			updateChatViewVisibility: () => { },
+		}) as {
+			_lockedAgent?: { id: string; prefix: string; agentHostProviderId?: string };
+			renderWelcomeViewContentIfNeeded(): void;
+		};
+
+		widget.renderWelcomeViewContentIfNeeded();
+		widget._lockedAgent = { id: SessionType.AgentHostCopilot, prefix: `@${SessionType.AgentHostCopilot} `, agentHostProviderId: 'copilotcli' };
+		widget.renderWelcomeViewContentIfNeeded();
+		widget._lockedAgent = { id: 'cloud', prefix: '@copilot ' };
+		widget.renderWelcomeViewContentIfNeeded();
+		widget._lockedAgent = undefined;
+		widget.renderWelcomeViewContentIfNeeded();
+
+		assert.deepStrictEqual({
+			contents: contents.map(content => ({ title: content.title, additionalMessage: content.additionalMessage })),
+			instructionsHintCalls,
+			restored: container.textContent,
+		}, {
+			contents: [
+				{ title: 'Build with Agent', additionalMessage: 'Generate Agent Instructions' },
+				{ title: 'Build with Agent', additionalMessage: 'Generate Agent Instructions' },
+				{ title: 'Delegate to @copilot ', additionalMessage: undefined },
+				{ title: 'Build with Agent', additionalMessage: 'Generate Agent Instructions' },
+			],
+			instructionsHintCalls: 3,
+			restored: 'Build with Agent',
 		});
 	});
 

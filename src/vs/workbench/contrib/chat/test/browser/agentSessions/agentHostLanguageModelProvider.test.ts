@@ -244,7 +244,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
+				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: 'Ensemble routes based on your task and real-time system health and model performance.' },
 				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
 			],
 			plain: undefined,
@@ -281,8 +281,8 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
-			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
 			['hydrafusion-max', undefined, undefined],
 		]);
