@@ -781,31 +781,43 @@ export class PlaywrightDriver {
 	 * position lookup and the click. The fallback only kicks in when a known
 	 * actionability error occurs — specifically when an overlay element intercepts
 	 * pointer events (the known case is Monaco's `.native-edit-context`, z-index: -10,
-	 * which `elementFromPoint` returns instead of the intended target). Other errors
-	 * (e.g. selector not found, detached element, timeout on a genuinely missing
-	 * element) are rethrown so real failures aren't silently masked.
+	 * which `elementFromPoint` returns instead of the intended target). Transient DOM
+	 * detachment is retried while the editor rerenders. Other errors are rethrown so
+	 * real failures aren't silently masked.
 	 */
 	async robustClick(selector: string, timeoutMs: number = 2000, position?: { x: number; y: number }): Promise<void> {
-		if (position) {
-			const { x, y } = await this.getElementXY(selector, position.x, position.y);
-			// Leave toolbar hovers before checking whether the editor click target is unobscured.
-			await this.page.mouse.move(x, y);
-		}
-		try {
-			await this.page.click(selector, { timeout: timeoutMs, position });
-			return;
-		} catch (err) {
-			if (!this.isPointerInterceptedError(err)) {
-				throw err;
+		const detachedRetryDeadline = Date.now() + 20000;
+		while (true) {
+			if (position) {
+				const { x, y } = await this.getElementXY(selector, position.x, position.y);
+				// Leave toolbar hovers before checking whether the editor click target is unobscured.
+				await this.page.mouse.move(x, y);
 			}
 			try {
-				await this.clickAtStablePosition(selector, 100, 5000, position);
-			} catch (fallbackErr) {
-				const orig = err instanceof Error ? err.message : String(err);
-				const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-				throw new Error(`robustClick fallback failed for '${selector}'. Original page.click error: ${orig}. Fallback error: ${fb}`);
+				await this.page.click(selector, { timeout: timeoutMs, position });
+				return;
+			} catch (err) {
+				if (this.isElementDetachedError(err) && Date.now() < detachedRetryDeadline) {
+					continue;
+				}
+				if (!this.isPointerInterceptedError(err)) {
+					throw err;
+				}
+				try {
+					await this.clickAtStablePosition(selector, 100, 5000, position);
+				} catch (fallbackErr) {
+					const orig = err instanceof Error ? err.message : String(err);
+					const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+					throw new Error(`robustClick fallback failed for '${selector}'. Original page.click error: ${orig}. Fallback error: ${fb}`);
+				}
+				return;
 			}
 		}
+	}
+
+	private isElementDetachedError(err: unknown): boolean {
+		const message = err instanceof Error ? err.message : String(err);
+		return message.includes('element was detached from the DOM');
 	}
 
 	/**
