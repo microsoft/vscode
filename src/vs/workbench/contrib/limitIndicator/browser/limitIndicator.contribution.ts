@@ -149,13 +149,9 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 
 	private _update(): void {
 		const model = this._editor.getModel();
-		if (!model) {
-			return;
-		}
-		if (filterValidationDecorations(this._editor.getOptions())) {
-			return;
-		}
-		const markerLimit = this._markerDecorationsService.getMarkerLimits(model.uri);
+		const markerLimit = model && !filterValidationDecorations(this._editor.getOptions())
+			? this._markerDecorationsService.getMarkerLimits(model.uri)
+			: undefined;
 		if (!markerLimit) {
 			if (this._limited !== false) {
 				this._limited = false;
