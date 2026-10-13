@@ -9,8 +9,9 @@ import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../../ba
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
-import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
+import { emitConnectionDiagnostic, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
@@ -38,9 +39,33 @@ export interface IMissionControlBootstrap {
 	readonly groups: { readonly control: string; readonly ingest_ack?: string };
 }
 
+export interface IMissionControlPublishMeasurements {
+	readonly bytes: number;
+	readonly frameCount: number;
+	readonly chunked: boolean;
+	readonly queueWaitMs: number;
+	readonly ackLatencyMs: number;
+	readonly maxAckLatencyMs: number;
+	readonly peakInFlight: number;
+}
+
+export type MissionControlPublishFailure = 'ackTimeout' | 'publishRejected' | 'socketFailure' | 'queueLimit' | 'mirrorBackpressure';
+
+export type MissionControlPublishDiagnostic = IConnectionDiagnosticEvent & (
+	| { readonly phase: 'relayPublish'; readonly outcome: 'succeeded'; readonly durationMs: number; readonly measurements: IMissionControlPublishMeasurements }
+	| { readonly phase: 'relayPublish'; readonly outcome: 'failed'; readonly failure: MissionControlPublishFailure }
+	| { readonly phase: 'relayQueue'; readonly outcome: 'info'; readonly measurements: { readonly frames: number; readonly bytes: number } }
+	| { readonly phase: 'relayConnection'; readonly outcome: 'info'; readonly connected: boolean }
+);
+
+export type MissionControlPublishDiagnosticObserver = (event: MissionControlPublishDiagnostic) => void;
+
 const relayKeepAliveTimeoutMs = 15 * 60_000;
 const maxQueuedMirrorFrames = 128;
 const maxQueuedMirrorBytes = 16 * 1024 * 1024;
+const maxInFlightChunkFrames = 4;
+const maxInFlightPublishBytes = 4 * 1024 * 1024;
+const publishAckTimeoutMs = 30_000;
 
 function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
@@ -172,11 +197,35 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	}
 }
 
-interface QueuedPublish {
+interface PublishFrame {
 	readonly ackId: number;
 	readonly frame: string;
+	readonly chunkGroup?: string;
 	readonly mirror?: boolean;
 	readonly batch?: { readonly lane: MissionControlLane; readonly group: string; readonly generation: number };
+}
+
+interface PublishGroup {
+	readonly watch: StopWatch;
+	readonly frameCount: number;
+	readonly bytes: number;
+	readonly chunkGroup?: string;
+	remaining: number;
+	firstSentMs?: number;
+	peakInFlight: number;
+	ackLatencyMs: number;
+	maxAckLatencyMs: number;
+}
+
+interface QueuedPublish extends PublishFrame {
+	readonly bytes: number;
+	readonly publication: PublishGroup;
+}
+
+interface PendingPublish {
+	readonly publish: QueuedPublish;
+	readonly sentMs: number;
+	readonly deadline: number;
 }
 
 /**
@@ -193,13 +242,16 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweep = this._register(new IntervalTimer());
 	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => {
+		this._reportPublishFailure('ackTimeout');
 		this.dispose();
 		this._onError(new Error('Mission Control WPS acknowledgement timed out'));
-	}, 30_000));
+	}, publishAckTimeoutMs));
 	private readonly _ready = new DeferredPromise<void>();
-	private readonly _pending = new Set<number>();
+	private readonly _pending = new Map<number, PendingPublish>();
 	private readonly _outbound: QueuedPublish[] = [];
 	private _outboundBytes = 0;
+	private _pendingBytes = 0;
+	private _activePublication: PublishGroup | undefined;
 	private _queuedMirrorFrames = 0;
 	private _queuedMirrorBytes = 0;
 	private _draining = false;
@@ -225,6 +277,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		readonly rootMeta?: Record<string, unknown>,
 		private readonly _mirror?: MissionControlSessionMirror,
 		private readonly _createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger,
+		private readonly _onDiagnostic?: MissionControlPublishDiagnosticObserver,
 	) {
 		super();
 		parseGroupName(_bootstrap.groups.control, { expected: { uid: _owner, eid: _environment } });
@@ -244,12 +297,14 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._socket.on('message', data => this._receive(data));
 		this._socket.on('close', code => {
 			if (!this._closed) {
+				this._reportPublishFailure('socketFailure');
 				this.dispose();
 				this._onError(new Error(`Mission Control WPS socket closed (code ${code})`));
 			}
 		});
 		this._socket.on('error', error => {
 			if (!this._closed) {
+				this._reportPublishFailure('socketFailure');
 				this.dispose();
 				this._onError(error);
 			}
@@ -268,8 +323,28 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	}
 
 	private _waitForAck(): void {
-		this._ackDeadline ??= Date.now() + 30_000;
-		this._ackTimeout.schedule(Math.max(0, this._ackDeadline - Date.now()));
+		this._ackDeadline ??= Date.now() + publishAckTimeoutMs;
+		this._scheduleAckTimeout();
+	}
+
+	private _reportPublishFailure(failure: MissionControlPublishFailure): void {
+		if (!this._closed) {
+			emitConnectionDiagnostic(this._onDiagnostic, {
+				operationId: '', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+			});
+		}
+	}
+
+	private _scheduleAckTimeout(): void {
+		let deadline = this._ackDeadline ?? Infinity;
+		for (const pending of this._pending.values()) {
+			deadline = Math.min(deadline, pending.deadline);
+		}
+		if (deadline === Infinity) {
+			this._ackTimeout.cancel();
+		} else {
+			this._ackTimeout.schedule(Math.max(0, deadline - Date.now()));
+		}
 	}
 
 	private _send(frame: object): void {
@@ -290,6 +365,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({
 			ackId: frame.ackId,
 			frame: JSON.stringify(frame),
+			chunkGroup: frame.data.kind === 'chunk' ? frame.data.group_id : undefined,
 			batch: frame.data.kind === 'message' ? { lane, group, generation } : undefined,
 		}));
 		this._enqueue(frames);
@@ -303,7 +379,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		const frame = JSON.stringify({ ...event, ackId });
 		const bytes = Buffer.byteLength(frame);
 		if (this._queuedMirrorFrames >= maxQueuedMirrorFrames || this._queuedMirrorBytes + bytes > maxQueuedMirrorBytes
-			|| this._outbound.length >= 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
+			|| this._outbound.length + this._pending.size >= 512 || this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024) {
+			this._reportPublishFailure('mirrorBackpressure');
 			return false;
 		}
 		this._ackId = ackId;
@@ -311,12 +388,17 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		return undefined;
 	}
 
-	private _enqueue(frames: readonly QueuedPublish[]): void {
+	private _enqueue(frames: readonly PublishFrame[]): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
-		if (this._closed || this._outbound.length + frames.length > 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
+		if (this._closed || this._outbound.length + this._pending.size + frames.length > 512 || this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024) {
+			this._reportPublishFailure('queueLimit');
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
 		}
-		this._outbound.push(...frames);
+		const publication: PublishGroup = {
+			watch: StopWatch.create(false), frameCount: frames.length, bytes, chunkGroup: frames[0].chunkGroup,
+			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+		};
+		this._outbound.push(...frames.map(frame => ({ ...frame, bytes: Buffer.byteLength(frame.frame), publication })));
 		this._outboundBytes += bytes;
 		for (const frame of frames) {
 			if (frame.mirror) {
@@ -324,6 +406,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				this._queuedMirrorBytes += Buffer.byteLength(frame.frame);
 			}
 		}
+		emitConnectionDiagnostic(this._onDiagnostic, {
+			operationId: '', phase: 'relayQueue', timestamp: Date.now(), outcome: 'info',
+			measurements: { frames: this._outbound.length + this._pending.size, bytes: this._outboundBytes + this._pendingBytes },
+		});
 		this._drain();
 	}
 
@@ -359,14 +445,14 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 		}
 		for (const queued of this._outbound.splice(0, count)) {
-			const bytes = Buffer.byteLength(queued.frame);
-			this._outboundBytes -= bytes;
-			if (queued.mirror) {
-				this._queuedMirrorFrames--;
-				this._queuedMirrorBytes -= bytes;
-			}
+			this._outboundBytes -= queued.bytes;
 		}
-		return { ackId: first.ackId, frame };
+		const bytes = Buffer.byteLength(frame);
+		const publication: PublishGroup = count === 1 ? first.publication : {
+			watch: first.publication.watch, frameCount: 1, bytes,
+			remaining: 1, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+		};
+		return { ...first, frame, bytes, publication };
 	}
 
 	private _drain(): void {
@@ -375,13 +461,27 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		this._draining = true;
 		try {
-			while (this._pending.size === 0 && this._outbound.length > 0) {
+			while (!this._closed && this._outbound.length > 0 && this._pending.size < maxInFlightChunkFrames) {
+				const first = this._outbound[0];
+				// Only fragments of one payload may overlap; whole messages retain their ACK barrier.
+				if (this._activePublication && (!first.chunkGroup || first.chunkGroup !== this._activePublication.chunkGroup || first.publication !== this._activePublication)) {
+					break;
+				}
+				if (this._pending.size > 0 && this._pendingBytes + first.bytes > maxInFlightPublishBytes) {
+					break;
+				}
 				const next = this._takeOutbound();
-				this._pending.add(next.ackId);
-				this._waitForAck();
+				const sentMs = next.publication.watch.elapsed();
+				next.publication.firstSentMs ??= sentMs;
+				this._activePublication = next.publication;
+				this._pending.set(next.ackId, { publish: next, sentMs, deadline: Date.now() + publishAckTimeoutMs });
+				this._pendingBytes += next.bytes;
+				next.publication.peakInFlight = Math.max(next.publication.peakInFlight, this._pending.size);
+				this._scheduleAckTimeout();
 				this._socket!.send(next.frame);
 			}
 		} catch (error) {
+			this._reportPublishFailure('socketFailure');
 			this.dispose();
 			throw error;
 		} finally {
@@ -404,6 +504,9 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			const fields = frame as Record<string, unknown>;
 			if (fields.type === 'system' && fields.event === 'connected') {
 				this._connected = true;
+				emitConnectionDiagnostic(this._onDiagnostic, {
+					operationId: '', phase: 'relayConnection', timestamp: Date.now(), outcome: 'info', connected: true,
+				});
 				this._bootstrapJoins.add(this._bootstrap.groups.control);
 				if (this._mirror && this._bootstrap.groups.ingest_ack) {
 					this._bootstrapJoins.add(this._bootstrap.groups.ingest_ack);
@@ -421,10 +524,36 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				}
 				const group = this._joins.get(id);
 				this._joins.delete(id);
-				const pending = this._pending.delete(id);
+				const pending = this._pending.get(id);
+				this._pending.delete(id);
 				if ((group || pending) && fields.success !== true && !(pending && (fields.error as { name?: string } | undefined)?.name === 'Duplicate')) {
+					this._reportPublishFailure('publishRejected');
 					this.dispose();
 					throw new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
+				}
+				if (pending) {
+					this._pendingBytes -= pending.publish.bytes;
+					if (pending.publish.mirror) {
+						this._queuedMirrorFrames--;
+						this._queuedMirrorBytes -= pending.publish.bytes;
+					}
+					const publication = pending.publish.publication;
+					const ackLatencyMs = publication.watch.elapsed() - pending.sentMs;
+					publication.ackLatencyMs += ackLatencyMs;
+					publication.maxAckLatencyMs = Math.max(publication.maxAckLatencyMs, ackLatencyMs);
+					if (--publication.remaining === 0) {
+						this._activePublication = undefined;
+						emitConnectionDiagnostic(this._onDiagnostic, {
+							operationId: String(id), phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded',
+							durationMs: publication.watch.elapsed(),
+							detail: `bytes=${publication.bytes}; frames=${publication.frameCount}; queueWaitMs=${publication.firstSentMs}; meanAckLatencyMs=${publication.ackLatencyMs / publication.frameCount}; maxAckLatencyMs=${publication.maxAckLatencyMs}; peakInFlight=${publication.peakInFlight}`,
+							measurements: {
+								bytes: publication.bytes, frameCount: publication.frameCount, chunked: publication.chunkGroup !== undefined,
+								queueWaitMs: publication.firstSentMs!, ackLatencyMs: publication.ackLatencyMs,
+								maxAckLatencyMs: publication.maxAckLatencyMs, peakInFlight: publication.peakInFlight,
+							},
+						});
+					}
 				}
 				if (group && group !== this._bootstrap.groups.control && group !== this._bootstrap.groups.ingest_ack) {
 					const clientId = parseGroupName(group).scope === 'client' ? group.split('.')[5] : undefined;
@@ -441,10 +570,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 						this._ready.complete();
 					}
 				}
-				if (this._joins.size === 0 && this._pending.size === 0) {
-					this._ackTimeout.cancel();
+				if (this._joins.size === 0) {
 					this._ackDeadline = undefined;
 				}
+				this._scheduleAckTimeout();
 				this._drain();
 				this._mirror?.resumePublishing();
 				return;
@@ -586,6 +715,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	override dispose(): void {
 		if (!this._closed) {
 			this._closed = true;
+			this._connected = false;
+			emitConnectionDiagnostic(this._onDiagnostic, {
+				operationId: '', phase: 'relayConnection', timestamp: Date.now(), outcome: 'info', connected: false,
+			});
 			if (!this._ready.isSettled) {
 				this._ready.error(new Error('Mission Control WPS connection closed before joining control group'));
 			}
@@ -593,6 +726,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			this._socket = undefined;
 			this._outbound.length = 0;
 			this._outboundBytes = 0;
+			this._pendingBytes = 0;
+			this._activePublication = undefined;
 			this._queuedMirrorFrames = 0;
 			this._queuedMirrorBytes = 0;
 			this._pending.clear();
