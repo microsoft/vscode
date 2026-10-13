@@ -270,7 +270,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			allSources: [
 				[sourceId, 'vscode-team-kit'],
 				[unavailableSourceId, 'unavailable-kit'],
-				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, 'GitHub Copilot'],
+				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.displayName],
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
 			],
 			enabledSources: [
