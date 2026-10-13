@@ -451,7 +451,10 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 };
 
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
-	return mcpServerCustomizationMigrationRemovableProperties
+	const inputWarnings = server.environmentVariables?.length
+		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
+		: [];
+	return [...inputWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
 		.flatMap(property => {
 			switch (property) {
@@ -468,7 +471,7 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 				case 'sandboxEnabled':
 					return [localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel)];
 			}
-		});
+		})];
 }
 
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
