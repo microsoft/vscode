@@ -20,6 +20,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest, UTILITY_DEFAULT_TEMPERATURE, UTILITY_DEFAULT_TOP_P } from './shared/copilotApiService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** LM API vendor of Copilot models; an override naming it is not a BYOK model. */
 const COPILOT_VENDOR = 'copilot';
@@ -108,6 +109,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
@@ -219,7 +221,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model
 			?? state?.activeTurn?.message.model
-			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat))
+			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat)))
 			?? state?.turns.at(-1)?.message.model;
 		if (!selection) {
 			return undefined;

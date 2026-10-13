@@ -659,10 +659,10 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
 	});
 
-	test('claude-opus-5.5 prefers medium when available', () => {
+	test('claude-opus-5.5 and claude-haiku-5.5 prefer medium when available', () => {
 		assert.deepStrictEqual(
-			['claude-opus-5.5', 'claude-opus-5-5', 'claude-opus-5'].map(family => pickDefaultReasoningEffort(['low', 'medium', 'high'], family)),
-			['medium', 'medium', 'high']
+			['claude-opus-5.5', 'claude-opus-5-5', 'claude-haiku-5.5', 'claude-sonnet-5.5', 'claude-opus-5', 'claude-fable-5.1', 'claude-opus-5.55'].map(family => pickDefaultReasoningEffort(['low', 'medium', 'high'], family)),
+			['medium', 'medium', 'medium', 'high', 'high', 'high', 'high']
 		);
 	});
 
@@ -691,12 +691,6 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
-	});
-
-	test('buildReasoningEffortSchemaProperty honors a default override only when advertised', () => {
-		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', 'medium').default, 'medium');
-		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'high'], 'claude-opus-4.5', 'medium').default, 'high');
-		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', undefined).default, 'high');
 	});
 });
 

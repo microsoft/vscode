@@ -217,7 +217,7 @@ suite('AgentHostChatCatalogMigration', () => {
 		}, {
 			firstAttempt: { status: 'notReady' },
 			legacyAuthority: 1,
-			preservedLegacy: { chat: peer, order: 0, providerData: 'stale', inheritedTurnId: 'stale-turn' },
+			preservedLegacy: { chat: peer, ownerSession: session.toString(), order: 0, providerData: 'stale', inheritedTurnId: 'stale-turn' },
 			reconciled: 'applied',
 			migration: 'applied',
 			authority: 2,

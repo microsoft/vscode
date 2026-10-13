@@ -49,6 +49,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
@@ -112,6 +113,8 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 
@@ -1361,6 +1364,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
 		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
+		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => options?.sandboxPolicy,
 		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
@@ -1417,6 +1421,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	services.set(IAgentHostCustomizationEnablementService, {
 		_serviceBrand: undefined,
 		onDidChange: customizationEnablementEmitter.event,
@@ -7593,7 +7598,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
 			assert.deepStrictEqual({
-				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal)?.title] : []),
+				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, mintedTestChatOwner)?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
 					if ((action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId !== 'tc-task') {
 						return [action.type === ActionType.ChatToolCallReady ? action.invocationMessage : action.result.pastTenseMessage];
@@ -11773,7 +11778,7 @@ Use the attached image as context.
 				));
 				const agent = disposables.add(new MockAgent());
 				const chatUri = buildDefaultChatUri(session.resourceUri);
-				const startTurn = (turnId: string) => tracker.turnStarted(agent, chatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+				const startTurn = (turnId: string) => tracker.turnStarted(agent, chatUri, session.resourceUri.toString(), turnId, undefined, undefined, 'default', undefined, undefined);
 				startTurn('turn-original');
 				for (const signal of signals) {
 					if (signal.kind === 'action') {
@@ -13024,7 +13029,7 @@ Use the attached image as context.
 			));
 			const agent = disposables.add(new MockAgent());
 			const chatUri = buildDefaultChatUri(session.resourceUri);
-			tracker.turnStarted(agent, chatUri, 'fusion-turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(agent, chatUri, session.resourceUri.toString(), 'fusion-turn', undefined, undefined, 'default', undefined, undefined);
 			for (const signal of signals) {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete) {
 					tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
@@ -19826,7 +19831,7 @@ Use the attached image as context.
 			assert.strictEqual((await result).kind, 'reject');
 		});
 
-		test('semantic search overrides the built-in tool and is never deferred', async () => {
+		test('semantic search overrides the built-in tool and is deferred', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{
 					name: SEMANTIC_SEARCH_TOOL_NAME,
@@ -19846,7 +19851,7 @@ Use the attached image as context.
 				skipPermission: tool.skipPermission,
 			}, {
 				name: SEMANTIC_SEARCH_TOOL_NAME,
-				defer: 'never',
+				defer: 'auto',
 				overridesBuiltInTool: true,
 				skipPermission: true,
 			});

@@ -23,7 +23,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, resolveChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, isDefaultChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
@@ -89,7 +89,8 @@ function createRouter(
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
-		resolveChatUri(URI.parse('claude:/sess-1'), chatChannelUri),
+		URI.parse('claude:/sess-1'),
+		isDefaultChatUri(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
 		subagents,
 		undefined,

@@ -234,22 +234,21 @@ function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string 
 }
 
 /**
- * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link that opens the chat
- * identified by an AHP chat channel URI (`ahp-chat://...`) or a bare backend
- * session URI. Peer chats carry their chat id so the link opens that specific
- * chat; the default chat is normalized by {@link buildOpenSessionLinkUri} to a
- * session-only link (no chat id). Returns `undefined` when {@link chatResource}
- * cannot be parsed into a session link.
+ * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link that opens
+ * `chatResource` (an AHP chat channel URI or a bare backend session URI) in its
+ * recorded owning session `owner`. Peer chats carry their chat id so the link
+ * opens that specific chat; the default chat is normalized by
+ * {@link buildOpenSessionLinkUri} to a session-only link (no chat id). Returns
+ * `undefined` when no session link can be built.
  *
  * This mirrors the link the host builds when resolving chat attachments so the
  * chat-reference chip in the input opens the exact same target.
  */
-export function buildOpenSessionLinkForChatResource(chatResource: URI | string): string | undefined {
+export function buildOpenSessionLinkForChat(owner: URI | string, chatResource: URI | string): string | undefined {
 	try {
-		const resourceStr = typeof chatResource === 'string' ? chatResource : chatResource.toString();
-		const parsedChat = isAhpChatChannel(resourceStr) ? parseChatUri(resourceStr) : undefined;
-		const sourceSession = parsedChat ? parsedChat.session : URI.parse(resourceStr).toString();
-		return buildOpenSessionLinkUri(sourceSession, parsedChat?.chatId);
+		const resourceStr = chatResource.toString();
+		const chatId = isAhpChatChannel(resourceStr) ? parseChatUri(resourceStr)?.chatId : undefined;
+		return buildOpenSessionLinkUri(owner.toString(), chatId);
 	} catch {
 		return undefined;
 	}

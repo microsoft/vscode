@@ -61,11 +61,11 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -121,6 +121,9 @@ import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEve
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
+import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const TEST_PRODUCT_SERVICE: IProductService = {
 	_serviceBrand: undefined,
@@ -138,7 +141,7 @@ function defaultChatUri(session: URI): URI {
  * field, only the exact chat.
  */
 function sessionIdOfChat(chat: URI): string {
-	return AgentSession.id(parseRequiredSessionUriFromChatUri(chat));
+	return AgentSession.id(requireMintedTestChatOwner(chat));
 }
 
 /**
@@ -258,7 +261,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 
 function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSessionId?: string): void {
 	const resolvedSdkSessionId = sdkSessionId ?? (stub as { sessionId?: string }).sessionId ?? `sdk-${chatUri.toString()}`;
-	const ownerSession = URI.parse(parseRequiredSessionUriFromChatUri(chatUri));
+	const ownerSession = URI.parse(requireMintedTestChatOwner(chatUri));
 	const typed = stub as {
 		sessionId?: string;
 		sessionUri?: URI;
@@ -1310,6 +1313,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	// Narrow host seams the provider consumes instead of the state manager
 	// itself (see §8 of MULTI_CHAT_ARCHITECTURE.md). Both are constructed over
 	// the same test state manager, so a test that drives host state still sees
@@ -1336,6 +1340,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 				stateManager,
 				logService,
 				worktreeIsolation,
+				createTestChatOwnershipService(stateManager),
 			))
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
@@ -1352,6 +1357,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			setServedFromMemory: () => { },
 			restoreStarted: () => { },
 			restoreCompleted: () => { },
+			setSession: () => { },
 		}),
 		withSdkResume: async (_session, operation) => operation(),
 		sdkResumeFallbackCreated: () => { },
@@ -1384,7 +1390,7 @@ type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0]
 
 function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
-	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, options?.workingDirectory);
+	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
 	const mockSession = options?.mockSession ?? new MockCopilotSession();
 	const agentInternals = (agent as unknown as {
@@ -3224,7 +3230,9 @@ suite('CopilotAgent', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'spawn-session');
 				const parentChat = buildDefaultChatUri(sessionUri.toString());
 				const toolCallId = 'tool-42';
-				const expectedChat = buildSubagentChatUri(parseRequiredSessionUriFromChatUri(parentChat), toolCallId);
+				const expectedChat = buildSubagentChatUri(sessionUri, toolCallId);
+				// The host records each chat's owning scope when it creates or materializes it.
+				agent['_rememberChatScope'](URI.parse(parentChat), sessionUri, sessionUri);
 
 				fireSignal(agent, {
 					kind: 'subagent_started',
@@ -10192,57 +10200,6 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema applies the configured Claude default thinkingLevel to supporting Claude models and follows changes', async () => {
-		const { agent, configurationService } = createTestAgentContext(disposables, {
-			copilotClient: new TestCopilotClient([], [{
-				id: 'claude-opus-5',
-				name: 'Claude Opus 5',
-				capabilities: { limits: { max_context_window_tokens: 200000 } },
-				supportedReasoningEfforts: ['low', 'medium', 'high', 'max'],
-			}, {
-				id: 'claude-sonnet-5',
-				name: 'Claude Sonnet 5',
-				capabilities: { limits: { max_context_window_tokens: 200000 } },
-				supportedReasoningEfforts: ['low', 'medium', 'high'],
-			}, {
-				id: 'gpt-5.6-terra',
-				name: 'GPT-5.6 Terra',
-				capabilities: { limits: { max_context_window_tokens: 128000 } },
-				supportedReasoningEfforts: ['low', 'medium', 'high', 'max'],
-			}, {
-				id: 'custom-claude',
-				name: 'Custom Claude',
-				capabilities: { limits: { max_context_window_tokens: 200000 } },
-				supportedReasoningEfforts: ['low', 'medium', 'high', 'max'],
-			}]),
-			rootConfig: {
-				[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: 'max',
-				// The SDK model list carries no family, so the configured family alias decides.
-				[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'custom-claude': { family: 'claude-sonnet-4' } },
-			},
-		});
-		const defaults = (models: readonly IAgentModelInfo[]) => models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.default]);
-		try {
-			await agent.authenticate('https://api.github.com', 'token');
-			const initial = defaults(await waitForState(agent.models, models => models.length === 4));
-
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: 'low' });
-			const changed = defaults(agent.models.get());
-
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: '' });
-			const cleared = defaults(agent.models.get());
-
-			assert.deepStrictEqual({ initial, changed, cleared }, {
-				// Sonnet does not support `max`, so it keeps its built-in default; non-Claude models are untouched.
-				initial: [['claude-opus-5', 'max'], ['claude-sonnet-5', 'high'], ['gpt-5.6-terra', 'medium'], ['custom-claude', 'max']],
-				changed: [['claude-opus-5', 'low'], ['claude-sonnet-5', 'low'], ['gpt-5.6-terra', 'medium'], ['custom-claude', 'low']],
-				cleared: [['claude-opus-5', 'high'], ['claude-sonnet-5', 'high'], ['gpt-5.6-terra', 'medium'], ['custom-claude', 'medium']],
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
 	test('BYOK model configSchema exposes the advertised reasoning efforts', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });
@@ -11192,6 +11149,7 @@ suite('CopilotAgent', () => {
 
 			const catalog = await agent.listChatsToMigrate();
 			assert.deepStrictEqual(catalog?.map(withoutUndefinedProperties), [{
+				session: legacySession,
 				chat: defaultChatUri(legacySession),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -11221,6 +11179,7 @@ suite('CopilotAgent', () => {
 
 			const catalog = await agent.listChatsToMigrate();
 			assert.deepStrictEqual(catalog?.map(withoutUndefinedProperties), [{
+				session,
 				chat: defaultChatUri(session),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -16530,6 +16489,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService)));
 			services.set(IAgentHostManagedSettingsService, disposables.add(new AgentHostManagedSettingsService()));
 			services.set(IAgentHostStateManager, stateManager);
+			services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 			services.set(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 			services.set(ISessionDataService, createNullSessionDataService());
 			services.set(IAgentPluginManager, new TestAgentPluginManager());

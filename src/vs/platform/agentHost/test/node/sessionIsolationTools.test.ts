@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
@@ -27,7 +27,7 @@ suite('Session isolation tool', () => {
 			resource: session, provider: 'copilotcli', title: 'Project', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 		});
-		stateManager.addChat(session, peer);
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
 		const calls: { chat: string; turnId: string }[] = [];
 		let enabled = true;
 		const group = createSessionIsolationToolGroup({
@@ -40,9 +40,13 @@ suite('Session isolation tool', () => {
 	}
 
 	test('advertises to the session but rejects subagent calls', () => {
-		const { host, session, main } = createHarness();
+		const { stateManager, host, session, main } = createHarness();
 		const childSession = buildSubagentSessionUri(URI.parse(session), 'worker').toString();
 		const child = buildDefaultChatUri(childSession);
+		stateManager.createSession({
+			resource: childSession, provider: 'copilotcli', title: 'Worker', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+		});
 		assert.deepStrictEqual({
 			session: host.getDefinitionsForSession(session).map(tool => tool.name),
 			child: host.getDefinitionsForSession(childSession),

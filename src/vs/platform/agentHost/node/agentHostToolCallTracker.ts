@@ -46,6 +46,8 @@ interface IToolCallTiming {
 	invocationStopWatch?: StopWatch;
 	readonly provider: string;
 	readonly session: string;
+	/** Owning session of the chat, recorded when the tool call started. */
+	readonly owner: string;
 	readonly turnId: string;
 	readonly toolId: string;
 	contributor: ToolCallContributor | undefined;
@@ -99,12 +101,13 @@ export class AgentHostToolCallTracker extends Disposable {
 		super();
 	}
 
-	toolCallStarted(provider: string, session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource): void {
+	toolCallStarted(provider: string, session: string, owner: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource): void {
 		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
 		this._toolCalls.set(this._key(session, toolCallId), {
 			lifecycleStopWatch: StopWatch.create(true),
 			provider,
 			session,
+			owner,
 			turnId,
 			toolId: toolName,
 			contributor,
@@ -176,6 +179,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			telemetryContext: timing.telemetryContext,
 			provider: timing.provider,
 			session: timing.session,
+			owner: timing.owner,
 			subagentKind: timing.subagentKind,
 			turnId: timing.turnId,
 			toolId: timing.toolId,
@@ -205,6 +209,7 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: timing.telemetryContext,
 				provider: timing.provider,
 				session: timing.session,
+				owner: timing.owner,
 				subagentKind: timing.subagentKind,
 				blockerKind: stalled.blockerKind,
 				toolCallId,
@@ -218,7 +223,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		}
 	}
 
-	toolCallBlocked(provider: string, session: string, request: ToolCallBlockerRequest): void {
+	toolCallBlocked(provider: string, session: string, owner: string, request: ToolCallBlockerRequest): void {
 		const key = this._key(session, request.id);
 		const toolCallKey = this._key(session, request.toolCall.toolCallId);
 		if (this._toolCallStallTimers.has(key) || this._stalledToolCalls.has(toolCallKey)) {
@@ -236,6 +241,7 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: this._toolCalls.get(toolCallKey)?.telemetryContext,
 				provider,
 				session,
+				owner,
 				subagentKind: this._toolCalls.get(toolCallKey)?.subagentKind,
 				blockerKind: request.kind,
 				toolCallId: request.toolCall.toolCallId,
