@@ -16,12 +16,13 @@ import { SessionStatus } from '../../common/state/protocol/channels-session/stat
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import {
 	applyCreateChatTool,
 	applyCreateSessionTool,
@@ -92,6 +93,7 @@ suite('SessionServerTools', () => {
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => true),
+			getChatOwner: overrides?.getChatOwner ?? mintedTestChatOwner,
 		};
 	}
 
@@ -2090,8 +2092,8 @@ suite('SessionServerTools', () => {
 	test('rename titles normalize presentation without truncating agent input', () => {
 		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
 		assert.deepStrictEqual({
-			defaultChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [session]).title,
-			peerChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Don&#39;t   panic' }, [session]).title,
+			defaultChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [session], undefined, undefined).title,
+			peerChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Don&#39;t   panic' }, [session], undefined, undefined).title,
 		}, {
 			defaultChat: 'fix input flicker',
 			peerChat: 'Don\'t panic',
@@ -2102,17 +2104,17 @@ suite('SessionServerTools', () => {
 		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
 		const accepted = '😀'.repeat(200);
 		const rejected = '😀'.repeat(201);
-		assert.strictEqual(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: accepted }, [session]).title, accepted);
-		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: rejected }, [session]), /must not exceed 200 characters/);
+		assert.strictEqual(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: accepted }, [session], undefined, undefined).title, accepted);
+		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: rejected }, [session], undefined, undefined), /must not exceed 200 characters/);
 	});
 
 	test('getRenameChatArgs resolves default and peer chats from links or the current channel', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)];
 		const peer = buildChatUri('copilot:/s1', 'peer');
-		const explicitPeer = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', title: 'Side Work' }, sessions);
-		const explicitDefault = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2', title: 'Default Work' }, sessions);
-		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer);
-		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'));
+		const explicitPeer = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', title: 'Side Work' }, sessions, undefined, undefined);
+		const explicitDefault = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2', title: 'Default Work' }, sessions, undefined, undefined);
+		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer, URI.parse('copilot:/s1'));
+		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'));
 		assert.deepStrictEqual({
 			explicitPeer: { session: explicitPeer.session.toString(), chat: explicitPeer.chat.toString(), title: explicitPeer.title },
 			explicitDefault: { session: explicitDefault.session.toString(), chat: explicitDefault.chat.toString(), title: explicitDefault.title },
@@ -2124,8 +2126,8 @@ suite('SessionServerTools', () => {
 			currentPeer: { session: 'copilot:/s1', chat: peer, title: 'Current Peer' },
 			currentDefault: { session: 'copilot:/s1', chat: buildDefaultChatUri('copilot:/s1'), title: 'Current Default' },
 		});
-		assert.throws(() => getRenameChatArgs({ session: 'copilot:/s2', title: 'Only session' }, sessions), /known chat/);
-		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', session: 'copilot:/s1', title: 'Mismatch' }, sessions), /must match/);
+		assert.throws(() => getRenameChatArgs({ session: 'copilot:/s2', title: 'Only session' }, sessions, undefined, undefined), /known chat/);
+		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', session: 'copilot:/s1', title: 'Mismatch' }, sessions, undefined, undefined), /must match/);
 	});
 
 	test('rename_chat returns before resolving the target session', async () => {
@@ -2228,6 +2230,7 @@ suite('SessionServerTools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
 		const renamedChat = new DeferredPromise<string>();
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({

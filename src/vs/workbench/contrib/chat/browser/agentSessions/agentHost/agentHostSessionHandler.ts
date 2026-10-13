@@ -422,17 +422,13 @@ export function unwrapSessionLoadErrorMessage(err: unknown): string | undefined 
 	return message.replace(/^Failed to restore session .+?: /, '');
 }
 
-export function resolveRestoredSubagentChatResource(parentSession: string, toolCallId: string, catalogResource: string | undefined, persistedResource: string | undefined): string {
-	if (catalogResource) {
-		return catalogResource;
-	}
-	if (persistedResource) {
-		const parsed = parseChatUri(persistedResource);
-		if (parsed?.session === parentSession && parsed.chatId === `subagent/${toolCallId}`) {
-			return persistedResource;
-		}
-	}
-	return buildSubagentChatUri(parentSession, toolCallId);
+/**
+ * The subagent chat the catalog lists for a restored tool call, or the
+ * canonical chat minted for the parent session. Persisted history resources
+ * are not trusted: legacy shapes are replaced by the canonical URI.
+ */
+export function resolveRestoredSubagentChatResource(parentSession: string, toolCallId: string, catalogResource: string | undefined): string {
+	return catalogResource ?? buildSubagentChatUri(parentSession, toolCallId);
 }
 
 /**
@@ -2421,8 +2417,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			: channel.toString();
 		if (action.type === ActionType.ChatToolCallConfirmed && action._meta) {
 			const { turnId, toolCallId } = action;
-			const parsed = parseChatUri(target);
-			const state = parsed ? this._getSessionState(parsed.session, target) : undefined;
+			const owner = this._findChatOwner(target);
+			const state = owner ? this._getSessionState(owner, target) : undefined;
 			const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(turn => turn.id === turnId);
 			const part = turn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
 			const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
@@ -5265,7 +5261,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						parentSessionStr,
 						part.toolCallId,
 						subagentChat?.resource.toString(),
-						part.toolSpecificData.chatResource,
 					);
 					part.toolSpecificData.chatResource = childChatUri;
 					const waitForActivity = !!subagentChat
@@ -7493,6 +7488,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			? this._getDefaultChatState(sessionUri)
 			: this._getAdditionalChatState(chatUri);
 		return !chatState || isChatReadOnly(chatState.interactivity, (sessionState.status & SessionStatus.IsArchived) === SessionStatus.IsArchived);
+	}
+
+	/** The subscribed session whose state lists `chat`. */
+	private _findChatOwner(chat: string): string | undefined {
+		for (const session of this._sessionSubscriptions.keys()) {
+			const state = this._getRawSessionState(session);
+			if (state && ((state.defaultChat?.toString() ?? buildDefaultChatUri(session)) === chat || state.chats.some(summary => summary.resource.toString() === chat))) {
+				return session;
+			}
+		}
+		return undefined;
 	}
 
 	private _getRawSessionState(sessionUri: string): SessionState | undefined {

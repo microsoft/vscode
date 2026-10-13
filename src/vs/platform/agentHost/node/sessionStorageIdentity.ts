@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeBase64 } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { AgentSession } from '../common/agent.js';
@@ -17,6 +18,41 @@ export interface ISessionStorageIdentityRecord {
 	readonly runtime: string;
 	readonly storage: string;
 	readonly provider: string;
+}
+
+/**
+ * Address translation only, between the runtime and storage spellings of the
+ * same session. Never use it to determine a chat's owner.
+ *
+ * Rewrites the session a chat URI was minted for through `translate`, keeping
+ * its chat id (including the subagent tool-call form) and any `?`/`#` suffix.
+ * Returns `undefined` when `value` is not a chat URI or `translate` has no
+ * spelling for its session.
+ */
+function translateChatUriSession(value: string, translate: (session: string) => string | undefined): string | undefined {
+	const chatId = parseChatUri(value)?.chatId;
+	if (chatId === undefined) {
+		return undefined;
+	}
+	let encodedSession: string | undefined;
+	try {
+		encodedSession = URI.parse(value).path.split('/')[1];
+	} catch {
+		return undefined;
+	}
+	if (!encodedSession) {
+		return undefined;
+	}
+	const translated = translate(decodeBase64(encodedSession).toString());
+	if (translated === undefined) {
+		return undefined;
+	}
+	const subagentPrefix = 'subagent/';
+	const rewritten = chatId.startsWith(subagentPrefix)
+		? buildSubagentChatUri(translated, chatId.slice(subagentPrefix.length))
+		: buildChatUri(translated, chatId);
+	const suffix = value.search(/[?#]/);
+	return rewritten + (suffix === -1 ? '' : value.slice(suffix));
 }
 
 /** Maps local identities at persistence boundaries; unregistered and opaque host resources remain unchanged. */
@@ -56,16 +92,9 @@ export class SessionStorageIdentity {
 		if (known) {
 			return known[direction];
 		}
-		const chat = parseChatUri(value);
-		if (chat) {
-			const owner = records.get(chat.session);
-			if (owner) {
-				const converted = chat.chatId.startsWith('subagent/')
-					? buildSubagentChatUri(owner[direction], chat.chatId.slice('subagent/'.length))
-					: buildChatUri(owner[direction], chat.chatId);
-				const suffix = value.search(/[?#]/);
-				return converted + (suffix === -1 ? '' : value.slice(suffix));
-			}
+		const chat = translateChatUriSession(value, session => records.get(session)?.[direction]);
+		if (chat !== undefined) {
+			return chat;
 		}
 		const subagent = parseSubagentSessionUri(value);
 		const parent = subagent && records.get(subagent.parentSession.toString());
