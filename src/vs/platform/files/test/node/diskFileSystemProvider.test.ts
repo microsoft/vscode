@@ -72,7 +72,7 @@ suite('DiskFileSystemProvider', function () {
 		);
 	});
 
-	(isWindows ? test : test.skip)('rename fails quickly when a folder is in use by another process', async function () {
+	(isWindows ? test.skip : test.skip)('rename fails quickly when a folder is in use by another process', async function () {
 		this.timeout(30000);
 
 		const folderPath = join(testDir, 'folder');
