@@ -6,13 +6,59 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { retry } from '../../../../../../../base/common/async.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {
+		const restoredSession = URI.parse('remote-remote.example__1-copilotcli:/restored');
+		const chip = createChatReferenceVariableEntry(URI.parse('ahp-chat://default/c2Vzc2lvbg'), undefined, 'Chat');
+		const createdFor: (string | undefined)[] = [];
+		// While setInputModel restores the incoming session's attachments, the
+		// widget's view model is still absent (first load) or the outgoing session.
+		const render = (inputModelSession: URI | undefined, viewModelSession: URI | undefined) => {
+			const attachedContextDisposables = store.add(new MutableDisposable());
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				attachedContextContainer: dom.$('div'),
+				attachmentsContainer: dom.$('div'),
+				attachedContextDisposables,
+				_attachmentModel: { attachments: [chip] },
+				configurationService: { getValue: () => false },
+				options: {},
+				_currentLanguageModel: observableValue('model', undefined),
+				_indexOfLastAttachedContextDeletedWithKeyboard: -1,
+				_indexOfLastOpenedContext: -1,
+				_inputModelSessionResource: inputModelSession,
+				_widget: viewModelSession && { viewModel: { sessionResource: viewModelSession } },
+				_chatAttachmentWidgetRegistry: {
+					createWidget: (_attachment, _options, _container, sessionResource): IChatAttachmentWidgetInstance => {
+						createdFor.push(sessionResource?.toString());
+						return { element: dom.$('div'), onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => { } };
+					},
+				} satisfies Pick<IChatAttachmentWidgetRegistry, 'createWidget'>,
+			}) as ChatInputPart;
+			inputPart.renderAttachedContext();
+			attachedContextDisposables.dispose();
+		};
+
+		const editedRequestSession = URI.parse('agent-host-copilotcli:/edited');
+		render(restoredSession, undefined);
+		render(restoredSession, URI.parse('agent-host-copilotcli:/outgoing'));
+		// The inline request-edit input part never binds an input model.
+		render(undefined, editedRequestSession);
+
+		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
+	});
 
 	test('uses the Sessions content gutter for composer layout', () => {
 		const followupsContainer = dom.$('div');
@@ -44,7 +90,7 @@ suite('ChatInputPart', () => {
 		});
 	});
 
-	test('working borders rotate fixed gradients inside masks at any input aspect ratio', () => {
+	test('working borders rotate fixed gradients inside masks at any input aspect ratio', async () => {
 		const host = mainWindow.document.body.appendChild(dom.$('.monaco-workbench'));
 		host.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
 		store.add(toDisposable(() => host.remove()));
@@ -53,6 +99,7 @@ suite('ChatInputPart', () => {
 		const input = dom.append(inputPart, dom.$('.chat-input-container.working'));
 		const beam = dom.append(input, dom.$('.chat-input-working-border'));
 		const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
+		await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(beam).position, 'absolute'), 10, 100);
 		const geometry = [];
 		for (const [width, height] of [[400, 80], [200, 300], [333.33, 97.25]]) {
 			input.style.width = `${width}px`;
@@ -88,7 +135,7 @@ suite('ChatInputPart', () => {
 		});
 	});
 
-	test('decorative input borders do not increase ancestor scroll overflow', () => {
+	test('decorative input borders do not increase ancestor scroll overflow', async () => {
 		const snapshots = [];
 		for (const compact of [false, true]) {
 			for (const working of [false, true]) {
@@ -101,6 +148,7 @@ suite('ChatInputPart', () => {
 				const input = dom.append(inputPart, dom.$('.chat-input-container'));
 				input.classList.toggle('working', working);
 				input.style.cssText = 'width: 400px; height: 40px;';
+				await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(input).position, 'relative'), 10, 100);
 				const before = { width: host.scrollWidth, height: host.scrollHeight };
 				dom.append(input, dom.$('.chat-input-working-border'));
 				dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));

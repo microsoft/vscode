@@ -35,6 +35,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -42,6 +43,7 @@ import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/st
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ICanvas } from '../../../../canvases/common/canvas.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
@@ -367,6 +369,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					branch: { type: 'string' as const, title: 'Base branch', enumDynamic: true, sessionMutable: false },
 					autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
 					mode: { type: 'string' as const, title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
+					[SessionConfigKey.SensitiveEditLocations]: { type: 'array' as const, title: 'Sensitive edit locations', readOnly: true, sessionMutable: true },
 				},
 			},
 			values: request.config ?? {},
@@ -13823,6 +13826,71 @@ suite('AgentHostChatContribution', () => {
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
 			assert.ok(configChanged, 'expected a SessionConfigChanged dispatch');
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
+		}));
+
+		test('handler forwards configured hook locations for regular workbench sessions', async () => {
+			const workspace = URI.file('/workspace');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => workspace },
+				workspaceFolders: [workspace],
+				configOverrides: {
+					[ChatHookFilesLocationsSettingId]: {
+						'custom-hooks/hooks.json': true,
+						'disabled-hooks': false,
+						'~/personal-hooks': true,
+					},
+				},
+			});
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Create custom-hooks/hooks.json',
+				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-sensitive-edit-locations' }),
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(agentHostService.createSessionCalls.at(-1)?.config?.[SessionConfigKey.SensitiveEditLocations], [
+				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+			]);
+		});
+
+		test('handler forwards configured hook locations on eager-created regular workbench sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const workspace = URI.file('/workspace');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => workspace },
+				workspaceFolders: [workspace],
+				configOverrides: {
+					[ChatHookFilesLocationsSettingId]: { 'custom-hooks/hooks.json': true },
+				},
+			});
+			const sessionUri = AgentSession.uri('copilot', 'eager-sensitive-edit-locations');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-sensitive-edit-locations' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Create custom-hooks/hooks.json', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
+			assert.deepStrictEqual((configChanged?.action as { config?: Record<string, unknown> } | undefined)?.config?.[SessionConfigKey.SensitiveEditLocations], [
+				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+			]);
 		}));
 
 		test('handler resolves authentication before sending to an eager-created session', async () => {
