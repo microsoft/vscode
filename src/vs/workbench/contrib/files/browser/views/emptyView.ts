@@ -26,7 +26,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 export class EmptyView extends ViewPane {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
-	static readonly NAME: ILocalizedString = nls.localize2('noWorkspace', "No Folder Opened");
+	static readonly NAME: ILocalizedString = nls.localize2('noWorkspace', "No Folder Opene");
 	private _disposed: boolean = false;
 
 	constructor(
