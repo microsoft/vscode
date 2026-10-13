@@ -702,7 +702,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
 		const result = await testObject.canInstall(extension);
-		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not permitted by your organization\'s policy.');
+
 		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not permitted by your organization\'s policy.');
 	});
 
