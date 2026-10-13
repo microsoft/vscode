@@ -20,7 +20,7 @@ import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostR
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
@@ -236,6 +236,14 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 }
 
 class DisposableTestConfigurationService extends TestConfigurationService {
+	/** Settings reported as workspace settings, which `TestConfigurationService` reports as user settings. */
+	readonly workspaceKeys = new Set<string>();
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return this.workspaceKeys.has(key) ? { ...inspected, userValue: undefined, userLocalValue: undefined, workspaceValue: inspected.value } : inspected;
+	}
+
 	dispose(): void {
 		this.onDidChangeConfigurationEmitter.dispose();
 	}
@@ -949,20 +957,23 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('migrates workspace MCP servers with ${config:} references to the values in the folder', async () => {
+	test('migrates workspace MCP servers with ${config:} references to the values in the workspace settings', async () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
-		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","args":["--port=${config:mcp.port}"]}}}'));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","args":["--port=${config:mcp.port}","--token=${config:user.token}"]}}}'));
 		const configurationService = store.add(createMigrationConfiguration());
 		await configurationService.setUserConfiguration('mcp.port', 1);
 		await configurationService.setUserConfiguration('mcp.port', 8080, root);
+		configurationService.workspaceKeys.add('mcp.port');
+		// Only in the user's settings, so its value is not written into the workspace.
+		await configurationService.setUserConfiguration('user.token', 'secret', root);
 		const [server] = createWorkspaceMcpSupportSnapshot(root).servers;
 		// The client resolves the setting in the folder's scope before forwarding the server.
 		const supportScope = new MutableMcpServerSupportScope({
-			servers: [{ ...server, projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['--port=8080'] } }],
+			servers: [{ ...server, projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['--port=8080', '--token=secret'] } }],
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		});
@@ -984,9 +995,9 @@ suite('CustomizationMigrationService', () => {
 			result,
 			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			candidates: [['server', PromptsStorage.local, [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }]]],
+			candidates: [['server', PromptsStorage.local, [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }, { key: 'user.token', name: 'USER_TOKEN', value: '' }]]],
 			result: { migratedCount: 1, failures: [] },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['--port=${MCP_PORT}'], env: { MCP_PORT: '8080' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['--port=${MCP_PORT}', '--token=${USER_TOKEN}'], env: { MCP_PORT: '8080', USER_TOKEN: '' }, tools: ['*'] } } },
 		});
 	});
 

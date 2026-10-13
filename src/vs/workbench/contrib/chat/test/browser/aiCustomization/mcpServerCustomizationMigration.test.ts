@@ -15,7 +15,7 @@ import { IProcessEnvironment } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
@@ -163,6 +163,20 @@ class TestConfigurationResolverService extends AbstractVariableResolverService {
 			getColumnNumber: () => undefined,
 			getExtension: async () => undefined,
 		}, undefined, undefined, env && Promise.resolve(env));
+	}
+}
+
+/**
+ * Reports the given settings as workspace settings, which `TestConfigurationService` reports as user settings.
+ */
+class WorkspaceSettingsTestConfigurationService extends TestConfigurationService {
+	constructor(configuration: Record<string, unknown> = {}, private readonly workspaceKeys: ReadonlySet<string> = new Set(Object.keys(configuration))) {
+		super(configuration);
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return this.workspaceKeys.has(key) ? { ...inspected, userValue: undefined, userLocalValue: undefined, workspaceValue: inspected.value } : inspected;
 	}
 }
 
@@ -1418,7 +1432,8 @@ suite('McpServerCustomizationMigration', () => {
 			local: {
 				command: '${config:mcp.command}',
 				// The same setting used twice maps to one variable. `GITHUB_TOKEN` is reserved, so it is prefixed.
-				args: ['--port=${config:mcp.port}', '${config:mcp.command}', '--token=${config:github.token}', '${env:TOOLS}', '--root=${workspaceFolder}'],
+				// `user.secret` is only in the user's settings, so its value is not written into the workspace.
+				args: ['--port=${config:mcp.port}', '${config:mcp.command}', '--token=${config:github.token}', '${env:TOOLS}', '--root=${workspaceFolder}', '--secret=${config:user.secret}'],
 				env: { HOST: '${config:mcp.host}', MCP_PORT: '${config:mcp.port}', LEVEL: 3 },
 			},
 			remote: {
@@ -1435,9 +1450,10 @@ suite('McpServerCustomizationMigration', () => {
 			inputs: [{ id: 'region', type: 'promptString', description: 'Region', default: 'eu' }],
 			servers,
 		})));
-		const configurationService = new TestConfigurationService();
+		const workspaceSettings = { 'mcp.command': 'npx', 'mcp.port': 8080, 'github.token': 'abc', 'mcp.host': 'localhost', 'mcp.tenant': 'contoso', 'mcp.ratio': 0.5 };
+		const configurationService = new WorkspaceSettingsTestConfigurationService({}, new Set(Object.keys(workspaceSettings)));
 		// The settings are only set for the workspace folder, so they must be read in its scope.
-		for (const [key, value] of Object.entries({ 'mcp.command': 'npx', 'mcp.port': 8080, 'github.token': 'abc', 'mcp.host': 'localhost', 'mcp.tenant': 'contoso', 'mcp.ratio': 0.5 })) {
+		for (const [key, value] of Object.entries({ ...workspaceSettings, 'user.secret': 'hunter2' })) {
 			await configurationService.setUserConfiguration(key, value, root);
 		}
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
@@ -1447,7 +1463,7 @@ suite('McpServerCustomizationMigration', () => {
 					projectedConfiguration: {
 						type: McpServerType.LOCAL,
 						command: 'npx',
-						args: ['--port=8080', 'npx', '--token=abc', '/opt/tools', `--root=${root.fsPath}`],
+						args: ['--port=8080', 'npx', '--token=abc', '/opt/tools', `--root=${root.fsPath}`, '--secret=hunter2'],
 						env: { HOST: 'localhost', MCP_PORT: '8080', LEVEL: 3 },
 					},
 				}),
@@ -1471,7 +1487,7 @@ suite('McpServerCustomizationMigration', () => {
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
 			candidates: [
-				['local', [['mcp.command', 'MCP_COMMAND', 'npx'], ['mcp.port', 'MCP_PORT', '8080'], ['github.token', 'MCP_GITHUB_TOKEN', 'abc'], ['mcp.host', 'MCP_HOST', 'localhost']], undefined],
+				['local', [['mcp.command', 'MCP_COMMAND', 'npx'], ['mcp.port', 'MCP_PORT', '8080'], ['github.token', 'MCP_GITHUB_TOKEN', 'abc'], ['user.secret', 'USER_SECRET', ''], ['mcp.host', 'MCP_HOST', 'localhost']], undefined],
 				['remote', [['mcp.tenant', 'MCP_TENANT', 'contoso'], ['mcp.port', 'MCP_PORT', '8080'], ['github.token', 'MCP_GITHUB_TOKEN', 'abc']], undefined],
 				['mixedLocal', [['mcp.port', 'MCP_PORT', '8080'], ['mcp.ratio', 'MCP_RATIO', '0.5']], ['REGION']],
 				['mixedRemote', [['mcp.ratio', 'MCP_RATIO', '0.5']], ['REGION']],
@@ -1484,9 +1500,9 @@ suite('McpServerCustomizationMigration', () => {
 					local: {
 						type: 'local',
 						command: '${MCP_COMMAND}',
-						args: ['--port=${MCP_PORT}', '${MCP_COMMAND}', '--token=${MCP_GITHUB_TOKEN}', '${TOOLS}', `--root=${root.fsPath}`],
+						args: ['--port=${MCP_PORT}', '${MCP_COMMAND}', '--token=${MCP_GITHUB_TOKEN}', '${TOOLS}', `--root=${root.fsPath}`, '--secret=${USER_SECRET}'],
 						// `MCP_PORT` only referred to its setting, so it is replaced with the value.
-						env: { HOST: '${MCP_HOST}', MCP_PORT: '8080', LEVEL: '3', MCP_COMMAND: 'npx', MCP_GITHUB_TOKEN: 'abc', MCP_HOST: 'localhost' },
+						env: { HOST: '${MCP_HOST}', MCP_PORT: '8080', LEVEL: '3', MCP_COMMAND: 'npx', MCP_GITHUB_TOKEN: 'abc', USER_SECRET: '', MCP_HOST: 'localhost' },
 						tools: ['*'],
 					},
 					remote: {
@@ -1521,6 +1537,7 @@ suite('McpServerCustomizationMigration', () => {
 			remote: { type: 'http', url: 'https://example.com/mcp?port=${config:mcp.port}', headers: { 'X-Host': '${config:mcp.host}' } },
 		};
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
+		// User servers move to the user's own configuration, so values from the user's settings are kept.
 		const configurationService = new TestConfigurationService({ 'mcp.command': 'npx', 'mcp.port': 8080, 'mcp.host': 'localhost' });
 		// A workspace folder value doesn't apply to user servers, which VS Code resolves without a folder.
 		await configurationService.setUserConfiguration('mcp.port', 9090, URI.file('/workspace'));
@@ -1580,7 +1597,7 @@ suite('McpServerCustomizationMigration', () => {
 		};
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
-		const configurationService = new TestConfigurationService({
+		const configurationService = new WorkspaceSettingsTestConfigurationService({
 			'mcp.object': { a: 1 },
 			'mcp.flag': true,
 			'mcp.array': ['a'],
@@ -1660,7 +1677,7 @@ suite('McpServerCustomizationMigration', () => {
 		const source = JSON.stringify({ inputs, servers });
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
-		const configurationService = new TestConfigurationService({
+		const configurationService = new WorkspaceSettingsTestConfigurationService({
 			'api.key': 'key',
 			'region': 'eu',
 			'mcp.level': 'info',
@@ -1720,7 +1737,7 @@ suite('McpServerCustomizationMigration', () => {
 		const fileService = createFileService();
 		await fileService.writeFile(workspaceSourceUri, VSBuffer.fromString(workspaceSource));
 		await fileService.writeFile(userSourceUri, VSBuffer.fromString(userSource));
-		const configurationService = new TestConfigurationService({ 'mcp.port': 8080 });
+		const configurationService = new WorkspaceSettingsTestConfigurationService({ 'mcp.port': 8080 });
 		const workspaceServer = support(root, 'workspace', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['--port=8080'] } });
 		const userServer = support(URI.file('/unused'), 'user', {
 			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },

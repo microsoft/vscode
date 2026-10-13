@@ -16,7 +16,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { hasConfigurationVariable } from '../../../../../platform/configuration/common/configurationVariables.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -864,7 +864,7 @@ async function analyzeSourceConfiguration(
 	if (typeof variables === 'string') {
 		return variables;
 	}
-	const settings = await getSettingVariables(settingKeys, sourceFile, folder, services);
+	const settings = await getSettingVariables(settingKeys, sourceFile, folder, storage, services);
 	if (typeof settings === 'string') {
 		return settings;
 	}
@@ -898,13 +898,16 @@ async function analyzeSourceConfiguration(
  * VS Code resolves the server's variables in, so it is the value VS Code substitutes today. Only a
  * string or a number is carried over. Any other setting, whether unset, unnamed, structured or a boolean,
  * becomes an empty variable, as does a value containing a variable, which VS Code resolves while the
- * destination would not. `resolvable` is whether VS Code can resolve every setting, which it can't when
- * one is unset, unnamed or structured.
+ * destination would not. A workspace server only keeps a value that is already in the workspace's own
+ * settings, since its destination is usually committed: a value from the user's settings, a policy or
+ * memory would otherwise be written into the repository. `resolvable` is whether VS Code can resolve
+ * every setting, which it can't when one is unset, unnamed or structured.
  */
 async function getSettingVariables(
 	settingKeys: ReadonlySet<string>,
 	sourceFile: IMcpSourceFile,
 	folder: IWorkspaceFolderData | undefined,
+	storage: PromptsStorage.local | PromptsStorage.user,
 	services: IMcpServerVariableServices,
 ): Promise<{ readonly variables: IMcpServerCustomizationMigrationSettingVariable[]; readonly resolvable: boolean } | McpServerCustomizationMigrationFailureReason> {
 	const names = getMigratedSettingNames(settingKeys, sourceFile);
@@ -919,12 +922,23 @@ async function getSettingVariables(
 		} catch {
 			resolvable = false;
 		}
-		// Without a key, `getValue` would return every setting.
-		const rawValue = key ? services.configurationService.getValue<unknown>(key, folder ? { resource: folder.uri } : {}) : undefined;
+		// Without a key, `inspect` would describe every setting.
+		const inspected = key ? services.configurationService.inspect<unknown>(key, folder ? { resource: folder.uri } : {}) : undefined;
+		const rawValue = inspected && (storage === PromptsStorage.user || isWorkspaceSettingValue(inspected)) ? inspected.value : undefined;
 		const value = typeof rawValue === 'string' || typeof rawValue === 'number' ? String(rawValue) : '';
 		variables.push({ key, name, value: hasConfigurationVariable(value) || hasEnvVarReferences(value) ? '' : value });
 	}
 	return { variables, resolvable };
+}
+
+/**
+ * Whether a setting's current value comes from the workspace or folder settings. A policy or memory value
+ * takes precedence over them.
+ */
+function isWorkspaceSettingValue(inspected: IConfigurationValue<unknown>): boolean {
+	return inspected.policyValue === undefined
+		&& inspected.memoryValue === undefined
+		&& (inspected.workspaceFolderValue !== undefined || inspected.workspaceValue !== undefined);
 }
 
 function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IMcpServerCustomizationMigrationCandidate): boolean {

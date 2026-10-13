@@ -96,7 +96,8 @@ export interface IMcpServerCustomizationMigrationSettingVariable {
 	readonly name: string;
 	/**
 	 * The setting's value as text, retained to revalidate it before writing. Empty if the setting is unset,
-	 * not a string or number, or its value contains a variable.
+	 * not a string or number, or its value contains a variable, or for a workspace server, if the value is
+	 * not from the workspace or folder settings.
 	 */
 	readonly value: string;
 }
