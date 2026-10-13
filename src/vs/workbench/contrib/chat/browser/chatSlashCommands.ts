@@ -229,8 +229,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			completionVariants: [
 				{ label: '/fork', insertText: '', executeImmediately: true },
-				{ label: '/fork <title>', insertText: '/fork ', argumentHint: nls.localize('fork.titleArgumentHint', "title") },
-				{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
+				{ label: '/fork <title>', insertText: '/fork ', detail: nls.localize('fork.titleDetail', "Fork conversation with a custom title"), argumentHint: nls.localize('fork.titleArgumentHint', "title") },
+				{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', detail: nls.localize('fork.promptDetail', "Fork conversation and send a prompt"), argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
 			],
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.or(

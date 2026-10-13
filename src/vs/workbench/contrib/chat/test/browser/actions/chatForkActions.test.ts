@@ -110,10 +110,10 @@ suite('ForkConversationAction', () => {
 			new class extends mock<IChatPetService>() { }(), new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
 			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
-		assert.deepStrictEqual(forkData?.completionVariants?.map(variant => [variant.label, variant.insertText, variant.argumentHint, variant.executeImmediately]), [
-			['/fork', '', undefined, true],
-			['/fork <title>', '/fork ', 'title', undefined],
-			['/fork prompt <prompt>', '/fork prompt ', 'prompt', undefined],
+		assert.deepStrictEqual(forkData?.completionVariants?.map(variant => [variant.label, variant.insertText, variant.argumentHint, variant.executeImmediately, variant.detail ?? forkData?.detail]), [
+			['/fork', '', undefined, true, 'Fork conversation into a new chat session'],
+			['/fork <title>', '/fork ', 'title', undefined, 'Fork conversation with a custom title'],
+			['/fork prompt <prompt>', '/fork prompt ', 'prompt', undefined, 'Fork conversation and send a prompt'],
 		]);
 
 		const resource = URI.parse('agent-host-copilot:/source');
