@@ -129,11 +129,11 @@ export interface ICustomizationMarketplaceRefreshResult {
 
 export interface ICustomizationMarketplaceManagementProvider {
 	readonly onDidChange: Event<void>;
-	list(): Promise<readonly ICustomizationMarketplaceInfo[]>;
-	add(source: string): Promise<ICustomizationMarketplaceInfo>;
-	queryMarketplace(marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
-	remove(name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
-	refresh(name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
 }
 
 /**
