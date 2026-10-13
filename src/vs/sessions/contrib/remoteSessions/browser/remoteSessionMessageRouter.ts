@@ -18,7 +18,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/c
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -227,7 +227,7 @@ export class RemoteSessionMessageRouter {
 			const sessionState = await readRemoteSessionState(session.object, cancellation.token, true);
 			// A chat listed in the backend session's catalog belongs to that session.
 			const chatResource = getSessionChatResource(sessionState, target.chat.fragment || DEFAULT_CHAT_ID, sessionState.defaultChat);
-			if (!chatResource || !parseChatUri(chatResource)) {
+			if (!chatResource) {
 				throw new Error(localize('remoteMessage.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionMessageRouter'));

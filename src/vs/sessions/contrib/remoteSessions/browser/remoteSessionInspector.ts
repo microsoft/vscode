@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -91,7 +91,7 @@ export class RemoteSessionInspector {
 			}
 			// A chat listed in the backend session's catalog belongs to that session.
 			const chatResource = getSessionChatResource(sessionState, resource.fragment || DEFAULT_CHAT_ID, sessionState.defaultChat);
-			if (!chatResource || !parseChatUri(chatResource)) {
+			if (!chatResource) {
 				throw new Error(localize('remoteInspection.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionInspector'));

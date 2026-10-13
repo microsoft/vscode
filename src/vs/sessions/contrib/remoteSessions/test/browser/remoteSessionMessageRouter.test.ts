@@ -331,7 +331,7 @@ suite('RemoteSessionMessageRouter', () => {
 			first: 0,
 			channel: buildChatUri(backendSession, 'other-chat'),
 			origin: { kind: MessageKind.Agent },
-			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(sessions[1].resource, 'original-chat') },
+			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(backendSession, 'original-chat') },
 			result: {
 				status: 'sent',
 				session: sessions[2].resource.toString(), chat: target.toString(),
@@ -461,7 +461,7 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(source.resource, { session: sessions[1].resource.toString(), message: 'From a subagent' }, 'subagent', CancellationToken.None);
 		const delegation = readAgentMessageDelegationMeta(first.dispatched[0].action.message);
 		assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: session.resource.toString(), chatId: 'subagent/call-1' });
+		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: backendSession.toString(), chatId: 'subagent/call-1' });
 	});
 
 	test('a saved peer origin that no longer exists never falls back to the main chat', async () => {

@@ -251,7 +251,7 @@ suite('ChatReferenceAttachment', () => {
 			});
 		});
 
-		test('opens the session for the advertised default chat and leaves out an unaddressable default-id peer', async () => {
+		test('opens the session for the advertised default chat and addresses a default-id peer by its full chat URI', async () => {
 			const owner = 'copilotcli:/chip-owner';
 			const recordedDefault = buildChatUri(owner, 'main');
 			const defaultIdPeer = buildDefaultChatUri(owner);
@@ -283,7 +283,7 @@ suite('ChatReferenceAttachment', () => {
 				peer: await linkFor(peer),
 			}, {
 				recordedDefault: ['agent-host-session://copilotcli/chip-owner?connectionAuthority=local'],
-				defaultIdPeer: [],
+				defaultIdPeer: ['agent-host-session://copilotcli/chip-owner?connectionAuthority=local&chat=ahp-chat%3A%2F%2Fdefault%2FY29waWxvdGNsaTovY2hpcC1vd25lcg'],
 				peer: ['agent-host-session://copilotcli/chip-owner?connectionAuthority=local&chat=peer'],
 			});
 		});

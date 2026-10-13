@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy, stub } from 'sinon';
@@ -1849,7 +1850,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// The creator is announced after the reference was first read: its default chat is now known.
 		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
 
-		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#default', 'agent-host-claude:/late-creator']);
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
 	}));
 
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9434,7 +9435,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				titles: session.chats.get().map(chat => chat.title.get()),
 				defaultBackend: provider.getBackendChatResource(session.resource)?.toString(),
 			}, {
-				fragments: ['default', ''],
+				fragments: [getAgentHostChatId(previousDefault), ''],
 				titles: ['Previous', 'Next'],
 				defaultBackend: nextDefault.toString(),
 			});
