@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -227,13 +228,15 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
-		const marketplaceManagementProvider = customizationHarnessService.getActiveDescriptor().marketplaceManagementProvider;
+		const sessionResource = customizationHarnessService.activeSessionResource.get();
+		const marketplaceManagementProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.marketplaceManagementProvider;
 		if (marketplaceManagementProvider) {
 			await this.manageProviderMarketplaces(
 				quickInputService,
 				notificationService,
 				accessor.get(IDialogService),
 				marketplaceManagementProvider,
+				sessionResource,
 			);
 			return;
 		}
@@ -363,9 +366,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		notificationService: INotificationService,
 		dialogService: IDialogService,
 		provider: ICustomizationMarketplaceManagementProvider,
+		sessionResource: URI,
 	): Promise<void> {
 		while (true) {
-			const marketplaces = await provider.list();
+			const marketplaces = await provider.list(sessionResource);
 			const items: QuickPickInput<IProviderMarketplaceQuickPickItem>[] = [{
 				id: 'addMarketplace',
 				label: localize('addMarketplace', "{0} Add Marketplace...", '$(add)'),
@@ -404,7 +408,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (selected.kind === 'add') {
 				const source = await this.promptMarketplaceSource(quickInputService, marketplaces.map(marketplace => marketplace.source));
 				if (source !== undefined) {
-					await provider.add(source);
+					await provider.add(sessionResource, source);
 				}
 				continue;
 			}
@@ -430,7 +434,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (action.id === 'refreshMarketplace') {
-				const failures = (await provider.refresh(marketplace.name)).filter(result => !result.success);
+				const failures = (await provider.refresh(sessionResource, marketplace.name)).filter(result => !result.success);
 				if (failures.length > 0) {
 					notificationService.warn(localize(
 						'refreshMarketplaceFailed',
@@ -441,7 +445,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				}
 				continue;
 			}
-			const result = await provider.remove(marketplace.name);
+			const result = await provider.remove(sessionResource, marketplace.name);
 			if (result.removed) {
 				continue;
 			}
@@ -455,7 +459,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				primaryButton: localize('forceRemoveMarketplaceButton', "Remove Marketplace and Plugins"),
 			});
 			if (confirmation.confirmed) {
-				const forced = await provider.remove(marketplace.name, true);
+				const forced = await provider.remove(sessionResource, marketplace.name, true);
 				if (!forced.removed) {
 					throw new Error(localize('forceRemoveMarketplaceFailed', "Marketplace '{0}' could not be removed.", marketplace.name));
 				}

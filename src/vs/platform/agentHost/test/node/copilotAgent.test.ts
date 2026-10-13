@@ -1727,6 +1727,7 @@ suite('CopilotAgent', () => {
 
 	test('manages plugin marketplaces through the SDK server API', async () => {
 		const client = new TestCopilotClient([]);
+		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
 		client.pluginMarketplaces = [{
 			name: 'marketplace',
 			source: 'GitHub: owner/repository',
@@ -1739,12 +1740,16 @@ suite('CopilotAgent', () => {
 		client.pluginMarketplaceRemoveResult = { removed: false, dependentPlugins: ['plugin'] };
 		client.pluginMarketplaceRefreshResults = [{ name: 'marketplace', success: true }];
 		const agent = createTestAgent(disposables, { copilotClient: client });
+		chatEntriesBySdkId(agent).set('unrelated-live-session', {
+			chatSession: { resourceUri: URI.parse('agent-host-copilotcli:/other-session') } as CopilotAgentSession,
+			dispose() { },
+		});
 		try {
-			const listed = await agent.listPluginMarketplaces();
-			const added = await agent.addPluginMarketplace('owner/repository');
-			const browsed = await agent.browsePluginMarketplace('marketplace');
-			const removed = await agent.removePluginMarketplace('marketplace', true);
-			const refreshed = await agent.refreshPluginMarketplaces('marketplace');
+			const listed = await agent.listPluginMarketplaces(session);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository');
+			const browsed = await agent.browsePluginMarketplace(session, 'marketplace');
+			const removed = await agent.removePluginMarketplace(session, 'marketplace', true);
+			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace');
 
 			assert.deepStrictEqual({
 				listed,
@@ -1778,6 +1783,106 @@ suite('CopilotAgent', () => {
 				browseRequests: [{ name: 'marketplace' }],
 				removeRequests: [{ name: 'marketplace', force: true }],
 				refreshRequests: [{ name: 'marketplace' }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('prefers a live session for plugin marketplace operations', async () => {
+		const client = new TestCopilotClient([]);
+		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
+		const chat = URI.parse('agent-host-copilotcli:/marketplace-session#peer');
+		const calls: unknown[] = [];
+		const liveSession = {
+			resourceUri: chat,
+			installPlugin: async (source: string) => { calls.push(['install', source]); },
+			uninstallPlugin: async (name: string, directSourceId?: string) => { calls.push(['uninstall', name, directSourceId]); },
+			listPluginMarketplaces: async () => [{
+				name: 'marketplace',
+				source: 'GitHub: owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			}],
+			addPluginMarketplace: async (source: string) => {
+				calls.push(['add', source]);
+				return { name: 'marketplace' };
+			},
+			browsePluginMarketplace: async (name: string) => {
+				calls.push(['browse', name]);
+				return [{ name: 'plugin', description: 'Plugin description' }];
+			},
+			removePluginMarketplace: async (name: string, force?: boolean) => {
+				calls.push(['remove', name, force]);
+				return { removed: true };
+			},
+			refreshPluginMarketplaces: async (name?: string) => {
+				calls.push(['refresh', name]);
+				return [{ name: name ?? 'marketplace', success: true }];
+			},
+		} as unknown as CopilotAgentSession;
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		chatEntriesBySdkId(agent).set('live-marketplace-peer', { chatSession: liveSession, dispose() { } });
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'live-marketplace-peer' });
+		try {
+			await agent.installPlugin({ source: 'plugin@marketplace' }, session, chat);
+			await agent.uninstallPlugin({ name: 'plugin', marketplace: 'marketplace' }, session, chat);
+			const listed = await agent.listPluginMarketplaces(session, chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
+			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
+			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
+
+			assert.deepStrictEqual({
+				listed,
+				added,
+				browsed,
+				removed,
+				refreshed,
+				calls,
+				clientRequests: {
+					install: client.pluginInstallRequests,
+					uninstall: client.pluginUninstallRequests,
+					add: client.pluginMarketplaceAddRequests,
+					browse: client.pluginMarketplaceBrowseRequests,
+					remove: client.pluginMarketplaceRemoveRequests,
+					refresh: client.pluginMarketplaceRefreshRequests,
+				},
+			}, {
+				listed: [{
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: false,
+					available: true,
+				}],
+				added: {
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: false,
+					available: true,
+				},
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
+				removed: { removed: true, dependentPlugins: undefined },
+				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
+				calls: [
+					['install', 'plugin@marketplace'],
+					['uninstall', 'plugin@marketplace', undefined],
+					['add', 'owner/repository'],
+					['browse', 'marketplace'],
+					['remove', 'marketplace', true],
+					['refresh', 'marketplace'],
+				],
+				clientRequests: {
+					install: [],
+					uninstall: [],
+					add: [],
+					browse: [],
+					remove: [],
+					refresh: [],
+				},
 			});
 		} finally {
 			await disposeAgent(agent);

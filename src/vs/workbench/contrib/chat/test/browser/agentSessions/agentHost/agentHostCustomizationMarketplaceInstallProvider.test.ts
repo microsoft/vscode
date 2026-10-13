@@ -27,14 +27,16 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('routes marketplace management through the Agent Host provider', async () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
-				override async listPluginMarketplaces(provider: string) {
-					calls.push({ operation: 'list', args: [provider] });
+				override async listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+					calls.push({ operation: 'list', args: [provider, session.toString(), chat?.toString()] });
 					return [{
 						name: 'marketplace',
 						source: 'GitHub: owner/repository',
@@ -43,8 +45,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						available: true,
 					}];
 				}
-				override async addPluginMarketplace(provider: string, source: string) {
-					calls.push({ operation: 'add', args: [provider, source] });
+				override async addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+					calls.push({ operation: 'add', args: [provider, session.toString(), source, chat?.toString()] });
 					return {
 						name: 'marketplace',
 						source,
@@ -53,23 +55,27 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						available: true,
 					};
 				}
-				override async browsePluginMarketplace(provider: string, name: string) {
-					calls.push({ operation: 'browse', args: [provider, name] });
+				override async browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+					calls.push({ operation: 'browse', args: [provider, session.toString(), name, chat?.toString()] });
 					return [
 						{ name: 'plugin', description: 'Plugin description' },
 						{ name: 'plugin-next', description: 'Next plugin' },
 					];
 				}
-				override async removePluginMarketplace(provider: string, name: string, force?: boolean) {
-					calls.push({ operation: 'remove', args: [provider, name, force] });
+				override async removePluginMarketplace(provider: string, session: URI, name: string, force?: boolean, chat?: URI) {
+					calls.push({ operation: 'remove', args: [provider, session.toString(), name, force, chat?.toString()] });
 					return { removed: force === true, dependentPlugins: force ? undefined : ['plugin'] };
 				}
-				override async refreshPluginMarketplaces(provider: string, name?: string) {
-					calls.push({ operation: 'refresh', args: [provider, name] });
+				override async refreshPluginMarketplaces(provider: string, session: URI, name?: string, chat?: URI) {
+					calls.push({ operation: 'refresh', args: [provider, session.toString(), name, chat?.toString()] });
 					return [{ name: name ?? 'marketplace', success: true }];
 				}
 			}(),
-			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
@@ -82,13 +88,13 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		let changeCount = 0;
 		store.add(provider.onDidChange(() => changeCount++));
 
-		const listed = await provider.list();
-		const added = await provider.add('owner/repository');
-		const page = await provider.queryMarketplace(listed[0], { pageSize: 1 }, CancellationToken.None);
-		const nextPage = await provider.queryMarketplace(listed[0], { pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
-		const refused = await provider.remove('marketplace');
-		const removed = await provider.remove('marketplace', true);
-		const refreshed = await provider.refresh('marketplace');
+		const listed = await provider.list(frontendSession);
+		const added = await provider.add(frontendSession, 'owner/repository');
+		const page = await provider.queryMarketplace(frontendSession, listed[0], { pageSize: 1 }, CancellationToken.None);
+		const nextPage = await provider.queryMarketplace(frontendSession, listed[0], { pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
+		const refused = await provider.remove(frontendSession, 'marketplace');
+		const removed = await provider.remove(frontendSession, 'marketplace', true);
+		const refreshed = await provider.refresh(frontendSession, 'marketplace');
 
 		assert.deepStrictEqual({
 			listed,
@@ -160,13 +166,13 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			refreshed: [{ name: 'marketplace', success: true }],
 			changeCount: 3,
 			calls: [
-				{ operation: 'list', args: ['copilotcli'] },
-				{ operation: 'add', args: ['copilotcli', 'owner/repository'] },
-				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
-				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
-				{ operation: 'remove', args: ['copilotcli', 'marketplace', undefined] },
-				{ operation: 'remove', args: ['copilotcli', 'marketplace', true] },
-				{ operation: 'refresh', args: ['copilotcli', 'marketplace'] },
+				{ operation: 'list', args: ['copilotcli', backendSession.toString(), frontendSession.toString()] },
+				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', frontendSession.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', undefined, frontendSession.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', true, frontendSession.toString()] },
+				{ operation: 'refresh', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
 			],
 		});
 	});
@@ -672,8 +678,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
-				override async installPlugin(provider: string, request: { readonly source: string }): Promise<void> {
-					calls.push({ provider, request });
+				override async installPlugin(provider: string, request: { readonly source: string }, session?: URI, chat?: URI): Promise<void> {
+					calls.push({ provider, request, session: session?.toString(), chat: chat?.toString() });
 					plugins.set([new class extends mock<IAgentPlugin>() {
 						override readonly uri = URI.file('/plugins/azure');
 						override readonly label = 'Azure';
@@ -681,7 +687,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					}()], undefined);
 				}
 			}(),
-			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: session };
+				}
+			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
@@ -709,6 +719,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		assert.deepStrictEqual(calls, [{
 			provider: 'copilotcli',
 			request: { source: 'azure@awesome-copilot' },
+			session: session.toString(),
+			chat: session.toString(),
 		}]);
 	});
 
@@ -728,7 +740,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async installPlugin(): Promise<void> { }
 				override async uninstallPlugin(): Promise<void> { }
 			}(),
-			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity(session: URI) {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: session };
+				}
+			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
