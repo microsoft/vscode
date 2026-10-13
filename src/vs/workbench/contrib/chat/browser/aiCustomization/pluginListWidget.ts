@@ -884,7 +884,7 @@ export class PluginListWidget extends Disposable {
 		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		sectionTitle.textContent = localize('plugins', "Plugins");
 		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
-		const browseLabel = localize('browsePlugins', "Browse Plugins");
+		const browseLabel = localize('browsePlugins', "Browse");
 		this.browseCustomizationsButton = this._register(new Button(titleActions, {
 			...defaultButtonStyles,
 			secondary: true,

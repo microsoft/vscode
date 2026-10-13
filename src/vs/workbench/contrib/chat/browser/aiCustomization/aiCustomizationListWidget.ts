@@ -780,7 +780,7 @@ export class AICustomizationListWidget extends Disposable {
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
 		this.sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
-		const browseLabel = localize('browseSkills', "Browse Skills");
+		const browseLabel = localize('browseSkills', "Browse");
 		this.browseCustomizationsButton = this._register(new Button(titleActions, {
 			...defaultButtonStyles,
 			secondary: true,

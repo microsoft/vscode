@@ -2147,7 +2147,7 @@ export class McpListWidget extends Disposable {
 		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		sectionTitle.textContent = localize('mcpServers', "MCP Servers");
 		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
-		const browseLabel = localize('browseMcps', "Browse MCPs");
+		const browseLabel = localize('browseMcps', "Browse");
 		this.browseCustomizationsButton = this._register(new Button(titleActions, {
 			...defaultButtonStyles,
 			secondary: true,
