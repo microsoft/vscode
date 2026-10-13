@@ -78,24 +78,33 @@ suite('DiskFileSystemProvider', function () {
 		const folderPath = join(testDir, 'folder');
 		await promises.mkdir(folderPath);
 
-		// On Windows, a process whose working directory is the folder prevents renaming it
-		const child = spawn(process.execPath, ['-e', 'setInterval(() => { }, 1000)'], {
+		// On Windows, a process whose working directory is the folder prevents renaming it.
+		// The child exits when its IPC channel closes so it cannot outlive the test runner.
+		const child = spawn(process.execPath, ['-e', 'process.on(\'disconnect\', () => process.exit()); process.send(\'ready\'); setInterval(() => { }, 1000)'], {
 			cwd: folderPath,
-			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['ignore', 'ignore', 'ignore', 'ipc']
 		});
 
-		// The retry logs an error when it gives up
-		const consoleError = stub(console, 'error');
-
 		try {
-			await once(child, 'spawn');
+			// The 'spawn' event fires before the child has finished initializing and
+			// holds its working directory, so wait until the child reports it is running
+			await new Promise<void>((resolve, reject) => {
+				child.once('message', () => resolve());
+				child.once('error', reject);
+				child.once('exit', (code, signal) => reject(new Error(`Child process exited before it was ready (code: ${code}, signal: ${signal})`)));
+			});
 
+			// The retry logs an error when it gives up
+			const consoleError = stub(console, 'error');
 			const start = Date.now();
-			await assert.rejects(provider.rename(URI.file(folderPath), URI.file(join(testDir, 'renamed')), { overwrite: false }), /in use by another application/);
+			try {
+				await assert.rejects(provider.rename(URI.file(folderPath), URI.file(join(testDir, 'renamed')), { overwrite: false }), /in use by another application/);
+			} finally {
+				consoleError.restore();
+			}
 			assert.ok(Date.now() - start < 10000, 'renaming a folder that is in use should not retry for a long time');
 		} finally {
-			consoleError.restore();
-
 			if (child.exitCode === null && child.signalCode === null) {
 				const exit = once(child, 'exit');
 				child.kill();

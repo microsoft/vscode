@@ -32,6 +32,7 @@ import { getMissionControlEnvironmentName, MissionControlHost, type MissionContr
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -437,7 +438,7 @@ suite('Mission Control host integration', () => {
 	}
 
 	for (const session of ['ahp-session:/draft', 'copilotcli:/draft']) {
-		const summary = { resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' };
+		const summary = { resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z', defaultChat: buildDefaultChatUri(session) };
 
 		test(`does not mirror an abandoned provisional draft (${session})`, () => {
 			const f = createMirror();
@@ -478,7 +479,7 @@ suite('Mission Control host integration', () => {
 	test('continues mirroring restored sessions even when their history is empty', () => {
 		const f = createMirror();
 		const session = 'ahp-session:/restored';
-		f.state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
+		f.state.restoreSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
 		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 		f.clock.runAll();
 		assert.deepStrictEqual(f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),
@@ -517,7 +518,8 @@ suite('Mission Control host integration', () => {
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
+			sessionList: config.sessionListAdapter === toMissionControlSessionList,
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true, sessionList: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
@@ -622,7 +624,7 @@ suite('Mission Control host integration', () => {
 		const state = store.add(new AgentHostStateManager(new NullLogService()));
 		const session = URI.parse('ahp-session:/opaque-native-conversation');
 		const now = new Date().toISOString();
-		state.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+		state.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 		const defaultChat = state.getSessionSummary(session.toString())?.defaultChat;
 		assert.ok(defaultChat);
 		const chat = URI.parse(defaultChat);

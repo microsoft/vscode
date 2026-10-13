@@ -16,6 +16,8 @@ import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupS
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatUtilityModelService, IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
 import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
@@ -25,6 +27,7 @@ type CleanupTestService = {
 		inspect: () => { defaultValue: string | undefined };
 	};
 	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
+	_chatUtilityModelService: IChatUtilityModelService;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
@@ -164,7 +167,7 @@ type AudioPushTestService = {
 
 suite('ChatSpeechToTextService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('allows dictation without a paid plan and restricts MAI for external Enterprise users', () => {
 		assert.deepStrictEqual({
@@ -764,6 +767,7 @@ suite('ChatSpeechToTextService', () => {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -809,6 +813,7 @@ suite('ChatSpeechToTextService', () => {
 				selectLanguageModels: () => new Promise<string[]>(() => { }),
 				sendChatRequest: async () => { throw new Error('Unexpected request'); },
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -854,6 +859,7 @@ suite('ChatSpeechToTextService', () => {
 					result: Promise.resolve(undefined),
 				}),
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -900,6 +906,7 @@ suite('ChatSpeechToTextService', () => {
 				},
 				sendChatRequest: () => Promise.reject(new Error('Unexpected request')),
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -948,6 +955,7 @@ suite('ChatSpeechToTextService', () => {
 					};
 				},
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};

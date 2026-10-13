@@ -52,6 +52,7 @@ import { MissionControlAuthentication, MissionControlSealing, sealMissionControl
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { MissionControlCopilotExtension } from '../../node/missionControl/missionControlCopilotExtension.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
@@ -277,6 +278,7 @@ class MockAgentService implements IAgentService {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return session;
 	}
@@ -300,7 +302,7 @@ class MockAgentService implements IAgentService {
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
-		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
+		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
@@ -486,9 +488,10 @@ suite('ProtocolServerHandler', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function makeSessionSummary(resource?: string): SessionSummary {
+	function makeSessionSummary(resource?: string): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: resource ?? sessionUri,
+			defaultChat: buildDefaultChatUri(resource ?? sessionUri),
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -3731,7 +3734,7 @@ suite('ProtocolServerHandler', () => {
 			await Promise.all([writeFile(plan.fsPath, '# Full plan'), writeFile(privateFile.fsPath, 'private'), writeFile(otherPlan.fsPath, 'unrelated')]);
 			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
 			const chat = buildChatUri(sessionUri, 'opaque-peer');
-			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat));
+			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)));
 			agentService.getSessionPlanFile = (session, resource) => session.toString() === sessionUri && resource.toString() === chat ? plan : undefined;
 			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
 			agentService.resourceResolve = async params => ({ uri: params.uri, type: ResourceType.File });
@@ -3992,8 +3995,8 @@ suite('ProtocolServerHandler', () => {
 				await previews.mkdir(URI.parse(uri).with({ path: dirname(URI.parse(uri).path) }));
 				await previews.writeFile(URI.parse(uri), VSBuffer.fromString(data).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
 			}
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
-			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat, buildDefaultChatUri(sessionUri)), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
 			for (const [chat, tool, uri] of [[buildDefaultChatUri(sessionUri), 'tool-call', pendingContent], [peerChat, 'peer-tool', peerContent], [workerChat, 'worker-tool', workerContent]]) {
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'preview-turn', startedAt: '2026-09-30T19:00:00.000Z',
@@ -4789,6 +4792,217 @@ suite('ProtocolServerHandler', () => {
 		]);
 	});
 
+	function connectMissionControlListClient(clientId: string, clientInfo?: Implementation): MockProtocolTransport {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ sessionListAdapter: toMissionControlSessionList },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId, clientInfo, protocolVersions: [PROTOCOL_VERSION] }));
+		return transport;
+	}
+
+	test('listSessions retains all archived sessions on listeners without a session-list adapter', async () => {
+		for (let index = 0; index < 150; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		const listed = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel]) {
+			const transport = connectClient(`client-${connectionKind}`, undefined, undefined, {
+				'vscode.clientConnectionKind': connectionKind,
+			}, connectionKind === AgentHostClientConnectionKind.Local ? AgentHostTransportKind.MessagePort : AgentHostTransportKind.WebSocket);
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			listed.push(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined);
+		}
+		const missionControl = connectMissionControlListClient('limited-list');
+		const responsePromise = waitForResponse(missionControl, 2);
+		missionControl.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const limited = hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined;
+		assert.deepStrictEqual({ listed, limited }, {
+			listed: Array.from({ length: 3 }, () => agentService.listedSessions.map(item => item.session.toString())),
+			limited: agentService.listedSessions.slice(50).map(item => item.session.toString()),
+		});
+	});
+
+	for (const archivedCount of [0, 99, 100, 101, 150]) {
+		test(`Mission Control listSessions retains all non-archived sessions and the most recent 100 of ${archivedCount} archived sessions`, async () => {
+			const active = Array.from({ length: 125 }, (_, index): IAgentSessionMetadata => ({
+				session: URI.parse(`copilot:/active-${index}`),
+				startTime: 0,
+				modifiedTime: 0,
+				...(index % 2 === 0 ? { status: SessionStatus.InProgress | SessionStatus.IsRead } : {}),
+			}));
+			const archived = Array.from({ length: archivedCount }, (_, index): IAgentSessionMetadata => ({
+				session: URI.parse(`${index % 2 === 0 ? 'copilot' : 'codex'}:/archived-${index}`),
+				startTime: archivedCount - index,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived | SessionStatus.IsRead,
+			}));
+			agentService.listedSessions.push(...active.slice(0, 50), ...archived, ...active.slice(50));
+			const transport = connectMissionControlListClient('client-list-archives');
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+			assert.deepStrictEqual({
+				resources: result?.items.map(item => item.resource),
+				storedCount: agentService.listedSessions.length,
+			}, {
+				resources: [
+					...active.slice(0, 50),
+					...archived.slice(Math.max(0, archivedCount - 100)),
+					...active.slice(50),
+				].map(item => item.session.toString()),
+				storedCount: active.length + archivedCount,
+			});
+		});
+	}
+
+	test('Mission Control listSessions applies the archive limit to current status and modification time', async () => {
+		for (let index = 0; index < 102; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		for (const [index, status, modifiedTime] of [
+			[0, SessionStatus.Idle | SessionStatus.IsArchived, 2000],
+			[101, SessionStatus.Idle, 101],
+		] as const) {
+			stateManager.restoreSession({
+				...makeSessionSummary(`copilot:/archived-${index}`),
+				status,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(modifiedTime).toISOString(),
+			}, [], creationTimeChatStorageResource);
+		}
+		const transport = connectMissionControlListClient('client-list-live-archives');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+		assert.deepStrictEqual(result?.items.map(item => item.resource), [
+			'copilot:/archived-0',
+			...Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 2}`),
+		]);
+	});
+
+	test('Mission Control listSessions does not prevent subscribing to older archived sessions', async () => {
+		const resource = 'copilot:/archived-0';
+		stateManager.restoreSession({
+			...makeSessionSummary(resource),
+			status: SessionStatus.Idle | SessionStatus.IsArchived,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		}, [], creationTimeChatStorageResource);
+		for (let index = 0; index < 101; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		const transport = connectMissionControlListClient('client-list-old-archive');
+		const listing = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const listResponse = await listing;
+		const result = hasKey(listResponse, { result: true }) ? listResponse.result as ListSessionsResult : undefined;
+		const subscription = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'subscribe', { channel: resource }));
+		const subscribeResponse = await subscription;
+		const snapshot = hasKey(subscribeResponse, { result: true }) ? (subscribeResponse.result as SubscribeResult).snapshot : undefined;
+		assert.deepStrictEqual({
+			listed: result?.items.some(item => item.resource === resource),
+			subscribed: snapshot?.resource,
+		}, {
+			listed: false,
+			subscribed: resource,
+		});
+	});
+
+	test('Mission Control listSessions applies the archive limit after legacy-client visibility filtering', async () => {
+		for (const scheme of ['copilot', 'ahp-session']) {
+			for (let index = 0; index < 101; index++) {
+				agentService.listedSessions.push({
+					session: URI.parse(`${scheme}:/archived-${index}`),
+					provider: 'copilot',
+					startTime: 0,
+					modifiedTime: index + (scheme === 'ahp-session' ? 1000 : 0),
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+				});
+			}
+		}
+		const transport = connectMissionControlListClient('legacy-list-archives', editorWindowAgentHostClientInfo);
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+		assert.deepStrictEqual(result?.items.map(item => item.resource), Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 1}`));
+	});
+
+	test('Mission Control listSessions applies the archive limit after current directory grants', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'relay-archived-sessions-'));
+		try {
+			const workspace = join(path, 'workspace');
+			const outside = join(path, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(outside)]);
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRoots: [workspace], sessionListAdapter: toMissionControlSessionList },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			for (let index = 0; index < 101; index++) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/archived-${index}`),
+					startTime: 0,
+					modifiedTime: index,
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					workingDirectories: [URI.file(workspace)],
+				});
+			}
+			agentService.listedSessions.push({
+				session: URI.parse('copilot:/outside'),
+				startTime: 0,
+				modifiedTime: 2000,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				workingDirectories: [URI.file(workspace)],
+			});
+			stateManager.restoreSession({
+				...makeSessionSummary('copilot:/outside'),
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				modifiedAt: new Date(2000).toISOString(),
+				workingDirectories: [URI.file(outside).toString()],
+			}, [], creationTimeChatStorageResource);
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'archive-listing-lane', false));
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'archive-listing-lane', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, 'listSessions'));
+			await scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			const result = response && hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+			assert.deepStrictEqual(result?.items.map(item => item.resource), Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 1}`));
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('listSessions includes project metadata', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
@@ -5486,7 +5700,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
@@ -7234,8 +7448,8 @@ suite('ProtocolServerHandler', () => {
 			const peerChat = buildChatUri(sessionUri, 'peer');
 			const siblingChat = buildChatUri(sessionUri, 'sibling');
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
-			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat, buildDefaultChatUri(sessionUri)));
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientSet,
 				activeClient: {
@@ -7265,7 +7479,7 @@ suite('ProtocolServerHandler', () => {
 	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
 		const peerChat = buildChatUri(sessionUri, 'peer');
 		stateManager.createSession(makeSessionSummary());
-		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 		stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: {

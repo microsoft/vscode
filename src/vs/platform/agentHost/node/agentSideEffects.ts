@@ -52,7 +52,6 @@ import {
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
-	buildDefaultChatUri,
 	isSubagentChatUri,
 	mergeLogicalTurnUsage,
 	MessageAttachmentKind,
@@ -577,7 +576,11 @@ export class AgentSideEffects extends Disposable {
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
-		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
+		const defaultChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._chatOwnership.getDefaultChat(session);
+		if (defaultChat === undefined) {
+			return;
+		}
+		const chat = URI.parse(defaultChat);
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
 
 		// Skip the dispatch when the resolved customizations match what the
@@ -2303,11 +2306,11 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private async _chatAttachmentLink(resource: ProtocolURI): Promise<string | undefined> {
 		if (!isAhpChatChannel(resource)) {
-			return buildOpenSessionLinkForChat(resource, resource);
+			return buildOpenSessionLinkForChat(resource, resource, this._chatOwnership.getDefaultChat(resource), undefined);
 		}
 		try {
 			const owner = this._chatOwnership.getChatOwner(resource) ?? (await this._chatOwnership.resolveChatOwner(resource))?.owner;
-			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource);
+			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource, this._chatOwnership.getDefaultChat(owner), undefined);
 		} catch (err) {
 			this._logService.warn(`[AgentSideEffects] Unable to resolve the owner of chat attachment ${resource}`, err);
 			return undefined;

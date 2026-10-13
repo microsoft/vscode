@@ -118,6 +118,8 @@ export class ChatResourceGroupWidget extends Disposable {
 			ChatAttachmentsContentPart,
 			{
 				variables: entries,
+				// Tool output files and images, which no session-aware attachment widget renders.
+				sessionResource: undefined,
 				limit: 5,
 				contentReferences: undefined,
 				domNode: undefined,

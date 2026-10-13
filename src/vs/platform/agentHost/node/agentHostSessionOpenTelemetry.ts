@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { AgentProvider } from '../common/agent.js';
-import { isAhpChatChannel, isDefaultChatUri } from '../common/state/sessionState.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -94,7 +94,8 @@ class AgentHostSessionOpenTelemetryAttempt extends Disposable {
 		readonly stopwatch: StopWatch,
 		readonly session: URI,
 		readonly provider: AgentHostSessionSubscribeProvider,
-		readonly channel: AgentHostSessionSubscribeChannel,
+		/** The subscribed resource; its channel kind is classified when the attempt finishes, once its session is restored. */
+		readonly resource: URI,
 	) {
 		super();
 		this.sdkResumeOutcome = provider === 'copilotcli' ? 'notStarted' : undefined;
@@ -193,7 +194,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 			return undefined;
 		}
 
-		const attempt = new AgentHostSessionOpenTelemetryAttempt(this._nextAttemptId++, stopwatch, info.session, info.provider, info.channel);
+		const attempt = new AgentHostSessionOpenTelemetryAttempt(this._nextAttemptId++, stopwatch, info.session, info.provider, resource);
 		this._attempts.set(attempt.id, attempt);
 		let sessionAttempts = this._attemptsBySession.get(info.session.toString());
 		if (!sessionAttempts) {
@@ -277,7 +278,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 
 		this._telemetryService.publicLog2<AgentHostSessionSubscribeEvent, AgentHostSessionSubscribeClassification>('agentHost.sessionSubscribe', {
 			provider: attempt.provider,
-			channel: attempt.channel,
+			channel: this._classifyChannel(attempt.resource, attempt.session),
 			outcome,
 			servedFromMemory,
 			joinedRestore: attempt.joinedRestore,
@@ -304,7 +305,12 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		return Math.max(0, Math.round(attempt.stopwatch.elapsed()));
 	}
 
-	private _classify(resource: URI, resolvedOwner: URI | undefined): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider; readonly channel: AgentHostSessionSubscribeChannel } | undefined {
+	private _classifyChannel(resource: URI, session: URI): AgentHostSessionSubscribeChannel {
+		const resourceString = resource.toString();
+		return !isAhpChatChannel(resourceString) ? 'session' : this._chatOwnership.isDefaultChat(session.toString(), resourceString) ? 'defaultChat' : 'chat';
+	}
+
+	private _classify(resource: URI, resolvedOwner: URI | undefined): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider } | undefined {
 		const resourceString = resource.toString();
 		const owner = !isAhpChatChannel(resourceString)
 			? resourceString
@@ -317,10 +323,6 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		if (!provider) {
 			return undefined;
 		}
-		return {
-			session,
-			provider,
-			channel: !isAhpChatChannel(resourceString) ? 'session' : isDefaultChatUri(resource) ? 'defaultChat' : 'chat',
-		};
+		return { session, provider };
 	}
 }

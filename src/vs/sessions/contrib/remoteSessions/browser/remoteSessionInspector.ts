@@ -90,7 +90,7 @@ export class RemoteSessionInspector {
 				throw new CancellationError();
 			}
 			// A chat listed in the backend session's catalog belongs to that session.
-			const chatResource = getSessionChatResource(sessionState, resource.fragment || DEFAULT_CHAT_ID);
+			const chatResource = getSessionChatResource(sessionState, resource.fragment || DEFAULT_CHAT_ID, sessionState.defaultChat);
 			if (!chatResource || !parseChatUri(chatResource)) {
 				throw new Error(localize('remoteInspection.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
