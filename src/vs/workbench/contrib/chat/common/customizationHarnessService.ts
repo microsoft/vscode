@@ -108,6 +108,33 @@ export interface ICustomizationMarketplaceSearchProvider {
 	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
+export interface ICustomizationMarketplaceInfo {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface ICustomizationMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface ICustomizationMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceManagementProvider {
+	readonly onDidChange: Event<void>;
+	list(): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(source: string): Promise<ICustomizationMarketplaceInfo>;
+	remove(name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -189,6 +216,8 @@ export interface IHarnessDescriptor {
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */
 	readonly marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider;
+	/** Supplies authoritative marketplace inventory and mutations for this harness. */
+	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
 /**

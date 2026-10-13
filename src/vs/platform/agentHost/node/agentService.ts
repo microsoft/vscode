@@ -5415,6 +5415,38 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.installPlugin(request);
 	}
 
+	listPluginMarketplaces(providerId: AgentProvider) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listPluginMarketplaces) {
+			throw new Error(`Plugin marketplace inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listPluginMarketplaces();
+	}
+
+	addPluginMarketplace(providerId: AgentProvider, source: string) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.addPluginMarketplace) {
+			throw new Error(`Plugin marketplace registration is unavailable for provider '${providerId}'.`);
+		}
+		return provider.addPluginMarketplace(source);
+	}
+
+	removePluginMarketplace(providerId: AgentProvider, name: string, force?: boolean) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.removePluginMarketplace) {
+			throw new Error(`Plugin marketplace removal is unavailable for provider '${providerId}'.`);
+		}
+		return provider.removePluginMarketplace(name, force);
+	}
+
+	refreshPluginMarketplaces(providerId: AgentProvider, name?: string) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.refreshPluginMarketplaces) {
+			throw new Error(`Plugin marketplace refresh is unavailable for provider '${providerId}'.`);
+		}
+		return provider.refreshPluginMarketplaces(name);
+	}
+
 	searchCustomizationMarketplace(providerId: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.searchCustomizationMarketplace) {

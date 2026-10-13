@@ -21,7 +21,7 @@ import { CustomizationMarketplaceSources } from '../../../../../../platform/cust
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { getGitHubMcpRegistryIcon } from '../../aiCustomization/githubMcpRegistryIcons.js';
@@ -31,7 +31,7 @@ const maxCatalogAssociations = 1000;
 const pluginInventoryUpdateTimeoutMs = 30_000;
 const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
-export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider {
+export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
@@ -66,6 +66,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind === 'providerCatalog') {
 			return this.unavailableCatalogItems.get(installation.selectionId);
 		}
+
 		if (installation?.kind === 'plugin') {
 			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
 		}
@@ -79,6 +80,42 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
 		}
 		return undefined;
+	}
+
+	async list() {
+		if (!this.agentHostService.listPluginMarketplaces) {
+			throw new Error(localize('agentHost.marketplaceManagement.listUnavailable', "The selected agent does not support marketplace management."));
+		}
+		return this.agentHostService.listPluginMarketplaces(this.providerId);
+	}
+
+	async add(source: string) {
+		if (!this.agentHostService.addPluginMarketplace) {
+			throw new Error(localize('agentHost.marketplaceManagement.addUnavailable', "The selected agent does not support adding marketplaces."));
+		}
+		const result = await this.agentHostService.addPluginMarketplace(this.providerId, source);
+		this._onDidChange.fire();
+		return result;
+	}
+
+	async remove(name: string, force?: boolean) {
+		if (!this.agentHostService.removePluginMarketplace) {
+			throw new Error(localize('agentHost.marketplaceManagement.removeUnavailable', "The selected agent does not support removing marketplaces."));
+		}
+		const result = await this.agentHostService.removePluginMarketplace(this.providerId, name, force);
+		if (result.removed) {
+			this._onDidChange.fire();
+		}
+		return result;
+	}
+
+	async refresh(name?: string) {
+		if (!this.agentHostService.refreshPluginMarketplaces) {
+			throw new Error(localize('agentHost.marketplaceManagement.refreshUnavailable', "The selected agent does not support refreshing marketplaces."));
+		}
+		const result = await this.agentHostService.refreshPluginMarketplaces(this.providerId, name);
+		this._onDidChange.fire();
+		return result;
 	}
 
 	getRecoveryAction(): ICustomizationMarketplaceSourceRecoveryAction | undefined {
