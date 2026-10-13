@@ -11503,18 +11503,30 @@ suite('AgentHostChatContribution', () => {
 				return undefined;
 			}
 
-			test('waits for the host to register the restored subagent chat and uses its opaque URI', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			test('restore does not wait for the host to register the subagent chat, which later enriches the pill', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { sessionHandler, agentHostService, sessionUri, resource, childSummary, seedChild } = seed(opaqueHost, opaqueDefault, undefined);
 				seedChild(opaqueChild);
-				const pending = sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
-				await timeout(100);
-				agentHostService.fireAction({ channel: sessionUri.toString(), action: { type: ActionType.SessionChatAdded, summary: childSummary(opaqueChild) } as SessionAction, serverSeq: 1, origin: undefined });
-				const chatSession = await pending;
+				const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 				disposables.add(toDisposable(() => chatSession.dispose()));
+				const beforeRegistration = pillResource(chatSession);
+				agentHostService.fireAction({ channel: sessionUri.toString(), action: { type: ActionType.SessionChatAdded, summary: childSummary(opaqueChild) } as SessionAction, serverSeq: 1, origin: undefined });
+				await timeout(100);
 				assert.deepStrictEqual({
-					childToolCallLoaded: innerToolCallIds(chatSession).includes('toolInvocationSerialized:inner-tc'),
+					beforeRegistration,
+					afterRegistration: pillResource(chatSession),
+					opaqueSubscribed: agentHostService.hasLiveSubscription(opaqueChild),
 					shapedSubscribed: agentHostService.hasLiveSubscription(buildSubagentChatUri(sessionUri.toString(), 'tc-restored')),
-				}, { childToolCallLoaded: true, shapedSubscribed: false });
+				}, { beforeRegistration: undefined, afterRegistration: opaqueChild, opaqueSubscribed: true, shapedSubscribed: false });
+			}));
+
+			test('disposing the session while a pill waits cancels the late enrichment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, sessionUri, resource, childSummary, seedChild } = seed(opaqueHost, opaqueDefault, undefined);
+				seedChild(opaqueChild);
+				const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+				chatSession.dispose();
+				agentHostService.fireAction({ channel: sessionUri.toString(), action: { type: ActionType.SessionChatAdded, summary: childSummary(opaqueChild) } as SessionAction, serverSeq: 1, origin: undefined });
+				await timeout(100);
+				assert.deepStrictEqual({ pill: pillResource(chatSession), opaqueSubscribed: agentHostService.hasLiveSubscription(opaqueChild) }, { pill: undefined, opaqueSubscribed: false });
 			}));
 
 			test('skips enrichment without deriving or subscribing when the chat is never registered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

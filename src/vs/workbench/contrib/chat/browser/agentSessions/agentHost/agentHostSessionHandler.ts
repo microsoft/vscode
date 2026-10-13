@@ -427,9 +427,6 @@ export function unwrapSessionLoadErrorMessage(err: unknown): string | undefined 
 	return message.replace(/^Failed to restore session .+?: /, '');
 }
 
-/** How long restored history waits for the host to register a subagent chat it has not listed yet. */
-const RESTORED_SUBAGENT_CHAT_TIMEOUT_MS = 5000;
-
 /**
  * Resolves a session's last-used model selection from its live turns. Model
  * selection moved off the session/chat summary and onto each {@link Message};
@@ -5264,27 +5261,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return getOlderHostSubagentChatUri(session, toolCallId, this._config.connection.initializeResult.get(), this._getRootState());
 	}
 
-	/** Resolves the chat the host records for a subagent tool call once the session catalog lists it, or `undefined` after a short timeout. */
-	private async _whenSubagentChatRegistered(session: string, parentChat: string, toolCallId: string): Promise<string | undefined> {
-		const state = observableFromSubscription(this, this._ensureSessionSubscription(session));
-		const find = (value: SessionState | undefined) => value?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parentChat && chat.origin.toolCallId === toolCallId)?.resource.toString();
-		const store = new DisposableStore();
-		try {
-			return await new Promise<string | undefined>(resolve => {
-				store.add(this._lifetime.token.onCancellationRequested(() => resolve(undefined)));
-				store.add(disposableTimeout(() => resolve(undefined), RESTORED_SUBAGENT_CHAT_TIMEOUT_MS));
-				store.add(autorun(reader => {
-					const resource = find(state.read(reader));
-					if (resource !== undefined) {
-						resolve(resource);
-					}
-				}));
-			});
-		} finally {
-			store.dispose();
-		}
-	}
-
 	/** Restores live inline subagent pills while deferring settled child history until activity resumes. */
 	private async _enrichHistoryWithSubagentCalls(
 		history: IChatSessionHistoryItem[],
@@ -5376,10 +5352,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (waitForActivity) {
 				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity };
 			}
-			// The host registers restored subagent chats lazily, so wait for the catalog instead of deriving a URI.
-			const childChatUri = knownChatUri ?? await this._whenSubagentChatRegistered(parentSessionStr, parentChatUri, toolCallId);
+			const childChatUri = knownChatUri;
 			if (childChatUri === undefined) {
-				this._logService.trace(`[AgentHost] Skipped history enrichment for subagent call ${toolCallId}: the host did not register its chat`);
+				// The host registers restored subagent chats lazily. Restore must not wait for it: the tracker below
+				// follows the session catalog and enriches the pill once the chat appears.
+				this._logService.trace(`[AgentHost] Deferred history enrichment for subagent call ${toolCallId} until the host registers its chat`);
 				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity };
 			}
 			if (parentPart.kind === 'toolInvocationSerialized' && parentPart.toolSpecificData?.kind === 'subagent') {
