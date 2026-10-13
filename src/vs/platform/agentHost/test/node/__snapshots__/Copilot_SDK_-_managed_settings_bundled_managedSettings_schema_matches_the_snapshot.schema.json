@@ -1154,5 +1154,9 @@
 			}
 		}
 	},
+<<<<<<< HEAD
 	"runtimeVersion": "1.0.96-2"
+=======
+	"runtimeVersion": "1.0.95-0.unstable.r38345923974.g3754b70"
+>>>>>>> 8c19d9191d3 (agentHost: Adopt managed plugin SDK for 1.142 (#341311))
 }

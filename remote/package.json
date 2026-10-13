@@ -4,7 +4,11 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
+<<<<<<< HEAD
     "@github/copilot-sdk": "1.0.20-preview.2",
+=======
+    "@github/copilot-sdk": "1.0.19-unstable.38345923974.g3754b70",
+>>>>>>> 8c19d9191d3 (agentHost: Adopt managed plugin SDK for 1.142 (#341311))
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -79,5 +83,9 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
   },
+<<<<<<< HEAD
   "copilotRuntimeVersion": "1.0.96-2"
+=======
+  "copilotRuntimeVersion": "1.0.95-0.unstable.r38345923974.g3754b70"
+>>>>>>> 8c19d9191d3 (agentHost: Adopt managed plugin SDK for 1.142 (#341311))
 }
