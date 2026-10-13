@@ -148,6 +148,50 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('deduplicates effective child sizes while respecting header and visibility changes', () => {
+		const layouts: number[][] = [];
+		const header = { visible: true, height: 35 };
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_isVisibleObs: observableValue('visible', true),
+			_centeredContentContainer: centeredContentContainer,
+			_header: header,
+			_groupsView: {
+				layout: (...dimensions: number[]) => layouts.push(dimensions),
+				setSessionVisible: () => { },
+			},
+			_standaloneView: { get: () => undefined },
+		});
+		view.layoutContainer(1200, 800, 10, 20);
+		const beforeContents = { calls: layouts.length, headerWidth: centeredContentContainer.style.width };
+		view.layoutContents();
+		view.layout(1200, 800, 10, 20);
+		header.height = 45;
+		view.layoutContents();
+		view.setVisible(false);
+		view.layout(1000, 700, 30, 40);
+		view.setVisible(true);
+		view.layoutContents();
+		header.visible = false;
+		view.layoutContents();
+		view.layout(1000, 0, 30, 40);
+		view.layout(1000, 700, 30, 40);
+		assert.deepStrictEqual({ beforeContents, layouts }, {
+			beforeContents: { calls: 0, headerWidth: '1200px' },
+			layouts: [
+				[1200, 765, 45, 20],
+				[1200, 755, 55, 20],
+				[1000, 655, 75, 40],
+				[1000, 700, 30, 40],
+				[1000, 700, 30, 40],
+			],
+		});
+	});
+
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
 		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];

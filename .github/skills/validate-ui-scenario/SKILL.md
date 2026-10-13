@@ -31,9 +31,11 @@ A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` an
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
 | Installed Insiders, else Stable | *(none — the default)* | nothing | Reproducing a report against shipped behavior |
-| Dev build from this checkout | `--dev` | `npm run electron`, `npm run transpile-client` | Verifying an unmerged change |
+| Dev build from this checkout | `--dev` | Matching Electron runtime, `npm run build-fast` | Verifying an unmerged change |
 | A specific install | `--build <app-root>` | nothing | Pinning an exact build |
-| Web | `--web --headless` | `npm run transpile-client` | Browser-only behavior |
+| Web | `--web --headless` | `npm run build-fast -- --client-only` | Browser-only behavior |
+
+Reuse the matching Electron runtime when present; run `npm run electron` only when it is missing or incompatible. Fast builds refresh outputs without type checking; validate types separately when warranted.
 
 With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root — the install directory on Windows and Linux, or the `.app` bundle on macOS:
 

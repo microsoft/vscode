@@ -64,8 +64,14 @@
 	z-index: 10;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
-	border-top-color: var(--modern-ui-connected-tab-border);
+:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	border-color: var(--vscode-agentsPanel-border, var(--vscode-contrastBorder));
+}
+
+/* Keep the whole justified upper row on the same frame baseline above the panel. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.editor:not(.modal-editor-part),
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.dock-detail-panel):not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.auxiliarybar {
+	max-height: calc(100% - var(--agents-session-frame-inset) + var(--agents-side-pane-frame-inset));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill,

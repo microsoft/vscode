@@ -424,16 +424,15 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('a narrow token receives an explicit rollout error when the catalog still requires connector scope', async () => {
+	test('a narrow token receives a catalog error without requesting connector consent', async () => {
 		const fixture = createFixture([{ status: 403 }, { body: catalogResponse('connected') }]);
 		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
-		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Browsing without connector authorization may not yet be available/);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /catalog is unavailable for this account/);
 		const before = {
 			requests: fixture.requests.length,
 			consent: fixture.consentCalls.length,
 			status: fixture.service.connectors,
 			authorizationRequired: fixture.service.authorizationRequired,
-			catalogMayRequireConsent: fixture.service.catalogMayRequireConsent,
 		};
 		await fixture.service.checkConnection(CancellationToken.None);
 		assert.deepStrictEqual({
@@ -442,7 +441,7 @@ suite('CopilotConnectorsService', () => {
 			consent: fixture.consentCalls.length,
 			requests: fixture.requests.map(request => request.type),
 		}, {
-			before: { requests: 1, consent: 0, status: [], authorizationRequired: true, catalogMayRequireConsent: true },
+			before: { requests: 1, consent: 0, status: [], authorizationRequired: false },
 			after: 'connected', consent: 1, requests: ['GET', 'GET'],
 		});
 	});

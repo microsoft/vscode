@@ -329,7 +329,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	});
 
 	for (const surface of ['titleBar', 'chatTitle', 'command', 'workspace', 'chatSession'] as const) {
-		test(`${surface} snapshots the current draft and retains the source`, async () => {
+		test(`${surface} does not transfer a draft without an explicit new-session reveal`, async () => {
 			const h = createHarness();
 			h.input = 'Current prompt at invocation';
 			const originalAttachments = h.attachments;
@@ -346,16 +346,40 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				count: h.calls.length,
 				folder: URI.revive(h.calls[0].folderUri)?.path,
 				draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+				reveal: h.calls[0].reveal,
+				triggers: h.triggers,
 				source: { inputText: h.input, attachments: h.attachments },
 			}, {
 				count: 1, folder: '/source',
-				draft: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
+				draft: undefined, reveal: undefined, triggers: [],
 				source: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
 			});
 		});
 	}
 
-	for (const surface of ['workspaceTitle', 'sessionTitle'] as const) {
+	for (const surface of ['command', 'workspace', 'chatSession'] as const) {
+		test(`${surface} transfers the current draft when explicitly revealing the new-session view`, async () => {
+			const h = createHarness();
+			await h.instantiation.invokeFunction(accessor => {
+				switch (surface) {
+					case 'command': return new OpenAgentsWindowAction().run(accessor, { reveal: 'new' });
+					case 'workspace': return new OpenWorkspaceInAgentsWindowAction().run(accessor, { reveal: 'new' });
+					case 'chatSession': return new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, h.resource);
+				}
+			});
+			assert.deepStrictEqual({
+				reveal: h.calls[0].reveal,
+				draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+				source: { inputText: h.input, attachments: h.attachments },
+			}, {
+				reveal: 'new',
+				draft: { inputText: 'Original prompt', attachments: h.attachments },
+				source: { inputText: 'Original prompt', attachments: h.attachments },
+			});
+		});
+	}
+
+	for (const surface of ['workspace', 'sessionTitle'] as const) {
 		for (const inputState of ['available', 'closed', 'rebound'] as const) {
 			test(`${surface} uses its input instance without falling back to a duplicate chat widget (${inputState})`, async () => {
 				const h = createHarness();
@@ -389,9 +413,9 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				if (inputState === 'rebound') {
 					secondSession = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-another-chat' });
 				}
-				await h.instantiation.invokeFunction(accessor => surface === 'workspaceTitle'
-					? new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, context)
-					: new OpenChatSessionInAgentsWindowAction().run(accessor, context));
+				await h.instantiation.invokeFunction(accessor => surface === 'workspace'
+					? new OpenWorkspaceInAgentsWindowAction().run(accessor, { ...context, reveal: 'new' })
+					: new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, context));
 				assert.deepStrictEqual({
 					contextInput: context.inputUri, inputLookups, resourceLookups,
 					draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
@@ -421,11 +445,11 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			getWidgetByInputUri: uri => isEqual(uri, inputUri) ? second : undefined,
 			getWidgetBySessionResource: () => h.widget,
 		}));
-		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, {
-			$mid: MarshalledId.ChatViewContext, sessionResource: h.resource,
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, {
+			reveal: 'new', sessionResource: h.resource,
 		}));
-		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, h.resource));
-		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, h.resource));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }));
 		assert.deepStrictEqual(h.calls.map(call => call.draft?.inputText), [
 			'Original prompt', 'Original prompt', 'Last focused draft',
 		]);
@@ -433,27 +457,35 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 
 	for (const transfer of [false, true]) {
 		for (const reveal of [false, true]) {
-			test(`draft transfer is independent of session reveal (transfer=${transfer}, reveal=${reveal})`, async () => {
+			test(`title-bar opens preserve drafts and honor session reveal (transfer=${transfer}, reveal=${reveal})`, async () => {
 				const h = createHarness({ transfer, reveal });
 				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
 				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
 				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
-				assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: URI.revive(call.sessionResource)?.path })), [
-					{ draft: transfer, session: undefined },
+				assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: call.reveal === 'new' ? 'new' : URI.revive(call.reveal)?.path })), [
+					{ draft: false, session: undefined },
 					{ draft: false, session: reveal ? '/persisted' : undefined },
 				]);
 			});
 		}
 	}
 
-	test('preserves explicit draft transfer overrides', async () => {
+	test('requires new-session reveal even for an explicit draft transfer override', async () => {
 		const h = createHarness({ transfer: false, running: false });
 		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, {
 			agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff,
 			transferDraft: true,
 		}, h.resource));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, {
+			agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff,
+			reveal: 'new',
+			transferDraft: true,
+		}, h.resource));
 
-		assert.strictEqual(h.calls[0].draft && reviveChatDraft(h.calls[0].draft).inputText, 'Original prompt');
+		assert.deepStrictEqual(h.calls.map(call => ({ reveal: call.reveal, input: call.draft?.inputText })), [
+			{ reveal: undefined, input: undefined },
+			{ reveal: 'new', input: 'Original prompt' },
+		]);
 	});
 
 	for (const session of [
@@ -473,9 +505,9 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				h.viewContext = surface === 'view' ? { viewId: 'workbench.panel.chat.view' } : {};
 				h.showBanner();
 				const invitationBeforeSend = !!h.notification;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 				h.hasRequests = true;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 				assert.deepStrictEqual({
 					drafts: h.calls.map(call => !!call.draft),
 					invitationBeforeSend,
@@ -492,9 +524,9 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const h = createHarness({ reveal: true });
 		const targets: IOpenAgentsWindowOptions[] = [
 			{ folderUri: URI.file('/explicit-workspace') },
-			{ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
-			{ folderUri: URI.file('/explicit-workspace'), sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
-			{ folderUri: URI.file('/explicit-workspace'), folderUriIsDefault: true, draft: { inputText: 'Explicit caller draft', attachments: '[]' } },
+			{ reveal: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
+			{ folderUri: URI.file('/explicit-workspace'), reveal: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
+			{ folderUri: URI.file('/explicit-workspace'), folderUriIsDefault: true, reveal: 'new', draft: { inputText: 'Explicit caller draft', attachments: '[]' } },
 		];
 		for (const target of targets) {
 			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, target));
@@ -509,7 +541,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
 		assert.deepStrictEqual({
 			draft: h.calls[0].draft,
-			session: URI.revive(h.calls[0].sessionResource)?.path,
+			session: h.calls[0].reveal === 'new' ? 'new' : URI.revive(h.calls[0].reveal)?.path,
 			invitation: h.notification,
 		}, { draft: undefined, session: '/persisted', invitation: undefined });
 	});
@@ -518,10 +550,10 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const h = createHarness();
 		const opened = new DeferredPromise<void>();
 		h.openReady = opened.p;
-		const first = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const first = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.input = 'Newer source edit';
 		h.attachments = [];
-		const second = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const second = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		await opened.complete();
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({
@@ -546,7 +578,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			if (!attachments) {
 				h.attachments = [];
 			}
-			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 			results.push({ triggers: h.triggers, transferred: !!h.calls[0].draft });
 		}
 
@@ -562,12 +594,12 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	test('does not transfer from hidden AI, inline chat or Quick Chat', async () => {
 		const h = createHarness();
 		h.allowed = false;
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.allowed = true;
 		h.viewContext = { isInlineChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.viewContext = { isQuickChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual(h.calls.map(call => call.draft), [undefined, undefined, undefined]);
 	});
 
@@ -577,7 +609,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const model = disposables.add(createTextModel('Unsaved source contents', 'plaintext', undefined, resource));
 		h.models.set(resource, model);
 		h.attachments = [toFileVariableEntry(resource)];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		const draft = h.calls[0].draft && reviveChatDraft(h.calls[0].draft);
 		assert.deepStrictEqual({
 			destination: draft?.attachments.map(entry => ({ kind: entry.kind, text: entry.value })),
@@ -592,7 +624,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	test('warns and retains the source when an untitled attachment has no loaded model', async () => {
 		const h = createHarness();
 		h.attachments = [toFileVariableEntry(URI.from({ scheme: Schemas.untitled, path: '/Unavailable' }))];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual({ warnings: h.warnings.length, draft: h.calls[0].draft, isDefault: h.calls[0].folderUriIsDefault, attachments: h.attachments.length }, {
 			warnings: 1, draft: undefined, isDefault: true, attachments: 1,
 		});
@@ -601,7 +633,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	test('reports untransferable context and opens without losing or retargeting a destination draft', async () => {
 		const h = createHarness();
 		h.attachments = [{ kind: 'string', id: 'unresolved', name: 'Context', value: undefined, uri: URI.parse('context:/item'), handle: 7 }];
-		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual({ warnings: h.warnings.length, draft: h.calls[0].draft, isDefault: h.calls[0].folderUriIsDefault, retained: h.attachments.length }, {
 			warnings: 1, draft: undefined, isDefault: true, retained: 1,
 		});

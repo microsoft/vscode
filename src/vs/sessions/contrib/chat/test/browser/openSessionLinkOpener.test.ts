@@ -382,9 +382,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				kind: 'chat',
 				title: 'Peer chat',
 				detail: 'Session details',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Peer chat · Needs input',
-				ariaLabel: 'Agent chat Peer chat, Needs input',
+				status: { kind: 'warning', label: 'Needs attention' },
+				tooltip: 'Peer chat · Needs attention',
+				ariaLabel: 'Agent chat Peer chat, Needs attention',
 			},
 		]);
 	});

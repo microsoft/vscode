@@ -32,9 +32,10 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
+import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
@@ -171,11 +172,21 @@ export interface IAgentHostCustomizationTarget {
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
+	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
+}
+
+interface IMcpAutoAuthenticationAttempt {
+	readonly sessionResource: URI;
+	readonly serverId: string;
+	readonly challenge: string;
+	tokenForwarded: boolean | undefined;
+	restarted: boolean;
+	rejected: boolean;
 }
 
 export abstract class AbstractAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
@@ -194,6 +205,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
+	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -253,6 +265,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return getPresentableMcpServerCustomizations(target.customizations)
 			.map(({ server, plugin, isTopLevel }): IAgentHostMcpServer => {
 				const source = URI.parse(server.uri);
+				const channel = server.channel;
+				const handleMcpRequest = target.handleMcpRequest;
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
@@ -264,10 +278,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
+					pluginId: plugin?.id,
 					isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
 					owningPluginClientId: plugin?.clientId,
 					disabledReason: getCustomizationDisabledReason(server, plugin),
 					status: server.state.kind,
+					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
 					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
 					sourceRange: server.range,
@@ -276,8 +292,85 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
 					...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? { background: () => target.backgroundMcpServer(server.id) } : {}),
+					...(channel && handleMcpRequest ? { listTools: () => listMcpServerTools(handleMcpRequest, channel) } : {}),
 				};
 			});
+	}
+
+	private _isAutoAuthenticatingMcpServer(sessionResource: URI, target: IAgentHostCustomizationTarget, server: McpServerCustomization): boolean {
+		const key = `${sessionResource.toString()}\n${server.id}`;
+		const state = server.state;
+		let entry = this._mcpAutoAuthentication.get(key);
+		if (entry) {
+			this._updateMcpAutoAuthenticationAttempt(key, entry, state);
+			entry = this._mcpAutoAuthentication.get(key);
+		}
+		if (state.kind !== McpServerStatus.AuthRequired) {
+			return false;
+		}
+		const challenge = this._mcpAuthenticationChallenge(state);
+		if (!entry || entry.challenge !== challenge) {
+			entry = { sessionResource, serverId: server.id, challenge, tokenForwarded: undefined, restarted: false, rejected: false };
+			this._mcpAutoAuthentication.set(key, entry);
+			const currentEntry = entry;
+			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
+				authenticate: request => target.authenticate(request) as ReturnType<IAgentConnection['authenticate']>,
+			}, { scheme: sessionResource.scheme, authority: sessionResource.authority }, server.name, state).catch(err => {
+				this._logService.warn(`[AgentHost] Failed to silently authenticate MCP server '${server.name}'`, err);
+				return false;
+			}).then(result => {
+				if (!this._store.isDisposed && this._mcpAutoAuthentication.get(key) === currentEntry) {
+					currentEntry.tokenForwarded = result;
+					this._fireCustomizationsChanged();
+				}
+			});
+		}
+		return !entry.rejected && entry.tokenForwarded !== false;
+	}
+
+	private _reconcileMcpAutoAuthenticationAttempts(): void {
+		for (const [key, entry] of this._mcpAutoAuthentication) {
+			const target = this._resolveTarget(entry.sessionResource);
+			if (!target) {
+				continue;
+			}
+			const server = this._findMcpServer(target.customizations, entry.serverId);
+			if (server) {
+				this._updateMcpAutoAuthenticationAttempt(key, entry, server.state);
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
+	}
+
+	private _updateMcpAutoAuthenticationAttempt(key: string, entry: IMcpAutoAuthenticationAttempt, state: McpServerState): void {
+		if (state.kind === McpServerStatus.AuthRequired) {
+			if (!entry.restarted) {
+				return;
+			}
+			if (entry.challenge === this._mcpAuthenticationChallenge(state)) {
+				entry.rejected = true;
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		} else if (state.kind === McpServerStatus.Starting && entry.tokenForwarded !== false) {
+			entry.restarted = true;
+		} else {
+			this._mcpAutoAuthentication.delete(key);
+		}
+	}
+
+	private _mcpAuthenticationChallenge(state: Extract<McpServerState, { kind: McpServerStatus.AuthRequired }>): string {
+		return JSON.stringify([
+			state.reason,
+			state.resource.resource,
+			state.resource.resource_name,
+			[...(state.resource.authorization_servers ?? [])].sort(),
+			[...(state.resource.scopes_supported ?? [])].sort(),
+			[...(state.requiredScopes ?? [])].sort(),
+			state.oauthClient?.clientId,
+			state.oauthClient?.clientSecret,
+		]);
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -325,6 +418,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	protected _disposeMcpDiagnostics(sessionResource: URI): void {
 		this._mcpDiagnosticSessions.delete(sessionResource);
 		this._mcpLogRegistry.disposeForSession(sessionResource);
+		// Also drop the session's auth attempts.
+		const prefix = `${sessionResource.toString()}\n`;
+		for (const key of this._mcpAutoAuthentication.keys()) {
+			if (key.startsWith(prefix)) {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
 	}
 
 	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void {
@@ -402,6 +502,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	protected _fireCustomizationsChanged(): void {
+		this._reconcileMcpAutoAuthenticationAttempts();
 		this._onDidChangeCustomizations.fire();
 	}
 
@@ -435,6 +536,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		const separator = serverId.indexOf('/');
 		return separator >= 0 && serverId.slice(separator + 1) === rawId;
 	}
+}
+
+async function listMcpServerTools(handleMcpRequest: NonNullable<IAgentHostCustomizationTarget['handleMcpRequest']>, channel: string): Promise<readonly MCP.Tool[]> {
+	const tools: MCP.Tool[] = [];
+	let cursor: string | undefined;
+	do {
+		const result = await handleMcpRequest(channel, 'tools/list', cursor ? { cursor } : {}) as MCP.ListToolsResult;
+		tools.push(...result.tools);
+		cursor = result.nextCursor;
+	} while (cursor);
+	return tools;
 }
 
 /** One MCP server customization, with the position it was published at. */
@@ -626,6 +738,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
+			handleMcpRequest: (channel, method, params) => target.connection.handleMcpRequest(channel, method, params),
 			setCustomizationEnablement: (rawId, enablement) => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,

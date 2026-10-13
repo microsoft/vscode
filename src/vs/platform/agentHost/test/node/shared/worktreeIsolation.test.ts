@@ -582,6 +582,32 @@ suite('WorktreeIsolation', () => {
 		}, { overlappingBranches: ['before-switch', 'before-switch'], freshBranch: 'after-switch' });
 	});
 
+	test('isolation configuration refreshes a cached non-repository after external git init', async () => {
+		let repositoryInitialized = false;
+		let cachedRoot: URI | undefined;
+		const gitService: IAgentHostGitService = {
+			...createGitService(),
+			getRepositoryRoot: async (_directory, options) => {
+				if (options?.refreshIfNone) {
+					cachedRoot = repositoryInitialized ? repoRoot : undefined;
+				}
+				return cachedRoot;
+			},
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const before = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+		repositoryInitialized = true;
+		const after = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+
+		assert.deepStrictEqual({
+			before: before.isolationProperty.protocol.enum,
+			after: after.isolationProperty.protocol.enum,
+		}, {
+			before: ['folder'],
+			after: ['folder', 'worktree'],
+		});
+	});
+
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {
 		const isolation = createIsolation(disposables);
 
@@ -805,6 +831,45 @@ suite('WorktreeIsolation', () => {
 			_serviceBrand: undefined,
 			resolve: async url => ({ url, webHost: 'github.com', owner: 'microsoft', repo: 'vscode', number: 42, headRef: 'feature/pr', baseRef: 'main', ...overrides }),
 		};
+	}
+
+	for (const kind of ['branch', 'pullRequest'] as const) {
+		test(`${kind} worktree creation refreshes a cached non-repository after external git init`, async () => {
+			let repositoryInitialized = false;
+			let cachedRoot: URI | undefined;
+			const refreshes: (boolean | undefined)[] = [];
+			const gitService: IAgentHostGitService = {
+				...createGitService(),
+				getRepositoryRoot: async (_directory, options) => {
+					refreshes.push(options?.refreshIfNone);
+					if (options?.refreshIfNone) {
+						cachedRoot = repositoryInitialized ? repoRoot : undefined;
+					}
+					return cachedRoot;
+				},
+				getFetchRemotes: async () => [{ name: 'origin', url: 'git@github.com:microsoft/vscode.git' }],
+				fetch: async () => { },
+			};
+			await gitService.getRepositoryRoot(repoRoot);
+			repositoryInitialized = true;
+			const isolation = createIsolation(disposables, { gitService, pullRequestResolver: createPullRequestResolver() });
+
+			const worktree = await isolation.resolveWorkingDirectory({
+				sessionUri,
+				sessionId,
+				workingDirectory: repoRoot,
+				config: {
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.Branch]: 'main',
+					...(kind === 'pullRequest' ? { [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' } : {}),
+				},
+			});
+
+			assert.deepStrictEqual({ worktree: worktree?.toString(), refreshes }, {
+				worktree: URI.joinPath(worktreesRoot, kind === 'pullRequest' ? 'pr-42-s1' : 'my-feature').toString(),
+				refreshes: [undefined, true],
+			});
+		});
 	}
 
 	test('checks out a pull request on a new session branch tracking its head and diffs against its base', async () => {

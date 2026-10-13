@@ -448,26 +448,24 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	const missionControl = server instanceof UtilityProcessServer
-		? protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
-			hostLaunchKind,
-			clientFileSystemProvider,
-			trackProtocolHandler: handler => {
-				protocolHandlers.push(handler);
-				return toDisposable(() => {
-					protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
-					handler.dispose();
-				});
-			},
-		}))
-		: undefined;
+	const missionControl = protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
+		hostLaunchKind,
+		clientFileSystemProvider,
+		trackProtocolHandler: handler => {
+			protocolHandlers.push(handler);
+			return toDisposable(() => {
+				protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
+				handler.dispose();
+			});
+		},
+	}));
 	const management = instantiationService.createInstance(
 		AgentHostManagementService,
 		agentService,
 		connectionTrackerService,
 		async () => {
 			try {
-				await missionControl?.environment.configure(undefined);
+				await missionControl.environment.configure(undefined);
 			} catch (error) {
 				logService.error('[AgentHost] Failed to unregister Mission Control environment', error);
 			}
@@ -475,7 +473,7 @@ async function startAgentHost(): Promise<void> {
 			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
 		},
 	);
-	management.setMissionControl(missionControl?.environment);
+	management.setMissionControl(missionControl.environment);
 	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));

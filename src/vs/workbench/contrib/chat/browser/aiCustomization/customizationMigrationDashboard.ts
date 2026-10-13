@@ -72,24 +72,8 @@ export interface ICustomizationMigrationDashboardScope {
 	readonly storage: PromptsStorage;
 	readonly label: string;
 	readonly count: number;
-	readonly skipped: boolean;
-	readonly started?: boolean;
 	readonly hasConfigurableDestinations: boolean;
 	readonly categories: readonly ICustomizationMigrationDashboardCategory[];
-}
-
-export interface ICustomizationMigrationDashboardActivity {
-	readonly id: string;
-	readonly categoryLabel: string;
-	readonly scopeLabel: string;
-	readonly storage: PromptsStorage;
-	readonly items: readonly {
-		readonly label: string;
-		readonly sourceLabel: string;
-		readonly targetLabel: string;
-		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
-		readonly migrationKey?: string;
-	}[];
 }
 
 export interface ICustomizationMigrationDashboardOverview {
@@ -97,15 +81,11 @@ export interface ICustomizationMigrationDashboardOverview {
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
-	/** Most recent activity first. */
-	readonly activity: readonly ICustomizationMigrationDashboardActivity[];
-	readonly result?: { readonly migratedCount: number };
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
-	readonly actionClicked: (action: 'retryClicked' | 'destinationsClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', categoryId?: CustomizationMigrationCategoryId) => void;
+	readonly actionClicked: (action: 'retryClicked' | 'destinationsClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked', categoryId?: CustomizationMigrationCategoryId) => void;
 	readonly configureLocations: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
-	readonly dismissResult: () => void;
 	readonly migrateWithAgent: () => void;
 	readonly migrateCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly setItemSelected: (item: ICustomizationMigrationDashboardItem, selected: boolean) => void;
@@ -113,7 +93,6 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly ignoreCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly restoreIgnoredCategories: () => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
-	readonly dismissActivity: (id: string) => void;
 	readonly onDidChangeContent?: () => void;
 }
 
@@ -266,9 +245,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly focusTargets = new Map<string, HTMLElement>();
-	private readonly expandedActivity = new Set<string>();
 	private readonly collapsedMigrationGroups = new Set<string>();
-	private readonly activityDetails = new Map<string, HTMLDetailsElement>();
 	private readonly migrationGroups = new Map<string, IMigrationGroupEntry>();
 	private readonly migrateButtons = new Map<string, Button>();
 	private pendingFocus: string | typeof focusPreferredTarget | undefined;
@@ -288,17 +265,27 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	showLoading(title: string, description: string, retry?: () => void): void {
 		this.allMigrationsComplete = false;
-		this.pendingFocus ??= this.getFocusedKey();
+		const activeElement = DOM.getActiveElement();
+		if (this.element.contains(activeElement)) {
+			this.pendingFocus ??= this.getFocusedKey() ?? focusPreferredTarget;
+		}
+		const shouldFocusError = retry !== undefined
+			&& this.pendingFocus !== undefined
+			&& (this.element.contains(activeElement) || activeElement === DOM.getWindow(this.element).document.body);
 		this.prepareRender();
 		const page = this.renderHeader(title, description);
 		page.setAttribute('aria-busy', String(!retry));
+		let retryButton: Button | undefined;
 		if (retry) {
-			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
+			retryButton = this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
 				this.callbacks.actionClicked('retryClicked');
 				retry();
 			});
 		}
 		this.callbacks.onDidChangeContent?.();
+		if (shouldFocusError) {
+			(retryButton?.element ?? this.focusTargets.get('title'))?.focus();
+		}
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
@@ -322,11 +309,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 			} : undefined,
 		);
 
-		if (overview.result) {
-			this.renderResult(page, overview);
-		}
-
 		if (migrationGroups.length) {
+			this.renderMigrationWarnings(page, migrationGroups);
 			this.renderMigrationTree(page, migrationGroups);
 		} else {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
@@ -334,15 +318,6 @@ export class CustomizationMigrationDashboard extends Disposable {
 				: localize('noMigrations', "No migrations are needed.")));
 		}
 
-		const activityIds = new Set(overview.activity.map(activity => activity.id));
-		for (const id of this.expandedActivity) {
-			if (!activityIds.has(id)) {
-				this.expandedActivity.delete(id);
-			}
-		}
-		if (overview.activity.length) {
-			this.renderActivity(page, overview.activity);
-		}
 		this.layoutTree?.();
 		this.callbacks.onDidChangeContent?.();
 		if (this.allMigrationsComplete) {
@@ -406,7 +381,6 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.renderDisposables.clear();
 		this.layoutTree = undefined;
 		this.focusTargets.clear();
-		this.activityDetails.clear();
 		this.migrationGroups.clear();
 		this.migrateButtons.clear();
 		DOM.clearNode(this.element);
@@ -467,6 +441,22 @@ export class CustomizationMigrationDashboard extends Disposable {
 		return manualReviewItems.length
 			? [...migrationGroups, { kind: 'manual-review', items: manualReviewItems }]
 			: migrationGroups;
+	}
+
+	private renderMigrationWarnings(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
+		const promptMigration = groups.find(group => group.kind === 'migration' && group.category.id === CustomizationMigrationCategoryId.PromptFiles);
+		if (!promptMigration || promptMigration.kind !== 'migration') {
+			return;
+		}
+
+		const warning = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.warning.migration-warning-banner'));
+		const header = DOM.append(warning, $('.mcp-detail-diagnostic-header'));
+		const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, localize('promptMigrationWarningSummary', "Prompt-to-skill conversion changes")));
+		const details = DOM.append(warning, $('.mcp-detail-diagnostic-details'));
+		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, promptMigration.category.description));
 	}
 
 	private renderMigrationTree(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
@@ -566,7 +556,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				count: items.length,
 				isFirst: index === 0,
 				description: category.highRisk
-					? localize('highRiskMigrationDescription', "High risk. {0}", category.description)
+					? localize('highRiskMigrationDescription', "High risk")
 					: category.description,
 				collapsed: this.collapsedMigrationGroups.has(groupId),
 				categoryId: category.id,
@@ -712,91 +702,6 @@ export class CustomizationMigrationDashboard extends Disposable {
 			? localize('migrate', "Migrate")
 			: localize('migrateSelectedCount', "Migrate {0}", entry.selectedCount);
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;
-	}
-
-	private renderResult(parent: HTMLElement, overview: ICustomizationMigrationDashboardOverview): void {
-		const result = overview.result!;
-		const strip = DOM.append(parent, $('section.migration-result', { 'aria-label': localize('migrationComplete', "Migration complete") }));
-		DOM.append(strip, $('h2', { role: 'status' }, result.migratedCount === 1
-			? localize('oneMigrationComplete', "1 customization migrated")
-			: localize('migrationsComplete', "{0} customizations migrated", result.migratedCount)));
-		const actions = DOM.append(strip, $('.migration-result-actions'));
-		if (overview.activity.length) {
-			const latest = overview.activity[0];
-			this.button(actions, 'viewChanges', localize('viewChanges', "View Changes"), localize('viewMigrationChanges', "View migration changes"), () => {
-				this.callbacks.actionClicked('viewChangesClicked');
-				const details = this.activityDetails.get(latest.id);
-				if (details) {
-					details.open = true;
-					this.expandedActivity.add(latest.id);
-					this.callbacks.onDidChangeContent?.();
-					this.focusTargets.get(`activity:${latest.id}`)?.focus();
-					details.scrollIntoView({ block: 'nearest' });
-				}
-			}, 'link');
-		}
-		this.button(actions, 'dismissResult', '', localize('dismissMigrationResult', "Dismiss migration result"), () => {
-			this.callbacks.actionClicked('resultDismissed');
-			this.pendingFocus = focusPreferredTarget;
-			this.callbacks.dismissResult();
-		}, 'icon', Codicon.close);
-	}
-
-	private renderActivity(parent: HTMLElement, activity: readonly ICustomizationMigrationDashboardActivity[]): void {
-		const section = DOM.append(parent, $('section.migration-activity', { 'aria-label': localize('migrationActivity', "Migration activity") }));
-		const heading = DOM.append(section, $('h2', { tabindex: -1 }, localize('migrationActivity', "Migration activity")));
-		this.focusTargets.set('activity', heading);
-		const list = DOM.append(section, $('.migration-activity-list'));
-		for (const [index, entry] of activity.entries()) {
-			const row = DOM.append(list, $('.migration-activity-entry'));
-			const details = DOM.append(row, $<HTMLDetailsElement>('details.migration-activity-details'));
-			details.open = this.expandedActivity.has(entry.id);
-			this.activityDetails.set(entry.id, details);
-			const summary = DOM.append(details, $('summary'));
-			this.focusTargets.set(`activity:${entry.id}`, summary);
-			const leading = DOM.append(summary, $('.migration-activity-summary-leading'));
-			const disclosure = DOM.append(leading, $('span.migration-activity-disclosure'));
-			disclosure.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
-			disclosure.setAttribute('aria-hidden', 'true');
-			const title = DOM.append(leading, $('.migration-activity-title'));
-			DOM.append(title, $('strong', {}, localize('migrationActivityTitle', "{0} · {1}", entry.categoryLabel, entry.scopeLabel)));
-			DOM.append(title, $('span', {}, entry.items.length === 1
-				? localize('oneActivityMigration', "1 item migrated")
-				: localize('activityMigrations', "{0} items migrated", entry.items.length)));
-			const updateDisclosure = () => {
-				if (details.open) {
-					this.expandedActivity.add(entry.id);
-				} else {
-					this.expandedActivity.delete(entry.id);
-				}
-				this.callbacks.onDidChangeContent?.();
-			};
-			updateDisclosure();
-			this.renderDisposables.add(DOM.addDisposableListener(details, 'toggle', updateDisclosure));
-			const items = DOM.append(details, $('ul.migration-activity-items'));
-			for (const item of entry.items) {
-				const itemElement = DOM.append(items, $('li.migration-activity-item'));
-				const itemHeader = DOM.append(itemElement, $('.migration-activity-item-header'));
-				DOM.append(itemHeader, $('strong', {}, item.label));
-				const operation = item.operation === 'converted' ? localize('convertedToSkill', "Converted to skill")
-					: item.operation === 'copied' ? localize('copiedFile', "Copied file")
-						: item.operation === 'server' ? localize('movedServer', "Moved server") : localize('movedFile', "Moved file");
-				DOM.append(itemHeader, $('span.migration-operation', {}, operation));
-				const paths = DOM.append(itemElement, $('dl.migration-paths'));
-				DOM.append(paths, $('dt', {}, localize('migrationFrom', "From")));
-				DOM.append(paths, $('dd', {}, item.sourceLabel));
-				DOM.append(paths, $('dt', {}, localize('migrationTo', "To")));
-				DOM.append(paths, $('dd', {}, item.targetLabel));
-			}
-			const actions = DOM.append(row, $('.migration-activity-actions'));
-			this.button(actions, `dismissActivity:${entry.id}`, '',
-				localize('dismissMigrationActivity', "Dismiss {0} activity from {1}", entry.categoryLabel, entry.scopeLabel), () => {
-					this.callbacks.actionClicked('activityDismissed');
-					const next = activity[index + 1] ?? activity[index - 1];
-					this.pendingFocus = next ? `activity:${next.id}` : focusPreferredTarget;
-					this.callbacks.dismissActivity(entry.id);
-				}, 'icon', Codicon.close);
-		}
 	}
 
 	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables): Button {

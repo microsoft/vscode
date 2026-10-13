@@ -27,8 +27,8 @@ suite('Sessions chat layout configuration', () => {
 
 	test('registers a session-shared-default experimental window enum with descriptions', () => {
 		const property = registeredProperties[SESSIONS_LAYOUT_SCOPE_SETTING];
-		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
-			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
+		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
+			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'startup' }, enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
 		});
 	});
 

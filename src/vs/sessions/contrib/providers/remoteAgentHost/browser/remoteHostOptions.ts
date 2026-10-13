@@ -27,6 +27,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService, Severity as NotificationSeverity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 
 export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
 	if (provider.connect) {
@@ -37,6 +38,9 @@ export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, 
 }
 
 export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService, configurationService: IConfigurationService): Promise<void> {
+	if (provider.canRemove === false) {
+		throw new Error(localize('workspacePicker.cannotRemoveRemote', "This host cannot be removed locally."));
+	}
 	if (provider.remove) {
 		await provider.remove();
 	} else if (provider.disconnect) {
@@ -81,6 +85,7 @@ export async function runServerUpgrade(
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostUpdate,
 			title: localize('workspacePicker.upgradingServer', "Updating {0}...", provider.label),
 		},
 		async (progress) => {
@@ -318,6 +323,7 @@ export interface IBuildRemoteHostOptionItemsOptions {
 	readonly preferenceKey?: string;
 	readonly isConnected: boolean;
 	readonly removeLabel?: string;
+	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
 	readonly upgradeMethod?: string;
 	/** Defaults to the ambient {@link isWeb} constant; overridable for tests. See {@link supportsRemoteAgentHostLocationPreference}. */
@@ -337,11 +343,11 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 	} else if (options.disconnectLabel) {
 		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
 	}
-	items.push(
-		{ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' },
-		{ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' },
-		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
-	);
+	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
+	if (options.canRemove !== false) {
+		items.push({ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' });
+	}
+	items.push({ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' });
 	// An SSH host aliased in `~/.ssh/config` is authored there, not in
 	// settings, so point at the file that actually defines it.
 	items.push(usesSSHConfigFile(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)
@@ -410,6 +416,7 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	await options.progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostReconnect,
 			title: localize('workspacePicker.locationPreferenceReconnecting', "Reconnecting to {0}...", options.hostLabel),
 		},
 		async () => {
@@ -468,7 +475,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	// separate stable identity (tunnels, WSL, cloud sandbox).
 	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
+	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();

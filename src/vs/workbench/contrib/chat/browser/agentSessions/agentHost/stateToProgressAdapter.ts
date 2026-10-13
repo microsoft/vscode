@@ -20,7 +20,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -54,10 +54,12 @@ import { type ChatRequestSource, type IChatRequestVariableData } from '../../../
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
@@ -540,6 +542,32 @@ function getToolRawInput(tc: ToolCallState): unknown {
 	}
 }
 
+function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMapper): ChatToolInvocationSummary {
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return { kind: tc.reason === ToolCallCancellationReason.Skipped ? 'skipped' : 'denied' };
+	}
+	if (tc.status !== ToolCallStatus.Completed) {
+		return { kind: 'incomplete' };
+	}
+	if (!tc.success) {
+		return { kind: 'failed' };
+	}
+	const edits = getToolFileEdits(tc).map(normalizeFileEdit);
+	if (edits.length > 0) {
+		return edits.every(edit => edit !== undefined)
+			? { kind: 'edit', resources: edits.map(edit => ({ uri: resourceUris.fromAgentHost(edit.resource) })) } : { kind: 'unknown' };
+	}
+	const meta = readToolCallMeta(tc);
+	if (getTerminalContent(tc.content) || !tc.contributor && meta.toolKind === 'terminal') {
+		const exitCode = getTerminalCommandResult(tc)?.exitCode;
+		return { kind: exitCode !== undefined && exitCode !== 0 ? 'failed' : 'command' };
+	}
+	if (tc.contributor || meta['vscode.toolInputContract'] !== copilotCliToolInputContract) {
+		return { kind: 'unknown' };
+	}
+	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri)) ?? { kind: 'unknown' };
+}
+
 function buildMcpAppToolInputData(tc: ToolCallState, connectionAuthority: string, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
 	const mcpAppData = getMcpAppData(tc, connectionAuthority);
 	if (!mcpAppData) {
@@ -596,7 +624,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	const markdown = typeof value === 'string'
+		? new MarkdownString(stripSystemNotificationWrapper(value))
+		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
@@ -620,6 +650,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
+		case AgentSystemNotificationKind.ManagedPluginPreparationFailure:
+			return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -669,10 +701,21 @@ function withConfigureToolsLink(hostText: string): MarkdownString {
 	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
 	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
 	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	const escapedHostText = escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+	const escapedHostText = escapeHostText(hostText);
 	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
 		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
 	});
+}
+
+/**
+ * HTML-encodes and then markdown-escapes host text, so autolinks, HTML and
+ * markdown links in it render as plain text. It also escapes the characters
+ * that would turn bare URLs, `www.` addresses and email addresses into GFM
+ * autolinks.
+ */
+function escapeHostText(hostText: string): string {
+	return escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+		.replace(/:(?=\/\/)|(?<=www)\.|@/gi, '\\$&');
 }
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
@@ -739,6 +782,8 @@ export interface TurnModelLookup {
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	/** Whether a raw AHP model id names this provider's fusion routing model. */
+	isFusionModel?(rawModelId: string | undefined): boolean;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -763,10 +808,35 @@ export interface ITurnResponseModel {
 
 /** Fusion is the response-level model; constituent models remain in phase pills and usage. */
 export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
-	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
-		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
-		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
+	const isFusionModel = (modelId: string | undefined) => lookup?.isFusionModel?.(modelId) ?? false;
+	const selectedModelId = turn?.message.model?.id;
+	let isFusion = isFusionModel(selectedModelId);
+	// Turns selected as Auto, or restored without a model, learn which fusion model ran from its progress.
+	let reportedModelId: string | undefined;
+	for (const part of turn?.responseParts ?? []) {
+		if (part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase') {
+			isFusion = true;
+		} else if (part.kind === ResponsePartKind.SystemNotification) {
+			const meta = readAgentSystemNotificationMeta(part);
+			if (meta.kind === AgentSystemNotificationKind.FusionProgress) {
+				isFusion = true;
+				reportedModelId ??= isFusionModel(meta.fusionModel) ? meta.fusionModel : undefined;
+			}
+		}
+	}
+	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+}
+
+/**
+ * Result metadata for a finished turn. Records the model Auto routed the turn to as
+ * `resolvedModel`, the key the Copilot extension sets for local requests, so readers
+ * of a response's result (such as the model feedback survey) work for both. Read from
+ * the routing decision rather than the rendered routing row, which an experiment can hide.
+ */
+export function turnToResultMetadata(turn: Turn | undefined): { readonly resolvedModel: string } | undefined {
+	const resolvedModel = readUsageInfoMeta(turn?.usage).autoModeResolved?.chosenModel;
+	return resolvedModel ? { resolvedModel } : undefined;
 }
 
 /**
@@ -799,7 +869,11 @@ export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, reso
 	}
 	return {
 		kind: 'autoModeResolution',
-		resolved: { id: resolution.chosenModel, name: resolvedModelName ?? resolution.chosenModel },
+		resolved: {
+			id: resolution.chosenModel,
+			name: resolvedModelName ?? resolution.chosenModel,
+			...(resolution.selectionReason ? { reason: resolution.selectionReason } : {}),
+		},
 	};
 }
 
@@ -1885,7 +1959,7 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
 	}
 
-	if (!toolInput && (!isImageGeneration || output.length === 0)) {
+	if (!toolInput && !includeMcpOutput && (!isImageGeneration || output.length === 0)) {
 		return undefined;
 	}
 
@@ -1899,18 +1973,8 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 }
 
 /**
- * Builds a minimal {@link MCP.CallToolResult} from an agent-host tool call's
- * content blocks so the chat MCP App webview can receive a
- * `ui/notifications/tool-result` notification with the real tool output
- * (see {@link chatMcpAppModel}). Agent-host tool completions only carry our
- * own abstracted content shape (the raw MCP result is consumed by the
- * Copilot CLI's MCP host and never surfaces back over the AHP), so we
- * translate each AHP content block into the closest MCP content block:
- *  - `Text` → `MCP.TextContent`
- *  - `EmbeddedResource` with an image/audio MIME → `ImageContent`/`AudioContent`
- *  - `EmbeddedResource` (other) → `EmbeddedResource` wrapping a synthetic
- *    `data:` URI so MCP's resource shape is honored
- *  - `Resource` (content ref) → `ResourceLink` to the referenced URI
+ * Reconstructs an {@link MCP.CallToolResult} for the MCP App's `ui/notifications/tool-result`.
+ * Translates AHP content blocks into MCP content blocks and preserves the structured result object.
  */
 function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuthority: string): MCP.CallToolResult | undefined {
 	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
@@ -1923,10 +1987,11 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 			content.push(mcpBlock);
 		}
 	}
-	if (content.length === 0 && !isError) {
+	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
+	if (content.length === 0 && structuredContent === undefined && !isError) {
 		return undefined;
 	}
-	return { content, isError: isError || undefined };
+	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), isError: isError || undefined };
 }
 
 function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
@@ -2017,7 +2082,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 		block.type === ToolResultContentType.EmbeddedResource
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
@@ -2190,6 +2256,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
+	const summary = getToolSummary(tc, resourceUris);
 
 	return {
 		kind: 'toolInvocationSerialized',
@@ -2205,6 +2272,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			? ToolInvocationPresentation.Hidden
 			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
+		summary,
 		toolSpecificData,
 		resultDetails,
 		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
@@ -2255,8 +2323,8 @@ function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAu
 		uri: toAgentHostUri(normalized.resource, connectionAuthority),
 		editKind: normalized.kind as ChatExternalEditKind,
 		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
-		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority) : undefined,
-		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority) : undefined,
+		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri) : undefined,
+		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority, normalized.afterUri) : undefined,
 		diff,
 		undoStopId,
 	};
@@ -2647,7 +2715,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
-			const wrapContent = (uri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority) : uri;
+			const wrapContent = (uri: URI, fileUri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority, fileUri) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
@@ -2655,8 +2723,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				modifiedFiles: mapped.map(edit => {
 					const resource = wrap(edit.resource);
 					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
-					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri) : undefined;
-					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri) : undefined;
+					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri, edit.resource) : undefined;
+					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri, edit.originalResource ?? edit.resource) : undefined;
 					return {
 						uri: resource,
 						editKind: edit.kind as ChatExternalEditKind,
@@ -2701,6 +2769,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	invocation.summary = getToolSummary(tc, resourceUris);
 	invocation.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -3021,6 +3090,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
+	invocation.summary = getToolSummary(tc, resourceUris);
 
 	if (!isTerminal && invocation.toolSpecificData?.kind === 'search' && getToolKind(tc) !== 'search') {
 		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);

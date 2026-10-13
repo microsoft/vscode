@@ -58,7 +58,8 @@ const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
  * single machine-wide local agent host, so a fixed key (no per-authority
  * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
  */
-const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v4';
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v5';
+// Stable's v4 cache must remain separate because its host advertises the stored legacy addresses.
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEYS_LEGACY = ['localAgentHost.cachedSessions.v3', 'localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions'];
 
@@ -73,7 +74,7 @@ const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEYS_LEGACY = ['localAgentHost.ca
 export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-	readonly environment = { id: 'local', label: localize('environment.local', "Local") };
+	readonly environment = { id: 'local', label: localize('environment.local', "This Computer") };
 	readonly label: string;
 	readonly automations: ISessionsProviderAutomations;
 	readonly icon: ThemeIcon = Codicon.vm;
@@ -308,6 +309,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
+	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
+		if (meta.session.scheme === 'ahp-session' && meta.provider === 'ahp-session') {
+			this._logService.warn('[LocalAgentHostSessionsProvider] Ignoring cached session whose provider is the native session URI scheme');
+			return undefined;
+		}
+		return super._adoptCachedSessionMeta(meta);
+	}
+
 	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
@@ -346,7 +355,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY)
+			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY, options.fileUri)
 			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 

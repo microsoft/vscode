@@ -10,9 +10,11 @@ import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -41,11 +43,14 @@ import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerform
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
-import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
+const chatPersistenceServices = new WeakMap<AgentService, IAgentHostPeerChatPersistenceService>();
+const catalogDatabases = new WeakMap<AgentService, IAgentHostDatabase>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
@@ -88,6 +93,22 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 
 export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
 	return getTestAgentServiceComposition(agentService).stateManager;
+}
+
+export function getTestChatPersistenceService(agentService: AgentService): IAgentHostPeerChatPersistenceService {
+	const persistence = chatPersistenceServices.get(agentService);
+	if (!persistence) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return persistence;
+}
+
+export function getTestAgentHostDatabase(agentService: AgentService): IAgentHostDatabase {
+	const database = catalogDatabases.get(agentService);
+	if (!database) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return database;
 }
 
 export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
@@ -216,29 +237,28 @@ export function createTestAgentService(
 		services.set(IAgentHostStartupPerformance, startupPerformance);
 	}
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
+	services.set(IByokLmBridgeRegistry, new NullByokLmBridgeRegistry());
+	services.set(IAgentHostUtilityModelService, new SyncDescriptor(AgentHostUtilityModelService, [true]));
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
-	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+	const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 		sessionDataService,
 		queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+		persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
+		readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 		persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-		getGitHubCopilotToken: () => {
-			const resource = foundation.gitHubEndpointService.getCopilotResource();
-			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-		},
 		getGitHubToken: () => {
 			const resource = foundation.gitHubEndpointService.getRepoResource();
 			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 		},
 		getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 		gitHubService,
-		copilotApiService: effectiveCopilotApiService,
+		utilityModelService,
 		getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
-	services.set(IAgentHostLocalCommands, foundationDisposables.add(instantiationService.createInstance(AgentHostLocalCommands)));
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
 		accessor,
@@ -256,6 +276,8 @@ export function createTestAgentService(
 		services.set(IAgentService, composition.agentService);
 		composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 		compositions.set(composition.agentService, composition);
+		chatPersistenceServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostPeerChatPersistenceService)));
+		catalogDatabases.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase)));
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
 		return composition.agentService;
 	} catch (error) {

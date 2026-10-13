@@ -20,11 +20,13 @@ export interface IEntryDrivenProviderOptions {
 	readonly connectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly canRemove?: boolean;
 	readonly setDisplayName?: (name: string | undefined) => void;
 	readonly sessionCacheKey?: string;
 	readonly retainSessionsOnDisconnect?: boolean;
 	readonly readOnlyWhenDisconnected?: boolean;
 	readonly hostDescription?: IRemoteAgentHostSessionsProviderConfig['hostDescription'];
+	readonly isVisibleInEnvironmentPicker?: IRemoteAgentHostSessionsProviderConfig['isVisibleInEnvironmentPicker'];
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 	readonly connectionLabels?: IRemoteAgentHostSessionsProviderConfig['connectionLabels'];
@@ -114,11 +116,13 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			connectOnDemand: options.connectOnDemand,
 			disconnectOnDemand: options.disconnectOnDemand,
 			removeOnDemand: options.removeOnDemand,
+			canRemove: options.canRemove,
 			setDisplayName: options.setDisplayName,
 			sessionCacheKey: options.sessionCacheKey,
 			retainSessionsOnDisconnect: options.retainSessionsOnDisconnect,
 			readOnlyWhenDisconnected: options.readOnlyWhenDisconnected,
 			hostDescription: options.hostDescription,
+			isVisibleInEnvironmentPicker: options.isVisibleInEnvironmentPicker,
 			removeLabel: options.removeLabel,
 			disconnectLabel: options.disconnectLabel,
 			connectionLabels: options.connectionLabels,

@@ -23,6 +23,7 @@ import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_KNOWN_ISSUES = process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1';
@@ -110,7 +111,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1, { expectUnread: false });
@@ -149,7 +150,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	if (config.provider === 'codex') {
 		test('Codex image attachments remain readable after a host restart', async function () {
 			this.timeout(240_000);
-			const workspace = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'ahp-codex-image-restore-')));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-codex-image-restore-'));
 			tempDirs.push(workspace);
 			const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
 			const sessionUri = await createRealSession(context.client, config, 'codex-image-restore', createdSessions, URI.file(workspace));
@@ -190,7 +191,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	if (config.provider === 'copilotcli') {
 		(RUN_KNOWN_ISSUES ? test : test.skip)('file edit metadata survives a host restart', async function () {
 			this.timeout(240_000);
-			const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-file-edit-`);
+			const workspace = createTestDirectory(`${tmpdir()}/ahp-persistence-file-edit-`);
 			tempDirs.push(workspace);
 			const filePath = join(workspace, 'stored-edit.txt');
 			fs.writeFileSync(filePath, 'BEFORE_RESTART');
@@ -258,7 +259,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 	test('archiving a never-restored session survives a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-archive-unrestored-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-archive-unrestored-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `archive-unrestored-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-archive-unrestored-seed', 'Reply exactly "READY".', 1);
@@ -318,7 +319,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		&& (!(context.isWindows && config.provider === 'copilotcli') || context.runKnownIssueTests);
 	(peerChatPersistenceEnabled ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `peer-persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-peer-persistence-seed', 'Reply exactly "READY".', 1);
@@ -375,7 +376,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	});
 
 	async function createPersistenceSession(prefix: string): Promise<{ sessionUri: string; chatUri: string; workspace: string }> {
-		const workspace = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), `ahp-history-${prefix}-`)));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-history-${prefix}-`));
 		tempDirs.push(workspace);
 		// Keep Codex's protected mount directories stable across sibling-chat startup (KNOWN_ISSUES.md).
 		if (config.provider === 'codex' && context.isLinux) {

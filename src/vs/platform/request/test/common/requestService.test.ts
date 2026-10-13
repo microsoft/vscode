@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { bufferToStream, streamToBuffer, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestCompleteEvent, NO_FETCH_TELEMETRY } from '../../common/request.js';
+import { RequestChannel, RequestChannelClient } from '../../common/requestIpc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 class TestLogService extends NullLogService {
@@ -130,4 +132,24 @@ suite('AbstractRequestService', () => {
 
 		assert.deepStrictEqual(events.map(e => e.callSite), ['first', 'second']);
 	});
+
+	for (const timings of [undefined, { responseHeadersMs: 30, responseBodyMs: 70, decodedBodyBytes: 0 }]) {
+		test(`request IPC preserves optional diagnostics (${timings !== undefined})`, async () => {
+			let diagnosticId: string | undefined;
+			const service = store.add(new TestRequestService(async options => {
+				diagnosticId = options.diagnosticId;
+				return { ...makeResponse(200), timings };
+			}));
+			const channel = new RequestChannel(service);
+			const client = new RequestChannelClient({
+				listen: () => Event.None,
+				call: (command, args, token) => channel.call(undefined, command, args, token),
+			});
+			const result = await client.request({ url: 'https://example.test', callSite: 'test.ipc', diagnosticId: 'local-test' }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				diagnosticId, timings: result.timings, body: (await streamToBuffer(result.stream)).toString(),
+			}, { diagnosticId: 'local-test', timings, body: '' });
+		});
+	}
 });

@@ -20,7 +20,8 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -124,8 +125,8 @@ suite('SyncedCustomizationBundler', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBundler(authority = 'test-agent'): SyncedCustomizationBundler {
-		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority));
+	function createBundler(authority = 'test-agent', options?: ISyncedCustomizationBundlerOptions): SyncedCustomizationBundler {
+		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority, options));
 	}
 
 	async function seedFile(path: string, content: string): Promise<URI> {
@@ -484,6 +485,29 @@ suite('SyncedCustomizationBundler', () => {
 		const manifest = await fileService.readFile(manifestUri);
 		const parsed = JSON.parse(manifest.value.toString());
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
+	});
+
+	test('marks standalone bundles so the host keeps them out of plugin delivery', async () => {
+		const bundler = createBundler('test-agent-standalone', { standalone: true });
+		const skill = await seedFile('/test/my-skill/SKILL.md', 'skill');
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' })]);
+
+		const manifestUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent-standalone/.plugin/plugin.json' });
+		assert.deepStrictEqual({
+			name: result?.ref.name,
+			standalone: result && isClientPluginStandalone(result.ref),
+			meta: result?.ref._meta,
+			manifestName: JSON.parse((await fileService.readFile(manifestUri)).value.toString()).name,
+		}, {
+			name: 'VS Code Standalone Customizations',
+			standalone: true,
+			meta: {
+				'vscode.standaloneCustomizations': true,
+				mcpDefaultCwds: { srv: null },
+			},
+			manifestName: 'VS Code Standalone Customizations',
+		});
 	});
 
 	test('nonce is stable when files are unchanged', async () => {

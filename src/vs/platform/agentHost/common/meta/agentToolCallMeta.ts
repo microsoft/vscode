@@ -10,7 +10,7 @@ import { hasVSCodeToolCallMeta, readToolCallMeta as readVSCodeToolCallMeta, type
 import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilotd/copilotdMetadataReader.js';
 import { readCopilotToolPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
 
-export { isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
+export { copilotCliToolInputContract, isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
 export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
 
 export interface IAgentToolOutputChunk {
@@ -25,6 +25,12 @@ export interface IAgentClientToolPreferences {
 
 export function readToolCallMeta(source: IAgentMetadataSource) {
 	return readVSCodeToolCallMeta(source);
+}
+
+/** Returns an elapsed duration only when both provider timestamps are valid and ordered. */
+export function getToolCallDurationMs(startedAt: string | undefined, completedAt: string | undefined): number | undefined {
+	const duration = startedAt && completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : NaN;
+	return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
 }
 
 export interface IToolCallPresentation {

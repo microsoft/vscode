@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +19,7 @@ import { buildDefaultChatUri, ChatInputResponseKind, MessageKind, PendingMessage
 import { createRealSession, dispatchTurn, getAcceptedAnswers } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification, startRealServer, stopServer, TestProtocolClient, type IServerHandle } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG, CODEX_SDK_ROOT } from './codexTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
@@ -75,7 +76,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	setup(async function () {
 		this.timeout(60_000);
-		const homeDirectory = mkdtempSync(join(tmpdir(), 'codex-live-home-'));
+		const homeDirectory = createTestDirectory(join(tmpdir(), 'codex-live-home-'));
 		tempDirs.push(homeDirectory);
 		server = await startRealServer({
 			codexSdkRoot: CODEX_CONFIG.codexSdkRoot,
@@ -132,7 +133,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('mid-turn steering clears pending state without getting stuck', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-steer-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-steer-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'steer-client', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);
@@ -198,7 +199,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('client tool is registered and invoked end-to-end', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-tool-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);
@@ -288,7 +289,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('client tool registered after session creation is still invoked', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool2-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-tool2-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client-2', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);
@@ -371,7 +372,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('server tool (listComments) is registered and executed in-process', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-servertool-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-servertool-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'servertool-client', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);
@@ -442,7 +443,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('file-change approval is surfaced and can be approved', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-fileapprove-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-fileapprove-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'fileapprove-client', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);
@@ -527,7 +528,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('Plan mode (Agent Mode control) makes request_user_input reachable end-to-end', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-planmode-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-planmode-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'planmode-client', createdSessions, URI.file(workingDirectory));
 		const chat = buildDefaultChatUri(session);

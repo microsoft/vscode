@@ -26,12 +26,14 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostWorkspaceSnapshotEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkspaceContextContribution } from '../../node/chatContributions/workspaceContext/workspaceContextContribution.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	private readonly _onDidChangePending = new Emitter<string>();
@@ -128,6 +130,7 @@ suite('WorkspaceContextContribution', () => {
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
 			[IFileService, fileService],
 			[IAgentHostTelemetryReporter, telemetry],
@@ -185,9 +188,9 @@ suite('WorkspaceContextContribution', () => {
 			await timeout(0);
 			return send(channel, workingDirectories ?? roots.map(root => URI.parse(root)), dispatchAndComplete);
 		};
-		const addChat = (name: string, origin: Parameters<AgentHostStateManager['addChat']>[2] extends infer O ? O extends { origin?: infer R } ? R : never : never = { kind: ChatOriginKind.User }) => {
+		const addChat = (name: string, origin: Parameters<AgentHostStateManager['addChat']>[3] extends infer O ? O extends { origin?: infer R } ? R : never : never = { kind: ChatOriginKind.User }) => {
 			const peer = buildChatUri(session, name);
-			state.addChat(session, peer, { title: name, origin });
+			state.addChat(session, peer, creationTimeChatStorageResource(session, peer), { title: name, origin });
 			return peer;
 		};
 		const events = (): Omit<IAgentHostWorkspaceSnapshotEvent, 'waitMs'>[] => reported.getCalls().map(call => {
@@ -221,8 +224,8 @@ suite('WorkspaceContextContribution', () => {
 		const context = await setupContext();
 		const [peer, restored, empty] = ['peer', 'restored', 'empty'].map(name => context.addChat(name));
 		const turn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
-		await context.service.hydrateTurns({ session: context.session, chat: restored }, [turn]);
-		await context.service.hydrateTurns({ session: context.session, chat: empty }, []);
+		await context.service.hydrateTurns({ session: context.session, chat: restored, storageResource: creationTimeChatStorageResource(context.session, restored) }, [turn]);
+		await context.service.hydrateTurns({ session: context.session, chat: empty, storageResource: creationTimeChatStorageResource(context.session, empty) }, []);
 		const results = [];
 		for (const chat of [context.chat, context.chat, peer, peer, restored, empty]) {
 			results.push(!!(await context.firstTurn(chat)).instructions?.length);
@@ -431,6 +434,7 @@ suite('WorkspaceContextContribution', () => {
 		const restored = buildChatUri(context.session, 'restored');
 		const previousTurn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
 		context.state.registerRestoredChatSummary(context.session, restored, {
+			storageResource: creationTimeChatStorageResource(context.session, restored),
 			title: 'Restored',
 			origin: { kind: ChatOriginKind.User },
 			resolver: async () => ({ turns: [previousTurn] }),

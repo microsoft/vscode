@@ -21,6 +21,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { type IProductService } from '../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { tunnelServiceHeaders } from '../../../../../../platform/remoteTunnel/common/tunnelServiceHeaders.js';
 import { type IDiscoveredTunnel, type ITunnelDiscoveryProvider } from '../../../../../../workbench/browser/web.api.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/browser/environmentService.js';
 import { type AuthenticationSession, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
@@ -191,6 +193,7 @@ function createBrowserTunnelService(
 			override getPreference() { return undefined; }
 		}(),
 		connectionOptions?.dialogService ?? new class extends mock<IDialogService>() { }(),
+		NullTelemetryService,
 		{ connector: connectionOptions?.connector ?? new FakeConnector(undefined), loadDevTunnelsWeb: async () => bundle },
 	));
 }
@@ -456,6 +459,7 @@ suite('BrowserTunnelAgentHostService', () => {
 		const requests: IDevTunnelsWebRequestOptions[] = [];
 		let authorization = '';
 		let relay: FakeRelayClient | undefined;
+		let managementClient: IDevTunnelsWebManagementClient | undefined;
 
 		class FakeManagementClient implements IDevTunnelsWebManagementClient {
 			private readonly _userTokenCallback: () => Promise<string>;
@@ -485,6 +489,7 @@ suite('BrowserTunnelAgentHostService', () => {
 
 			constructor(_managementClient: IDevTunnelsWebManagementClient) {
 				relay = this;
+				managementClient = _managementClient;
 			}
 
 			connect(_tunnel: IDevTunnelsWebTunnel): Promise<void> {
@@ -509,14 +514,16 @@ suite('BrowserTunnelAgentHostService', () => {
 			TunnelRelayTunnelClient: FakeRelayClient,
 			TunnelAccessScopes: {},
 		};
-		const session = await new BrowserTunnelRelayClientFactory(async () => bundle).getTunnel('tunnel-id', 'cluster-id', 'github', 'token');
+		const headers = tunnelServiceHeaders({ sessionId: 'session', operationId: 'operation' });
+		const session = await new BrowserTunnelRelayClientFactory(async () => bundle, () => headers).getTunnel('tunnel-id', 'cluster-id', 'github', 'token');
 		await session!.createRelayClient();
 
-		assert.deepStrictEqual({ authorization, requests, acceptsLocal: relay?.acceptLocalConnectionsForForwardedPorts, endpoints: relay?.endpoints }, {
+		assert.deepStrictEqual({ authorization, requests, acceptsLocal: relay?.acceptLocalConnectionsForForwardedPorts, endpoints: relay?.endpoints, headers: managementClient?.additionalRequestHeaders }, {
 			authorization: 'github token',
 			requests: [{ includePorts: true, tokenScopes: ['connect'] }],
 			acceptsLocal: false,
 			endpoints: { relay: 'endpoint' },
+			headers,
 		});
 	});
 });

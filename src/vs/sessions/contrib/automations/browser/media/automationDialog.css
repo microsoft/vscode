@@ -46,8 +46,8 @@
  * shrinks gracefully on narrow viewports.
  *
  * Padding is stripped (vs. the base 8px) so our `.automation-titlebar`
- * stripe can paint edge-to-edge inside the dialog body. The form pane
- * re-adds its own padding.
+ * can sit edge-to-edge inside the dialog body. The form pane re-adds
+ * its own padding.
  *
  * Note: `extraClasses` on Dialog adds the class to `.monaco-dialog-box`
  * itself (not an ancestor), so we attach the rule directly here.
@@ -71,7 +71,7 @@
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
  * `.dialog-toolbar-row` reserves ~24px of dead space above the title.
- * `z-index` keeps the X above the sticky titlebar.
+ * `z-index` keeps the X above the titlebar.
  */
 .monaco-dialog-box.automation-dialog .dialog-toolbar-row {
 	position: absolute;
@@ -84,8 +84,10 @@
 
 .automation-dialog-body {
 	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
 	min-height: 0;
+	overflow: hidden;
 }
 
 .monaco-dialog-box.automation-dialog > .dialog-buttons-row:not(.automation-dialog-footer-row) {
@@ -94,12 +96,24 @@
 
 .monaco-dialog-box.automation-dialog > .automation-dialog-footer-row {
 	flex-grow: 0;
+	flex-direction: row;
+	align-items: center;
 	margin-top: 0;
 	padding: 8px 10px 10px;
 }
 
 .monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
-	margin-left: 0;
+	flex: 0 0 auto;
+	width: auto;
+	margin-left: auto;
+}
+
+.monaco-dialog-box.automation-dialog > .automation-dialog-footer-row > .automation-dialog-footer-note {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 /*
@@ -107,9 +121,9 @@
  * our titlebar can full-bleed. The form pane below re-adds horizontal
  * padding so the form fields don't crash into the dialog edge.
  *
- * Container still owns the scrolling (per base/.../dialog.css), so
- * the titlebar uses `position: sticky; top: 0` to stay visible as the
- * form scrolls underneath it.
+ * The base message container normally owns scrolling. This dialog
+ * clips it instead and delegates scrolling to `.automation-dialog-scrollable`
+ * so the titlebar stays outside the scrolling form.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-row {
 	padding: 0;
@@ -132,20 +146,25 @@
 	 */
 	flex: 1 1 auto;
 	min-width: 0;
+	overflow: hidden;
 }
 
-/* Keep the sticky titlebar solid so scrolled form content cannot show through. */
 .automation-titlebar {
-	position: sticky;
-	top: 0;
-	z-index: 1;
+	flex: 0 0 auto;
 	/* Right padding reserves room for the floating close-X chip. */
 	padding: 8px 36px 8px 14px;
 	text-align: left;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
-	background-color: var(--modern-ui-solid-dialog-background, var(--vscode-editorWidget-background));
+}
+
+.automation-dialog-scrollable {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .automation-description {
@@ -164,33 +183,32 @@
 
 /*
  * Theme the native overflow scrollbar on the dialog body so it matches
- * the rest of VS Code. .dialog-message-container is the scroll host
- * (see base/browser/ui/dialog/dialog.css). Without this the dialog
+ * the rest of VS Code. Without this the dialog
  * shows the platform's default scrollbar which clashes visually with
  * the chat input embedded above.
  */
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar {
 	width: 10px;
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-track {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar-track {
 	background-color: transparent;
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar-thumb {
 	min-height: 20px;
 	background-color: var(--vscode-scrollbarSlider-background);
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:hover {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar-thumb:hover {
 	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:active {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-corner {
+.monaco-dialog-box.automation-dialog .automation-dialog-scrollable::-webkit-scrollbar-corner {
 	display: none;
 }
 
@@ -225,6 +243,41 @@
 	flex-direction: column;
 	gap: var(--vscode-spacing-size100);
 	padding: 2px 2px 4px;
+}
+
+.automation-provider-details {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automation-provider-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.automation-provider-tools > .monaco-button {
+	width: fit-content;
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.automation-provider-details > p {
+	margin: 0;
+}
+
+.automation-provider-tools > p {
+	flex-basis: 100%;
+}
+
+.automation-provider-tools-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-provider-tools-status > .monaco-button {
+	width: fit-content;
+	padding-inline: var(--vscode-spacing-size120);
 }
 
 .automation-form-content {
@@ -361,6 +414,11 @@
 
 .automation-target-error {
 	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-target-progress {
+	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body2);
 }
 

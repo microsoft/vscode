@@ -16,7 +16,8 @@ export type McpServerSource =
 	| 'workspace' // Defined in workspace-level configuration.
 	| 'plugin' // Contributed by a plugin.
 	| 'builtin' // Bundled with the provider.
-	| 'managed'; // Supplied by a trusted host-managed catalog.
+	| 'managed' // Supplied by a trusted host-managed catalog.
+	| 'account'; // Contributed by the signed-in account.
 
 /** Reads the runtime-reported configuration source, independently of the server's lifecycle state. */
 export function readMcpServerSource(customization: McpServerCustomization | undefined): McpServerSource | undefined {
@@ -27,18 +28,19 @@ export function readMcpServerSource(customization: McpServerCustomization | unde
 		case 'plugin':
 		case 'builtin':
 		case 'managed':
+		case 'account':
 			return source;
 		default:
 			return undefined;
 	}
 }
 
-/** Records the configuration source in an open metadata bag, preserving every other entry. */
+/**
+ * Records the configuration source in an open metadata bag. An absent source removes a previously
+ * recorded one, because it describes the current configuration; every other entry is preserved.
+ */
 export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefined, source: McpServerSource | undefined): Record<string, unknown> | undefined {
-	if (source === undefined) {
-		return meta;
-	}
-	return { ...(meta ?? {}), [sourceKey]: source };
+	return withMetaEntry(meta, sourceKey, source);
 }
 
 /** Reads an optional Connector catalog name without changing the MCP server's runtime identity. */
