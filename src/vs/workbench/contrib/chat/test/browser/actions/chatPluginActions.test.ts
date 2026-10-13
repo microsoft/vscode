@@ -16,7 +16,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -44,14 +44,29 @@ suite('ManagePluginMarketplacesAction', () => {
 		inputOptions: IInputOptions | undefined;
 		inputValue: string | undefined;
 		pickIds: (string | undefined)[] = [];
+		buttonItemIds: string[] = [];
+		readonly removedItemIds: string[] = [];
 
-		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[]): Promise<T | undefined> {
+		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | undefined> {
 			this.picks.push(picks);
 			this.pickSnapshots.push(picks.map(pick => ({
 				id: pick.id,
 				label: pick.label ?? '',
 				type: pick.type ?? 'item',
 			})));
+			const buttonItemId = this.buttonItemIds.shift();
+			if (buttonItemId) {
+				const item = picks.find((pick): pick is T => pick.type !== 'separator' && pick.id === buttonItemId);
+				const button = item?.buttons?.[0];
+				if (item && button) {
+					await Promise.resolve(options?.onDidTriggerItemButton?.({
+						item,
+						button,
+						removeItem: () => this.removedItemIds.push(buttonItemId),
+					}));
+				}
+				return undefined;
+			}
 			const id = this.pickIds.shift();
 			if (!id) {
 				return undefined;
@@ -227,6 +242,63 @@ suite('ManagePluginMarketplacesAction', () => {
 				{ name: 'VS Code Marketplace', force: undefined },
 				{ name: 'VS Code Marketplace', force: true },
 			],
+		});
+	});
+
+	test('shows an inline remove action only for removable provider marketplaces', async () => {
+		const removeCalls: string[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => [{
+				name: 'removable-marketplace',
+				source: 'GitHub: owner/removable-marketplace',
+				isDefault: false,
+				managed: false,
+				available: true,
+			}, {
+				name: 'default-marketplace',
+				source: 'GitHub: owner/default-marketplace',
+				isDefault: true,
+				managed: false,
+				available: true,
+			}, {
+				name: 'managed-marketplace',
+				source: 'GitHub: owner/managed-marketplace',
+				isDefault: false,
+				managed: true,
+				available: true,
+			}],
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async (_session, name) => {
+				removeCalls.push(name);
+				return { removed: true };
+			},
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+		}, false, provider);
+		fixture.quickInputService.buttonItemIds.push('removable-marketplace');
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			buttons: fixture.quickInputService.picks[0]
+				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace')
+				.map(pick => [pick.id, pick.buttons?.map(button => button.tooltip)]),
+			removeCalls,
+			removedItemIds: fixture.quickInputService.removedItemIds,
+		}, {
+			buttons: [
+				['removable-marketplace', ['Remove Marketplace']],
+				['default-marketplace', undefined],
+				['managed-marketplace', undefined],
+			],
+			removeCalls: ['removable-marketplace'],
+			removedItemIds: ['removable-marketplace'],
 		});
 	});
 

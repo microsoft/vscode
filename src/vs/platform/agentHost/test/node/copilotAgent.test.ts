@@ -6280,7 +6280,7 @@ suite('CopilotAgent', () => {
 		});
 
 		suite('exact-chat working-directory conversion', () => {
-			async function createFixture(multiRoot = false, canvasesEnabled = false) {
+			async function createFixture(multiRoot = false, canvasesEnabled = false, session = AgentSession.uri('copilotcli', 'session-wide')) {
 				const root = await fs.mkdtemp('./.agent-session-cwd-');
 				const previous = URI.file(join(process.cwd(), root, 'previous'));
 				const next = URI.file(join(process.cwd(), root, 'next'));
@@ -6291,7 +6291,6 @@ suite('CopilotAgent', () => {
 					[AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot,
 					[AgentHostCanvasesEnabledConfigKey]: canvasesEnabled,
 				};
-				const session = AgentSession.uri('copilotcli', 'session-wide');
 				const chats = [defaultChatUri(session), URI.parse(buildChatUri(session, 'live-peer')), URI.parse(buildChatUri(session, 'cold-peer'))];
 				const resources = [session, ...chats.slice(1)];
 				const sdkSessions = [new MockCopilotSession('session-wide'), new MockCopilotSession('live-sdk'), new MockCopilotSession('cold-sdk')];
@@ -6504,6 +6503,141 @@ suite('CopilotAgent', () => {
 						await fixture.dispose();
 					}
 				});
+			}
+
+			for (const [scheme, sessionId, multiRoot] of [
+				['ahp-session', 'archived-native', false],
+				['copilotcli', 'archived-legacy', false],
+				['copilotcli', 'session-wide', false],
+				['ahp-session', 'archived-native', true],
+				['copilotcli', 'archived-legacy', true],
+				['copilotcli', 'session-wide', true],
+			] as const) {
+				for (const operation of ['send', 'continue', 'cold-send'] as const) {
+					test(`preserves the session worktree through archived history and unarchive (${scheme}, ${sessionId}, ${operation}, multi-root: ${multiRoot})`, async () => {
+						const fixture = await createFixture(multiRoot, false, AgentSession.uri(scheme, sessionId));
+						let restored: CopilotAgent | undefined;
+						try {
+							const { session, chats, resources, previous, secondary, sessionDataService } = fixture;
+							const context = exactChatContext(session, chats[0], resources[0]);
+							fixture.sdkSessions[0].historyEvents.push({
+								id: 'saved-question', timestamp: '2026-01-01T00:00:00Z', parentId: null,
+								type: 'user.message', data: { content: 'Remember the worktree conversation' },
+							}, {
+								id: 'saved-answer', timestamp: '2026-01-01T00:00:01Z', parentId: 'saved-question',
+								type: 'assistant.message', data: { messageId: 'saved-answer', content: 'Remembered' },
+							}, {
+								id: 'saved-idle', timestamp: '2026-01-01T00:00:02Z', parentId: 'saved-answer',
+								type: 'session.idle', ephemeral: true, data: {},
+							});
+							const git = new class extends TestAgentHostGitService {
+								override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
+									await super.removeWorktree(repositoryRoot, worktree);
+									await fs.rm(worktree.fsPath, { recursive: true });
+								}
+								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
+									await super.addExistingWorktree(repositoryRoot, worktree, branch);
+									await fs.mkdir(worktree.fsPath, { recursive: true });
+								}
+							}();
+							git.existingBranches.add('session-branch');
+							const isolation = disposables.add(new WorktreeIsolation({
+								_serviceBrand: undefined, generateBranchName: async () => 'unused',
+							}, git, {
+								_serviceBrand: undefined,
+								resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+							} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
+							const db = sessionDataService.openDatabase(session);
+							try {
+								await db.object.setMetadataValues({
+									'copilot.worktree.branchName': 'session-branch',
+									'copilot.worktree.path': previous.toString(),
+									'copilot.worktree.repositoryRoot': secondary.toString(),
+									[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+								});
+								await isolation.cleanupWorktreeOnArchive(session, sessionId);
+								fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
+								restored = await fixture.restore();
+								const history = await restored.chats.getMessages(chats[0], context);
+								assert.deepStrictEqual(history.map(turn => ({ state: turn.state, message: turn.message.text })), [
+									{ state: TurnState.Complete, message: 'Remember the worktree conversation' },
+								]);
+								const historyDirectory = getPeerChatStub(restored, chats[0])?.workingDirectory?.toString();
+								const metadata = (await fixture.metadata())[0];
+								const directories = fixture.sessionDirectories.map(directory => directory.toString());
+								assert.deepStrictEqual({
+									historyDirectory,
+									workingDirectory: metadata['copilot.workingDirectory'],
+									workingDirectories: metadata['copilot.workingDirectories'],
+									customizationDirectory: metadata['copilot.customizationDirectory'],
+									providerDirectories: (await restored.getChatMetadata(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' })))?.workingDirectories?.map(directory => directory.toString()),
+									recreated: git.addedExistingWorktrees.length,
+									sends: fixture.sends(),
+								}, {
+									historyDirectory: secondary.toString(),
+									workingDirectory: previous.toString(),
+									workingDirectories: JSON.stringify(directories),
+									customizationDirectory: previous.toString(),
+									providerDirectories: directories,
+									recreated: 0,
+									sends: 0,
+								});
+								assert.ok(restored.chats.resumeTurn);
+								await assert.rejects(
+									operation === 'continue'
+										? restored.chats.resumeTurn(chats[0], 'continued-turn', context)
+										: restored.chats.sendMessage(chats[0], 'Do not execute in the repository fallback', undefined, undefined, undefined, undefined, context),
+									/fallback directory for history only/,
+								);
+								await db.object.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, '');
+								await isolation.recreateWorktreeOnUnarchive(session, sessionId);
+								if (operation === 'cold-send') {
+									await disposeAgent(restored);
+									restored = await fixture.restore();
+								}
+								if (operation === 'continue') {
+									assert.ok(restored.chats.resumeTurn);
+									await restored.chats.resumeTurn(chats[0], 'continued-turn', context);
+								} else {
+									await restored.chats.sendMessage(chats[0], 'Continue the saved conversation', undefined, undefined, undefined, undefined, context);
+								}
+								const recoveredHistory = await restored.chats.getMessages(chats[0], context);
+								assert.deepStrictEqual({
+									resumed: fixture.resumed.at(-1),
+									recreated: git.addedExistingWorktrees.map(worktree => ({ directory: worktree.worktree.toString(), branch: worktree.branchName })),
+									persisted: (await fixture.metadata())[0]['copilot.workingDirectory'],
+									persistedDirectories: (await fixture.metadata())[0]['copilot.workingDirectories'],
+									removed: git.removedWorktrees.map(worktree => worktree.worktree.toString()),
+									history: recoveredHistory.map(turn => ({
+										state: turn.state, message: turn.message.text,
+										responses: turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind }),
+									})),
+									sends: fixture.sends(),
+									continuations: fixture.continuations.map(continuation => continuation.id),
+								}, {
+									resumed: { id: 'session-wide', directory: previous.fsPath },
+									recreated: [{ directory: previous.toString(), branch: 'session-branch' }],
+									persisted: previous.toString(),
+									persistedDirectories: JSON.stringify(directories),
+									removed: [previous.toString()],
+									history: [{
+										state: TurnState.Complete, message: 'Remember the worktree conversation',
+										responses: [{ kind: ResponsePartKind.Markdown, content: 'Remembered' }],
+									}],
+									sends: operation === 'continue' ? 0 : 1,
+									continuations: operation === 'continue' ? ['session-wide'] : [],
+								});
+							} finally {
+								db.dispose();
+							}
+						} finally {
+							if (restored) {
+								await disposeAgent(restored);
+							}
+							await fixture.dispose();
+						}
+					});
+				}
 			}
 
 			for (const [index, archived, operation] of [
@@ -18196,7 +18330,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage resolves the working directory before resuming an addressed backing', async () => {
+		test('sendMessage rejects the history-only fallback before sending to an addressed backing', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
 			const { agent } = createTestAgentContext(disposables, {
@@ -18218,6 +18352,15 @@ suite('CopilotAgent', () => {
 					return resolvedWorkingDirectory;
 				};
 				await provisionSession(agent, { session, workingDirectories: [persistedWorkingDirectory, secondaryWorkingDirectory] });
+				const stored = sessionDataService.openDatabase(session);
+				try {
+					await stored.object.setMetadataValues({
+						'copilot.workingDirectory': persistedWorkingDirectory.toString(),
+						'copilot.workingDirectories': JSON.stringify([persistedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()]),
+					});
+				} finally {
+					stored.dispose();
+				}
 				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
 
 				const internals = agent as unknown as ChatInternals;
@@ -18235,7 +18378,10 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await agent.chats.sendMessage(chatUri, 'hello peer', [persistedWorkingDirectory, secondaryWorkingDirectory], undefined, undefined, undefined, exactChatContext(session, chatUri, session));
+				await assert.rejects(
+					agent.chats.sendMessage(chatUri, 'hello peer', [persistedWorkingDirectory, secondaryWorkingDirectory], undefined, undefined, undefined, exactChatContext(session, chatUri, session)),
+					/fallback directory for history only/,
+				);
 				const dbRef = sessionDataService.openDatabase(session);
 				const storedWorkingDirectories = await dbRef.object.getMetadata('copilot.workingDirectories');
 				dbRef.dispose();
@@ -18251,7 +18397,7 @@ suite('CopilotAgent', () => {
 						additionalDirectories: [secondaryWorkingDirectory.toString()],
 						customizationDirectory: resolvedWorkingDirectory.toString(),
 					}],
-					storedWorkingDirectories: [resolvedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()],
+					storedWorkingDirectories: [persistedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()],
 				});
 			} finally {
 				await disposeAgent(agent);
