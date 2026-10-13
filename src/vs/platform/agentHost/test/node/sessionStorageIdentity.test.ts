@@ -1128,5 +1128,84 @@ suite('Session storage identity compatibility', () => {
 				records: [`chatStorageIdentity:${peer}`],
 			});
 		});
+
+		test('an older build that deletes, adds and edits shaped chats leaves the records harmless on upgrade', async () => {
+			const db = await compatibilitySession();
+			const created = await db.replaceSessionChatCatalog(session, [{ chat: peer, order: 0 }, { chat: subagent, order: 1 }], undefined);
+			const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+			const defaultRef = modern.openDatabase(URI.parse(defaultChat));
+			await defaultRef.object.setChatDraft(URI.parse(defaultChat), { text: 'new build draft', origin: { kind: MessageKind.User }, attachments: [] });
+			defaultRef.dispose();
+			await db.close();
+
+			// The older build only knows the shaped rows: it removes the peer, adds one of its own and edits the default chat.
+			const downgraded = await database();
+			const newShapedPeer = buildChatUri(storageSession, 'from-old-build');
+			const replaced = await downgraded.raw.replaceSessionChatCatalog(storageSession, [{ chat: stored.subagent, order: 0 }, { chat: newShapedPeer, order: 1 }], created.status === 'applied' ? created.revision : undefined);
+			assert.strictEqual(replaced.status, 'applied');
+			const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
+			const oldDefaultRef = old.openDatabase(URI.parse(stored.defaultChat));
+			await oldDefaultRef.object.setChatDraft(URI.parse(stored.defaultChat), { text: 'old build draft', origin: { kind: MessageKind.User }, attachments: [] });
+			oldDefaultRef.dispose();
+			await downgraded.close();
+
+			const upgraded = await database();
+			const upgradedService = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, upgraded.identity);
+			const upgradedDefaultRef = upgradedService.openDatabase(URI.parse(defaultChat));
+			const catalog = await upgraded.getSessionChatCatalog(session);
+			assert.deepStrictEqual({
+				chats: catalog?.chats.map(chat => chat.chat),
+				draft: (await upgradedDefaultRef.object.getChatDraft(URI.parse(defaultChat)))?.text,
+				deletedPeerStorage: upgraded.identity.toStorage(peer),
+				deletedPeerRuntime: upgraded.identity.toRuntime(stored.peer),
+				deletedPeerRecord: (await upgraded.raw.readStorageIdentityMetadata('chatStorageIdentity:')).some(entry => entry.key === `chatStorageIdentity:${peer}`),
+				subagentRuntime: upgraded.identity.toRuntime(stored.subagent),
+				newShapedPeerRuntime: upgraded.identity.toRuntime(newShapedPeer),
+			}, {
+				chats: [subagent, buildChatUri(session, 'from-old-build')],
+				draft: 'old build draft',
+				deletedPeerStorage: stored.peer,
+				deletedPeerRuntime: peer,
+				deletedPeerRecord: true,
+				subagentRuntime: subagent,
+				newShapedPeerRuntime: buildChatUri(session, 'from-old-build'),
+			});
+			upgradedDefaultRef.dispose();
+		});
+
+		test('chat records survive deleting the chat and the session, and the next start loads cleanly', async () => {
+			const db = await database();
+			const fileService = files();
+			const modern = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+			const createService = (target: CompatibleAgentHostDatabase, data: SessionDataService) => store.add(createTestAgentService(
+				new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
+			));
+			const service = createService(db, modern);
+			const agent = store.add(new class extends MockAgent {
+				override async createChat() { return { providerData: 'peer-backing' }; }
+			}('copilotcli'));
+			registerTestAgentProvider(service, agent);
+			const created = await service.createSession({ legacyChatUris: false, provider: 'copilotcli' });
+			const opaquePeer = URI.parse('ahp-chat:/66666666-6666-4666-8666-666666666666');
+			await service.createChat(created, opaquePeer);
+			const recordKeys = async (target: CompatibleAgentHostDatabase) => (await target.raw.readStorageIdentityMetadata('chatStorageIdentity:')).map(entry => entry.key).sort();
+			await db.close();
+			const afterCreate = await recordKeys(await database());
+
+			const second = await database();
+			const secondData = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, second.identity);
+			const restarted = createService(second, secondData);
+			const fresh = store.add(new MockAgent('copilotcli'));
+			await fresh.chats.createChat(URI.parse(defaultChat), created);
+			registerTestAgentProvider(restarted, fresh);
+			await restarted.restoreSession(created);
+			await restarted.disposeChat(created, opaquePeer);
+			await restarted.disposeSession(created);
+			await secondData.whenIdle();
+			await second.close();
+			const afterDelete = await recordKeys(await database());
+			assert.deepStrictEqual({ afterCreate: afterCreate.length, afterDelete }, { afterCreate: 2, afterDelete: afterCreate });
+		});
 	});
 });
