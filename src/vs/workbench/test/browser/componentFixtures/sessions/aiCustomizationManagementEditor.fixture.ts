@@ -58,6 +58,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AIC
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
+import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -1007,7 +1008,7 @@ function createMockCopilotConnectorsService(
 	options?: {
 		readonly onDidChange?: Emitter<void>;
 		readonly onDidDisconnect?: Emitter<string>;
-		readonly onConnect?: () => void;
+		readonly onConnect?: () => Promise<void> | void;
 	},
 ): ICopilotConnectorsService {
 	let connectors = enabled ? [...availableConnectors] : [];
@@ -1027,7 +1028,7 @@ function createMockCopilotConnectorsService(
 		override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		override async refresh() { return this.connectors; }
 		override async connect(name: string) {
-			options?.onConnect?.();
+			await options?.onConnect?.();
 			connectors = connectors.map(connector => connector.name === name ? { ...connector, connectionStatus: 'connected' } : connector);
 			options?.onDidChange?.fire();
 		}
@@ -1037,6 +1038,41 @@ function createMockCopilotConnectorsService(
 			options?.onDidDisconnect?.fire(name);
 		}
 	}();
+}
+
+function renderPendingConnectorDetail(ctx: ComponentFixtureContext): void {
+	ctx.container.style.width = '900px';
+	ctx.container.style.height = '600px';
+	ctx.container.classList.add('ai-customization-management-editor');
+	ctx.container.dataset.connectorConnectCalls = '0';
+	const connectorChangedEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorDisconnectedEmitter = ctx.disposableStore.add(new Emitter<string>());
+	let connectorConnectCalls = 0;
+	const connectorsService = createMockCopilotConnectorsService(true, [{
+		...fixtureCopilotConnectors[0],
+		connectionStatus: 'pending',
+	}], {
+		onDidChange: connectorChangedEmitter,
+		onDidDisconnect: connectorDisconnectedEmitter,
+		onConnect: async () => {
+			ctx.container.dataset.connectorConnectCalls = String(++connectorConnectCalls);
+			await timeout(2500);
+		},
+	});
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: reg => {
+			reg.defineInstance(ICopilotConnectorsService, connectorsService);
+		},
+	});
+	const host = DOM.append(ctx.container, DOM.$('.connector-detail-container'));
+	host.style.height = '100%';
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedConnectorDetail, host, () => { }));
+	const connector = connectorsService.connectors[0];
+	if (!connector) {
+		throw new Error('The pending connector detail fixture requires a connector.');
+	}
+	detail.setInput(connector);
 }
 
 interface IRenderEditorOptions {
@@ -1051,6 +1087,7 @@ interface IRenderEditorOptions {
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
+	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
@@ -1164,8 +1201,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const copilotConnectorsService = createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors, {
 		onDidChange: connectorChangedEmitter,
 		onDidDisconnect: connectorDisconnectedEmitter,
-		onConnect: () => {
+		onConnect: async () => {
 			ctx.container.dataset.connectorConnectCalls = String(++connectorConnectCalls);
+			if (options.connectorConnectDelayMs) {
+				await timeout(options.connectorConnectDelayMs);
+			}
 		},
 	});
 	ctx.container.dataset.connectorConnectCalls = '0';
@@ -3571,11 +3611,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [{ ...fixtureCopilotConnectors[0], connectionStatus: 'pending' }],
+			connectorConnectDelayMs: 2500,
 			useRealConnectorInstallService: true,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
 			selectDiscoveryResult: true,
 		}),
+	}),
+
+	PendingConnectorRetry: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The connector detail presents a pending connection with a Try Again action so authorization can be retried.'],
+		render: renderPendingConnectorDetail,
 	}),
 
 	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
