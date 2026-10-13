@@ -38,7 +38,7 @@ suite('AgentHostLocalCommands', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const session = 'copilot:/local-command-owner';
 		const chat = buildChatUri('copilot:/encoded', 'peer');
-		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
 		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)));
 		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: '/hold', origin: { kind: MessageKind.User } } });
 		const turnEnds: ITurnEnd[] = [];

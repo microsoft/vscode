@@ -276,6 +276,7 @@ class MockAgentService implements IAgentService {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return session;
 	}

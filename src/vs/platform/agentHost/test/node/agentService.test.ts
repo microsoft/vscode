@@ -8002,6 +8002,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const handle = generateUuid();
 			await writeSessionAdditionalWorktrees(perSession.service, session, [{
@@ -11160,6 +11161,7 @@ suite('AgentService (node dispatcher)', () => {
 				state.createSession({
 					resource: session.toString(), provider: 'copilot', title: 'Active',
 					status: SessionStatus.Idle, createdAt: new Date(10).toISOString(), modifiedAt: new Date(10).toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				}, { emitNotification: false });
 				state.dispatchServerAction(buildDefaultChatUri(session), {
 					type: ActionType.ChatTurnStarted,
@@ -21049,6 +21051,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle | SessionStatus.IsArchived,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			let canCommit = true;
 
@@ -21079,6 +21082,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle | SessionStatus.IsArchived,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			const validationStarted = new DeferredPromise<void>();
 			const finishValidation = new DeferredPromise<void>();
@@ -31162,6 +31166,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(sessionResource),
 			}, { emitNotification: false });
 			getStateManager(localService).setSessionConfig(sessionResource, {
 				schema: { type: 'object', properties: {} },
@@ -31263,6 +31268,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(sessionResource),
 			});
 			getStateManager(localService).setSessionConfig(sessionResource, {
 				schema: { type: 'object', properties: {} },
@@ -31331,6 +31337,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			getStateManager(localService).setSessionConfig(session.toString(), {
 				schema: { type: 'object', properties: {} },

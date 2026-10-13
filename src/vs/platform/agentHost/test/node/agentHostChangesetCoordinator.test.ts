@@ -49,6 +49,7 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			defaultChat: buildDefaultChatUri(session),
 		}, { emitNotification });
 		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });

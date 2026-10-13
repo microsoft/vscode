@@ -766,6 +766,7 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
 	if (options?.sourceIsToolChat) {
 		stateManager.addChat(session, sourceChat, creationTimeChatStorageResource(session, sourceChat, buildDefaultChatUri(session)), {
@@ -808,6 +809,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
 	stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { title: 'Peer' });
 
@@ -869,6 +871,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, surface ?? (enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined)),
+		defaultChat: buildDefaultChatUri('agent-host-session://test'),
 	});
 	if (observed) {
 		stateManager.dispatchServerAction(buildDefaultChatUri('agent-host-session://test'), queuedMessage('queue-order', 'queue order'));
@@ -994,6 +997,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
 	const sessionDataService = createSessionDataService(new TestSessionDatabase());
 	const services = new ServiceCollection(
@@ -1172,6 +1176,7 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)));
 		stateManager.addChat(session, failingChat, creationTimeChatStorageResource(session, failingChat, buildDefaultChatUri(session)));
@@ -1254,6 +1259,7 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer, buildDefaultChatUri(session)));
 		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer, buildDefaultChatUri(session)));
@@ -1309,6 +1315,7 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.addChat(session, toolChat, creationTimeChatStorageResource(session, toolChat, buildDefaultChatUri(session)), {
 			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-call' },
@@ -2087,6 +2094,7 @@ suite('AgentHostChatContributions', () => {
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
 			workingDirectories: [sessionFolder],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const sessionFolderChat = buildChatUri(session, 'session-folder');
 		const peerFolderChat = buildChatUri(session, 'peer-folder');

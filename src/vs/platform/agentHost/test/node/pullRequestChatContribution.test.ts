@@ -43,6 +43,7 @@ suite('PullRequestChatContribution', () => {
 			status: archived ? SessionStatus.IsArchived : SessionStatus.IsRead,
 			createdAt: '2026-09-10T00:00:00.000Z', modifiedAt: '2026-09-10T00:00:00.000Z',
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		if (otherFolder) {
 			state.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });

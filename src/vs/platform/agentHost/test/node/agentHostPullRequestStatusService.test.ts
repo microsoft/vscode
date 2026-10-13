@@ -31,9 +31,9 @@ const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
 const REPOSITORY = 'file:///repo';
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY], defaultChat: buildDefaultChatUri(resource) };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {

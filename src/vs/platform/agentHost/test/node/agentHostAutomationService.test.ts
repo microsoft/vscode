@@ -166,6 +166,7 @@ suite('AgentHostAutomationService', () => {
 			stateManager.createSession({
 				resource: resource.toString(), provider: 'mock', title: '',
 				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(resource.toString()),
 			});
 		}
 		const started = new DeferredPromise<void>();
@@ -580,6 +581,7 @@ suite('AgentHostAutomationService', () => {
 			stateManager.createSession({
 				resource: session.toString(), provider, title: '',
 				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const service = createService({
 				createSession: async () => session,
@@ -876,6 +878,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -994,6 +997,7 @@ suite('AgentHostAutomationService', () => {
 						status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(),
 						modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1141,6 +1145,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '',
 						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1191,6 +1196,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1247,6 +1253,7 @@ suite('AgentHostAutomationService', () => {
 				stateManager.createSession({
 					resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session),
 				});
 				writeFailures = 1;
 				return URI.parse(session);
@@ -1342,6 +1349,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1394,6 +1402,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1447,6 +1456,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1506,6 +1516,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1572,6 +1583,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1653,6 +1665,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'mock', title: '',
 						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1769,6 +1782,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1850,6 +1864,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},

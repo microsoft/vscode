@@ -903,6 +903,7 @@ suite('CodexAgent prewarm eviction', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionCustomizationsChanged,

@@ -2146,7 +2146,7 @@ function repairSnapshot(): PullRequestSnapshot {
 	};
 }
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
 	return {
 		resource,
@@ -2156,5 +2156,6 @@ function summary(resource: string): SessionSummary {
 		createdAt: now,
 		modifiedAt: now,
 		workingDirectories: [REPOSITORY],
+		defaultChat: buildDefaultChatUri(resource),
 	};
 }

@@ -267,6 +267,7 @@ suite('SessionServerTools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			_meta: withEphemeralSessionMeta(undefined, true),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor()),
@@ -291,6 +292,7 @@ suite('SessionServerTools', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(resource),
 			});
 		}
 		const accessor = createAccessor({
@@ -345,6 +347,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({ getAutomaticTitleGenerationStrategy: () => strategy })),
@@ -369,6 +372,7 @@ suite('SessionServerTools', () => {
 			stateManager.createSession({
 				resource: session, provider: 'copilot', title: 'Seed title', status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(session),
 			});
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
 				getAutomaticTitleGenerationStrategy: () => 'deferred',
@@ -397,6 +401,7 @@ suite('SessionServerTools', () => {
 			stateManager.createSession({
 				resource: session, provider: 'copilot', title: 'Seed title', status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(session),
 			});
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
 				getAutomaticTitleGenerationStrategy: () => 'agentReview',
@@ -427,6 +432,7 @@ suite('SessionServerTools', () => {
 				stateManager.createSession({
 					resource: `copilot:/${strategy}`, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
 					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					defaultChat: buildDefaultChatUri(`copilot:/${strategy}`),
 				});
 			}
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
@@ -460,6 +466,7 @@ suite('SessionServerTools', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(resource),
 			});
 		}
 		const host = new AgentServerToolHost(stateManager, [
@@ -491,6 +498,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({ canConvertWorkspace: () => false })),
@@ -527,6 +535,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		let canConvertWorkspace = true;
 		const host = new AgentServerToolHost(stateManager, [
@@ -557,6 +566,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const dynamicGroup: IServerToolGroup = {
 			definitions: [{ name: 'dynamic_tool', description: 'Dynamic tool.', inputSchema: { type: 'object', properties: {} } }],
@@ -614,6 +624,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionServerToolsChanged,
@@ -656,6 +667,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		let createdChat = false;
 		const host = new AgentServerToolHost(stateManager, [
@@ -687,6 +699,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		// A session materialized on an older build: create_session pinned to the old
 		// reply-and-stop description, plus the retired create_chat entry.
@@ -1857,6 +1870,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		let supportsChatWorkingDirectories = false;
 		const host = new AgentServerToolHost(stateManager, [
@@ -2253,6 +2267,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		const renamedChat = new DeferredPromise<string>();
@@ -2394,6 +2409,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.InProgress,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(targetSession),
 		});
 		stateManager.dispatchServerAction(targetChat, {
 			type: ActionType.ChatTurnStarted,
@@ -2468,6 +2484,7 @@ suite('SessionServerTools', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(resource),
 			});
 		}
 		const queuedChat = buildDefaultChatUri(queuedSession);
@@ -2526,6 +2543,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.InProgress,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(targetSession),
 		});
 		stateManager.dispatchServerAction(targetChat, {
 			type: ActionType.ChatTurnStarted,
@@ -2579,6 +2597,7 @@ suite('SessionServerTools', () => {
 			status: SessionStatus.InProgress,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(targetSession),
 		});
 		stateManager.dispatchServerAction(targetChat, {
 			type: ActionType.ChatTurnStarted,

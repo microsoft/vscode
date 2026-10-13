@@ -274,6 +274,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		createdAt: new Date(1).toISOString(),
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [URI.file('/repo').toString()],
+		defaultChat: buildDefaultChatUri(session.toString()),
 	});
 	if (options?.baseBranch || options?.branchPrefix) {
 		stateManager.setSessionConfig(session.toString(), {
@@ -532,7 +533,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			const otherFolderChat = buildChatUri(session.toString(), 'other-folder');
 			stateManager.addChat(session.toString(), otherFolderChat, creationTimeChatStorageResource(session.toString(), otherFolderChat, buildDefaultChatUri(session.toString())), { turns: [userTurn(conversations[2])], workingDirectories: [URI.file('/other').toString()] });
 			const otherSession = 'agent:/other-session';
-			stateManager.createSession({ resource: otherSession, provider: 'copilot', title: 'Other', status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), workingDirectories: [repo] });
+			stateManager.createSession({ resource: otherSession, provider: 'copilot', title: 'Other', status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), workingDirectories: [repo], defaultChat: buildDefaultChatUri(otherSession) });
 			const otherSessionChat = buildChatUri(otherSession, 'peer');
 			stateManager.addChat(otherSession, otherSessionChat, creationTimeChatStorageResource(otherSession, otherSessionChat, buildDefaultChatUri(otherSession)), { turns: [userTurn(conversations[3])], workingDirectories: [repo] });
 			const channel = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([repo])));

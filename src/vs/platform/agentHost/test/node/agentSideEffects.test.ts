@@ -355,6 +355,7 @@ suite('AgentSideEffects', () => {
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			_meta: meta,
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
@@ -1356,6 +1357,7 @@ suite('AgentSideEffects', () => {
 				modifiedAt: new Date().toISOString(),
 				project: { uri: workingDirectory, displayName: 'Test Project' },
 				workingDirectories: [workingDirectory],
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString(), false));
 			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
@@ -1752,6 +1754,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [repository.toString()],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
@@ -1790,6 +1793,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [repository.toString()],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
@@ -1851,6 +1855,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [repository.toString()],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
@@ -1898,6 +1903,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [repository.toString()],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
@@ -2111,6 +2117,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(otherSessionUri.toString()),
 			});
 			stateManager.dispatchServerAction(otherSessionUri.toString(), { type: ActionType.SessionReady });
 			stateManager.seedDefaultChatTurns(otherSessionUri.toString(), [{
@@ -2451,6 +2458,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			}, { emitNotification: false });
 		}
 
@@ -2664,6 +2672,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			}, { emitNotification: false });
 			const discarded: { session: string; turnId: string }[] = [];
 			createTestSideEffects(disposables, localStateManager, {
@@ -2998,6 +3007,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [repository.toString()],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
@@ -3107,6 +3117,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const db = new TestSessionDatabase();
@@ -3295,6 +3306,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 		}
@@ -3395,6 +3407,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 
@@ -3842,6 +3855,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				_meta: meta,
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 			const agents = observableValue<readonly IAgent[]>('codexAgents', [codexAgent]);
@@ -4931,6 +4945,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const db = new TestSessionDatabase();
@@ -6865,6 +6880,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			localSideEffects.handleAction(sessionUri.toString(), {
@@ -6893,6 +6909,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
 
@@ -6938,6 +6955,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
@@ -6969,6 +6987,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
@@ -6995,6 +7014,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
@@ -7117,6 +7137,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			session.config = { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } };
 
@@ -7153,6 +7174,7 @@ suite('AgentSideEffects', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			session.config = { schema: { type: 'object', properties: {} }, values: { mode: 'plan', autoApprove: 'default' } };
 

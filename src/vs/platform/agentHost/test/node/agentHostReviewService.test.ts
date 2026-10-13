@@ -52,6 +52,7 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: ['file:///session'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.setSessionMeta(session, withSessionGitState(undefined, {
 			branchName: 'session-feature',
@@ -140,6 +141,7 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async resource => resource;
@@ -221,6 +223,7 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async resource => resource;

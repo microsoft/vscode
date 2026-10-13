@@ -105,6 +105,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: opts?.withWorkingDirectory === false ? undefined : [(opts?.workingDirectory ?? URI.file('/repo')).toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(

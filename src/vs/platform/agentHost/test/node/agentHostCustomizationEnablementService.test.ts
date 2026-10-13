@@ -84,7 +84,7 @@ class TestSessionDataService implements ISessionDataService {
 	}
 }
 
-function makeSummary(resource: string, workingDirectories?: string[], meta?: Record<string, unknown>): SessionSummary {
+function makeSummary(resource: string, workingDirectories?: string[], meta?: Record<string, unknown>): SessionSummary & { readonly defaultChat: string } {
 	return {
 		resource,
 		provider: 'copilot',
@@ -95,6 +95,7 @@ function makeSummary(resource: string, workingDirectories?: string[], meta?: Rec
 		project: { uri: 'file:///repo', displayName: 'repo' },
 		workingDirectories,
 		_meta: meta,
+		defaultChat: buildDefaultChatUri(resource),
 	};
 }
 

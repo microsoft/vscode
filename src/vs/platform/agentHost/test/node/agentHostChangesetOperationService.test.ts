@@ -263,7 +263,7 @@ suite('AgentHostChangesetOperationService', () => {
 		disposables.add(service.registerContribution(contribution));
 		const sessionKey = 'agent:/session';
 		const chatKey = buildChatUri('agent:/named-by-uri', 'peer');
-		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(sessionKey) });
 		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey, buildDefaultChatUri(sessionKey)));
 
 		const refresh = contribution.registry?.refreshSessionGitState(chatKey);
@@ -447,6 +447,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.createSession({
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey, buildDefaultChatUri(sessionKey)));
 		const changesetUri = buildUncommittedChangesetUri(chatKey);
@@ -498,6 +499,7 @@ suite('AgentHostChangesetOperationService', () => {
 			stateManager.createSession({
 				resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(sessionKey),
 			});
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation },
@@ -533,6 +535,7 @@ suite('AgentHostChangesetOperationService', () => {
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat, buildDefaultChatUri(sessionKey)));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
@@ -557,6 +560,7 @@ suite('AgentHostChangesetOperationService', () => {
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat, buildDefaultChatUri(sessionKey)));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
@@ -583,6 +587,7 @@ suite('AgentHostChangesetOperationService', () => {
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories: ['file:///workspace'],
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		const changesetUri = buildSessionChangesetUri(sessionKey);
 		stateManager.registerChangeset(changesetUri);
@@ -736,6 +741,7 @@ suite('AgentHostChangesetOperationService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [defaultFolder],
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		const sameScopePeer = buildChatUri(sessionKey, 'same-scope-peer');
 		const otherScopePeer = buildChatUri(sessionKey, 'other-scope-peer');
@@ -890,13 +896,14 @@ suite('AgentHostChangesetOperationService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const changesetUri = buildUncommittedChangesetUri(sessionKey);
-		const summary: SessionSummary = {
+		const summary: SessionSummary & { readonly defaultChat: string } = {
 			resource: sessionKey,
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		};
 		stateManager.createSession(summary);
 		stateManager.registerChangeset(changesetUri);

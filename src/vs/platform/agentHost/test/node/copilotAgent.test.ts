@@ -1838,6 +1838,7 @@ suite('CopilotAgent', () => {
 		stateManager.createSession({
 			resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
 			createdAt: now, modifiedAt: now, workingDirectories: ['file:///workspace'],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
 		try {
@@ -9598,6 +9599,7 @@ suite('CopilotAgent', () => {
 			stateManager.createSession({
 				resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
 				createdAt: now, modifiedAt: now, workingDirectories: [URI.file('/workspace').toString()],
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			stateManager.setSessionConfig(session.toString(), {
 				schema: { type: 'object', properties: {} },
@@ -13519,6 +13521,7 @@ suite('CopilotAgent', () => {
 						status: SessionStatus.Idle,
 						createdAt: now,
 						modifiedAt: now,
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 				}
 				// The host's published snapshot for a session — the exact value
@@ -13861,6 +13864,7 @@ suite('CopilotAgent', () => {
 				stateManager.createSession({
 					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+					defaultChat: buildDefaultChatUri(sessionUri.toString()),
 				});
 				const declarations = await getDefaultChatCustomizations(agent, sessionUri);
 				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...declarations] });
@@ -13897,6 +13901,7 @@ suite('CopilotAgent', () => {
 				stateManager.createSession({
 					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+					defaultChat: buildDefaultChatUri(sessionUri.toString()),
 				});
 				const publications: Customization[][] = [];
 				disposables.add(agent.onDidChatProgress(signal => {
@@ -15550,7 +15555,7 @@ suite('CopilotAgent', () => {
 			const chat = defaultChatUri(session);
 			const context = exactChatContext(session, chat, session);
 			const now = new Date().toISOString();
-			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 			disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind === 'action' && (signal.action.type === ActionType.SessionCustomizationsChanged || signal.action.type === ActionType.SessionCustomizationUpdated)) {
 					stateManager.dispatchServerAction(session.toString(), signal.action);
@@ -16348,7 +16353,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
 			try {
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(created.session.resourceUri.toString()) });
 				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
 				await created.session.initializeSession();
 				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
@@ -16371,7 +16376,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
 			try {
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(created.session.resourceUri.toString()) });
 				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
 				await created.session.initializeSession();
 				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
@@ -16398,7 +16403,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, managedSettings });
 			try {
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(created.session.resourceUri.toString()) });
 				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
 				await created.session.initializeSession();
 				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
@@ -16418,7 +16423,7 @@ suite('CopilotAgent', () => {
 			try {
 				const session = URI.parse('ahp-session:/deferred-copilot-session');
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 				stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
 				const changes: Record<string, unknown>[] = [];
 				disposables.add(configurationService.onDidSessionConfigChange(event => changes.push(event.config)));
@@ -16500,7 +16505,7 @@ suite('CopilotAgent', () => {
 				const claudeSession = AgentSession.uri('claude', 'other-provider-session');
 				const now = new Date().toISOString();
 				for (const [session, provider] of [[copilotSession, 'copilotcli'], [claudeSession, 'claude']] as const) {
-					stateManager.createSession({ resource: session.toString(), provider, title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+					stateManager.createSession({ resource: session.toString(), provider, title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 					stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: `Renamed ${provider}` });
 				}
 
@@ -16522,7 +16527,7 @@ suite('CopilotAgent', () => {
 				// Model a fork/import whose live SDK id differs from its AH session id.
 				setLiveChatStub(agent, 'sdk-conversation-id', { sessionId: 'sdk-conversation-id', resourceUri: session });
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 
 				assert.deepStrictEqual(otel.titleCalls, [{
@@ -16546,7 +16551,7 @@ suite('CopilotAgent', () => {
 				// SDK id, recovered from the backing rather than a live session.
 				await agent.materializeChat(defaultChatUri(session), { configurationResource: session, resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 				const now = new Date().toISOString();
-				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 
 				assert.deepStrictEqual(otel.titleCalls, [{
@@ -16612,7 +16617,7 @@ suite('CopilotAgent', () => {
 			const promptCache = new AgentHostPromptCache(stateManager);
 			const session = AgentSession.uri('copilotcli', 'prompt-cache-session');
 			const now = new Date().toISOString();
-			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 
 			const initial = promptCache.read(session);
 			const written = promptCache.write(session, { modelId: 'gpt-5', cacheExpiresAt: '2030-01-01T00:00:00.000Z' });

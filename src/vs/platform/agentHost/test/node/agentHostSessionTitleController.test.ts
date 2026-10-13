@@ -115,7 +115,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary {
+	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -124,6 +124,7 @@ suite('AgentHostSessionTitleController', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		};
 	}
 

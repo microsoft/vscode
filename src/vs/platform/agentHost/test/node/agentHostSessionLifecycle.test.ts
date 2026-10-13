@@ -63,7 +63,7 @@ suite('AgentHostSessionLifecycle', () => {
 			'file:///repo',
 			{ pullRequestUrls: options?.pullRequestUrls ?? [PULL_REQUEST_URL], pullRequestBranchName: 'feature' },
 		), options?.external ?? false);
-		const summary: SessionSummary = {
+		const summary: SessionSummary & { readonly defaultChat: string } = {
 			resource: session.toString(),
 			provider: 'copilot',
 			title: 'Auto archive',
@@ -71,6 +71,7 @@ suite('AgentHostSessionLifecycle', () => {
 			createdAt: new Date(modifiedTime - DAY_MS).toISOString(),
 			modifiedAt: new Date(modifiedTime).toISOString(),
 			_meta: meta,
+			defaultChat: buildDefaultChatUri(session.toString()),
 		};
 		stateManager.createSession(summary);
 		const restored: string[] = [];

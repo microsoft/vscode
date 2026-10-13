@@ -195,6 +195,7 @@ suite('AgentHostChangesetStrategy', () => {
 			createdAt: '2026-09-01T00:00:00.000Z',
 			modifiedAt: '2026-09-01T00:00:00.000Z',
 			workingDirectories: options.workingDirectories ?? ['file:///repo'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
 		state.dispatchServerAction(session, { type: ActionType.SessionReady });

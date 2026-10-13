@@ -373,7 +373,7 @@ suite('AgentFeedbackServerTools', () => {
 		let manager: AgentHostStateManager;
 		let host: AgentServerToolHost;
 
-		function makeSummary(): SessionSummary {
+		function makeSummary(): SessionSummary & { readonly defaultChat: string } {
 			return {
 				resource: sessionResource,
 				provider: 'copilot',
@@ -381,6 +381,7 @@ suite('AgentFeedbackServerTools', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionResource),
 			};
 		}
 

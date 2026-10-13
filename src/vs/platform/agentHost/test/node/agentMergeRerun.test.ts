@@ -527,6 +527,7 @@ class RerunTestHarness extends Disposable {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(this.session),
 		});
 		this.stateManager.setSessionConfig(this.session, {
 			schema: platformSessionSchema.toProtocol(),

@@ -3497,6 +3497,7 @@ suite('CodexAgent exact chat routing', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 		let enabled = true;
 		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({

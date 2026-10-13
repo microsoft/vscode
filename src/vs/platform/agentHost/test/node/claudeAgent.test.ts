@@ -4691,6 +4691,7 @@ suite('ClaudeAgent', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		stateManager.setSessionConfig(created.session.toString(), {
 			schema: { type: 'object', properties: {} },
@@ -7143,6 +7144,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		// Seed an initial `config` object directly: the
 		// `SessionConfigChanged` reducer no-ops when `state.config` is
@@ -7477,6 +7479,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		// Seed `state.config` so `updateSessionConfig` writes propagate
 		// (the `SessionConfigChanged` reducer no-ops when `state.config`
@@ -7658,6 +7661,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		// Seed `state.config` (see `materialize()` above) so `updateSessionConfig` writes propagate.
 		(state as { config?: SessionConfigState }).config = {
@@ -7771,6 +7775,7 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -7832,6 +7837,7 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -8520,6 +8526,7 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(ownerSession.toString()),
 		});
 		stateManager.addChat(ownerSession.toString(), parentUri.toString(), creationTimeChatStorageResource(ownerSession.toString(), parentUri.toString(), buildDefaultChatUri(ownerSession.toString())));
 		stateManager.addChat(ownerSession.toString(), subagentUri, creationTimeChatStorageResource(ownerSession.toString(), subagentUri, buildDefaultChatUri(ownerSession.toString())), {
@@ -8796,6 +8803,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
+				defaultChat: buildDefaultChatUri(resource),
 			});
 		}
 		stateManager.dispatchServerAction(resource, { type: ActionType.SessionCustomizationsChanged, customizations: [...customizations] });
@@ -9177,6 +9185,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionResource),
 		});
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationsChanged,
@@ -10506,6 +10515,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		stateManager.setSessionConfig(created.session.toString(), {
 			schema: { type: 'object', properties: {} },
@@ -10541,6 +10551,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -11152,6 +11163,7 @@ suite('ClaudeAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -11169,6 +11181,7 @@ suite('ClaudeAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(foreignUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -11332,6 +11345,7 @@ suite('ClaudeAgent — host seams', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		stateManager.addChat(session.toString(), subagentChat.toString(), creationTimeChatStorageResource(session.toString(), subagentChat.toString(), buildDefaultChatUri(session.toString())), {
 			origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri(session).toString(), toolCallId: 'tool-call-1' },

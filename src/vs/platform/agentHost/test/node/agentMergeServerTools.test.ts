@@ -56,6 +56,7 @@ suite('Agent Merge server tools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
 		const branchReads: URI[] = [];
@@ -791,6 +792,7 @@ suite('Agent Merge server tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
 		const host = new AgentServerToolHost(stateManager, [

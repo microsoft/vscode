@@ -44,7 +44,7 @@ suite('Agent Host provider seams', () => {
 
 	let manager: AgentHostStateManager;
 
-	function summary(): SessionSummary {
+	function summary(): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: sessionKey,
 			provider: 'copilot',
@@ -52,6 +52,7 @@ suite('Agent Host provider seams', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		};
 	}
 

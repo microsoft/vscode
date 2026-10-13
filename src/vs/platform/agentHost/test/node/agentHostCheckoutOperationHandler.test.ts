@@ -32,6 +32,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerWorkingDirectory = URI.file('/peer-repo');
@@ -120,6 +121,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
@@ -215,6 +217,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;

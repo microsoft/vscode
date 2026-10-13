@@ -41,7 +41,7 @@ suite('SessionPermissionManager', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/s' }).toString();
 	const directoryLinkType = isWindows ? 'junction' : 'dir';
 
-	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource,
 			provider: 'copilot',
@@ -51,6 +51,7 @@ suite('SessionPermissionManager', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
+			defaultChat: buildDefaultChatUri(resource),
 		};
 	}
 

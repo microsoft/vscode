@@ -271,6 +271,7 @@ suite('SessionWorkspaceConversionService', () => {
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
 	}
@@ -470,7 +471,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const harness = createHarness(new TestWorktreeIsolation(worktree), async () => true, new TestSessionDatabase(), 'copilot', host);
 		makeFolderSession(harness);
 		const named = URI.from({ scheme: 'copilot', path: '/named-by-uri' }).toString();
-		harness.stateManager.createSession({ resource: named, provider: 'copilot', title: 'Named', status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString() });
+		harness.stateManager.createSession({ resource: named, provider: 'copilot', title: 'Named', status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), defaultChat: buildDefaultChatUri(named) });
 		const chat = URI.parse(buildChatUri(named, 'moved'));
 		harness.stateManager.addChat(harness.session.toString(), chat.toString(), creationTimeChatStorageResource(harness.session.toString(), chat.toString(), buildDefaultChatUri(harness.session.toString())), { workingDirectories: [harness.scratch.toString()] });
 		startTurn(harness.stateManager, chat);

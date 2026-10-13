@@ -155,6 +155,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			modifiedAt: new Date().toISOString(),
 			...(workingDirectories ? { workingDirectories } : {}),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		if (ready) {
 			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
@@ -361,6 +362,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				stateManager.createSession({
 					resource: resource.toString(), provider, title: 'Test', status: SessionStatus.Idle,
 					createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+					defaultChat: buildDefaultChatUri(resource.toString()),
 				});
 				stateManager.dispatchServerAction(resource.toString(), { type: ActionType.SessionReady });
 				stateManager.addChat(resource.toString(), peer, creationTimeChatStorageResource(resource.toString(), peer, buildDefaultChatUri(resource.toString())));
@@ -402,7 +404,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat, buildDefaultChatUri(sessionKey)));
 		const secondSession = AgentSession.uri('codex', 'session-2');
 		const secondChat = buildDefaultChatUri(secondSession);
-		stateManager.createSession({ resource: secondSession.toString(), provider: 'codex', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
+		stateManager.createSession({ resource: secondSession.toString(), provider: 'codex', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z', defaultChat: buildDefaultChatUri(secondSession.toString()) });
 		stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionReady });
 		const account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
 		const rateLimit = { usedPercent: 42.4, windowDurationMins: 10080 };

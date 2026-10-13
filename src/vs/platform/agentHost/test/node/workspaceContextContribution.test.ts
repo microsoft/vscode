@@ -123,6 +123,7 @@ suite('WorkspaceContextContribution', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [...roots],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const telemetry = new AgentHostTelemetryReporter(NullTelemetryService);
 		const reported = sinon.spy(telemetry, 'workspaceSnapshotSent');

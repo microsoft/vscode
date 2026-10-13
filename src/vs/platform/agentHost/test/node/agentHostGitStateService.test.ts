@@ -1389,6 +1389,7 @@ suite('AgentHostGitStateService', () => {
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
 				workingDirectories: ['file:///original'],
+				defaultChat: buildDefaultChatUri(SESSION),
 			}, { emitNotification: false });
 			const next: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
 			h.setGitResult(next);

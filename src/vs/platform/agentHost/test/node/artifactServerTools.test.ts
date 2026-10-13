@@ -31,6 +31,7 @@ suite('Artifact Server Tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		const persisted: (readonly ISessionArtifact[])[] = [];
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
@@ -189,6 +190,7 @@ suite('Artifact Server Tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		let persistCalls = 0;
 		const group = createArtifactServerToolGroup({
@@ -508,6 +510,7 @@ suite('Artifact Server Tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		let persisted = false;
 		const group = createArtifactServerToolGroup({

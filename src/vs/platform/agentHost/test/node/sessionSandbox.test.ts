@@ -64,6 +64,7 @@ suite('Session sandbox configuration', () => {
 			manager.createSession({
 				resource: session, provider: 'copilot', title: id, status: SessionStatus.Idle,
 				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				defaultChat: buildDefaultChatUri(session),
 			});
 			manager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values });
 			return session;
@@ -73,6 +74,7 @@ suite('Session sandbox configuration', () => {
 				manager.createSession({
 					resource: session, provider: 'copilot', title: id, status: SessionStatus.Idle,
 					createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+					defaultChat: buildDefaultChatUri(session),
 				});
 			}
 			const chat = buildChatUri(session, id);

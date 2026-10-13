@@ -131,6 +131,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
 		let enabled = true;

@@ -143,6 +143,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri('agent:/session'),
 		});
 		const database = new TestSessionDatabase();
 		const reference: ISessionArtifact = {

@@ -33,6 +33,7 @@ suite('AgentHostSyncOperationHandler', () => {
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
 			_meta: withSessionGitState(undefined, { branchName, baseBranchName: 'main' }),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const refreshedSessions: string[] = [];
 		return {
