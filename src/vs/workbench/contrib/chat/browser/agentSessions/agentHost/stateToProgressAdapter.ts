@@ -446,6 +446,7 @@ function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState
 
 /** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
 function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
+	// Shaped fallback: the host always stamps `_meta.subagentChatUri` / the content resource for opaque sessions.
 	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? subagentChatUri('shaped', sessionResource.toString(), '', tc.toolCallId);
 }
 

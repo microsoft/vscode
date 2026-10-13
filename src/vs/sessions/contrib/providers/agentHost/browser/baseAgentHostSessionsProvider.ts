@@ -6945,6 +6945,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (sourceChat.fragment) {
 			const subagentPrefix = 'subagent/';
 			if (sourceChat.fragment.startsWith(subagentPrefix)) {
+				// Shaped fallback: the host always stamps `_meta.subagentChatUri` / the content resource for opaque sessions.
 				return URI.parse(buildSubagentChatUri(sessionUri, sourceChat.fragment.slice(subagentPrefix.length)));
 			}
 			return URI.parse(buildChatUri(sessionUri, sourceChat.fragment));

@@ -37,7 +37,16 @@ export function getTelemetryMigrationErrorMessage(error: unknown, session: URI):
 	return message.replace(new RegExp(`(?:[a-z][a-z0-9+.-]*:\\/+)?(?:${alternatives})`, 'gi'), '[REDACTED: session]');
 }
 
+/**
+ * The chat identifier within its session, derived from the URI alone so the host and the client agree:
+ * a shaped default chat is `default`, any other chat uses its client chat id. An opaque default chat
+ * is indistinguishable from an opaque peer here and reports its uuid.
+ */
+export function getTelemetryChatId(chat: string | URI): string {
+	return parseChatUri(chat)?.chatId === DEFAULT_CHAT_ID ? DEFAULT_CHAT_ID : getAgentHostChatId(chat);
+}
+
 /** Hashes the chat identifier within its owning session; correlate it with the session identifier, not on its own. */
 export function getTelemetryChatSessionId(chat: string | URI): string {
-	return String(hash(parseChatUri(chat)?.chatId === DEFAULT_CHAT_ID ? DEFAULT_CHAT_ID : getAgentHostChatId(chat)));
+	return String(hash(getTelemetryChatId(chat)));
 }
