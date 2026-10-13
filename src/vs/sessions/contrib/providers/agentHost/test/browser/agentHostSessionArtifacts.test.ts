@@ -81,26 +81,4 @@ suite('Agent Host Session Artifacts', () => {
 		})));
 	});
 
-	test('reports an unmappable file artifact without losing other artifacts and references', () => {
-		const errors: { id: string; isError: boolean }[] = [];
-		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
-			{ id: 'first', type: SessionArtifactType.File, label: 'First', isArtifact: true, uri: 'file:///remote/first.md' },
-			{ id: 'bad', type: SessionArtifactType.File, label: 'Bad', isArtifact: true, uri: 'custom:opaque-file' },
-			{ id: 'last', type: SessionArtifactType.File, label: 'Last', isArtifact: false, uri: 'file:///remote/last.md' },
-			{ id: 'issue', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/issues/1' },
-		]), uri => toAgentHostUri(uri, 'remote-host'), (id, error) => {
-			errors.push({ id, isError: error instanceof Error });
-		});
-
-		assert.deepStrictEqual({
-			entries: result.entries.map(({ artifact }) => artifact.id),
-			issues: result.issues.map(issue => issue.recordedReferenceId),
-			errors,
-		}, {
-			entries: ['issue', 'last', 'first'],
-			issues: ['issue'],
-			errors: [{ id: 'bad', isError: true }],
-		});
-	});
-
 });

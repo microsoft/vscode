@@ -1482,7 +1482,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -1554,9 +1553,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const defaultChatBackendUri = this._defaultChatBackendUri.read(reader);
 			const chats = this._chatsObs.read(reader);
 			// Artifact owners use host chat URIs; shared consumers compare UI chat resources.
-			return partitionSessionArtifacts(meta, this._options.mapDiffUri, (artifactId, error) => {
-				this._logService.warn(`[${providerId}] Failed to project session artifact '${artifactId}'.`, error);
-			}).entries.map(({ artifact }) => {
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(({ artifact }) => {
 				if (!artifact.chat) {
 					return artifact;
 				}

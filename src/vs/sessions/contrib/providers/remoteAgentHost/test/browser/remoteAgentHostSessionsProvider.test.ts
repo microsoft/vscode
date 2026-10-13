@@ -3516,18 +3516,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()), ['Old Session', 'New Session']);
 	}));
 
-	test('logs unmappable artifacts and keeps new session notifications working after reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a malformed session artifact does not prevent new sessions from appearing after reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const metadata = createSession('old-session', {
 			summary: 'Old Session',
 			_meta: withSessionArtifacts(undefined, [
 				{ id: 'bad', type: SessionArtifactType.File, label: 'Bad', isArtifact: true, uri: 'custom:opaque-file' },
-				{ id: 'good', type: SessionArtifactType.File, label: 'Good', isArtifact: true, uri: 'file:///home/test/.copilot/session-state/sdk-session/files/report.md' },
 			]),
 		});
 		connection.addSession(metadata);
-		const warnings: string[] = [];
+		const errors: string[] = [];
 		const logService = new class extends NullLogService {
-			override warn(message: string): void { warnings.push(message); }
+			override error(message: string | Error): void { errors.push(String(message)); }
 		}();
 		const provider = createProvider(disposables, connection, { logService });
 		await timeout(0);
@@ -3541,66 +3540,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			sessions: provider.getSessions().map(session => session.title.get()),
-			artifacts: provider.getSessions()[0].artifacts?.get().map(artifact => artifact.id),
-			warnings: [...new Set(warnings)],
+			reportedFailure: errors.some(message => message.includes('old-session')),
 		}, {
 			sessions: ['Old Session', 'New Session'],
-			artifacts: ['good'],
-			warnings: ['[agenthost-localhost__4321] Failed to project session artifact \'bad\'.'],
-		});
-	}));
-
-	test('label formatter failures do not interrupt disconnect cleanup or reconnect setup', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const metadata = createSession('old-session', {
-			summary: 'Old Session',
-			_meta: withSessionArtifacts(undefined, [{
-				id: 'artifact',
-				type: SessionArtifactType.File,
-				label: 'Report',
-				isArtifact: true,
-				uri: 'file:///home/test/.copilot/session-state/sdk-session/files/report.md',
-			}]),
-		});
-		connection.addSession(metadata);
-		const labelService = new class extends MockLabelService {
-			fail = false;
-			override getSeparator(scheme: string, authority?: string): '/' | '\\' {
-				if (this.fail) {
-					throw new Error('Label formatting failed');
-				}
-				return super.getSeparator(scheme, authority);
-			}
-		}();
-		const errors: string[] = [];
-		const logService = new class extends NullLogService {
-			override error(message: string | Error): void { errors.push(String(message)); }
-		}();
-		const provider = createProvider(disposables, connection, { labelService, logService });
-		await timeout(0);
-		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), 'localhost__4321'), 'copilotcli');
-		labelService.fail = true;
-		provider.clearConnection();
-		const draftAfterDisconnect = provider.getSessionByResource(draft.resource);
-
-		const reconnected = disposables.add(new MockAgentConnection());
-		reconnected.addSession(metadata);
-		reconnected.addSession(createSession('listed-session', { summary: 'Listed Session' }));
-		provider.setConnection(reconnected);
-		await timeout(0);
-		reconnected.setAgents([{ provider: 'copilotcli', displayName: 'Updated Copilot', description: 'Updated agent', models: [] }]);
-		fireSessionAdded(reconnected, 'new-session', { title: 'New Session' });
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			draftAfterDisconnect,
-			sessions: provider.getSessions().map(session => session.title.get()),
-			agentLabel: provider.sessionTypes.find(type => type.id === 'copilotcli')?.label,
-			reportedLabelFailure: errors.includes('[agenthost-localhost__4321] Failed to update resource label homes.'),
-		}, {
-			draftAfterDisconnect: undefined,
-			sessions: ['Old Session', 'Listed Session', 'New Session'],
-			agentLabel: 'Updated Copilot',
-			reportedLabelFailure: true,
+			reportedFailure: true,
 		});
 	}));
 

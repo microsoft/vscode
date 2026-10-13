@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasDriveLetter, toSlashes } from '../../../../../base/common/extpath.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -100,24 +99,13 @@ interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
 }
 
-/** Projects recorded artifacts independently, reporting conversion failures without discarding other entries. */
-export function partitionSessionArtifacts(
-	meta: SessionMeta | undefined,
-	mapFileUri: (uri: URI) => URI = uri => uri,
-	onError: (artifactId: string, error: unknown) => void = (_artifactId, error) => onUnexpectedError(error),
-): ISessionArtifactPartition {
+export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const pullRequests: IRecordedGitHubReference[] = [];
 	const issues: IRecordedGitHubReference[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
-		let mapped: ISessionArtifact | undefined;
-		try {
-			mapped = toSessionArtifact(artifact, mapFileUri);
-		} catch (error) {
-			onError(artifact.id, error);
-			continue;
-		}
+		const mapped = toSessionArtifact(artifact, mapFileUri);
 		if (!mapped) {
 			continue;
 		}
