@@ -5921,6 +5921,15 @@ export class CopilotAgentSession extends Disposable {
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
 	private _reportSettingExperimentTrigger(settingId: string): void {
+		const defaultControlledKey = settingId === AgentHostCopilotExecutionSubagentEnabledSettingId
+			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
+			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
+				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
+				: undefined;
+		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			return;
+		}
 		if (typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
 			this._pendingSettingExperimentTriggers.add(settingId);
 		} else {

@@ -16,7 +16,7 @@ import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExec
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -99,6 +99,8 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.SearchSubagent]: { type: 'boolean', title: 'Search Subagent' },
 	[CopilotCliConfigKey.ExecutionSubagent]: { type: 'boolean', title: 'Runtime Execution Subagent' },
 	[CopilotCliConfigKey.ExecutionSubagentModel]: { type: 'string', title: 'Runtime Execution Subagent Model' },
+	[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: { type: 'boolean', title: 'Runtime Execution Subagent Default Control' },
+	[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: { type: 'boolean', title: 'Runtime Execution Subagent Model Default Control' },
 	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
@@ -118,13 +120,12 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null, configurationService = new TestConfigurationService(settings)) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	const defaultAccountService = new MockDefaultAccountService(policyData);
 	disposables.add({ dispose: () => agentHostService.dispose() });
 	disposables.add({ dispose: () => defaultAccountService.dispose() });
-	const configurationService = new TestConfigurationService(settings);
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
@@ -174,7 +175,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 21);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -185,6 +186,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.SearchSubagent]: true,
 			[CopilotCliConfigKey.ExecutionSubagent]: true,
 			[CopilotCliConfigKey.ExecutionSubagentModel]: 'exec-agent-b',
+			[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: false,
+			[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: false,
 			[CopilotCliConfigKey.LocalIndexEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
@@ -249,6 +252,77 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			{ [CopilotCliConfigKey.ExecutionSubagentModel]: 'exec-agent-b' },
 			{ [CopilotCliConfigKey.ExecutionSubagentModel]: '' },
 			{ [CopilotCliConfigKey.ExecutionSubagent]: false },
+		]);
+	});
+
+	test('forwards default provenance independently for execution settings, including overrides equal to defaults', async () => {
+		const results: Record<string, Record<string, unknown>> = {};
+		for (const settingId of [AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId]) {
+			for (const scope of [undefined, 'applicationValue', 'userValue', 'policyValue', 'memoryValue'] as const) {
+				const configurationService = new class extends TestConfigurationService {
+					override inspect<T>(key: string): IConfigurationValue<T> {
+						const value = this.getValue<T>(key);
+						return {
+							value,
+							defaultValue: value,
+							...(key === settingId && scope ? { [scope]: value } : {}),
+						};
+					}
+				}({
+					[AgentHostCopilotExecutionSubagentEnabledSettingId]: false,
+					[AgentHostCopilotExecutionSubagentModelSettingId]: 'gpt-5.6-luna',
+				});
+				const { agentHostService } = setup(disposables, {}, null, configurationService);
+				agentHostService.setRootState(makeRootStateWithSchema({
+					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: fullSchema[CopilotCliConfigKey.ExecutionSubagentDefaultControlled],
+					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: fullSchema[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled],
+				}));
+				await flush();
+				results[`${settingId}:${scope ?? 'default'}`] = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
+			}
+		}
+
+		const expected: Record<string, Record<string, unknown>> = {};
+		for (const settingId of [AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId]) {
+			for (const scope of ['default', 'applicationValue', 'userValue', 'policyValue', 'memoryValue']) {
+				expected[`${settingId}:${scope}`] = {
+					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: scope === 'default' || settingId !== AgentHostCopilotExecutionSubagentEnabledSettingId,
+					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: scope === 'default' || settingId !== AgentHostCopilotExecutionSubagentModelSettingId,
+				};
+			}
+		}
+		assert.deepStrictEqual(results, expected);
+	});
+
+	test('updates execution setting provenance when an explicit override is added and removed', async () => {
+		const { agentHostService, configurationService } = setup(disposables, {});
+		agentHostService.setRootState(makeRootStateWithSchema({
+			[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: fullSchema[CopilotCliConfigKey.ExecutionSubagentDefaultControlled],
+			[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: fullSchema[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled],
+		}));
+		await flush();
+		for (const [settingId, value] of [
+			[AgentHostCopilotExecutionSubagentEnabledSettingId, false],
+			[AgentHostCopilotExecutionSubagentModelSettingId, ''],
+			[AgentHostCopilotExecutionSubagentEnabledSettingId, undefined],
+			[AgentHostCopilotExecutionSubagentModelSettingId, undefined],
+		] as const) {
+			await configurationService.setUserConfiguration(settingId, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([settingId]),
+				change: { keys: [settingId], overrides: [] },
+				affectsConfiguration: key => key === settingId,
+			});
+			await flush();
+		}
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config), [
+			{ [CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true },
+			{ [CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true },
+			{ [CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: false },
+			{ [CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: false },
+			{ [CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true },
+			{ [CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true },
 		]);
 	});
 
@@ -387,6 +461,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.SearchSubagent]: false,
 			[CopilotCliConfigKey.ExecutionSubagent]: false,
 			[CopilotCliConfigKey.ExecutionSubagentModel]: 'gpt-5.6-luna',
+			[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
+			[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
 			[CopilotCliConfigKey.LocalIndexEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,

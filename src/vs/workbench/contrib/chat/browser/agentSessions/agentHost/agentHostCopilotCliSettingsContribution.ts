@@ -10,7 +10,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -67,9 +67,19 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSearchSubagentEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.ExecutionSubagentDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotExecutionSubagentEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentEnabledSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.ExecutionSubagent,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCopilotExecutionSubagentEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotExecutionSubagentModelSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentModelSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ExecutionSubagentModel,
@@ -166,6 +176,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				this._forwarder.stop();
 			}
 		}));
+	}
+
+	private _isDefaultControlled(settingId: string): boolean {
+		const inspected = this._configurationService.inspect<unknown>(settingId);
+		return !isConfigured(inspected) && inspected.policyValue === undefined && inspected.memoryValue === undefined;
 	}
 
 	/** Resolves the HydraFusion setting to `false`, `true` (v1), or `'v2'`; preview-feature policy turns it off. */

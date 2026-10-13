@@ -37,6 +37,10 @@ export const enum CopilotCliConfigKey {
 	ExecutionSubagent = 'executionSubagent',
 	/** Runtime model ID for the execution subagent; empty inherits the session model. */
 	ExecutionSubagentModel = 'executionSubagentModel',
+	/** Whether the workbench enablement value is controlled by its configuration default. */
+	ExecutionSubagentDefaultControlled = 'executionSubagentDefaultControlled',
+	/** Whether the workbench model value is controlled by its configuration default. */
+	ExecutionSubagentModelDefaultControlled = 'executionSubagentModelDefaultControlled',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
@@ -252,6 +256,18 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.executionSubagentModel.title', "Runtime Execution Subagent Model"),
 		description: localize('agentHost.config.executionSubagentModel.description', "Default model ID for the Copilot runtime execution subagent. Empty inherits the session model. Runtime experiment assignments may override this default. Changing this setting restarts the Copilot runtime after active turns finish."),
 		default: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentDefaultControlled.title', "Runtime Execution Subagent Default Control"),
+		description: localize('agentHost.config.executionSubagentDefaultControlled.description', "Whether the workbench execution subagent enablement setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentModelDefaultControlled.title', "Runtime Execution Subagent Model Default Control"),
+		description: localize('agentHost.config.executionSubagentModelDefaultControlled.description', "Whether the workbench execution subagent model setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
