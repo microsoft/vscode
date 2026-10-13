@@ -406,6 +406,26 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
+	test('reads a session-scoped merge method override', () => {
+		const overridesFor = (mergeMethod: unknown) => readAgentMergeSessionState({
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { mergeMethod } },
+		})?.overrides;
+
+		assert.deepStrictEqual({
+			auto: overridesFor('auto'),
+			squash: overridesFor('squash'),
+			merge: overridesFor('merge'),
+			rebase: overridesFor('rebase'),
+			unknown: overridesFor('bogus'),
+		}, {
+			auto: { mergeMethod: 'auto' },
+			squash: { mergeMethod: 'squash' },
+			merge: { mergeMethod: 'merge' },
+			rebase: { mergeMethod: 'rebase' },
+			unknown: undefined,
+		});
+	});
+
 	test('explains what Agent Merge does when it starts', () => {
 		assert.strictEqual(agentMergeEnabledNotice({ branchName: 'feature' }, {
 			...configuration,

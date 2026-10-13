@@ -320,6 +320,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 					&& content.includes('active chat or submitting answers to an agent')
 					&& content.includes('Collapsed Running, On Hold, and Ready to Merge sections at the bottom of the Inbox')
 					&& content.includes('Use Move Session on a session row')
+					&& content.includes('Ready to Merge enables Agent Merge')
+					&& content.includes('returns to the Inbox only when the agent asks a question')
 					&& content.includes('marked as done after every tracked pull request merges'),
 				applicationDefaults: content.includes('On This Computer and remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
 				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),

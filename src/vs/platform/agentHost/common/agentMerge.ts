@@ -77,6 +77,7 @@ export interface AgentMergeSessionOverrides {
 	readonly fixCI?: boolean;
 	readonly resolveConflicts?: boolean;
 	readonly mergePullRequest?: AgentMergeMergePullRequest;
+	readonly mergeMethod?: AgentMergeMethod;
 }
 
 export interface AgentMergeTarget {
@@ -895,6 +896,10 @@ function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {
 		result.mergePullRequest = mergePullRequest ? 'always' : 'never';
 	} else if (isAgentMergeMergePullRequest(mergePullRequest)) {
 		result.mergePullRequest = mergePullRequest;
+	}
+	const mergeMethod = value.mergeMethod;
+	if (mergeMethod === 'auto' || mergeMethod === 'squash' || mergeMethod === 'merge' || mergeMethod === 'rebase') {
+		result.mergeMethod = mergeMethod;
 	}
 	return Object.keys(result).length > 0 ? result as AgentMergeSessionOverrides : undefined;
 }
