@@ -271,6 +271,7 @@ suite('SimpleFileDialog', () => {
 		await dialog.resolvePathFormatting();
 		const path = dialog.pathFromUri(resource, true);
 		const roundTripped = dialog.remoteUriFrom(path, resource);
+		const anotherDrive = dialog.remoteUriFrom('D:\\code\\project\\', resource);
 
 		assert.deepStrictEqual({
 			path,
@@ -278,6 +279,11 @@ suite('SimpleFileDialog', () => {
 				scheme: roundTripped.scheme,
 				authority: roundTripped.authority,
 				path: roundTripped.path,
+			},
+			typedDrive: {
+				scheme: anotherDrive.scheme,
+				authority: anotherDrive.authority,
+				path: anotherDrive.path,
 			},
 			separator: dialog.separator,
 			isWindows: dialog.isWindows,
@@ -288,6 +294,11 @@ suite('SimpleFileDialog', () => {
 				scheme: 'vscode-agent-host',
 				authority: 'windows-host',
 				path: '/C:/Users/test/project/',
+			},
+			typedDrive: {
+				scheme: 'vscode-agent-host',
+				authority: 'windows-host',
+				path: '/D:/code/project/',
 			},
 			separator: '\\',
 			isWindows: true,
