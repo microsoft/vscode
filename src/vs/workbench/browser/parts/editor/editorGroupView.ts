@@ -2157,7 +2157,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (menuId === MenuId.EditorTitle) {
 				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
 				if (available) {
-					const editorTypeActions = createEditorTypeActions(available, this.editorResolverService, this.commandService, this.editorService);
+					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
 					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
 					if (actions.secondary.length) {
 						actions.secondary.push(new Separator());

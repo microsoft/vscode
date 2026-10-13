@@ -68,7 +68,7 @@ import {
 	type ListSessionsResult,
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -94,6 +94,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import type { AuthRequiredErrorData } from '../common/state/protocol/common/errors.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -479,6 +480,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -502,7 +504,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!isAhpChatChannel(envelope.channel)) {
 					throw new Error(`[ProtocolServer] Chat tool-call action emitted on non-chat channel: ${envelope.channel}`);
 				}
-				this._checkOrphanedClientToolCalls(parseRequiredSessionUriFromChatUri(envelope.channel), envelope.channel);
+				const owner = this._chatOwnership.getChatOwner(envelope.channel);
+				if (owner !== undefined) {
+					this._checkOrphanedClientToolCalls(owner, envelope.channel);
+				}
 			}
 		}));
 		this._register(this._stateManager.onDidRejectClientAction(envelope => this._recordAndBroadcastAction(envelope)));
@@ -1507,7 +1512,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (subscription.kind === ChannelKind.State
 					&& subscription.active
 					&& (subscription.uri === session
-						|| parseChatUri(subscription.uri)?.session === session)) {
+						|| this._chatOwnership.getChatOwner(subscription.uri) === session)) {
 					return true;
 				}
 			}
@@ -1870,11 +1875,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
-			const parsed = parseChatUri(chat);
-			if (!parsed) {
+			const owner = isAhpChatChannel(params.channel) ? await this._resolveChatOwner(params.channel) : undefined;
+			if (!owner) {
+				this._logService.trace(`[ProtocolServer] disposeChat: no owner recorded for ${params.channel}`);
 				return null;
 			}
-			await this._agentService.disposeChat(URI.parse(parsed.session), chat);
+			await this._agentService.disposeChat(owner, chat);
 			return null;
 		},
 		resourceWrite: async (_client, params) => {
@@ -2442,8 +2448,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const boundChat = isAhpChatChannel(content.sessionUri) ? parseChatUri(content.sessionUri) : undefined;
-			const session = isAhpChatChannel(content.sessionUri) ? boundChat?.session : content.sessionUri;
+			const session = isAhpChatChannel(content.sessionUri) ? this._chatOwnership.getChatOwner(content.sessionUri) : content.sessionUri;
 			if (!session || (!this._stateManager.getSessionSummary(session) && !this._stateManager.getSurfacedSessionSummary(session))) {
 				return false;
 			}
@@ -2835,12 +2840,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					} catch {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
 					}
-					const parsedChat = parseChatUri(chat);
-					if (!parsedChat || parsedChat.session !== session.toString()) {
-						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
-					}
 				}
-				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
+				const ownership = chat ? this._assertChatBelongsToSession(chat, session) : Promise.resolve();
+				return ownership.then(() => this._agentService.getSessionStateFile!(session, chat)).then(resource => ({ resource: resource?.toString() }));
 			}
 			case CreateAgentHostDetachedWorktreeExtensionMethod: {
 				if (!this._agentService.createDetachedWorktree) {
@@ -2958,38 +2960,40 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					} catch {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
 					}
-					const parsedChat = parseChatUri(chat);
-					if (!session || !parsedChat || parsedChat.session !== session.toString()) {
+					if (!session) {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
 					}
 				}
-				if (progressToken && this._debugLogCollectionOwners.has(progressToken)) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'progressToken is already in use'));
-				}
-				if (progressToken) {
-					this._debugLogCollectionOwners.set(progressToken, client.clientId);
-				}
-				let completed = false;
-				const cancelOnDisconnect = client.disposables.add(toDisposable(() => {
-					if (progressToken && !completed) {
-						void this._agentService.cancelDebugLogs?.(progressToken).catch(error => this._logService.warn('[ExportAgentHostDebugLogs] Failed to cancel disconnected collection', error));
+				const collect = () => {
+					if (progressToken && this._debugLogCollectionOwners.has(progressToken)) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'progressToken is already in use'));
 					}
-				}));
-				return this._agentService.collectDebugLogs(session, kind, chat, progressToken).then(result => ({
-					kind: result.kind,
-					resource: result.resource.toString(),
-					providerLogsIncluded: result.providerLogsIncluded,
-					size: result.size,
-					uncompressedSize: result.uncompressedSize,
-					entries: result.entries,
-				})).finally(() => {
-					completed = true;
-					cancelOnDisconnect.dispose();
-					client.disposables.delete(cancelOnDisconnect);
 					if (progressToken) {
-						this._debugLogCollectionOwners.delete(progressToken);
+						this._debugLogCollectionOwners.set(progressToken, client.clientId);
 					}
-				});
+					let completed = false;
+					const cancelOnDisconnect = client.disposables.add(toDisposable(() => {
+						if (progressToken && !completed) {
+							void this._agentService.cancelDebugLogs?.(progressToken).catch(error => this._logService.warn('[ExportAgentHostDebugLogs] Failed to cancel disconnected collection', error));
+						}
+					}));
+					return this._agentService.collectDebugLogs!(session, kind, chat, progressToken).then(result => ({
+						kind: result.kind,
+						resource: result.resource.toString(),
+						providerLogsIncluded: result.providerLogsIncluded,
+						size: result.size,
+						uncompressedSize: result.uncompressedSize,
+						entries: result.entries,
+					})).finally(() => {
+						completed = true;
+						cancelOnDisconnect.dispose();
+						client.disposables.delete(cancelOnDisconnect);
+						if (progressToken) {
+							this._debugLogCollectionOwners.delete(progressToken);
+						}
+					});
+				};
+				return chat && session ? this._assertChatBelongsToSession(chat, session).then(collect) : collect();
 			}
 			case CancelAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.cancelDebugLogs) {
@@ -3102,12 +3106,25 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private async _resolveChatOwner(chat: string): Promise<URI | undefined> {
+		const owner = (await this._chatOwnership.resolveChatOwner(chat))?.owner;
+		return owner === undefined ? undefined : URI.parse(owner);
+	}
+
+	/** Rejects unless `chat` is a chat whose recorded owner is `session`. */
+	private async _assertChatBelongsToSession(chat: URI, session: URI): Promise<void> {
+		const owner = isAhpChatChannel(chat.toString()) ? await this._resolveChatOwner(chat.toString()) : undefined;
+		if (owner?.toString() !== session.toString()) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session');
+		}
+	}
+
 	private _isSessionVisible(client: IConnectedClient, session: string): boolean {
 		return !client.legacySessionUris || URI.parse(session).scheme !== 'ahp-session';
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
-		return this._isSessionVisible(client, parseChatUri(channel)?.session ?? channel);
+		return this._isSessionVisible(client, this._chatOwnership.getChatOwner(channel) ?? channel);
 	}
 
 	/**

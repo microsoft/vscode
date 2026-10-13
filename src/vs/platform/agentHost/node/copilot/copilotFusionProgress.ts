@@ -148,6 +148,11 @@ export class CopilotFusionProgress {
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
 
+	/** The HydraFusion model the runtime is routing the current turn with, when it has named one. */
+	get syntheticModel(): string | undefined {
+		return this._syntheticModel;
+	}
+
 	get runningPhaseToolCallId(): string | undefined {
 		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
 	}

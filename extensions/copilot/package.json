@@ -4143,22 +4143,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claudeDefaultReasoningEffort": {
-            "type": "string",
-            "default": "",
-            "enum": [
-              "",
-              "low",
-              "medium",
-              "high",
-              "max"
-            ],
-            "markdownDescription": "%github.copilot.config.claudeDefaultReasoningEffort%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4827,7 +4811,7 @@
           },
           "github.copilot.chat.executionSubagent.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
             "tags": [
               "advanced",
@@ -4837,7 +4821,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "gemini-3-flash",
+            "default": "gpt-5.6-luna",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",
@@ -5061,6 +5045,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planExitMode.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5085,6 +5071,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planCommand.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
