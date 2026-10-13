@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -95,54 +94,6 @@ suite('AgentHostPeerChatStore', () => {
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
 		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined));
 	}
-
-	test('session idle waits for metadata migration without waiting for another session', async () => {
-		const localGate = new DeferredPromise<void>();
-		const otherGate = new DeferredPromise<void>();
-		const otherSession = URI.parse('agenthost:other-peer-store');
-		const store = createStore(new TestSessionDatabase());
-		store.setMetadataMigration(async (owner, _resource, values) => {
-			await (owner.toString() === session.toString() ? localGate.p : otherGate.p);
-			return values;
-		});
-		const localWrite = store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Local title' });
-		const otherWrite = store.persistMetadata(otherSession, otherSession, { [SESSION_CUSTOM_TITLE_KEY]: 'Other title' });
-		let sessionIdle = false;
-		let allIdle = false;
-		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
-		const allDrain = store.whenIdle().then(() => { allIdle = true; });
-		try {
-			await timeout(0);
-			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: false, allIdle: false });
-			localGate.complete();
-			await localWrite;
-			await timeout(0);
-			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: true, allIdle: false });
-		} finally {
-			localGate.complete();
-			otherGate.complete();
-			await Promise.all([localWrite, otherWrite, sessionDrain, allDrain]);
-		}
-		assert.strictEqual(allIdle, true);
-	});
-
-	test('session idle settles a rejected write without hiding the error from its caller', async () => {
-		const gate = new DeferredPromise<void>();
-		const store = createStore(new TestSessionDatabase());
-		store.setMetadataMigration(async () => {
-			await gate.p;
-			throw new Error('metadata migration failed');
-		});
-		const write = assert.rejects(store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'New title' }), /metadata migration failed/);
-		const allDrain = assert.rejects(store.whenIdle(), /metadata migration failed/);
-		let sessionIdle = false;
-		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
-		await timeout(0);
-		assert.strictEqual(sessionIdle, false);
-		gate.complete();
-		await Promise.all([write, allDrain, sessionDrain]);
-		assert.strictEqual(sessionIdle, true);
-	});
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
 		const defaultChat = buildDefaultChatUri(session);

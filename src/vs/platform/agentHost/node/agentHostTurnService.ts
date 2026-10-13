@@ -28,11 +28,6 @@ export interface IDeferredAgentHostTurn {
 export interface IAgentHostTurnService {
 	readonly _serviceBrand: undefined;
 	startTurnMessage(chat: URI, message: Message): void;
-	/**
-	 * Starts a message prepared by a connected client without manufacturing a
-	 * client action envelope or client sequence number.
-	 */
-	startClientTurnMessage(chat: URI, message: Message, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined;
 	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined;
 	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn;
 	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean;
@@ -58,16 +53,6 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		const channel = chat.toString();
 		const action = this._dispatchTurnStarted(channel, message);
 		this.handleTurnStarted(channel, action);
-	}
-
-	startClientTurnMessage(chat: URI, message: Message, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined {
-		const action: ChatTurnStartedAction = {
-			type: ActionType.ChatTurnStarted,
-			turnId: generateUuid(),
-			startedAt: new Date().toISOString(),
-			message,
-		};
-		return this.startClientTurn(chat, action, clientId, clientContext);
 	}
 
 	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined {

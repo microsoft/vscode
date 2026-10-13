@@ -459,7 +459,6 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 	if (!message?.model && !message?.agent) {
 		return undefined;
 	}
-
 	return {
 		text: '',
 		origin: { kind: MessageKind.User },
@@ -469,10 +468,6 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 }
 
 type ForkInitialMessageSource = Pick<ChatState, 'activeTurn' | 'turns'>;
-
-interface ICapturedForkInitialMessage {
-	readonly message: Message;
-}
 
 /** The draft the chat channel holds, so we only send real changes and can keep its model. */
 export class DraftSyncState {
@@ -6058,7 +6053,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _prepareForkInitialMessage(
 		sessionResource: URI,
 		backendSession: URI,
-		captured: ICapturedForkInitialMessage,
+		captured: Message,
 		token: CancellationToken,
 	): Promise<Message> {
 		this._shellInitSynchronizer.reconcile(backendSession);
@@ -6071,22 +6066,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			throw new CancellationError();
 		}
 
-		return captured.message;
+		return captured;
 	}
 
 	private _captureForkInitialMessage(
 		sessionResource: URI,
 		sourceState: ForkInitialMessageSource | undefined,
 		intent: IChatSessionInitialMessage,
-	): ICapturedForkInitialMessage {
+	): Message {
 		const attachments = this._convertVariablesToAttachments(getChatSessionInitialMessageVariables(intent), sessionResource, intent.text);
 		const sourceMessage = sourceState?.activeTurn?.message ?? sourceState?.turns.at(-1)?.message;
 		return {
-			message: {
-				...requestMessage(intent.text, attachments, undefined, false),
-				...(sourceMessage?.model ? { model: sourceMessage.model } : {}),
-				...(sourceMessage?.agent ? { agent: sourceMessage.agent } : {}),
-			},
+			...requestMessage(intent.text, attachments, undefined, false),
+			...(sourceMessage?.model ? { model: sourceMessage.model } : {}),
+			...(sourceMessage?.agent ? { agent: sourceMessage.agent } : {}),
 		};
 	}
 
