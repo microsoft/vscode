@@ -6451,19 +6451,19 @@ suite('AgentHostChatContribution', () => {
 
 		test('does not create a fork when initial-message preflight is already cancelled', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
-				const backendSession = AgentSession.uri('copilot', 'fork-cancelled');
-				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
-				const sourceChat = buildDefaultChatUri(backendSession.toString());
-				agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } }], activeSessions: 0 });
-				agentHostService.sessionStates.set(backendSession.toString(), {
-					...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
-					lifecycle: SessionLifecycle.Ready,
-					defaultChat: sourceChat,
-					chats: [createDefaultChatSummary({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }, sourceChat)],
-					turns: [{ id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
-				});
-				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-				disposables.add(chatSession);
+			const backendSession = AgentSession.uri('copilot', 'fork-cancelled');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
+			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } }], activeSessions: 0 });
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: sourceChat,
+				chats: [createDefaultChatSummary({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }, sourceChat)],
+				turns: [{ id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+			});
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(chatSession);
 			const cts = disposables.add(new CancellationTokenSource());
 			cts.cancel();
 

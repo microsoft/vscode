@@ -693,7 +693,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const repeatedState = await chatState(peer);
 		assert.strictEqual(
 			repeatedState.turns.filter(turn => turn.message.text === '/rename Initial Message Title').length
-				+ (repeatedState.activeTurn?.message.text === '/rename Initial Message Title' ? 1 : 0),
+			+ (repeatedState.activeTurn?.message.text === '/rename Initial Message Title' ? 1 : 0),
 			1,
 		);
 	}, config.supportsMultipleChats && config.supportsChatFork && (config.supportsForkWithInitialMessage ?? false));

@@ -3319,17 +3319,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined {
 		const sourceSessionResource = this.viewModel?.sessionResource;
+		if (!sourceSessionResource || !isAgentHostTarget(getChatSessionType(sourceSessionResource)) || !!query || options?.preserveInput) {
+			return undefined;
+		}
 		const ownedInput = this.getInput();
 		const forkPart = this.parsedInput.parts.find((part): part is ChatRequestSlashCommandPart =>
 			part instanceof ChatRequestSlashCommandPart && part.slashCommand.command === 'fork');
 		const afterFork = forkPart ? ownedInput.slice(forkPart.range.endExclusive) : '';
 		const promptToken = afterFork ? /^(\s*)prompt(?=\s|$)/.exec(afterFork) : undefined;
 		const promptText = promptToken ? afterFork.slice(promptToken[0].length).trim() : '';
-		if (!sourceSessionResource
-			|| !isAgentHostTarget(getChatSessionType(sourceSessionResource))
-			|| !!query
-			|| options?.preserveInput
-			|| !forkPart
+		if (!forkPart
 			|| !promptToken
 			|| !promptText) {
 			return undefined;

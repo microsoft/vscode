@@ -24213,6 +24213,7 @@ suite('AgentService (node dispatcher)', () => {
 				envelope.action.type === ActionType.SessionTitleChanged ? [envelope.action.title] : []);
 			const chatState = stateManager.getChatState(chatUri.toString());
 			const sessionChat = stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === chatUri.toString());
+			const persisted = await getTestChatPersistenceService(localService).readNormalizedChat(session, chatUri);
 			assert.deepStrictEqual({
 				providerTitle: receivedOptions?.title,
 				publishedTitles,
@@ -24220,10 +24221,9 @@ suite('AgentService (node dispatcher)', () => {
 				creationSessionTitleChanges,
 				chatStateTitle: chatState?.title,
 				sessionChatTitle: sessionChat?.title,
-				chatLocalTitle: await sessionData.database(chatUri).getMetadata(SESSION_CUSTOM_TITLE_KEY),
-				chatLocalSource: await sessionData.database(chatUri).getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
-				parentTitle: await sessionData.database(session).getMetadata(customChatTitleMetadataKey(chatUri.toString())),
-				parentSource: await sessionData.database(session).getMetadata(customChatTitleSourceMetadataKey(chatUri.toString())),
+				normalized: persisted.normalized,
+				persistedTitle: persisted.chat?.metadata?.summary,
+				persistedSource: persisted.chat?.metadata?.titleSource,
 				origin: chatState?.origin,
 				forkSource: receivedOptions?.fork?.source.toString(),
 				forkTurnId: receivedOptions?.fork?.turnId,
@@ -24237,10 +24237,9 @@ suite('AgentService (node dispatcher)', () => {
 				creationSessionTitleChanges: [],
 				chatStateTitle: '.',
 				sessionChatTitle: '.',
-				chatLocalTitle: '.',
-				chatLocalSource: AGENT_HOST_TITLE_SOURCE_USER,
-				parentTitle: '.',
-				parentSource: AGENT_HOST_TITLE_SOURCE_USER,
+				normalized: true,
+				persistedTitle: '.',
+				persistedSource: AGENT_HOST_TITLE_SOURCE_USER,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(session), turnId: 't1' },
 				forkSource: buildDefaultChatUri(session),
 				forkTurnId: 't1',
@@ -24281,22 +24280,26 @@ suite('AgentService (node dispatcher)', () => {
 			const chatUri = URI.parse(buildChatUri(session, 'bare-fork'));
 			await localService.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
 			const chatState = stateManager.getChatState(chatUri.toString());
+			const persisted = await getTestChatPersistenceService(localService).readNormalizedChat(session, chatUri);
 
 			assert.deepStrictEqual({
 				title: chatState?.title,
-				chatLocalSource: await sessionData.database(chatUri).getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
-				parentSource: await sessionData.database(session).getMetadata(customChatTitleSourceMetadataKey(chatUri.toString())),
+				normalized: persisted.normalized,
+				persistedTitle: persisted.chat?.metadata?.summary,
+				persistedSource: persisted.chat?.metadata?.titleSource,
 				forkedTitleCalls,
 			}, {
 				title: 'Forked: My Session',
-				chatLocalSource: AGENT_HOST_TITLE_SOURCE_AUTO,
-				parentSource: AGENT_HOST_TITLE_SOURCE_AUTO,
+				normalized: true,
+				persistedTitle: 'Forked: My Session',
+				persistedSource: AGENT_HOST_TITLE_SOURCE_AUTO,
 				forkedTitleCalls: [[
 					session.toString(),
 					chatUri.toString(),
 					chatState?.turns,
 					'Forked: My Session',
 					'My Session',
+					undefined,
 				]],
 			});
 		});
@@ -29085,7 +29088,7 @@ suite('AgentService (node dispatcher)', () => {
 				persisted: snapshot.chats.map(chat => ({ uri: chat.chat, title: chat.metadata?.summary, source: chat.metadata?.titleSource })),
 			}, {
 				live: [{ uri: defaultChat, title: 'Original default' }, { uri: peer.toString(), title: 'Original peer' }],
-				persisted: [{ uri: defaultChat, title: 'Original default', source: 'user' }, { uri: peer.toString(), title: 'Original peer', source: 'auto' }],
+				persisted: [{ uri: defaultChat, title: 'Original default', source: 'user' }, { uri: peer.toString(), title: 'Original peer', source: 'user' }],
 			});
 		});
 	});

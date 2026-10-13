@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockObject, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -36,6 +36,25 @@ import { MockPromptsService } from '../common/promptSyntax/service/mockPromptsSe
 suite('ChatWidget Slash Commands', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fork prompt cleanup does not inspect the composer for unrelated submissions', () => {
+		const scenarios = [
+			{ resource: URI.parse('agent-host-copilot:/source'), query: 'programmatic prompt', options: undefined },
+			{ resource: URI.parse('agent-host-copilot:/source'), query: undefined, options: { preserveInput: true } },
+			{ resource: URI.parse('local:/source'), query: undefined, options: undefined },
+		];
+		const privateMethods = ChatWidget.prototype as unknown as {
+			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined;
+		};
+		for (const { resource, query, options } of scenarios) {
+			const widget = upcastDeepPartial<ChatWidget>({
+				viewModel: { sessionResource: resource },
+				getInput: () => assert.fail('unrelated submissions must not inspect the draft'),
+			});
+			const cleanup = privateMethods._createForkPromptInputCleanup.call(widget, query, options);
+			assert.strictEqual(cleanup, undefined);
+		}
+	});
 
 	test('fork prompt cleanup clears only the unchanged agent-host source input model', () => {
 		const sourceState = observableValue('sourceInput', {
