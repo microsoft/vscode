@@ -926,11 +926,6 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string }
 	}
 }
 
-/** Returns `true` when `uri` is the default chat of its session. */
-export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
-}
-
 /**
  * Resolves a client chat id (a chat resource fragment) to a chat of the
  * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's

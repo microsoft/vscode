@@ -58,7 +58,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -83,7 +83,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { mintedTestChatOwner } from '../common/mintedChatUri.js';
+import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -102,6 +102,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agen
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -7194,7 +7195,7 @@ suite('AgentService (node dispatcher)', () => {
 			const release = new DeferredPromise<void>();
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						started.complete();
 						await release.p;
 					}
@@ -8347,7 +8348,7 @@ suite('AgentService (node dispatcher)', () => {
 							const disposeChat = this.chats.disposeChat;
 							this.chats.createChat = async (chat, context, options) => {
 								const result = await createChat(chat, context, options);
-								const backing = isDefaultChatUri(chat) ? 'sdk-default' : 'sdk-peer';
+								const backing = isMintedTestDefaultChat(chat) ? 'sdk-default' : 'sdk-peer';
 								backings.add(backing);
 								this.bound.set(chat.toString(), backing);
 								return { ...(result ?? {}), providerData: backing };
@@ -8363,7 +8364,7 @@ suite('AgentService (node dispatcher)', () => {
 							};
 						}
 						override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-							if (materializeFailure === (isDefaultChatUri(chat) ? 'default' : 'peer')) {
+							if (materializeFailure === (isMintedTestDefaultChat(chat) ? 'default' : 'peer')) {
 								throw new Error('Cold provider backing is unavailable');
 							}
 							assert.ok(providerData);
@@ -24365,7 +24366,7 @@ suite('AgentService (node dispatcher)', () => {
 			override async materializeChat(chat: URI): Promise<void> {
 				// The default chat is always offered to materializeChat on restore
 				// too; these tests are only concerned with peer-chat resolution.
-				if (isDefaultChatUri(chat)) {
+				if (isMintedTestDefaultChat(chat)) {
 					return;
 				}
 				this.materializeCalls++;
@@ -25892,7 +25893,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override async materializeChat(chat: URI): Promise<void> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						this.peerMaterializations++;
 					}
 				}
@@ -26066,7 +26067,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						this.materializedProviderData.push(providerData);
 					}
 				}
@@ -26171,7 +26172,7 @@ suite('AgentService (node dispatcher)', () => {
 				repairedCentral: catalogDataOf(repairedCentral)?.chats.map(chat => chat.uri),
 				secondRestore: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
 				legacyEnumerations: agent.legacyEnumerations,
-				materialized: agent.materialized.filter(chat => !isDefaultChatUri(URI.parse(chat))).sort(),
+				materialized: agent.materialized.filter(chat => !isMintedTestDefaultChat(URI.parse(chat))).sort(),
 			}, {
 				firstRestore: [buildDefaultChatUri(session), legacyPeer.toString()],
 				repairedCentral: [buildDefaultChatUri(session), legacyPeer.toString()],
@@ -26318,7 +26319,7 @@ suite('AgentService (node dispatcher)', () => {
 			// own store starts enumerating it too.
 			class BackedPeerChatAgent extends MockAgent {
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					return { providerData, backingSession: AgentSession.uri(this.id, 'restored-peer-backing-sdk-id') };
@@ -26368,7 +26369,7 @@ suite('AgentService (node dispatcher)', () => {
 				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 				workspaceName: 'peer workspace',
 			}));
-			agent.chats.getMessages = async chat => isDefaultChatUri(chat) ? [] : [{
+			agent.chats.getMessages = async chat => isMintedTestDefaultChat(chat) ? [] : [{
 				id: 'peer-turn',
 				message: { text: 'Continue peer work', origin: { kind: MessageKind.SystemNotification } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response', content: 'Peer output' }],
@@ -26599,7 +26600,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 					// The default chat is always offered to materializeChat on restore
 					// too; this test only tracks peer-chat materialization.
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					calls.push({ call: 'materialize', uri: chat.toString(), providerData });
@@ -26721,7 +26722,7 @@ suite('AgentService (node dispatcher)', () => {
 			const state = stateManager.getSessionState(session.toString());
 			assert.deepStrictEqual({
 				sessionModifiedAt: stateManager.getSessionSummary(session.toString())?.modifiedAt,
-				defaultChatModifiedAt: state?.chats.find(chat => isDefaultChatUri(chat.resource))?.modifiedAt,
+				defaultChatModifiedAt: state?.chats.find(chat => isMintedTestDefaultChat(chat.resource))?.modifiedAt,
 			}, {
 				sessionModifiedAt: new Date(sessionModifiedTime).toISOString(),
 				defaultChatModifiedAt: new Date(providerModifiedTime).toISOString(),
@@ -26732,7 +26733,7 @@ suite('AgentService (node dispatcher)', () => {
 			let peerMetadataCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						peerMetadataCalls++;
 						throw new Error('Peer metadata requires materialization');
 					}
@@ -26768,7 +26769,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async materializeChat(chat: URI): Promise<void> {
 					// The default chat is always offered to materializeChat on
 					// restore too; it must not block on the peer-chat gate below.
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -26822,7 +26823,7 @@ suite('AgentService (node dispatcher)', () => {
 					this.serverToolHost = host;
 				}
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27258,7 +27259,7 @@ suite('AgentService (node dispatcher)', () => {
 			let providerForkSource: string | undefined;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27320,7 +27321,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gates = new Map<string, DeferredPromise<void>>();
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					started.add(chat.toString());
@@ -27361,7 +27362,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27404,7 +27405,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27542,7 +27543,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27601,7 +27602,7 @@ suite('AgentService (node dispatcher)', () => {
 					return { providerData: 'v1' };
 				}
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializedProviderData.push(providerData);
@@ -27744,6 +27745,40 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			}
 		}
+
+		test('a registered session that records no default chat restores with, and records, the legacy default chat', async () => {
+			const session = AgentSession.uri('copilot', 'legacy-unrecorded-default');
+			const legacyDefault = deriveLegacyDefaultChat(session);
+			class LegacyAgent extends MockAgent {
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Legacy' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new LegacyAgent('copilot')));
+			const before = getStateManager(svc).getDefaultChat(session.toString());
+			await svc.restoreSession(session);
+			const manager = getStateManager(svc);
+			assert.deepStrictEqual({
+				before,
+				recorded: manager.getDefaultChat(session.toString()),
+				advertised: manager.getSessionState(session.toString())?.defaultChat,
+				chats: manager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				storage: manager.getChatStorageResource(legacyDefault),
+			}, {
+				before: undefined,
+				recorded: legacyDefault,
+				advertised: legacyDefault,
+				chats: [legacyDefault],
+				storage: session.toString(),
+			});
+		});
 
 		test('a normalized session whose default chat is not default-shaped treats a default-shaped chat as a peer', async () => {
 			const session = URI.parse('ahp-session:/recorded-default');

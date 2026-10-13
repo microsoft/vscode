@@ -52,7 +52,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -93,7 +93,7 @@ import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOp
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { mintedTestChatOwner, requireMintedTestChatOwner } from '../common/mintedChatUri.js';
+import { mintedTestChatOwner, requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -123,7 +123,7 @@ function reducerBackedEnablementChangeEvent(stateManager: AgentHostStateManager)
  */
 function listAdditionalChats(agent: ClaudeAgent, session: URI): string[] {
 	const backings = (agent as unknown as { _chatBackings: Map<string, { readonly sdkSessionId: string }> })._chatBackings;
-	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && requireMintedTestChatOwner(chat) === session.toString() ? [chat] : []);
+	return [...backings].flatMap(([chat]) => !isMintedTestDefaultChat(chat) && requireMintedTestChatOwner(chat) === session.toString() ? [chat] : []);
 }
 
 function listLiveChats(agent: ClaudeAgent): string[] {
@@ -138,7 +138,7 @@ function listSessionChatBackings(agent: ClaudeAgent): string[] {
 	const index = (agent as unknown as {
 		_chatBackings: Map<string, { readonly sdkSessionId: string }>;
 	})._chatBackings;
-	return [...index].flatMap(([chat]) => isDefaultChatUri(chat) ? [chat] : []);
+	return [...index].flatMap(([chat]) => isMintedTestDefaultChat(chat) ? [chat] : []);
 }
 
 function defaultChatUri(session: URI): URI {
@@ -168,7 +168,7 @@ function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentC
 	const session = owner ? URI.parse(owner) : chat;
 	return {
 		configurationResource: session,
-		resource: isDefaultChatUri(chat) ? session : chat,
+		resource: isMintedTestDefaultChat(chat) ? session : chat,
 		...overrides,
 	};
 }
