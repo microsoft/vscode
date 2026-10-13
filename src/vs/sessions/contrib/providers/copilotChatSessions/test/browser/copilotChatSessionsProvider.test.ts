@@ -1458,7 +1458,8 @@ suite('CopilotChatSessionsProvider', () => {
 	test('a delayed catalogue completion does not undo acknowledgement of the same local turn', () => {
 		const resource = URI.parse('copilot-cloud-agent:/task/acknowledged');
 		const running = observableValue('request', false);
-		const response = upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: 300 });
+		let completionTimestamp = 0;
+		const response = upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, get completionTimestamp() { return completionTimestamp; } });
 		const chat = upcastPartial<IChatModel>({
 			sessionResource: resource, requestInProgress: running, lastRequest: upcastPartial<IChatRequestModel>({ response }),
 		});
@@ -1467,20 +1468,41 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 100, onSetRead }));
 		const provider = createProvider(disposables, model, { chatModels });
 		running.set(true, undefined);
+		completionTimestamp = Date.now();
 		running.set(false, undefined);
 		model.getSession(resource)!.setRead(true);
 		chatModels.set([], undefined);
-		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 200, onSetRead }));
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: completionTimestamp - 100, onSetRead }));
 		const afterDelayedCatalogue = provider.getSessions()[0].isRead.get();
-		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 400, onSetRead }));
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: completionTimestamp + 100, onSetRead }));
 		assert.deepStrictEqual({ afterDelayedCatalogue, afterNewRemoteTurn: provider.getSessions()[0].isRead.get() }, { afterDelayedCatalogue: true, afterNewRemoteTurn: false });
+	});
+
+	test('restoring conversation history does not mark an opened run unread', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/restored');
+		const running = observableValue('request', false);
+		let completionTimestamp: number | undefined;
+		const response = upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, get completionTimestamp() { return completionTimestamp; } });
+		const chat = upcastPartial<IChatModel>({
+			sessionResource: resource, requestInProgress: running, lastRequest: upcastPartial<IChatRequestModel>({ response }),
+		});
+		model.addSession(createMockAgentSession(resource, { onSetRead: () => model.fireDidChangeSessions() }));
+		const provider = createProvider(disposables, model, { chatModels: observableValue<Iterable<IChatModel>>('models', [chat]) });
+		const states = [undefined, Date.now() - 60_000].map(timestamp => {
+			running.set(true, undefined);
+			completionTimestamp = timestamp;
+			running.set(false, undefined);
+			return provider.getSessions()[0].isRead.get();
+		});
+		assert.deepStrictEqual(states, [true, true]);
 	});
 
 	for (const cancelled of [false, true]) {
 		test(`local follow-up completion marks unread without polling and disposes observers (cancelled: ${cancelled})`, () => {
 			const resource = URI.parse('copilot-cloud-agent:/task/follow-up');
 			const running = observableValue('request', false);
-			const response = upcastPartial<IChatResponseModel>({ isComplete: !cancelled, isCanceled: cancelled });
+			let completionTimestamp: number | undefined;
+			const response = upcastPartial<IChatResponseModel>({ isComplete: !cancelled, isCanceled: cancelled, get completionTimestamp() { return completionTimestamp; } });
 			const chat = upcastPartial<IChatModel>({
 				sessionResource: resource, requestInProgress: running, lastRequest: upcastPartial<IChatRequestModel>({ response }),
 			});
@@ -1489,11 +1511,13 @@ suite('CopilotChatSessionsProvider', () => {
 			const provider = createProvider(disposables, model, { chatModels });
 			running.set(true, undefined);
 			chatModels.set([chat], undefined);
+			completionTimestamp = Date.now();
 			running.set(false, undefined);
 			const afterCompletion = provider.getSessions()[0].isRead.get();
 			chatModels.set([], undefined);
 			model.getSession(resource)!.setRead(true);
 			running.set(true, undefined);
+			completionTimestamp = Date.now();
 			running.set(false, undefined);
 			assert.deepStrictEqual({ afterCompletion, afterRemoval: provider.getSessions()[0].isRead.get() }, { afterCompletion: cancelled, afterRemoval: true });
 		});

@@ -1214,17 +1214,25 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 						continue;
 					}
 					let wasRunning = false;
+					let startedAt: number | undefined;
 					this._cloudChatObservers.set(model, autorun(reader => {
 						const running = model.requestInProgress.read(reader);
 						const session = this._sessionCache.get(model.sessionResource.toString());
-						if (running && !wasRunning && session instanceof AgentSessionAdapter && session.isAutomation.read(undefined)) {
-							this.automations?.observeLocalRequest(model.sessionResource);
+						if (running && !wasRunning) {
+							startedAt = Date.now();
+							if (session instanceof AgentSessionAdapter && session.isAutomation.read(undefined)) {
+								this.automations?.observeLocalRequest(model.sessionResource);
+							}
 						}
 						const completed = wasRunning && !running;
 						wasRunning = running;
-						if (completed && model.lastRequest?.response?.isComplete && !model.lastRequest.response.isCanceled) {
+						const response = model.lastRequest?.response;
+						// Replayed history completes without a timestamp or with its original, earlier one.
+						const completionTimestamp = response?.completionTimestamp;
+						if (completed && response?.isComplete && !response.isCanceled
+							&& completionTimestamp !== undefined && startedAt !== undefined && completionTimestamp >= startedAt) {
 							if (session instanceof AgentSessionAdapter) {
-								session.lastObservedLocalCompletion = model.lastRequest.response.completionTimestamp ?? Date.now();
+								session.lastObservedLocalCompletion = completionTimestamp;
 							}
 							this.agentSessionsService.getSession(model.sessionResource)?.setRead(false);
 						}
