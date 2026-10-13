@@ -1310,17 +1310,17 @@ export class NewChatWidget extends Disposable {
 			|| !this._useConsolidatedRemoteWorkspaces.get()) {
 			return undefined;
 		}
-		const providers = this.sessionsProvidersService.getProviders()
-			.filter(provider => isAgentHostProvider(provider)
-				&& !provider.hostGroup
-				&& provider.supportsQuickChats);
+		const quickChatProviders = this.sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !provider.hostGroup && provider.supportsQuickChats);
+		const providers = quickChatProviders.filter(provider => provider.isVisibleInEnvironmentPicker?.get() !== false);
 		if (!isWorkspacePickerQuickChat
-			&& !this.sessionsManagementService.isQuickChatTargetAvailable()
-			&& providers.length === 0) {
+			&& providers.length === 0
+			&& (quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
-		const activeProvider = activeProviderId ? providers.find(provider => provider.id === activeProviderId) : undefined;
+		const activeProvider = activeProviderId ? quickChatProviders.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
@@ -1331,7 +1331,7 @@ export class NewChatWidget extends Disposable {
 					label,
 					checked: provider.id === activeProviderId,
 					run: () => {
-						if (provider.id !== activeProviderId) {
+						if (provider.isVisibleInEnvironmentPicker?.get() !== false && provider.id !== activeProviderId) {
 							this.selectNoWorkspace({ providerId: provider.id });
 						}
 					},
@@ -1347,7 +1347,10 @@ export class NewChatWidget extends Disposable {
 				: undefined,
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {
-					this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined);
+					const provider = providers.length === 1 ? providers[0] : undefined;
+					if (provider?.isVisibleInEnvironmentPicker?.get() !== false) {
+						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
+					}
 				}
 			},
 			submenuActions,
