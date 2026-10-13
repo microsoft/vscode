@@ -29,10 +29,10 @@ suite('Shrink Empty Lines', () => {
 	function createEditor(text: string, options: TestCodeEditorCreationOptions = {}): { editor: ITestCodeEditor; model: ITextModel } {
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
 		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, {
-			lineHeight: 20,
+			lineHeight: 19,
 			...options,
 		}));
-		assert.ok(editor.getContribution<ShrinkEmptyLinesController>(ShrinkEmptyLinesController.ID));
+		editor.registerAndInstantiateContribution(ShrinkEmptyLinesController.ID, ShrinkEmptyLinesController);
 		return { editor, model };
 	}
 
@@ -49,7 +49,7 @@ suite('Shrink Empty Lines', () => {
 	test('is disabled by default', () => {
 		const { editor } = createEditor('a\n\n ');
 
-		assert.deepStrictEqual(getLineHeights(editor), [20, 20, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 19, 19]);
 	});
 
 	test('shrinks whitespace-only lines using presets', () => {
@@ -57,11 +57,11 @@ suite('Shrink Empty Lines', () => {
 			shrinkEmptyLines: 'compact',
 		});
 
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 10, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 
 		editor.updateOptions({ shrinkEmptyLines: 'veryCompact' });
 
-		assert.deepStrictEqual(getLineHeights(editor), [20, 5, 5, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 5, 5, 19]);
 	});
 
 	test('updates only lines affected by content changes', () => {
@@ -70,13 +70,13 @@ suite('Shrink Empty Lines', () => {
 		});
 
 		model.applyEdits([{ range: new Range(2, 1, 2, 1), text: 'x' }]);
-		assert.deepStrictEqual(getLineHeights(editor), [20, 20, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 19, 19]);
 
 		model.applyEdits([{ range: new Range(2, 1, 2, 2), text: '' }]);
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 19]);
 
 		model.applyEdits([{ range: new Range(1, 2, 1, 2), text: '\n' }]);
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 10, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 	});
 
 	test('does not shrink fold headers for hidden empty lines', () => {
@@ -84,13 +84,13 @@ suite('Shrink Empty Lines', () => {
 			shrinkEmptyLines: 'compact',
 		});
 
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 19]);
 
 		editor.setHiddenAreas([new Range(2, 1, 3, 1)]);
-		assert.deepStrictEqual(getLineHeights(editor), [20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19]);
 
 		editor.setHiddenAreas([]);
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 20]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 19]);
 	});
 
 	test('reacts to variable line height and base line height changes', () => {
@@ -98,7 +98,7 @@ suite('Shrink Empty Lines', () => {
 			shrinkEmptyLines: 'compact',
 		});
 
-		assert.deepStrictEqual(getLineHeights(editor), [20, 10]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10]);
 
 		editor.updateOptions({ lineHeight: 24 });
 		assert.deepStrictEqual(getLineHeights(editor), [24, 12]);

@@ -38,7 +38,7 @@ export class TestConfiguration extends EditorConfiguration {
 			fontSize: 14,
 			fontFeatureSettings: EditorFontLigatures.OFF,
 			fontVariationSettings: EditorFontVariations.OFF,
-			lineHeight: 19,
+			lineHeight: styling.lineHeight,
 			letterSpacing: 1.5,
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
