@@ -16,6 +16,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDataService, IWillDeleteSessionDataEvent } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostCheckpointService } from '../../node/agentHostCheckpointService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class CheckpointTestDatabase extends TestSessionDatabase {
@@ -617,5 +618,53 @@ suite('AgentHostCheckpointService', () => {
 			{ repo: '/repoA', tree: 'a2-start', parent: '/repoA:a1-terminal-end' },
 			{ repo: '/repoA', tree: 'a2-terminal-end', parent: '/repoA:a2-start' },
 		]);
+	});
+
+	test('foreign checkpoint rows are numbered and deleted but never a parent of the default chat\'s turns', async () => {
+		const session = AgentSession.uri('copilot', 'session');
+		const chat = URI.parse('ahp-chat://default/session');
+		const repository = URI.file('/repo');
+		const sessionId = AgentSession.id(session);
+		const turnRef = (turn: number) => buildCheckpointRefName(sessionId, turn);
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		// An older build recorded the peer's turn `p1` between the default chat's turns.
+		await database.createTurn('d1');
+		await database.setTurnEventId('d1', 'e1');
+		await database.setTurnCheckpointRef('d1', turnRef(1));
+		await database.createTurn('p1');
+		await database.setTurnCheckpointRef('p1', turnRef(2));
+		await database.setForeignRows(chat.toString(), ['p1']);
+		// The default chat's own last checkpoint is gone; only the baseline and the peer's resolve.
+		const refs = new Map([[turnRef(0), 'baseline-commit'], [turnRef(2), 'peer-commit']]);
+		const commitCalls: Array<{ tree: string; parent: string | undefined }> = [];
+		const deleted: string[] = [];
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async () => repository,
+			captureWorkingTreeAsTree: async () => `tree-${commitCalls.length + 1}`,
+			commitTree: async (_root, tree, parent) => {
+				commitCalls.push({ tree, parent });
+				return `commit-${commitCalls.length}`;
+			},
+			updateRef: async (_root, ref, oid) => { refs.set(ref, oid); },
+			revParse: async (_root, expression) => refs.get(expression),
+			deleteRefs: async (_root, deletedRefs) => { deleted.push(...deletedRefs); },
+		};
+		const service = store.add(new AgentHostCheckpointService(createSessionDataService(database), new CheckpointTestConfigurationService(repository), gitService, new NullLogService()));
+
+		await service.captureTurnStartCheckpoint(session, chat, 'd2', [repository]);
+		await service.captureTurnCheckpoint(session, chat, 'd2', [repository]);
+		await service.deleteCheckpoints(session, [repository.toString()]);
+
+		assert.deepStrictEqual({
+			parents: commitCalls.map(call => call.parent),
+			ref: await database.getTurnCheckpointRef('d2'),
+			deleted: deleted.sort(),
+		}, {
+			parents: ['baseline-commit', 'commit-1'],
+			// Numbered above the peer's ref, so older builds reading every row never collide.
+			ref: turnRef(3),
+			deleted: [turnRef(0), turnRef(1), turnRef(2), turnRef(3)].sort(),
+		});
 	});
 });

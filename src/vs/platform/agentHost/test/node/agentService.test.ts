@@ -86,7 +86,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
+import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -378,7 +378,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
-class TransientRegistryWriteDatabase implements IAgentHostDatabase {
+class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
@@ -913,7 +913,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 }
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
-class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);

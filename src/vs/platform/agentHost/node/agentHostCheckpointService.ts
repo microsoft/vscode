@@ -300,8 +300,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return previousCheckpointRef;
 		}
 
-		const allCheckpointRefs = await db.getAllCheckpointRefs();
-		for (const checkpointRef of allCheckpointRefs.toReversed()) {
+		// Foreign rows belong to other chats; their refs are no parent of this chat's turns.
+		const ownCheckpointRefs = (await db.getTurnsWithCheckpointRefs()).filter(turn => !turn.foreign).map(turn => turn.checkpointRef);
+		for (const checkpointRef of ownCheckpointRefs.toReversed()) {
 			if (checkpointRef !== previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, checkpointRef)) {
 				return checkpointRef;
 			}

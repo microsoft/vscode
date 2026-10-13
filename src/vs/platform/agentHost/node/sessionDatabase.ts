@@ -6,10 +6,31 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
+
+/**
+ * Turn ids kept for older builds on behalf of other chats. Read from the
+ * persisted metadata inside each statement, so every connection observes the
+ * committed value without per-connection state.
+ */
+const FOREIGN_TURN_IDS_SQL = `(SELECT value FROM json_each(COALESCE((SELECT value FROM session_metadata WHERE key = '${SESSION_FOREIGN_TURN_IDS_METADATA_KEY}'), '[]')))`;
+const ROW_OWNER_CHAT_SQL = `(SELECT value FROM session_metadata WHERE key = '${SESSION_ROW_OWNER_CHAT_METADATA_KEY}')`;
+
+/** SQL condition: the `turns` id column is not a foreign row. */
+function ownTurn(column: string): string {
+	return `(${column} NOT IN ${FOREIGN_TURN_IDS_SQL})`;
+}
+
+/** SQL condition: the `local_turns` chat column belongs to the database's row owner (always true without one). */
+function ownPersistedTurn(column: string): string {
+	return `(${ROW_OWNER_CHAT_SQL} IS NULL OR ${column} = ${ROW_OWNER_CHAT_SQL})`;
+}
+
+/** SQL subquery: rowid of the own turn with id (or event id) `?1`. */
+const OWN_TURN_ROWID_SQL = `(SELECT rowid FROM turns WHERE (id = ?1 OR event_id = ?1) AND ${ownTurn('id')} LIMIT 1)`;
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -594,9 +615,7 @@ export class SessionDatabase implements ISessionDatabase {
 			const row = await dbGet(
 				db,
 				`SELECT event_id FROM turns
-					WHERE rowid > (
-						SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1
-					)
+					WHERE rowid > ${OWN_TURN_ROWID_SQL} AND ${ownTurn('id')}
 					ORDER BY rowid LIMIT 1`,
 				[turnId],
 			);
@@ -606,14 +625,16 @@ export class SessionDatabase implements ISessionDatabase {
 
 	getFirstTurnEventId(): Promise<string | undefined> {
 		return this._queueOperation(async db => {
-			const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
+			const row = await dbGet(db, `SELECT event_id FROM turns WHERE ${ownTurn('id')} ORDER BY rowid LIMIT 1`, []);
 			return row?.event_id as string | undefined ?? undefined;
 		});
 	}
 
 	hasConversationTurns(): Promise<boolean> {
 		return this._queueOperation(async db => {
-			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_persisted_turns`, []);
+			const row = await dbGet(db, `SELECT
+				EXISTS(SELECT 1 FROM turns WHERE ${ownTurn('id')} LIMIT 1) AS has_turns,
+				EXISTS(SELECT 1 FROM local_turns WHERE ${ownPersistedTurn('chat_uri')} LIMIT 1) AS has_persisted_turns`, []);
 			return !!row?.has_turns || !!row?.has_persisted_turns;
 		});
 	}
@@ -745,8 +766,9 @@ export class SessionDatabase implements ISessionDatabase {
 		const row = await dbGet(
 			db,
 			`SELECT checkpoint_ref FROM turns
-				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1)
+				WHERE rowid < ${OWN_TURN_ROWID_SQL}
 					AND checkpoint_ref IS NOT NULL
+					AND ${ownTurn('id')}
 				ORDER BY rowid DESC LIMIT 1`,
 			[turnId],
 		);
@@ -759,18 +781,43 @@ export class SessionDatabase implements ISessionDatabase {
 		return rows.map(r => r.checkpoint_ref as string);
 	}
 
+	async getTurnsWithCheckpointRefs(): Promise<ITurnCheckpointRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, `SELECT id, event_id, checkpoint_ref, NOT ${ownTurn('id')} AS is_foreign
+			FROM turns WHERE checkpoint_ref IS NOT NULL ORDER BY rowid`, []);
+		return rows.map(row => ({
+			turnId: row.id as string,
+			eventId: (row.event_id as string | null) ?? undefined,
+			checkpointRef: row.checkpoint_ref as string,
+			foreign: row.is_foreign === 1,
+		}));
+	}
+
+	async getMaxTurnRowid(): Promise<number> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT COALESCE(MAX(rowid), 0) AS max_rowid FROM turns', []);
+		return row?.max_rowid as number;
+	}
+
+	setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [SESSION_ROW_OWNER_CHAT_METADATA_KEY, ownerChat]);
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [SESSION_FOREIGN_TURN_IDS_METADATA_KEY, JSON.stringify([...new Set(turnIds)])]);
+		});
+	}
+
 	truncateFromTurn(turnId: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Delete the target turn and all turns inserted after it (by rowid order).
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbRun(db,
-				`DELETE FROM local_turns WHERE turn_id IN (
-					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)
+				`DELETE FROM local_turns WHERE ${ownPersistedTurn('chat_uri')} AND turn_id IN (
+					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?1 AND ${ownTurn('id')}) AND ${ownTurn('id')}
 				)`,
 				[turnId],
 			);
 			await dbRun(db,
-				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
+				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?1 AND ${ownTurn('id')}) AND ${ownTurn('id')}`,
 				[turnId],
 			);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
@@ -782,13 +829,13 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself. Turn-owned child records cascade-delete.
 			await dbRun(db,
-				`DELETE FROM local_turns WHERE turn_id IN (
-					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)
+				`DELETE FROM local_turns WHERE ${ownPersistedTurn('chat_uri')} AND turn_id IN (
+					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?1 AND ${ownTurn('id')}) AND ${ownTurn('id')}
 				)`,
 				[turnId],
 			);
 			await dbRun(db,
-				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
+				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?1 AND ${ownTurn('id')}) AND ${ownTurn('id')}`,
 				[turnId],
 			);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
@@ -798,8 +845,8 @@ export class SessionDatabase implements ISessionDatabase {
 	deleteAllTurns(): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned child records cascade-delete via their foreign keys.
-			await dbExec(db, 'DELETE FROM turns');
-			await dbExec(db, 'DELETE FROM local_turns');
+			await dbExec(db, `DELETE FROM turns WHERE ${ownTurn('id')}`);
+			await dbExec(db, `DELETE FROM local_turns WHERE ${ownPersistedTurn('chat_uri')}`);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
@@ -822,14 +869,13 @@ export class SessionDatabase implements ISessionDatabase {
 	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
 		const db = await this._ensureDb();
 		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []);
-		return rows.map(r => ({
-			kind: r.kind as IPersistedTurnRecord['kind'],
-			turnId: r.turn_id as string,
-			chatUri: r.chat_uri as string,
-			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
-			seq: r.seq as number,
-			payload: r.payload as string,
-		}));
+		return rows.map(toPersistedTurnRecord);
+	}
+
+	async getPersistedTurnsForChat(chatUri: string): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns WHERE chat_uri = ? ORDER BY seq', [chatUri]);
+		return rows.map(toPersistedTurnRecord);
 	}
 
 	deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
@@ -1106,6 +1152,25 @@ export class SessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async getMetadataByPrefix(prefix: string): Promise<Record<string, string>> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT key, value FROM session_metadata WHERE substr(key, 1, length(?1)) = ?1 ORDER BY key', [prefix]);
+		return Object.fromEntries(rows.map(row => [row.key as string, row.value as string]));
+	}
+
+	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(() =>
+			this._queueTransaction(async db => {
+				for (const [key, value] of Object.entries(set)) {
+					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+				}
+				if (remove.length > 0) {
+					await dbRun(db, `DELETE FROM session_metadata WHERE key IN (${remove.map(() => '?').join(',')})`, [...remove]);
+				}
+			})
+		));
+	}
+
 	setMetadata(key: string, value: string): Promise<void> {
 		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
@@ -1364,6 +1429,11 @@ export class SessionDatabase implements ISessionDatabase {
 			// file_edits.turn_id in any order without mid-statement violations.
 			// This pragma auto-resets after the transaction ends.
 			await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
+			// The copy becomes another chat's database: rows the source kept for
+			// other chats do not belong to it, and the copy is not a session's.
+			await dbExec(db, `DELETE FROM turns WHERE NOT ${ownTurn('id')}`);
+			await dbExec(db, `DELETE FROM local_turns WHERE NOT ${ownPersistedTurn('chat_uri')}`);
+			await dbRun(db, 'DELETE FROM session_metadata WHERE key IN (?, ?)', [SESSION_ROW_OWNER_CHAT_METADATA_KEY, SESSION_FOREIGN_TURN_IDS_METADATA_KEY]);
 			// Delete turns not present in the mapping (e.g. turns beyond
 			// the fork point). File edits cascade-delete via FK.
 			const oldIds = [...mapping.keys()];
@@ -1482,6 +1552,17 @@ function remapPersistedTurnPayload(payload: string, oldId: string, newId: string
 		throw new Error(`Cannot remap persisted turn ${oldId}: payload id does not match record id`);
 	}
 	return JSON.stringify({ ...value, id: newId });
+}
+
+function toPersistedTurnRecord(row: Record<string, unknown>): IPersistedTurnRecord & { seq: number } {
+	return {
+		kind: row.kind as IPersistedTurnRecord['kind'],
+		turnId: row.turn_id as string,
+		chatUri: row.chat_uri as string,
+		anchorTurnId: (row.anchor_turn_id as string | null) ?? undefined,
+		seq: row.seq as number,
+		payload: row.payload as string,
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

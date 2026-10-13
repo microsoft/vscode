@@ -271,8 +271,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 15 }],
+				tables: ['chat_row_mirror', 'chat_turn_checkpoints', 'chats_v2', 'metadata', 'session_branch_changesets', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_checkpoint_repositories', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -721,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 14 }],
+					schemaVersion: [{ user_version: 15 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -768,8 +768,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 15 }],
+				tables: ['chat_row_mirror', 'chat_turn_checkpoints', 'chats_v2', 'metadata', 'session_branch_changesets', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_checkpoint_repositories', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -861,7 +861,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 15 }],
 		});
 	});
 
@@ -937,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 15 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -2494,7 +2494,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 14 }],
+					restarted: before, before, version: [{ user_version: 15 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {

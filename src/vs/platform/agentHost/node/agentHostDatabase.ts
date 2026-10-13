@@ -17,6 +17,7 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCa
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -273,7 +274,7 @@ class AgentHostDatabaseWriteCancelledError extends Error { }
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
 
-export interface IAgentHostDatabase extends IDisposable {
+export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase {
 	readonly _serviceBrand: undefined;
 
 	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
@@ -587,6 +588,10 @@ const migrations = [
 	{
 		version: 14,
 		sql: '',
+	},
+	{
+		version: SESSION_STATE_MIGRATION_VERSION,
+		sql: SESSION_STATE_SCHEMA_SQL,
 	},
 ] as const;
 
@@ -924,6 +929,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await this._tombstoneOwnedChats(database, session);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to tombstone session ${session}`);
@@ -1155,6 +1161,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await this._tombstoneOwnedChats(database, exclusion.session);
 					await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 					await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
+					await deleteSessionStateRows(this._sessionStateConnection(database), exclusion.session);
 				}
 				await exec(database, 'COMMIT');
 				return 'excluded';
@@ -1340,6 +1347,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
@@ -1504,6 +1512,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
@@ -3252,6 +3261,72 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
+	// ---- Session state (see agentHostSessionStateDatabase.ts) ------------
+
+	private readonly _sessionState = new AgentHostSessionStateTables({
+		write: (label, operation) => this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const result = await operation(this._sessionStateConnection(database));
+				await exec(database, 'COMMIT');
+				return result;
+			} catch (error) {
+				return this._rollback(database, error, label);
+			}
+		}),
+		read: operation => this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN');
+			try {
+				const result = await operation(this._sessionStateConnection(database));
+				await exec(database, 'COMMIT');
+				return result;
+			} catch (error) {
+				return this._rollback(database, error, 'Failed to read session state');
+			}
+		}),
+	});
+
+	private _sessionStateConnection(database: Database): ISessionStateSqlConnection {
+		return {
+			run: (sql, parameters) => runReturningChanges(database, sql, parameters),
+			get: (sql, parameters) => get(database, sql, parameters),
+			all: (sql, parameters) => all(database, sql, parameters),
+			isTombstoned: async session => !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]),
+			isRegistered: async session => !!await get(database, `SELECT 1 AS present FROM sessions WHERE session_uri = ?
+				UNION SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ? LIMIT 1`, [session, session]),
+			markPayloadDirty: async session => {
+				if (await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session])) {
+					await this._markSessionV2PayloadDirty(database, session);
+				}
+			},
+		};
+	}
+
+	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>) { return this._sessionState.readSessionState(...args); }
+	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>) { return this._sessionState.readSessionStateValues(...args); }
+	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>) { return this._sessionState.importSessionState(...args); }
+	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>) { return this._sessionState.writeSessionState(...args); }
+	markSessionStateLegacyMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLegacyMirrored']>) { return this._sessionState.markSessionStateLegacyMirrored(...args); }
+	recordSessionStateLegacyMirrorPayload(...args: Parameters<IAgentHostSessionStateDatabase['recordSessionStateLegacyMirrorPayload']>) { return this._sessionState.recordSessionStateLegacyMirrorPayload(...args); }
+	bumpSessionStateRowsRevision(...args: Parameters<IAgentHostSessionStateDatabase['bumpSessionStateRowsRevision']>) { return this._sessionState.bumpSessionStateRowsRevision(...args); }
+	markSessionStateRowsMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']>) { return this._sessionState.markSessionStateRowsMirrored(...args); }
+	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>) { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
+	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>) { return this._sessionState.markSessionStateRowsMoved(...args); }
+	readBranchChangeset(...args: Parameters<IAgentHostSessionStateDatabase['readBranchChangeset']>) { return this._sessionState.readBranchChangeset(...args); }
+	nextSessionCheckpointSequence(...args: Parameters<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']>) { return this._sessionState.nextSessionCheckpointSequence(...args); }
+	upsertTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']>) { return this._sessionState.upsertTurnCheckpoints(...args); }
+	readTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['readTurnCheckpoints']>) { return this._sessionState.readTurnCheckpoints(...args); }
+	deleteTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']>) { return this._sessionState.deleteTurnCheckpoints(...args); }
+	addCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['addCheckpointRepositories']>) { return this._sessionState.addCheckpointRepositories(...args); }
+	readCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['readCheckpointRepositories']>) { return this._sessionState.readCheckpointRepositories(...args); }
+	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>) { return this._sessionState.readChatRowMirror(...args); }
+	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>) { return this._sessionState.writeChatRowMirror(...args); }
+	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }
+	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>) { return this._sessionState.listSessionStateGarbage(...args); }
+	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>) { return this._sessionState.deleteSessionStateGarbage(...args); }
+
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {
 			await exec(database, 'ROLLBACK');
@@ -3301,6 +3376,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						await exec(database, 'BEGIN IMMEDIATE');
 						try {
 							await migrateChatV2Schema(database);
+							if (currentVersion >= SESSION_STATE_MIGRATION_VERSION) {
+								// Idempotent: repairs profiles shared with pre-release builds that skipped the tables.
+								await exec(database, SESSION_STATE_SCHEMA_SQL);
+							}
 							await exec(database, 'COMMIT');
 						} catch (error) {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');
