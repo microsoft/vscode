@@ -906,6 +906,16 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * Clients observe root state (agents, models) and session state via subscriptions,
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
+/**
+ * Host-side `createSession` input: the shared client config plus the capability of
+ * the requesting connection. `legacyChatUris` is `true` when the requester cannot
+ * address opaque chat URIs and `false` when it can; `undefined` lets the host
+ * decide from the client that initiated the session.
+ */
+export interface IAgentServiceCreateSessionConfig extends IAgentCreateSessionConfig {
+	readonly legacyChatUris: boolean | undefined;
+}
+
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
 
@@ -923,7 +933,7 @@ export interface IAgentService {
 	/** Counts durable registry identities without provider metadata reads or presentation filtering. */
 	getSessionCount(): Promise<number>;
 
-	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */

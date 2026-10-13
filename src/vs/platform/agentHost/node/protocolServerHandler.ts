@@ -1876,6 +1876,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			try {
 				createdSession = await this._agentService.createSession({
+					legacyChatUris: _client.legacyChatUris,
 					provider: params.provider,
 					_meta: _client.clientInfo ? withSessionInitiator(params._meta, _client.clientInfo) : params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),

@@ -218,7 +218,7 @@ suite('Session storage identity compatibility', () => {
 		));
 		registerTestAgentProvider(service, store.add(new MockAgent('copilotcli')));
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
-		await assert.rejects(service.createSession({ provider: 'copilotcli', session }), /Session storage identity is already in use/);
+		await assert.rejects(service.createSession({ legacyChatUris: true, provider: 'copilotcli', session }), /Session storage identity is already in use/);
 		assert.deepStrictEqual({
 			tombstoned: await db.isSessionTombstoned(session.toString()),
 			identity: db.identity.toStorage(session.toString()),
@@ -810,7 +810,7 @@ suite('Session storage identity compatibility', () => {
 					override async createChat() { return { providerData: 'peer-backing' }; }
 				}(provider));
 				registerTestAgentProvider(creating, agent);
-				const session = await creating.createSession({ provider });
+				const session = await creating.createSession({ legacyChatUris: true, provider });
 				const peer = URI.parse(buildChatUri(session, 'peer'));
 				await creating.createChat(session, peer);
 				const state = getTestAgentStateManager(creating).getSessionState(session.toString());
