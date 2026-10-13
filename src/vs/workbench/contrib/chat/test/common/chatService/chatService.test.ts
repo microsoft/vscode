@@ -3706,6 +3706,7 @@ suite('ChatService', () => {
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
+			readonly onDidDisposeSession?: () => void;
 		}
 
 		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession; resolutionCount: () => number } {
@@ -3735,7 +3736,7 @@ suite('ChatService', () => {
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
-				dispose: () => { },
+				dispose: () => opts.onDidDisposeSession?.(),
 			};
 			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
 				provideChatSessionContent: () => {
@@ -4399,6 +4400,60 @@ suite('ChatService', () => {
 			}, {
 				model: undefined,
 				references: 0,
+			});
+		});
+
+		test('disposing the service cancels an unpublished cooperative history replay', async () => {
+			let sessionDisposed = false;
+			const { resource } = setupRemoteProvider({ history: createSlowHistory(100), onDidDisposeSession: () => sessionDisposed = true });
+			const service = createChatService();
+			let createdModels = 0;
+			testDisposables.add(service.onDidCreateModel(() => createdModels++));
+			const loading = service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			await timeout(0);
+			service.dispose();
+			await assert.rejects(loading, error => error instanceof Error && error.name === 'Canceled');
+
+			assert.deepStrictEqual({ createdModels, sessionDisposed }, { createdModels: 0, sessionDisposed: true });
+		});
+
+		test('a sliced history refresh reintroduces a changed turn the user removed while it waited', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'first', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				{ type: 'request', id: 'last', prompt: 'Last', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			let removedDuringRefresh = false;
+			const clock = createManualHistoryReplayClock(() => {
+				if (!removedDuringRefresh) {
+					removedDuringRefresh = true;
+					void service.removeRequest(resource, 'last');
+				}
+			});
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			// Each inserted turn takes 1ms, so the refresh waits for a slice before it reaches the changed last turn.
+			changes.fire([
+				...first.slice(0, 2),
+				...createTimedHistory(50, clock),
+				first[2],
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('New response') }], participant: remoteScheme },
+			]);
+			await waitForResponse(ref.object, 'last', 'New response');
+
+			assert.deepStrictEqual({
+				removedDuringRefresh,
+				requests: ref.object.getRequests().map(request => request.message.text),
+			}, {
+				removedDuringRefresh: true,
+				requests: ['First', ...Array.from({ length: 50 }, (_, index) => `Prompt ${index}`), 'Last'],
 			});
 		});
 

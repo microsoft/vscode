@@ -318,6 +318,12 @@ export class ChatService extends Disposable implements IChatService {
 			this.policyInitialized = true;
 		}, error => this.logService.error(error));
 
+		// Loads restore into unpublished models across tasks; cancel them so they never publish into the disposed store.
+		this._register(toDisposable(() => {
+			for (const load of this._remoteSessionLoads.values()) {
+				load.cancellation.cancel();
+			}
+		}));
 		this._sessionModels = this._register(instantiationService.createInstance(ChatModelStore, {
 			createModel: (props: IStartSessionProps) => {
 				const restoredModel = this._remoteSessionModelsPendingPublication.get(props.sessionResource);

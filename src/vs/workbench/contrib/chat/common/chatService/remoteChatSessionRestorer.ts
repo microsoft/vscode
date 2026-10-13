@@ -95,6 +95,12 @@ interface IHistoryTurn {
 	id: string | undefined;
 }
 
+/** Where a history request is inserted into the model, optionally replacing the request at that index. */
+interface IHistoryRequestInsertion {
+	readonly index: number;
+	readonly replace?: boolean;
+}
+
 type IChatSessionResponseHistoryItem = Extract<IChatSessionHistoryItem, { type: 'response' }>;
 
 /**
@@ -401,11 +407,13 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._lastRequest = undefined;
 		this._lastResponseCompletedAt = undefined;
 		const requestsById = new Map(this._model.getRequests().map(request => [request.id, request]));
+		// The user may remove requests while the refresh waits for a slice. A request
+		// removed that way is treated as if it had been removed before the refresh.
+		const isInModel = (request: ChatRequestModel) => this._model.getRequests().includes(request);
 		for (const [turnIndex, turn] of turns.entries()) {
 			if (turn.id !== undefined && this._localRequestIds.has(turn.id)) {
 				continue;
 			}
-			const currentRequests = this._model.getRequests();
 			const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);
 			// An unchanged turn may be absent because the user removed it locally.
 			const previous = previousTurns.get(turn.id);
@@ -416,29 +424,38 @@ export class RemoteChatSessionRestorer extends Disposable {
 				if (existing) {
 					if (existing.modelId !== turn.request.modelId) {
 						yield;
-						this._model.updateRequestModelId(existing, turn.request.modelId);
+						if (isInModel(existing)) {
+							this._model.updateRequestModelId(existing, turn.request.modelId);
+						}
 					}
 					const responses = turn.items.filter(item => item.type === 'response');
 					const details = responses.findLast(item => item.details || item.errorDetails)?.details;
 					const metadata = responses.flatMap(item => item.parts).filter(part => part.kind === 'usage' || part.kind === 'autoModeResolution');
 					if (existing.response) {
 						yield;
-						existing.response.updateHistoryMetadata(details, metadata);
+						if (isInModel(existing)) {
+							existing.response.updateHistoryMetadata(details, metadata);
+						}
 					}
 				}
 				continue;
 			}
-			let insertionIndex = existing ? currentRequests.indexOf(existing) : currentRequests.length;
-			if (!existing) {
+			const getInsertion = (): IHistoryRequestInsertion => {
+				const currentRequests = this._model.getRequests();
+				const existingIndex = existing ? currentRequests.indexOf(existing) : -1;
+				if (existingIndex !== -1) {
+					return { index: existingIndex, replace: true };
+				}
 				for (const following of turns.slice(turnIndex + 1)) {
 					const nextRequest = following.id === undefined ? undefined : requestsById.get(following.id);
-					if (nextRequest) {
-						insertionIndex = currentRequests.indexOf(nextRequest);
-						break;
+					const nextIndex = nextRequest ? currentRequests.indexOf(nextRequest) : -1;
+					if (nextIndex !== -1) {
+						return { index: nextIndex };
 					}
 				}
-			}
-			const [request] = yield* this._applyHistorySteps(turn.items, { index: insertionIndex, replace: !!existing }, turn.id);
+				return { index: currentRequests.length };
+			};
+			const [request] = yield* this._applyHistorySteps(turn.items, getInsertion, turn.id);
 			turn.id = request.id;
 			requestsById.set(request.id, request);
 		}
@@ -449,14 +466,15 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 	/**
 	 * Applies history items to the model, pausing before each model mutation.
+	 * @param getInsertion Resolves where requests are inserted, after the pause before adding them.
 	 * @returns The added requests.
 	 */
-	private *_applyHistorySteps(history: readonly IChatSessionHistoryItem[], insertion?: { readonly index: number; readonly replace?: boolean }, requestId?: string): Generator<void, ChatRequestModel[]> {
+	private *_applyHistorySteps(history: readonly IChatSessionHistoryItem[], getInsertion?: () => IHistoryRequestInsertion, requestId?: string): Generator<void, ChatRequestModel[]> {
 		const added: ChatRequestModel[] = [];
 		for (const item of history) {
 			if (item.type === 'request') {
 				yield;
-				added.push(this._addHistoryRequest(item, insertion, requestId));
+				added.push(this._addHistoryRequest(item, getInsertion?.(), requestId));
 				continue;
 			}
 			for (const part of item.parts) {
@@ -473,7 +491,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		return added;
 	}
 
-	private _addHistoryRequest(item: IChatSessionRequestHistoryItem, insertion: { readonly index: number; readonly replace?: boolean } | undefined, requestId: string | undefined): ChatRequestModel {
+	private _addHistoryRequest(item: IChatSessionRequestHistoryItem, insertion: IHistoryRequestInsertion | undefined, requestId: string | undefined): ChatRequestModel {
 		if (this._lastRequest) {
 			this._completeLastResponse();
 		}
