@@ -6,7 +6,9 @@
 import { copyFile, mkdir, open, readdir, rm, stat } from 'fs/promises';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
 import { zip, type IFile } from '../../../base/node/zip.js';
@@ -17,6 +19,8 @@ import type { IAgent } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { isAhpLogFileFor } from '../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../common/missionControlEnvironment.js';
+import { localize } from '../../../nls.js';
+import { ByteSize } from '../../files/common/files.js';
 
 type DebugLogsProvider = Pick<IAgent, 'id' | 'collectDebugLogs'>;
 type LocalZipFile = IFile & { readonly localPath: string };
@@ -30,7 +34,9 @@ export interface IAgentHostDebugLogsEnvironment {
 
 export class AgentHostDebugLogsCollector extends Disposable {
 	private readonly _retainedArtifacts = new Map<string, boolean>();
-	private readonly _readableArtifacts = new Set<string>();
+	private readonly _readableArtifacts = new Map<string, string>();
+	private readonly _artifactLeases = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _collections = this._register(new DisposableMap<string, CancellationTokenSource>());
 
 	constructor(
 		private readonly _environment: IAgentHostDebugLogsEnvironment,
@@ -41,25 +47,41 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		this._register(toDisposable(() => void this.cleanup()));
 	}
 
-	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	cancel(progressToken: string): void {
+		this._collections.get(progressToken)?.cancel();
+	}
+
+	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string, onProgress?: (bytes: number, total: number, message: string) => void): Promise<IAgentHostDebugLogsArtifact> {
+		const cancellation = new CancellationTokenSource();
+		const collectionId = progressToken ?? generateUuid();
+		this._collections.set(collectionId, cancellation);
+		const checkCancellation = () => {
+			if (cancellation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		};
 		const id = generateUuid();
 		const staging = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}`);
-		await mkdir(staging, { recursive: true });
-		this._retainedArtifacts.set(artifactKey(staging), true);
 		let providerLogsIncluded = false;
 		let retainStaging = false;
 		const archive = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}.zip`);
 		try {
+			await mkdir(staging, { recursive: true });
+			this._retainedArtifacts.set(artifactKey(staging), true);
 			for (const provider of providers) {
+				checkCancellation();
 				if (!provider.collectDebugLogs) {
 					continue;
 				}
 				// An implemented provider contributor is part of this collection,
 				// so its failure must fail the export. Providers without additional
 				// diagnostics still get the Agent Host process log below.
+				onProgress?.(0, 0, localize('debugLogs.collectProvider', "Collecting {0} session logs...", provider.id));
 				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging), chat) || providerLogsIncluded;
 			}
 
+			checkCancellation();
+			onProgress?.(0, 0, localize('debugLogs.collectHost', "Collecting Agent Host process and transport logs..."));
 			await this._copyAgentHostLogs(staging);
 			const remainingEntries = AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - (await collectFiles(staging)).length;
 			await this._copyMissionControlLogs(staging, remainingEntries);
@@ -68,17 +90,29 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			let uncompressedSize = 0;
 			const artifactEntries: { path: string; size: number }[] = [];
 			for (const file of files) {
+				checkCancellation();
 				const { size } = await stat(file.localPath);
 				uncompressedSize += size;
 				artifactEntries.push({ path: file.path, size });
 			}
+			checkCancellation();
 			if (kind === 'directory') {
 				retainStaging = true;
 				this._scheduleCleanup(staging, true, files.map(file => file.localPath));
 				return { kind, resource: URI.file(staging), providerLogsIncluded, size: uncompressedSize, uncompressedSize, entries: artifactEntries };
 			}
 
-			await zip(archive, files);
+			let lastReport = 0;
+			await zip(archive, files, {
+				token: cancellation.token,
+				onProgress: (bytes, path) => {
+					const now = Date.now();
+					if (bytes === uncompressedSize || now - lastReport >= 100) {
+						lastReport = now;
+						onProgress?.(bytes, uncompressedSize, localize('debugLogs.compress', "Compressing {0}: {1} / {2}", path, ByteSize.formatSize(bytes), ByteSize.formatSize(uncompressedSize)));
+					}
+				}
+			});
 			const archiveSize = (await stat(archive)).size;
 			this._scheduleCleanup(archive, false, [archive]);
 			return { kind, resource: URI.file(archive), providerLogsIncluded, size: archiveSize, uncompressedSize, entries: artifactEntries };
@@ -86,6 +120,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			await rm(archive, { force: true });
 			throw error;
 		} finally {
+			this._collections.deleteAndDispose(collectionId);
 			if (!retainStaging) {
 				await rm(staging, { recursive: true, force: true });
 				this._retainedArtifacts.delete(artifactKey(staging));
@@ -109,6 +144,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		if (!this._readableArtifacts.has(artifactKey(path))) {
 			throw new Error('Unknown or expired Agent Host debug-log artifact');
 		}
+		this._renewLease(this._readableArtifacts.get(artifactKey(path))!);
 
 		const handle = await open(path, 'r');
 		try {
@@ -128,6 +164,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		const artifacts = [...this._retainedArtifacts];
 		this._retainedArtifacts.clear();
 		this._readableArtifacts.clear();
+		this._artifactLeases.clearAndDisposeAll();
 		await Promise.all(artifacts.map(async ([path, recursive]) => {
 			try {
 				await rm(path, { recursive, force: true });
@@ -205,12 +242,20 @@ export class AgentHostDebugLogsCollector extends Disposable {
 	private _scheduleCleanup(path: string, recursive: boolean, readablePaths: readonly string[]): void {
 		this._retainedArtifacts.set(artifactKey(path), recursive);
 		for (const readablePath of readablePaths) {
-			this._readableArtifacts.add(artifactKey(readablePath));
+			this._readableArtifacts.set(artifactKey(readablePath), artifactKey(path));
 		}
-		this._register(disposableTimeout(() => {
-			this._retainedArtifacts.delete(artifactKey(path));
-			for (const readablePath of readablePaths) {
-				this._readableArtifacts.delete(artifactKey(readablePath));
+		this._renewLease(artifactKey(path));
+	}
+
+	private _renewLease(path: string): void {
+		const recursive = this._retainedArtifacts.get(path) ?? false;
+		this._artifactLeases.set(path, disposableTimeout(() => {
+			this._artifactLeases.deleteAndDispose(path);
+			this._retainedArtifacts.delete(path);
+			for (const [readablePath, owner] of this._readableArtifacts) {
+				if (owner === path) {
+					this._readableArtifacts.delete(readablePath);
+				}
 			}
 			rm(path, { recursive, force: true }).catch(error => {
 				this._logService.warn(`[AgentHostDebugLogs] Failed to expire temporary artifact ${path}`, error);

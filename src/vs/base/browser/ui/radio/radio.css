@@ -168,6 +168,17 @@
 	scale: 1;
 }
 
+/* Items that start a row put the segments on lines of their own. */
+.monaco-custom-radio.segmented.multi-row {
+	flex-wrap: wrap;
+	row-gap: 0;
+}
+
+.monaco-custom-radio.segmented > .monaco-radio-row-break {
+	flex-basis: 100%;
+	height: var(--vscode-spacing-size20);
+}
+
 .monaco-custom-radio.segmented > .monaco-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));

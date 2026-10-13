@@ -4618,12 +4618,12 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const [pending, expected] of [
-		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response'],
-		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required'],
-		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, 'Authentication required'],
-	] satisfies [IChatRendererContent, string][]) {
-		test(`tool and background activity updates preserve the pending ${pending.kind} label`, async () => {
+	for (const [pending, expectedBefore, expectedAfter] of [
+		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response', 'Waiting for your response'],
+		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required', 'Plan review required'],
+		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, '1 subagent running', 'Working'],
+	] satisfies [IChatRendererContent, string, string][]) {
+		test(`tool and background activity update persistent progress for ${pending.kind}`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
 			const agent = createSubagentTool('background-agent', agentData);
@@ -4647,7 +4647,7 @@ suite('ChatListRenderer', () => {
 				before,
 				after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 				failedPart: template.value.textContent?.includes('Failed to render content'),
-			}, { before: expected, after: expected, failedPart: false });
+			}, { before: expectedBefore, after: expectedAfter, failedPart: false });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
@@ -5240,7 +5240,7 @@ suite('ChatListRenderer', () => {
 			}
 			const announcements = [...host.querySelectorAll('.monaco-alert, .monaco-status')].map(node => node.textContent).filter(Boolean);
 			const sameLogo = logo === part.domNode.querySelector('.chat-working-logo-compact');
-			part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+			part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 			await timeout(8000);
 			const paused = part.workingLabel;
 			part.updateWorkingContent(undefined, true, false, undefined, false, true);
@@ -5265,7 +5265,7 @@ suite('ChatListRenderer', () => {
 				restOfCycle: persistent ? ['Bringing pixels to life', 'Painting the possibilities', 'Laying down the brushstrokes', 'Giving imagination a canvas', 'Turning ideas into pixels', 'Mixing the colors'] : Array.from({ length: 6 }, () => initial),
 				announcements: [initial],
 				sameLogo: true,
-				paused: 'Authentication required',
+				paused: 'Waiting for your response',
 				restarted: persistent ? 'Mixing the colors' : initial,
 				afterCompletion: persistent ? 'Mixing the colors' : initial,
 				activeAfterCompletion: false,
@@ -5327,16 +5327,16 @@ suite('ChatListRenderer', () => {
 		const alerts = () => [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
 		part.updateWorkingContent(new MarkdownString('Reticulating splines'), true);
 		const afterPhrase = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		const afterState = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		part.updateWorkingContent(new MarkdownString('Still working'), true);
 		// A repeated or rotating label must not produce a second alert; aria alternates containers, so a
 		// re-announcement would leave both populated.
 		assert.deepStrictEqual({ afterPhrase, afterState, afterRepeat: alerts() }, {
 			afterPhrase: ['Working'],
-			afterState: ['Authentication required'],
-			afterRepeat: ['Authentication required'],
+			afterState: ['Waiting for your response'],
+			afterRepeat: ['Waiting for your response'],
 		});
 	});
 
@@ -5595,28 +5595,13 @@ suite('ChatListRenderer', () => {
 		}));
 	}
 
-	test('persistent progress only reports MCP authentication for the last meaningful part', () => {
+	test('persistent progress treats authentication prompts as active progress', () => {
 		const authentication: IChatMcpAuthenticationRequired = {
 			kind: 'mcpAuthenticationRequired',
 			sessionResource: URI.parse('chat-session://test/session1'),
 			servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]),
 			isUsed: false,
 		};
-		const markdown: IChatRendererContent = { kind: 'markdownContent', content: new MarkdownString('Continuing the response') };
-		const tool = ChatToolInvocation.createStreaming({
-			toolId: 'search_workspace', toolCallId: 'search-1',
-			toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
-		});
-		const hiddenTool = new ChatToolInvocation(
-			{ invocationMessage: 'Update metadata', presentation: ToolInvocationPresentation.Hidden },
-			{ id: 'update_metadata', displayName: 'Update metadata', modelDescription: 'Update metadata', source: ToolDataSource.Internal },
-			'hidden', undefined, {},
-		);
-		const nestedTool = new ChatToolInvocation(
-			{ invocationMessage: 'Search in subagent' },
-			{ id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
-			'nested', 'subagent-1', {},
-		);
 		const waitingTool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -5625,41 +5610,15 @@ suite('ChatListRenderer', () => {
 		waitingTool.setAuthenticationRequired({ id: 'docs', name: 'Documentation', resource: 'https://docs.example.com' });
 
 		assert.deepStrictEqual({
-			trailing: getPersistentProgressState([markdown, authentication], 0, false),
-			followedByMarkdown: getPersistentProgressState([authentication, markdown], 0, false),
-			followedByTool: getPersistentProgressState([authentication, tool], 0, false),
-			followedByThinking: getPersistentProgressState([authentication, { kind: 'thinking', value: 'Considering the next step' }], 0, false),
-			followedByEmptyParts: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString(' \n') }, { kind: 'thinking', value: '' }], 0, false),
-			followedByHiddenTool: getPersistentProgressState([authentication, hiddenTool], 0, false),
-			followedByUndoStop: getPersistentProgressState([authentication, { kind: 'undoStop', id: 'edit' }], 0, false),
-			followedByNestedTool: getPersistentProgressState([authentication, nestedTool], 0, false),
-			followedByNestedMarkdown: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString('<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>') }], 0, false),
-			followedByNestedHook: getPersistentProgressState([authentication, { kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' }], 0, false),
-			followedByReferences: getPersistentProgressState([authentication, { kind: 'references', references: [] }], 0, false),
-			markdownFollowedByHiddenTool: getPersistentProgressState([authentication, markdown, hiddenTool], 0, false),
-			used: getPersistentProgressState([{ ...authentication, isUsed: true }], 0, false),
-			empty: getPersistentProgressState([{ ...authentication, servers: observableValue('servers', []) }], 0, false),
-			blockingToolFollowedByMarkdown: getPersistentProgressState([waitingTool, markdown], 0, false),
+			prompt: getPersistentProgressState([authentication], 0, false),
+			tool: getPersistentProgressState([waitingTool], 0, false),
 		}, {
-			trailing: 'authentication',
-			followedByMarkdown: 'active',
-			followedByTool: 'active',
-			followedByThinking: 'active',
-			followedByEmptyParts: 'authentication',
-			followedByHiddenTool: 'authentication',
-			followedByUndoStop: 'authentication',
-			followedByNestedTool: 'authentication',
-			followedByNestedMarkdown: 'authentication',
-			followedByNestedHook: 'authentication',
-			followedByReferences: 'authentication',
-			markdownFollowedByHiddenTool: 'active',
-			used: 'active',
-			empty: 'active',
-			blockingToolFollowedByMarkdown: 'authentication',
+			prompt: 'active',
+			tool: 'active',
 		});
 	});
 
-	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
+	test('persistent progress state recognizes legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation', presentation },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -5679,7 +5638,7 @@ suite('ChatListRenderer', () => {
 			confirmationOutranksAuthentication: getPersistentProgressState([waiting, confirmation(false)], 0, false),
 			blocking: [IChatToolInvocation.StateKind.WaitingForConfirmation, IChatToolInvocation.StateKind.WaitingForPostApproval, IChatToolInvocation.StateKind.WaitingForAuthentication, IChatToolInvocation.StateKind.Executing, IChatToolInvocation.StateKind.Completed].map(isBlockingToolState),
 		}, {
-			authentication: 'authentication',
+			authentication: 'active',
 			hiddenAuthentication: 'active',
 			confirmation: 'confirmation',
 			usedConfirmation: 'active',
@@ -5688,7 +5647,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('persistent footer reports tool authentication until it resolves', async () => {
+	test('persistent footer stays active while tool authentication resolves', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
@@ -5706,11 +5665,11 @@ suite('ChatListRenderer', () => {
 		await timeout(0);
 		const after = footerText();
 		assert.deepStrictEqual({
-			before: before === 'Authentication required',
+			before,
 			during,
-			after: after === 'Authentication required',
+			after,
 			singleFooter: template.value.querySelectorAll('.chat-working-progress').length,
-		}, { before: false, during: 'Authentication required', after: false, singleFooter: 1 });
+		}, { before: 'Working', during: 'Working', after: 'Working', singleFooter: 1 });
 	});
 
 	test('persistent footer shows participant progress text instead of hiding it', () => {
@@ -7780,7 +7739,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const followingKind of ['markdownContent', 'toolInvocation'] as const) {
-		test(`persistent progress resumes after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
+		test(`persistent progress stays active after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
 			const { instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
 			const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
 				override readonly id = 'mcp';
@@ -7817,13 +7776,13 @@ suite('ChatListRenderer', () => {
 				isUsed: authentication.isUsed,
 				pendingServers: authentication.servers.get().length,
 				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction-hint'),
-			}, { before: 'Authentication required', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
+			}, { before: 'Working', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
 	}
 
-	test('persistent progress resumes when authentication finishes without provider output', async () => {
+	test('persistent progress stays active when authentication finishes without provider output', async () => {
 		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		const changed = disposables.add(new Emitter<void>());
 		const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
@@ -7856,12 +7815,12 @@ suite('ChatListRenderer', () => {
 			after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 			isUsed: authentication.isUsed,
 			responseParts: response.response.value.length,
-		}, { before: 'Authentication required', after: 'Working', isUsed: true, responseParts: 1 });
+		}, { before: 'Working', after: 'Working', isUsed: true, responseParts: 1 });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress ignores an authentication prompt with no servers left to authenticate', () => {
+	test('persistent progress stays active as authentication prompt servers change', () => {
 		const { disposables, instantiationService, model, viewModel, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomizations = Event.None;
@@ -7890,7 +7849,7 @@ suite('ChatListRenderer', () => {
 			emptyPrompt, pending, drained: label(),
 			drainedState: getPersistentProgressState([authentication], 0, false),
 			isUsed: authentication.isUsed,
-		}, { emptyPrompt: 'Working', pending: 'Authentication required', drained: 'Working', drainedState: 'active', isUsed: false });
+		}, { emptyPrompt: 'Working', pending: 'Working', drained: 'Working', drainedState: 'active', isUsed: false });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});

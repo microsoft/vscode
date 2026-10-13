@@ -145,7 +145,7 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom.length, 1);
 
 		const testMode = modes.custom[0];
-		assert.strictEqual(testMode.id, customMode.uri.toString());
+		assert.strictEqual(testMode.id, customMode.id);
 		assert.strictEqual(testMode.name.get(), customMode.name);
 		assert.strictEqual(testMode.label.get(), customMode.name);
 		assert.strictEqual(testMode.description.get(), customMode.description);
@@ -155,6 +155,34 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(testMode.handOffs?.get(), customMode.handOffs);
 		assert.strictEqual(testMode.uri?.get().toString(), customMode.uri.toString());
 		assert.deepStrictEqual(testMode.source, workspaceSource);
+	});
+
+	test('should preserve custom agent ids that differ from their URIs', async () => {
+		const customAgent: ICustomAgent = {
+			id: 'custom-agent-id',
+			uri: URI.parse('file:///test/custom-agent.md'),
+			name: 'Custom Agent',
+			agentInstructions: { content: 'Custom agent body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		promptsService.setCustomModes([customAgent]);
+		await waitForRefresh();
+
+		const modes = await chatModeService.getLocalModes();
+		const mode = modes.custom[0];
+		assert.deepStrictEqual({
+			id: mode.id,
+			foundById: modes.findModeById(customAgent.id) === mode,
+			uri: mode.uri?.get(),
+		}, {
+			id: customAgent.id,
+			foundById: true,
+			uri: customAgent.uri,
+		});
 	});
 
 	test('should fire change event when custom modes are updated', async () => {
@@ -201,9 +229,9 @@ suite('ChatModeService', () => {
 
 		await waitForRefresh();
 
-		const foundMode = (await chatModeService.getLocalModes()).findModeById(customMode.uri.toString());
+		const foundMode = (await chatModeService.getLocalModes()).findModeById(customMode.id);
 		assert.ok(foundMode);
-		assert.strictEqual(foundMode.id, customMode.uri.toString());
+		assert.strictEqual(foundMode.id, customMode.id);
 		assert.strictEqual(foundMode.name.get(), customMode.name);
 		assert.strictEqual(foundMode.label.get(), customMode.name);
 	});
@@ -335,7 +363,7 @@ suite('ChatModeService', () => {
 
 		modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 1);
-		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
+		assert.strictEqual(modes.custom[0].id, mode1.id);
 	});
 
 	test('should return custom modes sorted alphabetically by label', async () => {

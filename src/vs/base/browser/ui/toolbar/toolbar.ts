@@ -44,6 +44,11 @@ export interface IToolBarOptions {
 	actionViewItemProvider?: IActionViewItemProvider;
 	ariaLabel?: string;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+	/**
+	 * Returns the index at which the secondary-actions trigger is inserted
+	 * among the primary actions. Defaults to after all primary actions.
+	 */
+	getSecondaryActionsPosition?: (primaryActions: readonly IAction[]) => number;
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
@@ -315,7 +320,7 @@ export class ToolBar extends Disposable {
 		this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
 		if (this.hasSecondaryActions && secondaryActions) {
 			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
-			primaryActionsToSet.push(this.toggleMenuAction);
+			primaryActionsToSet.splice(this.getSecondaryActionsPosition(primaryActionsToSet), 0, this.toggleMenuAction);
 		}
 
 		if (primaryActionsToSet.length > 0 && this.options.trailingSeparator) {
@@ -372,6 +377,34 @@ export class ToolBar extends Disposable {
 		return this.options.responsiveBehavior?.kind === 'all' && this.options.responsiveBehavior.overflowFrom === 'start';
 	}
 
+	private getSecondaryActionsPosition(primaryActions: readonly IAction[] = this.originalPrimaryActions): number {
+		const requestedPosition = this.options.getSecondaryActionsPosition?.(primaryActions) ?? primaryActions.length;
+		return Number.isFinite(requestedPosition)
+			? Math.max(0, Math.min(primaryActions.length, Math.trunc(requestedPosition)))
+			: primaryActions.length;
+	}
+
+	private getRenderedPrimaryActionCountBefore(position: number): number {
+		const renderedActions = new Set(this.actionBar.viewItems.map(item => item.action));
+		return this.originalPrimaryActions
+			.slice(0, position)
+			.reduce((count, action) => count + (renderedActions.has(action) ? 1 : 0), 0);
+	}
+
+	private getToggleMenuActionInsertionIndex(): number {
+		return this.getRenderedPrimaryActionCountBefore(this.getSecondaryActionsPosition());
+	}
+
+	private getPrimaryActionInsertionIndex(action: IAction): number {
+		const actionPosition = this.originalPrimaryActions.indexOf(action);
+		if (actionPosition === -1) {
+			return this.actionBar.length();
+		}
+
+		const toggleOffset = this.actionBar.hasAction(this.toggleMenuAction) && this.getSecondaryActionsPosition() <= actionPosition ? 1 : 0;
+		return this.getRenderedPrimaryActionCountBefore(actionPosition) + toggleOffset;
+	}
+
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.options.getKeyBinding?.(action);
 
@@ -412,19 +445,28 @@ export class ToolBar extends Disposable {
 			return;
 		}
 
+		const actionsContainer = this.actionBar.getContainer().firstElementChild;
+		if (!DOM.isHTMLElement(actionsContainer)) {
+			return;
+		}
+
 		if (this.options.responsiveBehavior.kind === 'last') {
-			const hasToggleMenuAction = this.actionBar.hasAction(this.toggleMenuAction);
-			const shrinkableIndex = hasToggleMenuAction ? this.actionBar.length() - 2 : this.actionBar.length() - 1;
+			let shrinkableIndex = -1;
+			for (let index = this.actionBar.length() - 1; index >= 0; index--) {
+				const action = this.actionBar.getAction(index);
+				if (action && !(action instanceof Separator) && this.originalPrimaryActions.includes(action)) {
+					shrinkableIndex = index;
+					break;
+				}
+			}
+			for (let index = 0; index < actionsContainer.children.length; index++) {
+				actionsContainer.children.item(index)?.classList.toggle('toolbar-shrinkable-item', index === shrinkableIndex);
+			}
 			const shrinkableAction = shrinkableIndex >= 0 ? this.actionBar.getAction(shrinkableIndex) : undefined;
 			const minWidth = `${this.getConfiguredActionMinWidth(shrinkableAction)}px`;
 			if (this.element.style.getPropertyValue(ACTION_MIN_WIDTH_VAR) !== minWidth) {
 				this.element.style.setProperty(ACTION_MIN_WIDTH_VAR, minWidth);
 			}
-			return;
-		}
-
-		const actionsContainer = this.actionBar.getContainer().firstElementChild;
-		if (!DOM.isHTMLElement(actionsContainer)) {
 			return;
 		}
 
@@ -641,7 +683,7 @@ export class ToolBar extends Disposable {
 						icon: this.options.icon ?? true,
 						label: this.options.label ?? false,
 						keybinding: this.getKeybindingLabel(this.toggleMenuAction),
-						index: this.options.trailingSeparator ? this.actionBar.length() - 1 : undefined,
+						index: this.getToggleMenuActionInsertionIndex(),
 					});
 					this.updateOverflowClassName();
 				}
@@ -662,14 +704,11 @@ export class ToolBar extends Disposable {
 
 				for (const action of actionsToRestore) {
 					this.hiddenActions.splice(this.hiddenActions.indexOf(action), 1);
-					const visibleActions = new Set(this.actionBar.viewItems.map(item => item.action));
 					this.actionBar.push(action, {
 						icon: this.options.icon ?? true,
 						label: this.options.label ?? false,
 						keybinding: this.getKeybindingLabel(action),
-						index: this.originalPrimaryActions
-							.slice(0, this.originalPrimaryActions.indexOf(action))
-							.reduce((index, precedingAction) => index + (visibleActions.has(precedingAction) ? 1 : 0), 0)
+						index: this.getPrimaryActionInsertionIndex(action),
 					});
 				}
 

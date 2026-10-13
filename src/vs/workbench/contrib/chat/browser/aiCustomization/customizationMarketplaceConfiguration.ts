@@ -15,7 +15,7 @@ export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
 		type: 'boolean',
 		tags: ['experimental', 'advanced'],
-		description: localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
+		description: localize('chat.customizations.marketplace.enabled', "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
 		default: false,
 		experiment: { mode: 'auto' },
 	},

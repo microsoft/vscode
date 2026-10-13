@@ -45,6 +45,7 @@ import { ISessionChangesService } from '../../changes/browser/sessionChangesServ
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
@@ -166,6 +167,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	protected readonly activeSessionResourceObs;
 	protected readonly multipleSessionsVisibleObs;
+	protected readonly multipleChatsVisibleObs;
 
 	/**
 	 * `> 0` while the controller is restoring a session's layout on a session
@@ -268,6 +270,10 @@ export abstract class BaseLayoutController extends Disposable {
 		return this._ownerKeyFor(session, reader);
 	}
 
+	protected _isPanelVisibilitySharedAcrossChats(_session: IActiveSession, _reader?: IReader): boolean {
+		return false;
+	}
+
 	protected _defaultPanelVisibility(_key: URI): boolean {
 		return false;
 	}
@@ -277,6 +283,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ISessionsService protected readonly _sessionsService: ISessionsService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@IViewsService protected readonly _viewsService: IViewsService,
 		@IPaneCompositePartService protected readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService protected readonly _storageService: IStorageService,
@@ -333,6 +340,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this.multipleSessionsVisibleObs = derived<boolean>(reader => {
 			return this._sessionsService.visibleSessions.read(reader).length > 1;
 		});
+		this.multipleChatsVisibleObs = this._sessionsPartService.shownChatCount.map(count => count > 1);
 
 		this._register(autorun(reader => {
 			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
@@ -365,8 +373,8 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
-			const chatLayoutActive = this._chatLayoutActive(reader);
-			if (this.multipleSessionsVisibleObs.read(reader) && !chatLayoutActive) {
+			if (this.multipleChatsVisibleObs.read(reader)
+				&& (!activeSession || !this._isPanelVisibilitySharedAcrossChats(activeSession, reader))) {
 				return;
 			}
 			if (activeSession && this._chatLayoutSuspended(reader)) {
@@ -380,10 +388,12 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession || e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
+			const activeSession = this._sessionsService.activeSession.get();
+			if ((this.multipleChatsVisibleObs.get()
+				&& (!activeSession || !this._isPanelVisibilitySharedAcrossChats(activeSession)))
+				|| this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
 			const ownerKey = activeSession && this._panelVisibilityKeyFor(activeSession);
 			if (ownerKey) {
 				this._panelVisibilityBySession.set(ownerKey, e.visible);

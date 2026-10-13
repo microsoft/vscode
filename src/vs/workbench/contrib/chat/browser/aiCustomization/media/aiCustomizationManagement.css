@@ -2664,10 +2664,6 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.mcp-server-item:not(.has-detail):not(.builtin) {
-	cursor: default;
-}
-
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
