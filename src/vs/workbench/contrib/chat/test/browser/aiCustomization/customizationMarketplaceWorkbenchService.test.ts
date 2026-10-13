@@ -40,6 +40,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabledIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabledIds.includes(CustomizationMarketplaceSources.CopilotConnectors.id),
@@ -191,6 +192,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 	test('projects provider-managed marketplaces as discover sources', async () => {
 		const configuration = createConfiguration([]);
+		const providerChanges = store.add(new Emitter<void>());
+		let listCalls = 0;
 		const marketplace = {
 			name: 'vscode-team-kit',
 			source: 'GitHub: microsoft/vscode-team-kit',
@@ -200,8 +203,11 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		};
 		const queries: ICustomizationMarketplaceSourceQuery[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			list: async () => [marketplace],
+			onDidChange: providerChanges.event,
+			list: async () => {
+				listCalls++;
+				return [marketplace];
+			},
 			add: async () => marketplace,
 			queryMarketplace: async (_marketplace, options) => {
 				queries.push(options);
@@ -236,19 +242,30 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		);
 		await Event.toPromise(service.onDidChangeSources);
 		const sourceId = getProviderMarketplaceSourceId(marketplace.name);
+		const enabledSources = service.sources.map(source => [source.id, source.displayName]);
 		const page = await service.query({ sourceIds: [sourceId] }, CancellationToken.None);
+		const contentChanged = Event.toPromise(service.onDidChangeSources);
+		providerChanges.fire();
+		await contentChanged;
+		await setEnabled(configuration, ChatConfiguration.PluginsEnabled, false);
 
 		assert.deepStrictEqual({
-			sources: service.sources.map(source => [source.id, source.displayName]),
+			enabledSources,
+			disabledSources: service.sources.map(source => [source.id, source.displayName]),
 			items: page.items.map(item => [item.sourceId, item.displayName]),
 			queries,
+			listCalls,
 		}, {
-			sources: [
+			enabledSources: [
 				[sourceId, 'vscode-team-kit'],
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
+			disabledSources: [
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
 			],
 			items: [[sourceId, 'Team Kit Plugin']],
 			queries: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined }],
+			listCalls: 2,
 		});
 	});
 

@@ -498,6 +498,9 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
 		}
+		override getDescriptorForSession(sessionResource: URI) {
+			return descriptors.find(h => h.id === getChatSessionType(sessionResource));
+		}
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
 		}
@@ -2487,6 +2490,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2628,6 +2632,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2780,6 +2785,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2811,6 +2817,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2938,6 +2945,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeHarness = constObservable('local');
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {

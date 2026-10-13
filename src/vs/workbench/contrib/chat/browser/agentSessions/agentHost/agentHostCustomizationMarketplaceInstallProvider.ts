@@ -130,6 +130,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					name: plugin.name,
 					marketplace: marketplace.name,
 					marketplaceSource: marketplace.source,
+					providerManaged: true,
 				},
 			})),
 			total: matching.length,

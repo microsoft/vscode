@@ -740,6 +740,41 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('delegates provider-managed marketplace trust to the provider runtime', async () => {
+		const installs: ICustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(_session: URI, resource: ICustomizationMarketplaceResource): Promise<void> { installs.push(resource); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		fixture.pluginService.trustResult = false;
+		const candidate = resource({
+			identifier: '["Git: https://example.com/plugins.git","plugins","azure"]',
+			displayName: 'Azure',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: {
+				kind: 'providerPlugin',
+				name: 'azure',
+				marketplace: 'plugins',
+				marketplaceSource: 'Git: https://example.com/plugins.git',
+				providerManaged: true,
+			},
+		});
+
+		await fixture.service.install(candidate);
+
+		assert.deepStrictEqual({
+			installs,
+			trustChecks: fixture.pluginService.trustChecks,
+		}, {
+			installs: [candidate],
+			trustChecks: [],
+		});
+	});
+
 	test('does not invoke the provider when SDK-featured plugin marketplace trust is declined', async () => {
 		let providerInstalls = 0;
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {

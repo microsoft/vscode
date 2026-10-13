@@ -119,7 +119,9 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		this.onDidChangeSources = Event.any(
 			this._onDidChangeSources.event,
 			pluginMarketplaceService.onDidChangeMarketplaces,
-			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
+			Event.filter(configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
+				|| event.affectsConfiguration(ChatConfiguration.PluginsEnabled)),
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
@@ -127,10 +129,14 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	}
 
 	private get providerMarketplaceSources(): readonly ICustomizationMarketplaceSourceInfo[] {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
+			return [];
+		}
 		return this.providerMarketplaces.map(marketplace => ({
 			id: getProviderMarketplaceSourceId(marketplace.name),
 			displayName: marketplace.name,
 			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: [ChatConfiguration.PluginsEnabled],
 		}));
 	}
 
@@ -154,11 +160,11 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}
 		const store = new DisposableStore();
 		this.marketplaceManagementBinding.value = store;
-		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(managementProvider, version)));
+		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(managementProvider, version, true)));
 		void this.refreshProviderMarketplaces(managementProvider, version);
 	}
 
-	private async refreshProviderMarketplaces(provider: ICustomizationMarketplaceManagementProvider, version: number): Promise<void> {
+	private async refreshProviderMarketplaces(provider: ICustomizationMarketplaceManagementProvider, version: number, forceChangeEvent = false): Promise<void> {
 		const refreshVersion = ++this.marketplaceManagementRefreshVersion;
 		try {
 			const marketplaces = await provider.list();
@@ -167,7 +173,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			}
 			const previous = JSON.stringify(this.providerMarketplaces);
 			this.providerMarketplaces = marketplaces;
-			if (JSON.stringify(marketplaces) !== previous) {
+			if (forceChangeEvent || JSON.stringify(marketplaces) !== previous) {
 				this._onDidChangeSources.fire();
 			}
 		} catch (error) {
