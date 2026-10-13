@@ -2331,7 +2331,8 @@ export class CopilotAgentSession extends Disposable {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
 			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
 			const attachment = task.attachmentMode === 'detached' ? 'detached' : 'attached';
-			// The runtime can only stop a detached shell whose process ID it knows.
+			// Attached shells can always be stopped. Detached shells are stopped through
+			// their process ID, so one restored without a recorded ID can't be.
 			const stoppable = attachment === 'attached' || task.pid !== undefined;
 			return {
 				kind: BackgroundWorkKind.Shell,
