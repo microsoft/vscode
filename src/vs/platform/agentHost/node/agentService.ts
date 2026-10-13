@@ -1082,6 +1082,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			startSession: (session, message) => this._startAutomationMessage(session, message),
 			cancelSession: session => this._cancelAutomationSession(session),
+			resumeTurn: (session, turnId) => this._resumeAutomationTurn(session, turnId),
 		}));
 		this._register(this._providerService.registerProviderInitializer(provider => this._initializeProvider(provider)));
 		this._register(this._providerService.onDidRegisterProvider(provider => this._onDidRegisterProvider(provider)));
@@ -2102,6 +2103,22 @@ export class AgentService extends Disposable implements IAgentService {
 		const action = { type: ActionType.ChatTurnCancelled, turnId: activeTurn.id, duration } as const;
 		this._stateManager.dispatchServerAction(chat, action);
 		this._sideEffects.handleAction(chat, action);
+		return true;
+	}
+
+	private async _resumeAutomationTurn(session: URI, turnId: string): Promise<boolean> {
+		const chat = this._defaultChat(session);
+		if (chat === undefined) {
+			return false;
+		}
+		const { turn, rejection } = this._getResumableTurn(chat, session.toString(), turnId);
+		if (rejection !== undefined) {
+			this._logService.info(`[AgentService] Cannot resume automation turn: chat=${chat}, turnId=${turnId}, reason=${rejection}`);
+			return false;
+		}
+		const action = { type: ActionType.ChatTurnResume, turnId } as const;
+		this._stateManager.dispatchServerAction(chat, action);
+		this._sideEffects.handleAction(chat, action, undefined, AgentHostClientType.Unknown, turn);
 		return true;
 	}
 

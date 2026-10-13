@@ -155,6 +155,7 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
+			resumeTurn: execution?.resumeTurn ?? (async () => false),
 		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
 		return disposables.add(service);
 	}
@@ -1498,6 +1499,101 @@ suite('AgentHostAutomationService', () => {
 				cancelCalls: 0,
 			});
 		});
+	}
+
+	for (const { name, sleep, then, expected } of [
+		{
+			name: 'fails a run when its turn fails while the machine stays awake',
+			sleep: 'none', then: undefined,
+			expected: { afterFailure: AutomationRunStatus.Failed, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'resumes a turn that fails after a sleep once the machine is fully awake',
+			sleep: 'beforeFailure', then: 'complete',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Completed },
+		},
+		{
+			name: 'fails a run when its turn fails again after resuming on wake',
+			sleep: 'throughFailure', then: 'error',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'cancels a run that is waiting to resume after a wake',
+			sleep: 'throughFailure', then: 'cancel',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Cancelled },
+		},
+		{
+			name: 'fails a run when its turn fails again after the user resumes it before the retry after wake',
+			sleep: 'throughFailure', then: 'userResume',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+	] as const) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const session = URI.parse('mock:/sleeping-session');
+			const chat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			const resumedTurns: string[] = [];
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: chat,
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					await started.complete();
+				},
+				resumeTurn: async (_session, turnId) => {
+					resumedTurns.push(turnId);
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: name });
+			await started.p;
+			const failTurn = () => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError, turnId: 'turn', duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+			});
+
+			if (sleep !== 'none') {
+				systemWake.setFullyAwake(false);
+			}
+			if (sleep === 'beforeFailure') {
+				systemWake.setFullyAwake(true);
+			}
+			failTurn();
+			await timeout(1_000);
+			const afterFailure = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+			if (then === 'cancel') {
+				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			} else if (then === 'userResume') {
+				// The user clicks Try Again before the host's own retry, and the turn fails again.
+				systemWake.setFullyAwake(true);
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn' });
+				failTurn();
+			} else if (then) {
+				systemWake.setFullyAwake(true);
+				await timeout(60_000);
+				if (then === 'complete') {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+				} else {
+					failTurn();
+				}
+			}
+			// Outlasts any retry after wake, so a run that never ends fails the assertion instead of hanging the test.
+			await timeout(60_000);
+
+			assert.deepStrictEqual({
+				afterFailure,
+				resumedTurns,
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			}, expected);
+		}));
 	}
 
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
