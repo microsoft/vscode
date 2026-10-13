@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, isSessionStatusRead } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isSessionStatusRead } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
@@ -34,7 +34,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		if (dispatched.rejectionReason !== undefined
 			|| dispatched.action.type !== ActionType.ChatIsArchivedChanged
 			|| !isAhpChatChannel(dispatched.channel)
-			|| isDefaultChatUri(dispatched.channel)) {
+			|| this._stateManager.isPrimaryChat(dispatched.session, dispatched.channel)) {
 			return;
 		}
 		const session = URI.parse(dispatched.session);

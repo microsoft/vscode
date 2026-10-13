@@ -161,6 +161,7 @@ export function createAgentServiceComposition(
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
+			getPrimaryChat: session => chatOwnership.getPrimaryChat(session),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {

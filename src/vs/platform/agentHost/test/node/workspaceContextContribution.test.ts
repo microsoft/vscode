@@ -224,8 +224,8 @@ suite('WorkspaceContextContribution', () => {
 		const context = await setupContext();
 		const [peer, restored, empty] = ['peer', 'restored', 'empty'].map(name => context.addChat(name));
 		const turn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
-		await context.service.hydrateTurns({ session: context.session, chat: restored, storageResource: creationTimeChatStorageResource(context.session, restored, buildDefaultChatUri(context.session)) }, [turn]);
-		await context.service.hydrateTurns({ session: context.session, chat: empty, storageResource: creationTimeChatStorageResource(context.session, empty, buildDefaultChatUri(context.session)) }, []);
+		await context.service.hydrateTurns({ session: context.session, chat: restored, isPrimaryChat: false, storageResource: creationTimeChatStorageResource(context.session, restored, buildDefaultChatUri(context.session)) }, [turn]);
+		await context.service.hydrateTurns({ session: context.session, chat: empty, isPrimaryChat: false, storageResource: creationTimeChatStorageResource(context.session, empty, buildDefaultChatUri(context.session)) }, []);
 		const results = [];
 		for (const chat of [context.chat, context.chat, peer, peer, restored, empty]) {
 			results.push(!!(await context.firstTurn(chat)).instructions?.length);

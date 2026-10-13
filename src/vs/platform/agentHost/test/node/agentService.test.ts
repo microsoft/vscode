@@ -20812,6 +20812,7 @@ suite('AgentService (node dispatcher)', () => {
 						...chat,
 						resource: index === 0 ? buildDefaultChatUri(sessionStr) : buildChatUri(sessionStr, chat.resource),
 					})),
+					defaultChat: buildDefaultChatUri(sessionStr),
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);

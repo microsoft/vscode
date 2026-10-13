@@ -55,7 +55,7 @@ class FakeStateManager extends AgentHostStateManager {
 	private readonly _session: ISessionWithDefaultChat;
 	private readonly _fixtureChatStates = new Map<string, ChatState>();
 
-	constructor(chats: readonly IFixtureChat[], defaultChat?: string) {
+	constructor(chats: readonly IFixtureChat[], defaultChat?: string, private readonly _primaryChat = DEFAULT_CHAT_URI) {
 		super(new NullLogService());
 		const summary: SessionSummary = {
 			resource: SESSION_URI,
@@ -85,6 +85,10 @@ class FakeStateManager extends AgentHostStateManager {
 
 	override getDefaultChatState(): ChatState | undefined {
 		return this._fixtureChatStates.get(DEFAULT_CHAT_URI);
+	}
+
+	override getPrimaryChat(session: URI): string | undefined {
+		return session === SESSION_URI ? this._primaryChat : undefined;
 	}
 }
 
@@ -191,6 +195,16 @@ suite('AgentHostChatCompletionProvider', () => {
 				endTurn: 'e1',
 				label: 'Peer',
 			}]);
+		});
+
+		test('excludes the recorded primary chat, not the default-shaped chat, when the channel is the session URI', async () => {
+			const primary = buildChatUri(SESSION_URI, 'primary');
+			const stateManager = disposables.add(new FakeStateManager([
+				{ summary: makeChatSummary(primary, 'Primary', { origin: { kind: ChatOriginKind.User } }), turns: [makeTurn('p1')] },
+				{ summary: makeChatSummary(DEFAULT_CHAT_URI, 'Shaped peer'), turns: [makeTurn('s1')] },
+			], undefined, primary));
+			const result = await run(stateManager, '#chat:', 6, SESSION_URI);
+			assert.deepStrictEqual(result.map(i => i.attachment), [{ type: MessageAttachmentKind.Chat, resource: DEFAULT_CHAT_URI, endTurn: 's1', label: 'Shaped peer' }]);
 		});
 
 		test('filters by title (case-insensitive) and sorts newest first', async () => {

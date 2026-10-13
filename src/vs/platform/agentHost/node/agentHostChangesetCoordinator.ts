@@ -16,7 +16,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -87,7 +87,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
-		this.onChatAvailable(buildDefaultChatUri(sessionStr));
+		this._onPrimaryChatAvailable(sessionStr);
 	}
 
 	/** Seeds the catalogue and static repository changesets for an available chat state. */
@@ -117,7 +117,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
-		this.onChatAvailable(buildDefaultChatUri(sessionStr));
+		this._onPrimaryChatAvailable(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
@@ -340,10 +340,18 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 	}
 
+	/** Makes the session's primary chat available once the session is in state. */
+	private _onPrimaryChatAvailable(session: string): void {
+		const primaryChat = this._chatOwnership.getPrimaryChat(session);
+		if (primaryChat !== undefined) {
+			this.onChatAvailable(primaryChat);
+		}
+	}
+
 	private _reconcileBranchSummaryResources(session: string): void {
-		const defaultChat = buildDefaultChatUri(session);
+		const defaultChat = this._chatOwnership.getPrimaryChat(session);
 		const desiredSources = new Set([
-			defaultChat,
+			...(defaultChat !== undefined ? [defaultChat] : []),
 			...this._stateManager.getSessionState(session)?.chats
 				.map(chat => chat.resource)
 				.filter(candidate => candidate !== defaultChat) ?? [],
@@ -609,8 +617,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			}
 		} else {
 			this._refreshChangesetCatalogs(sessionStr);
+			const primaryChat = this._chatOwnership.getPrimaryChat(sessionStr);
 			for (const source of [
-				buildDefaultChatUri(sessionStr),
+				...(primaryChat !== undefined ? [primaryChat] : []),
 				...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
 			]) {
 				branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, source).ownerUri);

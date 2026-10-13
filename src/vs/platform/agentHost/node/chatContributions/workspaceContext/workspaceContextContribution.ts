@@ -17,7 +17,7 @@ import { AgentSession } from '../../../common/agent.js';
 import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -250,7 +250,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		// The session's worktree may already exist, e.g. when its creation finished before this turn started.
-		const worktree = isDefaultChatUri(chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		const worktree = this._stateManager.isPrimaryChat(session, chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
 		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 

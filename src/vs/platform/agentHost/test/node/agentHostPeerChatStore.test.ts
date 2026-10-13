@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT } from '../../node/agentHostCatalogProjection.js';
 import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -92,7 +92,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined));
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
 	}
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
@@ -350,7 +350,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined)),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined)),
 			databaseFor,
 		};
 	}
@@ -366,7 +366,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -434,7 +434,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -476,7 +476,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -614,7 +614,7 @@ suite('AgentHostPeerChatStore', () => {
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
 		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
 		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined));
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
@@ -825,6 +825,27 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual({ archived, restored }, {
 			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
 			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
+	test('the recorded primary chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
+		const primary = buildChatUri(session, 'primary');
+		const shapedPeer = URI.parse(buildDefaultChatUri(session));
+		const local = new TestSessionDatabase();
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? primary : undefined));
+		await store.upsert(session, shapedPeer, 'peer-backing');
+		await store.setRead(session, shapedPeer, false);
+		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
+		await store.setRead(session, URI.parse(primary), true);
+
+		assert.deepStrictEqual({
+			afterPeer,
+			afterPrimary: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			peers: (await store.tryRead(session))?.map(entry => ({ uri: entry.uri.toString(), isRead: entry.isRead })),
+		}, {
+			afterPeer: undefined,
+			afterPrimary: 'true',
+			peers: [{ uri: shapedPeer.toString(), isRead: false }],
 		});
 	});
 

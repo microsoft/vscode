@@ -1579,6 +1579,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._skillCompletionProviderRegistered = true;
 		const provider = this._register(new AgentHostSkillCompletionProvider(
 			session => this._providerService.getProviderForSession(session),
+			session => {
+				const primaryChat = this._primaryChat(session);
+				return primaryChat === undefined ? undefined : URI.parse(primaryChat);
+			},
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 		));
 		this._register(this._completions.registerProvider(provider));
@@ -6010,7 +6014,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
 		} finally {
-			this._titleController.clearSession(session.toString(), []);
+			this._titleController.clearSession(session.toString(), [defaultChatUri.toString()]);
 		}
 	}
 
@@ -6109,7 +6113,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * exactly that window; every other caller relies on the exhaustive origin
 	 * {@link _chatContext} stamps.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, storage: URI, origin?: ChatOrigin, workspaceTransitionsPromise?: Promise<ReadonlyMap<string, string> | undefined>): Promise<readonly Turn[]> {
+	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, isPrimaryChat: boolean, storage: URI, origin?: ChatOrigin, workspaceTransitionsPromise?: Promise<ReadonlyMap<string, string> | undefined>): Promise<readonly Turn[]> {
 		const context = { ...this._chatContext(session, chat, storage.toString()), ...(origin ? { origin } : {}) };
 		const transitionsPromise = workspaceTransitionsPromise ?? this._loadWorkspaceTransitions(storage);
 		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
@@ -6118,7 +6122,7 @@ export class AgentService extends Disposable implements IAgentService {
 			transitionsPromise,
 		]);
 		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
-		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), storageResource: storage.toString(), workspaceTransitions }, providerTurns);
+		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isPrimaryChat, storageResource: storage.toString(), workspaceTransitions }, providerTurns);
 	}
 
 	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
@@ -6139,7 +6143,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const storage = this._chatStorageResource(session, chat);
-		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
+		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isPrimaryChat: this._stateManager.isPrimaryChat(session.toString(), chat.toString()), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
 		const turns = await this._interleaveLocalTurns(session.toString(), chat.toString(), hydrated);
 		const byId = new Map(turns.map(turn => [turn.id, turn]));
 		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
@@ -9298,6 +9302,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
+			isPrimaryChat: true,
 			storageResource: defaultChatStorage,
 		}, {});
 		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
@@ -9501,7 +9506,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, defaultChatUri, session, URI.parse(defaultChatStorage), undefined, workspaceTransitionsPromise);
+			turns = await this._getChatMessages(agent, defaultChatUri, session, true, URI.parse(defaultChatStorage), undefined, workspaceTransitionsPromise);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -9884,6 +9889,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
+				isPrimaryChat: false,
 				storageResource,
 			}, cachedTitle ? { title: cachedTitle } : {});
 			return {
@@ -9985,7 +9991,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (result?.backingSession) {
 				await this._markChatBacking(result.backingSession, chat);
 			}
-			const turns = await this._getChatMessages(agent, chat, session, URI.parse(storageResource));
+			const turns = await this._getChatMessages(agent, chat, session, false, URI.parse(storageResource));
 			return { turns: await this._interleaveLocalTurns(session.toString(), chatKey, turns), draft };
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to materialize peer chat ${chatKey}: ${toErrorMessage(err)}`);
@@ -11111,7 +11117,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const storageResource = this._chatOwnership.getChatStorageResource(chatUri)
 			?? (await this._readRecordedChatStorage(parentSessionKey)).get(chatUri)
 			?? creationTimeChatStorageResource(parentSessionKey, chatUri, this._primaryChat(parentSessionKey));
-		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, URI.parse(storageResource), origin);
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, false, URI.parse(storageResource), origin);
 		if (childTurns.length === 0) {
 			return;
 		}
@@ -11254,7 +11260,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// rule and has no workspace transitions to load.
 				const recordedStorage = this._chatOwnership.getChatStorageResource(subagentUri);
 				const storage = recordedStorage ?? creationTimeChatStorageResource(parentSession.toString(), subagentUri, this._primaryChat(parentSession));
-				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, URI.parse(storage), origin, recordedStorage === undefined ? Promise.resolve(undefined) : undefined);
+				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, false, URI.parse(storage), origin, recordedStorage === undefined ? Promise.resolve(undefined) : undefined);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}
@@ -11393,6 +11399,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
+				isPrimaryChat: false,
 				storageResource: storageOf(child.chatUri),
 			}, {});
 			if (!isCurrent()) {
@@ -11507,7 +11514,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }, storageResource: string): Promise<readonly Turn[]> {
-		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, URI.parse(storageResource), origin);
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, false, URI.parse(storageResource), origin);
 		if (childTurns.length === 0) {
 			throw new SubagentTranscriptUnavailableError(chatUri);
 		}

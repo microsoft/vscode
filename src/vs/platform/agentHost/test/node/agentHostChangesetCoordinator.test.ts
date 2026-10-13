@@ -50,7 +50,7 @@ suite('ChangesetSessionCoordinator', () => {
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 

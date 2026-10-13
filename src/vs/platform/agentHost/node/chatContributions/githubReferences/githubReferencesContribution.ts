@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
-import { isAhpChatChannel, isDefaultChatUri, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
@@ -40,7 +40,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	 * reconciles the session folder's through the session.
 	 */
 	private _getPullRequestKey(turn: ITurnEnd): ProtocolURI {
-		if (isAhpChatChannel(turn.channel) && !isDefaultChatUri(turn.channel)) {
+		if (isAhpChatChannel(turn.channel) && !this._stateManager.isPrimaryChat(turn.session, turn.channel)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, turn.channel);
 			if (!folder.isSessionFolder && folder.folderKey !== undefined) {
 				return turn.channel;

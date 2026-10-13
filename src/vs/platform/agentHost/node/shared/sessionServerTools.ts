@@ -14,7 +14,7 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -348,6 +348,18 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => boolean;
 	/** The recorded owning session of a registered chat. */
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
+	/** The recorded primary chat of a session, if any. */
+	readonly getPrimaryChat: (session: ProtocolURI) => ProtocolURI | undefined;
+}
+
+/**
+ * The primary chat of a known session: the default chat its listing records,
+ * else the session's recorded primary chat. `undefined` when neither records one.
+ */
+function resolvePrimaryChat(sessions: readonly IAgentSessionMetadata[], session: URI, getPrimaryChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
+	const listed = sessions.find(candidate => candidate.session.toString() === session.toString())?.chats?.find(chat => chat.kind === 'default')?.chat;
+	const recorded = listed?.toString() ?? getPrimaryChat(session.toString());
+	return recorded === undefined ? undefined : URI.parse(recorded);
 }
 
 export interface IRenameTitleResult {
@@ -986,7 +998,11 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	};
 	const session = await accessor.createSession(config);
 	accessor.setSessionSpawnDepth(session, parentDepth + 1);
-	const chat = URI.parse(buildDefaultChatUri(session));
+	const primaryChat = accessor.getPrimaryChat(session.toString());
+	if (primaryChat === undefined) {
+		throw new Error(`Created session ${session.toString()} has no primary chat.`);
+	}
+	const chat = URI.parse(primaryChat);
 	await accessor.renameChat(session, chat, args.title);
 	await accessor.startPrompt(session, chat, args.prompt, currentSession ? {
 		sourceSession: currentSession.toString(),
@@ -1144,9 +1160,9 @@ function currentChatUri(toolCallChannel?: ProtocolURI): URI | undefined {
 	return URI.parse(toolCallChannel);
 }
 
-function normalizeRenameChatTitle(requestedTitle: string, sessions: readonly IAgentSessionMetadata[], session: URI, chat: URI): string {
+function normalizeRenameChatTitle(requestedTitle: string, sessions: readonly IAgentSessionMetadata[], session: URI, chat: URI, primaryChat: URI | undefined): string {
 	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
-	const title = isDefaultChatUri(chat) && metadata?.workingDirectories?.length
+	const title = primaryChat !== undefined && isEqual(chat, primaryChat) && metadata?.workingDirectories?.length
 		? normalizeProjectSessionTitle(requestedTitle)
 		: normalizeGeneralChatTitle(requestedTitle);
 	if (!title) {
@@ -1156,7 +1172,7 @@ function normalizeRenameChatTitle(requestedTitle: string, sessions: readonly IAg
 	return title;
 }
 
-export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChannel: ProtocolURI | undefined, currentSession: URI | undefined): IResolvedRenameChatArgs {
+export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChannel: ProtocolURI | undefined, currentSession: URI | undefined, getPrimaryChat: (session: ProtocolURI) => ProtocolURI | undefined): IResolvedRenameChatArgs {
 	const args = (rawArgs ?? {}) as IRenameChatArgs;
 	const requestedTitle = getRequiredString(args.title, 'title', SessionServerToolName.RenameChat);
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.RenameChat);
@@ -1177,12 +1193,13 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 				throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: session must match the owning session of chat.`);
 			}
 		}
-		const chat = URI.parse(chatId ? buildChatUri(session.toString(), chatId) : buildDefaultChatUri(session.toString()));
-		const parsed = parseChatUri(chat);
-		if (!parsed) {
+		const primaryChat = resolvePrimaryChat(sessions, session, getPrimaryChat);
+		const chat = chatId ? URI.parse(buildChatUri(session.toString(), chatId)) : primaryChat;
+		const parsed = chat && parseChatUri(chat);
+		if (!chat || !parsed) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a known chat.`);
 		}
-		const title = normalizeRenameChatTitle(requestedTitle, sessions, session, chat);
+		const title = normalizeRenameChatTitle(requestedTitle, sessions, session, chat, primaryChat);
 		return { session, chat, title, chatId: parsed.chatId };
 	}
 
@@ -1204,7 +1221,7 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	if (!parsed) {
 		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: current channel is not a chat.`);
 	}
-	const title = normalizeRenameChatTitle(requestedTitle, sessions, session, currentChat);
+	const title = normalizeRenameChatTitle(requestedTitle, sessions, session, currentChat, resolvePrimaryChat(sessions, session, getPrimaryChat));
 	return { session, chat: currentChat, title, chatId: parsed.chatId };
 }
 
@@ -1230,7 +1247,7 @@ export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, 
 	const rename = async (): Promise<IRenameTitleResult> => {
 		const targetSession = getRenameChatSession(accessor, rawArgs, currentChannel);
 		const metadata = await accessor.getSession(targetSession);
-		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel, targetSession);
+		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel, targetSession, accessor.getPrimaryChat);
 		return accessor.renameChat(session, chat, title);
 	};
 	if (isAutomaticTitleRename) {
@@ -1276,7 +1293,7 @@ export type IResolvedSendMessageArgs = IResolvedSendMessageBase & ({
  * `create_chat` open link (carrying a chat id), the message is targeted at that
  * specific chat rather than the session's default chat.
  */
-export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[]): IResolvedSendMessageArgs {
+export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], getPrimaryChat: (session: ProtocolURI) => ProtocolURI | undefined): IResolvedSendMessageArgs {
 	const args = (rawArgs ?? {}) as ISendMessageArgs;
 	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.SendMessage);
 	const session = resolveKnownSession(sessionInput, sessions);
@@ -1284,7 +1301,10 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
-	const chat = URI.parse(chatId ? buildChatUri(session.toString(), chatId) : buildDefaultChatUri(session.toString()));
+	const chat = chatId ? URI.parse(buildChatUri(session.toString(), chatId)) : resolvePrimaryChat(sessions, session, getPrimaryChat);
+	if (!chat) {
+		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session ${session.toString()} has no known primary chat.`);
+	}
 	const target = { session, chat, ...(chatId !== undefined ? { chatId } : {}) };
 	const operation = getOptionalString(args.operation, 'operation', SessionServerToolName.SendMessage) ?? 'send';
 	if (!(sendMessageOperationValues as readonly string[]).includes(operation)) {
@@ -1318,7 +1338,7 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const sessions = await accessor.listSessions();
-	const args = getSendMessageArgs(rawArgs, sessions);
+	const args = getSendMessageArgs(rawArgs, sessions, accessor.getPrimaryChat);
 	const { session, chat, chatId } = args;
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: refusing to send a message to the current chat.`);

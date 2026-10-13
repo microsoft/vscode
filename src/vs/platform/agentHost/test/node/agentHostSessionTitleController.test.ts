@@ -680,7 +680,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined));
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
@@ -953,7 +953,7 @@ suite('AgentHostSessionTitleController', () => {
 		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), defaultChat), undefined);
 		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
 
-		controller.clearSession(session.toString(), [chat]);
+		controller.clearSession(session.toString(), [defaultChat, chat]);
 
 		assert.ok((await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('`rename_chat`'));
 		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));

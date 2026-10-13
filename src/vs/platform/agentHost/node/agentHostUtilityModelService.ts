@@ -11,7 +11,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -215,8 +215,11 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!agent) {
 			return undefined;
 		}
-		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : buildDefaultChatUri(context.session);
-		const state = this._stateManager.getChatState(chat) ?? (isDefaultChatUri(chat) ? this._stateManager.getSessionState(context.session) : undefined);
+		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._stateManager.getPrimaryChat(context.session);
+		if (chat === undefined) {
+			return undefined;
+		}
+		const state = this._stateManager.getChatState(chat) ?? (this._stateManager.isPrimaryChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model

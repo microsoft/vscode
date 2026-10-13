@@ -11,13 +11,14 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, isDefaultChatUri, parseChatUri } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, parseChatUri } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { deriveLegacyPrimaryChat } from './agentHostStateManager.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -661,7 +662,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	private async _setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
-		if (isDefaultChatUri(chat.toString())) {
+		if (this._chatOwnership.isPrimaryChat(session.toString(), chat.toString())) {
 			return this.persistMetadata(session, session, { [AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: isRead ? 'true' : '' });
 		}
 		const values = { [AH_META_IS_READ_DB_KEY]: isRead ? 'true' : '' };
@@ -1180,6 +1181,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		const entryCount = parsed.length;
 		const sessionKey = session.toString();
+		// The legacy catalog lists only peers; it records no primary chat of its own.
+		const primaryChat = this._chatOwnership.getPrimaryChat(sessionKey) ?? deriveLegacyPrimaryChat(session);
 		const seen = new Set<string>();
 		const result: IPersistedPeerChat[] = [];
 		for (let index = 0; index < entryCount; index++) {
@@ -1197,8 +1200,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI`);
 				continue;
 			}
-			if (isDefaultChatUri(value.uri)) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is a default chat of ${sessionKey}`);
+			if (value.uri === primaryChat) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is the primary chat of ${sessionKey}`);
 				continue;
 			}
 			if (value.providerData !== undefined && typeof value.providerData !== 'string') {

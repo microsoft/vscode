@@ -58,6 +58,9 @@ suite('SessionServerTools', () => {
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
 
 	/** Defaults to read; tests that care about unread clear the `IsRead` bit. */
+	/** A session's recorded primary chat: the default-shaped chat VS Code mints. */
+	const recordedPrimaryChat = (session: string) => buildDefaultChatUri(session);
+
 	function sessionMeta(id: string, status: SessionStatus, dir: URI): IAgentSessionMetadata {
 		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}
@@ -94,6 +97,7 @@ suite('SessionServerTools', () => {
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => true),
 			getChatOwner: overrides?.getChatOwner ?? mintedTestChatOwner,
+			getPrimaryChat: overrides?.getPrimaryChat ?? recordedPrimaryChat,
 		};
 	}
 
@@ -2092,8 +2096,8 @@ suite('SessionServerTools', () => {
 	test('rename titles normalize presentation without truncating agent input', () => {
 		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
 		assert.deepStrictEqual({
-			defaultChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [session], undefined, undefined).title,
-			peerChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Don&#39;t   panic' }, [session], undefined, undefined).title,
+			defaultChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [session], undefined, undefined, recordedPrimaryChat).title,
+			peerChat: getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Don&#39;t   panic' }, [session], undefined, undefined, recordedPrimaryChat).title,
 		}, {
 			defaultChat: 'fix input flicker',
 			peerChat: 'Don\'t panic',
@@ -2104,17 +2108,37 @@ suite('SessionServerTools', () => {
 		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
 		const accepted = '😀'.repeat(200);
 		const rejected = '😀'.repeat(201);
-		assert.strictEqual(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: accepted }, [session], undefined, undefined).title, accepted);
-		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: rejected }, [session], undefined, undefined), /must not exceed 200 characters/);
+		assert.strictEqual(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: accepted }, [session], undefined, undefined, recordedPrimaryChat).title, accepted);
+		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: rejected }, [session], undefined, undefined, recordedPrimaryChat), /must not exceed 200 characters/);
+	});
+
+	test('chat targets without a chat id resolve to the recorded primary chat, not the default-shaped URI', () => {
+		const primary = URI.parse(buildChatUri('copilot:/s1', 'primary'));
+		const listed: IAgentSessionMetadata = { ...sessionMeta('s1', SessionStatus.Idle, workspace), chats: [{ chat: primary, kind: 'default' }] };
+		const unlisted = sessionMeta('s2', SessionStatus.Idle, workspace);
+		const recorded = (session: string) => session === 'copilot:/s2' ? buildChatUri(session, 'recorded') : undefined;
+		assert.deepStrictEqual({
+			listedSend: getSendMessageArgs({ session: 'copilot:/s1', message: 'x' }, [listed, unlisted], recorded).chat.toString(),
+			recordedSend: getSendMessageArgs({ session: 'copilot:/s2', message: 'x' }, [listed, unlisted], recorded).chat.toString(),
+			listedRename: (({ session, chat, title }) => ({ session: session.toString(), chat: chat.toString(), title }))(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [listed], undefined, undefined, recorded)),
+			shapedRename: getRenameChatArgs({ title: '`fix-input_flicker`' }, [listed], buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'), recorded).title,
+			unknownPrimary: (() => { try { return getSendMessageArgs({ session: 'copilot:/s1', message: 'x' }, [unlisted, sessionMeta('s1', SessionStatus.Idle, workspace)], () => undefined).chat.toString(); } catch (error) { return (error as Error).message; } })(),
+		}, {
+			listedSend: primary.toString(),
+			recordedSend: buildChatUri('copilot:/s2', 'recorded'),
+			listedRename: { session: 'copilot:/s1', chat: primary.toString(), title: 'fix input flicker' },
+			shapedRename: '`fix-input_flicker`',
+			unknownPrimary: 'Invalid send_message input: session copilot:/s1 has no known primary chat.',
+		});
 	});
 
 	test('getRenameChatArgs resolves default and peer chats from links or the current channel', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)];
 		const peer = buildChatUri('copilot:/s1', 'peer');
-		const explicitPeer = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', title: 'Side Work' }, sessions, undefined, undefined);
-		const explicitDefault = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2', title: 'Default Work' }, sessions, undefined, undefined);
-		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer, URI.parse('copilot:/s1'));
-		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'));
+		const explicitPeer = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', title: 'Side Work' }, sessions, undefined, undefined, recordedPrimaryChat);
+		const explicitDefault = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2', title: 'Default Work' }, sessions, undefined, undefined, recordedPrimaryChat);
+		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer, URI.parse('copilot:/s1'), recordedPrimaryChat);
+		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'), recordedPrimaryChat);
 		assert.deepStrictEqual({
 			explicitPeer: { session: explicitPeer.session.toString(), chat: explicitPeer.chat.toString(), title: explicitPeer.title },
 			explicitDefault: { session: explicitDefault.session.toString(), chat: explicitDefault.chat.toString(), title: explicitDefault.title },
@@ -2126,8 +2150,8 @@ suite('SessionServerTools', () => {
 			currentPeer: { session: 'copilot:/s1', chat: peer, title: 'Current Peer' },
 			currentDefault: { session: 'copilot:/s1', chat: buildDefaultChatUri('copilot:/s1'), title: 'Current Default' },
 		});
-		assert.throws(() => getRenameChatArgs({ session: 'copilot:/s2', title: 'Only session' }, sessions, undefined, undefined), /known chat/);
-		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', session: 'copilot:/s1', title: 'Mismatch' }, sessions, undefined, undefined), /must match/);
+		assert.throws(() => getRenameChatArgs({ session: 'copilot:/s2', title: 'Only session' }, sessions, undefined, undefined, recordedPrimaryChat), /known chat/);
+		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', session: 'copilot:/s1', title: 'Mismatch' }, sessions, undefined, undefined, recordedPrimaryChat), /must match/);
 	});
 
 	test('rename_chat returns before resolving the target session', async () => {
@@ -2352,10 +2376,10 @@ suite('SessionServerTools', () => {
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/s1', message: 'loop' }, currentChannel), /current chat/);
 		// Unknown session and missing session/message are rejected.
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
-		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
-		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
-		assert.throws(() => getSendMessageArgs({ operation: 'send', session: 'copilot:/s2', message: 'x', delivery: 'later' }, [sessionMeta('s2', SessionStatus.Idle, workspace)]), /delivery/);
-		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)]), /expectedRevision/);
+		assert.throws(() => getSendMessageArgs({ message: 'x' }, [], recordedPrimaryChat), /session/);
+		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, [], recordedPrimaryChat), /message/);
+		assert.throws(() => getSendMessageArgs({ operation: 'send', session: 'copilot:/s2', message: 'x', delivery: 'later' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedPrimaryChat), /delivery/);
+		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedPrimaryChat), /expectedRevision/);
 	});
 
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {

@@ -145,7 +145,7 @@ suite.skip('AgentHostChangesetService', () => {
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -694,7 +694,7 @@ suite.skip('AgentHostChangesetService', () => {
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false));
 			return sessionStr;
 		}
 

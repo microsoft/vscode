@@ -196,7 +196,7 @@ suite('AgentHostChangesetStrategy', () => {
 			modifiedAt: '2026-09-01T00:00:00.000Z',
 			workingDirectories: options.workingDirectories ?? ['file:///repo'],
 		});
-		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
 		state.dispatchServerAction(session, { type: ActionType.SessionReady });
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);

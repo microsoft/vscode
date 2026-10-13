@@ -1702,9 +1702,10 @@ suite('CopilotAgent', () => {
 		const { agent, fileService } = createTestAgentContext(disposables, { userHome: URI.file('/home/test') });
 		try {
 			const session = AgentSession.uri('copilotcli', 'agent-host-session-id');
-			chatBackings(agent).set(buildDefaultChatUri(session).toString(), { sdkSessionId: 'sdk-conversation-id' });
+			// The host stores the primary chat under its session and a peer under itself.
+			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { configurationResource: session, resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
-			chatBackings(agent).set(peerChat.toString(), { sdkSessionId: 'peer-sdk-conversation-id' });
+			await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));
 			const defaultStateFile = URI.file('/home/test/.copilot/session-state/sdk-conversation-id/events.jsonl');
 			const peerStateFile = URI.file('/home/test/.copilot/session-state/peer-sdk-conversation-id/events.jsonl');
 			const provider = disposables.add(new InMemoryFileSystemProvider());
@@ -16538,7 +16539,7 @@ suite('CopilotAgent', () => {
 				// default-chat backing. The session has not been resumed into a live
 				// entry yet, so a rename in this window must still correlate on the
 				// SDK id, recovered from the backing rather than a live session.
-				await agent.materializeChat(defaultChatUri(session), session, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
+				await agent.materializeChat(defaultChatUri(session), { configurationResource: session, resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 				const now = new Date().toISOString();
 				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -17053,7 +17054,7 @@ suite('CopilotAgent', () => {
 				const provider = disposables.add(new InMemoryFileSystemProvider());
 				disposables.add(fileService.registerProvider(Schemas.file, provider));
 				const session = AgentSession.uri('copilotcli', 'closed-session');
-				chatBackings(agent).set(buildDefaultChatUri(session).toString(), { sdkSessionId: 'closed-sdk-session' });
+				await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { configurationResource: session, resource: session }, JSON.stringify({ sdkSessionId: 'closed-sdk-session' }));
 				const stateFile = URI.file('/home/test/.copilot/session-state/closed-sdk-session/events.jsonl');
 				await fileService.writeFile(stateFile, VSBuffer.fromString('persisted event'));
 				const outputDirectory = URI.file('/debug-output');

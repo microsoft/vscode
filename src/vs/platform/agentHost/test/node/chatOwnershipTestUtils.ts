@@ -31,12 +31,18 @@ export function createTestChatOwnershipService(stateManager: AgentHostStateManag
 }
 
 /** An ownership service answering only live owner lookups, for consumers that need nothing else. */
-export function createLiveChatOwnership(getChatOwner: (chat: string) => string | undefined): IAgentHostChatOwnershipService {
+export function createLiveChatOwnership(getChatOwner: (chat: string) => string | undefined, getPrimaryChat: (session: string) => string | undefined): IAgentHostChatOwnershipService {
 	return new class extends mock<IAgentHostChatOwnershipService>() {
 		override readonly onDidRegisterChat = Event.None;
 		override readonly onDidUnregisterChat = Event.None;
 		override getChatOwner(chat: string): string | undefined {
 			return getChatOwner(chat);
+		}
+		override getPrimaryChat(session: string): string | undefined {
+			return getPrimaryChat(session);
+		}
+		override isPrimaryChat(session: string, chat: string): boolean {
+			return getPrimaryChat(session) === chat;
 		}
 		override findRetainedChatOwner(): string | undefined {
 			return undefined;

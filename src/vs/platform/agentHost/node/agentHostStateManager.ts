@@ -109,6 +109,15 @@ export function deriveLegacyPrimaryChat(session: URI | ResourceURI): string {
 	return buildDefaultChatUri(session);
 }
 
+/**
+ * Whether `chat` is registered and is the recorded primary chat of the
+ * session that owns it. An unregistered chat is no session's primary chat.
+ */
+export function isRegisteredPrimaryChat(ownership: { getChatOwner(chat: URI): URI | undefined; isPrimaryChat(session: URI, chat: URI): boolean }, chat: URI): boolean {
+	const owner = ownership.getChatOwner(chat);
+	return owner !== undefined && ownership.isPrimaryChat(owner, chat);
+}
+
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
 	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
 }
