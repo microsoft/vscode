@@ -1305,7 +1305,7 @@ suite('localModel process control (§5.8 stop sequence)', () => {
 			};
 			return child;
 		});
-		const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+		const env = { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string')), ELECTRON_RUN_AS_NODE: '1' };
 		const child = failingKill.spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { cwd: os.tmpdir(), env, detached: false });
 		const delivered = child.kill('SIGKILL');
 		const exitedAfterFailedKill = await Promise.race([child.exited.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 300))]);
