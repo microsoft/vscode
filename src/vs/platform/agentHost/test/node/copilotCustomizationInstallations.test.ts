@@ -763,6 +763,65 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('plans a caller-supplied MCP card without catalog search', async () => {
+		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.example%2Fdemo/versions/latest';
+		let catalogSearches = 0;
+		let planRequest: Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0] | undefined;
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+					override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => {
+						catalogSearches++;
+						throw new Error('Unexpected catalog search');
+					};
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async request => {
+						planRequest = request;
+						throw new Error('Stop after planning request');
+					};
+				}(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, () => 'policy-session'));
+
+		await assert.rejects(service.prepare(URI.parse('agent-host-copilotcli:///session'), {
+			mediaType: 'application/mcp-server+json',
+			identifier: 'default:io.example/demo',
+			displayName: 'Demo MCP',
+			description: 'Demo',
+			version: '1.0.0',
+			itemUrl: cardUrl,
+			installation: {
+				kind: 'mcp',
+				source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl },
+			},
+		}), /Stop after planning request/);
+
+		assert.deepStrictEqual({ catalogSearches, planRequest }, {
+			catalogSearches: 0,
+			planRequest: {
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: [
+						'catalog-search-credential-required',
+						'catalog-search-session-bound',
+						'catalog-selection',
+						'mcp-install-planning',
+						'multiple-transport-choice',
+					],
+				},
+				policySessionId: 'policy-session',
+				scope: 'user',
+				source: {
+					kind: 'card',
+					card: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl },
+				},
+			},
+		});
+	});
+
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const catalogue = {

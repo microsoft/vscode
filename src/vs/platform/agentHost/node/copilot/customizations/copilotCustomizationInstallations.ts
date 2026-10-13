@@ -104,6 +104,8 @@ type CatalogSearchSucceeded = Extract<CatalogSearchResult, { readonly kind: 'suc
 type CatalogCandidate = CatalogSearchSucceeded['candidates'][number];
 type InstallableCatalogCandidate = Extract<CatalogCandidate, { readonly kind: 'ai-skill' | 'mcp-server' }>;
 type CatalogCandidateKind = InstallableCatalogCandidate['kind'];
+type McpPlanInstallSource = Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0]['source'];
+type McpServerCardReference = Parameters<CopilotClient['rpc']['mcp']['prepareInstall']>[0]['source'];
 
 class RetainedCatalogSelection extends Disposable {
 	constructor(
@@ -340,6 +342,16 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (request.installation.kind !== 'skill' && request.installation.kind !== 'mcp') {
 			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
 		}
+		if (request.installation.kind === 'mcp' && request.installation.source) {
+			const card = request.installation.source;
+			return this.prepareMcpInstall(
+				client,
+				policySessionId,
+				request,
+				{ kind: 'card', card },
+				card,
+			);
+		}
 		let retained = request.selectionId ? this.catalogSelections.deleteAndLeak(request.selectionId) : undefined;
 		if (request.selectionId && (!retained || retained.client !== client || retained.policySessionId !== policySessionId)) {
 			retained?.dispose();
@@ -433,6 +445,24 @@ export class CopilotCustomizationInstallations extends Disposable {
 		) {
 			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
+		return this.prepareMcpInstall(
+			client,
+			policySessionId,
+			request,
+			{ kind: 'candidate', candidateHandle: candidate.handle, searchId },
+			{ kind: 'url', mediaType: candidate.mediaType, url: candidate.source.url },
+			candidate,
+		);
+	}
+
+	private async prepareMcpInstall(
+		client: ICopilotCustomizationInstallationClient,
+		policySessionId: string,
+		request: IAgentCustomizationInstallationRequest,
+		source: McpPlanInstallSource,
+		card: McpServerCardReference,
+		candidate?: InstallableCatalogCandidate,
+	): Promise<IAgentCustomizationInstallationReview> {
 		const planned = await client.rpc.mcp.planInstall({
 			contract: {
 				...catalogContract,
@@ -440,7 +470,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			},
 			policySessionId,
 			scope: 'user',
-			source: { kind: 'candidate', candidateHandle: candidate.handle, searchId },
+			source,
 		});
 		if (planned.kind !== 'planned') {
 			throw this.resultError(planned, localize('copilot.customizationInstallation.mcpPlanFailed', "The SDK could not prepare this MCP server installation."));
@@ -459,7 +489,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			policySessionId,
 			planHandle: planned.plan.planHandle,
 			choiceId: choice.choiceId,
-			source: { kind: 'url', mediaType: candidate.mediaType, url: candidate.source.url },
+			source: card,
 			inputs: [],
 			secrets: [],
 			secretStorage: 'keychain',
@@ -491,8 +521,8 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& Date.parse(confirmation.expiresAt) === operation.expiresAtEpochMs
 				&& structuralEquals(confirmation.review.review.identity, planned.plan.identity)
 				&& structuralEquals(confirmation.review.review.provenance, planned.plan.provenance)
-				&& structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
-				&& isMatchingCandidateCatalogue(confirmation.review.review.catalogue, candidate)
+				&& (!candidate || structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
+					&& isMatchingCandidateCatalogue(confirmation.review.review.catalogue, candidate))
 				&& structuralEquals(confirmation.review.review.target, planned.plan.target)
 				&& structuralEquals(confirmation.review.review.policy, planned.plan.policy)
 				&& structuralEquals(confirmation.review.review.selectedChoice, choice)

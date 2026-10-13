@@ -340,7 +340,8 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly itemUrl?: string;
 	readonly selectionId?: string;
 	readonly installation:
-	| { readonly kind: 'skill' | 'mcp' }
+	| { readonly kind: 'skill' }
+	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }

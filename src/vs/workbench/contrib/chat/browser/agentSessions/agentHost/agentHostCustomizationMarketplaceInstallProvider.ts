@@ -76,6 +76,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource)) {
 			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable.");
 		}
+		if (installation?.kind === 'mcpGallery' && !installation.cardUrl) {
+			return localize('agentHost.customizationInstall.mcpGalleryIdentityUnavailable', "This MCP Gallery entry does not provide the server card URL required for Copilot installation.");
+		}
 		if ((installation?.kind === 'skill' || installation?.kind === 'mcp') && !resource.externalUrl && !resource.url) {
 			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
 		}
@@ -332,6 +335,30 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind === 'plugin') {
 			throw new Error(this.getInstallUnavailableMessage(resource)!);
 		}
+		if (installation?.kind === 'mcpGallery') {
+			if (!installation.cardUrl) {
+				throw new Error(this.getInstallUnavailableMessage(resource)!);
+			}
+			if (!await this.resolveAuthentication()) {
+				throw new CancellationError();
+			}
+			this.throwIfCancelled(token);
+			const review = await this.prepare(sessionResource, {
+				mediaType: resource.mediaType,
+				identifier: resource.identifier,
+				displayName: resource.displayName,
+				description: resource.description,
+				version: resource.version,
+				itemUrl: installation.cardUrl,
+				installation: {
+					kind: 'mcp',
+					source: { kind: 'url', mediaType: CustomizationMarketplaceMediaType.McpServer, url: installation.cardUrl },
+				},
+			}, token);
+			await this.confirmAndApply(review, token);
+			this.pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
+			return;
+		}
 		if (installation?.kind !== 'skill' && installation?.kind !== 'mcp') {
 			throw new Error(localize('agentHost.customizationInstall.unsupported', "The selected agent does not support installing this customization through its SDK."));
 		}
@@ -455,7 +482,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const registryIcon = installation.kind === 'mcp' ? getGitHubMcpRegistryIcon(catalogue?.itemUrl, catalogue?.resourceId) : undefined;
 		return {
 			sourceId: this.getSourceId(catalogue?.source),
-			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? installation.installationId,
+			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? (installation.kind === 'mcp' ? installation.serverName : installation.installationId),
 			displayName: catalogue?.displayName ?? (installation.kind === 'skill' ? installation.name : installation.serverName),
 			description: catalogue?.description ?? '',
 			mediaType: installation.mediaType,
@@ -474,13 +501,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private captureCatalogAssociation(installations: readonly IRecordedCustomizationMarketplaceResource[]): void {
 		const pending = this.pendingCatalogInstall;
 		const pendingInstallation = pending?.resource.installation;
-		if (!pending || pendingInstallation?.kind !== 'providerCatalog') {
+		if (!pending || pendingInstallation?.kind !== 'providerCatalog' && pendingInstallation?.kind !== 'mcpGallery') {
 			return;
 		}
+		const resourceKind = pendingInstallation.kind === 'providerCatalog' ? pendingInstallation.resourceKind : 'mcp';
 		const candidates = installations.filter(installation =>
 			!!installation.installationId
 			&& !pending.previousIds.has(installation.installationId)
-			&& installation.state.target.kind === pendingInstallation.resourceKind
+			&& installation.state.target.kind === resourceKind
 		);
 		if (candidates.length === 1 && candidates[0].installationId) {
 			this.catalogAssociations.set(candidates[0].installationId, pending.resource);

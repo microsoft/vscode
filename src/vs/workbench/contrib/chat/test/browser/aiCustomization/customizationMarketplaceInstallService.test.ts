@@ -348,18 +348,23 @@ suite('CustomizationMarketplaceInstallService', () => {
 			icon: Codicon.copilot,
 			marketplaceInstallProvider: options.installProvider,
 		};
+		const localHarnessDescriptor: IHarnessDescriptor = {
+			id: 'local-harness',
+			label: 'Local Harness',
+			icon: Codicon.copilot,
+		};
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, 'test-harness');
 			override readonly activeSessionResource = observableValue(this, URI.parse('test-harness:///session'));
-			override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [harnessDescriptor]);
+			override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [harnessDescriptor, localHarnessDescriptor]);
 			override getActiveDescriptor(): IHarnessDescriptor {
 				return this.findHarnessById(this.activeHarness.get())!;
 			}
-			override getDescriptorForSession(): IHarnessDescriptor {
-				return harnessDescriptor;
+			override getDescriptorForSession(session: URI): IHarnessDescriptor | undefined {
+				return this.findHarnessById(session.scheme);
 			}
 			override findHarnessById(id: string): IHarnessDescriptor | undefined {
-				return id === harnessDescriptor.id ? harnessDescriptor : undefined;
+				return id === harnessDescriptor.id ? harnessDescriptor : id === localHarnessDescriptor.id ? localHarnessDescriptor : undefined;
 			}
 		}();
 		const sentimentChanges = store.add(new Emitter<void>());
@@ -409,7 +414,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		return {
 			service, instantiationService, fileService, storageService, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, mcpService, mcpChanges,
 			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, entitlementService, sentimentChanges, configurationService,
-			telemetryService,
+			telemetryService, harnessService,
 		};
 	}
 
@@ -802,6 +807,61 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}, {
 			providerInstalls: 0,
 			trustChecks: [marketplaceReference.canonicalId],
+		});
+	});
+
+	test('routes MCP Gallery installs to the active harness provider', async () => {
+		const installs: ICustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(_session: URI, candidate: ICustomizationMarketplaceResource): Promise<void> { installs.push(candidate); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const candidate = {
+			...galleryMcpResource(),
+			installation: {
+				...galleryMcpResource().installation,
+				cardUrl: 'https://configured.registry.test/v0.1/servers/io.example%2Fdemo/versions/latest',
+			},
+		} as ICustomizationMarketplaceResource;
+
+		await fixture.service.install(candidate);
+
+		assert.deepStrictEqual({
+			providerInstalls: installs.map(item => item.identifier),
+			localInstalls: fixture.mcpService.installs.length,
+		}, {
+			providerInstalls: ['gallery-mcp-resource'],
+			localInstalls: 0,
+		});
+	});
+
+	test('refreshes MCP Gallery ownership when switching away from an empty provider', async () => {
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const candidate = galleryMcpResource();
+		fixture.mcpService.local = [mcpServer('io.example/demo', McpServerInstallState.Installed, 'io.example/demo', 'https://configured.registry.test')];
+		const providerState = fixture.service.getInstallState(candidate);
+		let changes = 0;
+		const listener = store.add(fixture.service.onDidChange(() => changes++));
+
+		fixture.harnessService.activeSessionResource.set(URI.parse('local-harness:///session'), undefined);
+		const localState = fixture.service.getInstallState(candidate);
+		listener.dispose();
+
+		assert.deepStrictEqual({ providerState, localState, changes }, {
+			providerState: { kind: 'unavailable', message: 'This MCP Gallery entry does not provide the server card URL required for Copilot installation.' },
+			localState: { kind: 'installed', target: { kind: 'mcp', id: 'mcp:io.example/demo:1.0.0' } },
+			changes: 1,
 		});
 	});
 
@@ -1248,6 +1308,35 @@ suite('CustomizationMarketplaceInstallService', () => {
 				configuredLookups: [],
 				installs: 0,
 				uninstalls: 0,
+			});
+		});
+
+		test('rejects a stale custom gallery entry before invoking the harness provider', async () => {
+			let providerInstalls = 0;
+			const provider = new class implements ICustomizationMarketplaceInstallProvider {
+				readonly onDidChange = Event.None;
+				getInstallations() { return Promise.resolve([]); }
+				async install(): Promise<void> { providerInstalls++; }
+				repair(): Promise<void> { throw new Error('Unexpected repair'); }
+				uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+			}();
+			const fixture = await createFixture({ enabled: true, installProvider: provider });
+			await fixture.configurationService.setUserConfiguration(mcpGalleryServiceUrlConfig, 'https://new.registry.test');
+			fixture.mcpGalleryManifestService.customUrl = 'https://new.registry.test';
+			const candidate = {
+				...galleryMcpResource(),
+				installation: {
+					...galleryMcpResource().installation,
+					cardUrl: 'https://configured.registry.test/v0.1/servers/io.example%2Fdemo/versions/latest',
+				},
+			} as ICustomizationMarketplaceResource;
+
+			const state = fixture.service.getInstallState(candidate);
+			await assert.rejects(fixture.service.install(candidate), /registry changed/);
+
+			assert.deepStrictEqual({ state, providerInstalls }, {
+				state: { kind: 'unavailable', message: 'The MCP registry changed after \'io.example/demo\' was discovered. Refresh Browse and try again.' },
+				providerInstalls: 0,
 			});
 		});
 
