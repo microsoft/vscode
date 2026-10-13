@@ -18,12 +18,7 @@ function readLocalTurnId(value: unknown): string | undefined {
 	return typeof value === 'string' && value.length > 0 && value.length <= MAX_LOCAL_TURN_ID_LENGTH ? value : undefined;
 }
 
-/**
- * Reads how a turn executed with respect to the on-device model from
- * `_meta['vscode.localModel']` on its usage report. Returns `undefined` when
- * the key is absent or `execution` is not a known value; unknown optional
- * fields are dropped.
- */
+/** Reads `_meta['vscode.localModel']` from a turn's usage; `undefined` when absent or `execution` is unknown. */
 export function readLocalModelTurnExecution(usage: UsageInfo | undefined): ILocalTurnExecution | undefined {
 	const value = usage?._meta?.[LOCAL_MODEL_META_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {

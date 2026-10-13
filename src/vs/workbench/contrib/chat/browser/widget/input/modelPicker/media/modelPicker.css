@@ -784,10 +784,7 @@
 	pointer-events: auto;
 }
 
-/* An on-device row reads like a model row: the check when selected, the name, an Active
- * badge while it is loaded or loading, then the summary button that opens the model's
- * Details, where what can be done in its state is. The name gives way before the summary,
- * whose values are what it says. */
+/* An on-device row reads like a model row; the name gives way before the summary, whose values are what it says. */
 .action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model > .title {
 	flex: 0 1 auto;
 	min-width: 0;
@@ -825,8 +822,7 @@
 	display: block;
 }
 
-/* A model that isn't downloaded can't be selected: its name reads as disabled, and its Download
- * button (or the download's progress) always shows where a model's summary would be. */
+/* A model that isn't downloaded can't be selected: its name reads as disabled and its Download button always shows. */
 .action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.chat-model-picker-local-model-unavailable > .title {
 	color: var(--vscode-disabledForeground);
 }
@@ -839,9 +835,7 @@
 	display: block;
 }
 
-/* Download (or Set Up) is the one thing such a row offers, so it reads as an action rather than
- * a state: in the link color and without the chevron of a page, Download with its icon. It stays
- * quiet at rest; only hover adds the background. Progress, Paused and errors stay quiet states. */
+/* Download (or Set Up) reads as an action: link color, no page chevron, background only on hover. Progress, Paused and errors stay quiet states. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model-call .action-list-item-toolbar .action-item .action-label {
 	padding-right: var(--vscode-spacing-size40);
 	color: var(--vscode-textLink-foreground);
@@ -1247,11 +1241,7 @@
 }
 
 /* An on-device model's detail page: plain sections of text and buttons beneath the card's header. */
-/*
- * Its first header icon shows the model's state. While the model is busy, the in-progress
- * indicator of an active session stands in for the icon of the step's stop action, which
- * keeps the slot's width, and gives way to it on hover or keyboard focus while it can be chosen.
- */
+/* Its first header icon shows the state; while busy, the in-progress indicator stands in for the stop action's icon until hover or keyboard focus. */
 .chat-local-model-card-header .action-label.chat-local-model-card-state-action {
 	position: relative;
 }

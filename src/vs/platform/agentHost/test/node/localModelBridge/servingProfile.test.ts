@@ -237,7 +237,7 @@ suite('localModel servingProfile', () => {
 	test('eligibility telemetry uses measurements for numbers and booleans', () => {
 		const events: { name: string; data: unknown }[] = [];
 		reportLocalModelEligibility({ publicLog2: (name: string, data?: unknown) => events.push({ name, data }) } as never, {
-			stage: 'llamaCpp', fitClass: 'full', visible: true, target: 'win32-arm64', runtimeSource: 'path', backend: 'vulkan', profile: 'full-gpu',
+			stage: 'llamaCpp', fitClass: 'full', visible: true, target: 'win32-arm64', backend: 'vulkan', profile: 'full-gpu',
 			gpuMemoryGiB: 67.2, requiredGpuGiB: 57.7, systemMemoryGiB: 118.5, stageADeltaGiB: -35.4, confidence: 'measured',
 		});
 		assert.deepStrictEqual(events.map(event => event.name), ['localModel.eligibility']);

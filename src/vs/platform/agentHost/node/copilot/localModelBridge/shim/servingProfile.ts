@@ -8,10 +8,7 @@ import type { LocalModelDeviceConfidence, LocalModelServingProfile } from '../..
 import { FOOTPRINT_FACTOR, FOOTPRINT_OVERHEAD_BYTES, NEAR_FIT_RATIO, REDUCED_CONTEXT_STEPS, SYSTEM_MEMORY_RESERVE_MIN_BYTES, SYSTEM_MEMORY_RESERVE_RATIO } from './constants.js';
 import type { ILlamaPresetOverrides } from './llamaPreset.js';
 
-/*
- * Fit classes, device listing and serving profiles. All
- * pure: inputs are measured quantities, outputs are decisions.
- */
+/* Fit classes, device listing and serving profiles; all pure. */
 
 const MIB = 1024 * 1024;
 
@@ -49,11 +46,7 @@ export function backendFromDeviceName(name: string): string {
 	}
 }
 
-/**
- * Parses `--list-devices` output (b11459/b11462 format):
- * `<name>: <description> (<total> MiB, <free> MiB free)` per device, or
- * `(none)`. Returns `undefined` when the output is not recognizable. Pure.
- */
+/** Parses `--list-devices` output (`<name>: <description> (<total> MiB, <free> MiB free)` per device, or `(none)`); `undefined` when unrecognizable. Pure. */
 export function parseListDevicesOutput(output: string): ILlamaDevice[] | undefined {
 	const lines = output.split(/\r?\n/);
 	const headerIndex = lines.findIndex(line => /^\s*Available devices:\s*$/.test(line));
@@ -100,10 +93,7 @@ export interface IFitInput {
 	readonly requiredBytes: number;
 	/** Total system RAM. */
 	readonly systemMemoryBytes: number;
-	/**
-	 * System RAM already counted in {@link capacityBytes} (unified memory: the
-	 * GPU-addressable share; discrete GPU: 0).
-	 */
+	/** System RAM already counted in {@link capacityBytes}: the GPU-addressable share with unified memory, 0 for a discrete GPU. */
 	readonly systemMemoryCountedAsGpuBytes: number;
 }
 
@@ -112,11 +102,7 @@ export function spareSystemBytes(input: Pick<IFitInput, 'systemMemoryBytes' | 's
 	return Math.max(0, input.systemMemoryBytes - input.systemMemoryCountedAsGpuBytes - systemMemoryReserveBytes(input.systemMemoryBytes));
 }
 
-/**
- * The fit classification: `full` when capacity >= required; `near` when capacity
- * >= required x NEAR_FIT_RATIO and the gap fits in spare system memory;
- * `unknown` without a capacity; otherwise `insufficient`. Pure.
- */
+/** Fit: `full` when capacity >= required; `near` when capacity >= required x NEAR_FIT_RATIO and the gap fits in spare RAM; `unknown` without capacity; else `insufficient`. Pure. */
 export function computeFitClass(input: IFitInput): LocalModelFitResult {
 	if (input.capacityBytes === undefined || !Number.isFinite(input.capacityBytes) || input.capacityBytes <= 0) {
 		return 'unknown';
@@ -142,11 +128,7 @@ export function isOfferableFit(fit: LocalModelFitResult): fit is 'full' | 'near'
 export interface IFootprintInput {
 	readonly primaryBytes: number;
 	readonly draftBytes: number;
-	/**
-	 * Everything the served model(s) allocate besides the weights at the
-	 * serving context: KV cache, sliding-window and recurrent state, and compute
-	 * buffers (`estimateContextMemoryBytes`), for the primary and, when used, the draft.
-	 */
+	/** What the served models allocate besides weights at the serving context (`estimateContextMemoryBytes`), for the primary and any draft. */
 	readonly contextBytes: number;
 }
 
@@ -184,11 +166,8 @@ export function reducedContextSteps(ctxSize: number): number[] {
 }
 
 /**
- * Chooses the serving profile: `full-gpu` for `full`, `near-fit`
- * for `near`, and - only within `near-fit`, when the KV cache at the selected
- * context is what pushes the device out of `near` - the reduced-context
- * steps (262144 -> 131072 -> 65536, never below 65536). Returns `undefined`
- * when nothing fits (`insufficientMemory`). Pure.
+ * Chooses the serving profile: `full-gpu` for `full`, `near-fit` for `near`, and within `near-fit`, when the KV cache is
+ * what pushes the device out of `near`, the reduced-context steps. `undefined` when nothing fits. Pure.
  */
 export function chooseServingProfile(input: IServingProfileInput): IServingProfile | undefined {
 	const fitAt = (requiredBytes: number) => computeFitClass({
@@ -227,11 +206,7 @@ export type ServerStartFailureKind = 'outOfMemory' | 'unsupportedFeature' | 'uns
 
 export type ServerDowngradeStep = 'flashAttnAuto' | 'dropSpeculative' | 'reduceContext';
 
-/**
- * Where a server failed: while loading (before its first completion), during
- * the warm-up (its first completion, before it is declared ready), or on the
- * first request it served after it was ready.
- */
+/** Where a server failed: while loading, during the warm-up (its first completion), or on the first request it served after ready. */
 export type ServerFailurePhase = 'load' | 'warmUp' | 'firstRequest';
 
 /** The failed start's context for {@link classifyServerStartFailure}. */
@@ -245,15 +220,9 @@ export interface IServerFailureContext {
 const LLAMA_ABORT_PATTERN = /ggml_assert\(|ggml_abort|\babort\(\)|assertion .*failed|terminate called/;
 
 /**
- * Classifies a failed start from the stderr tail; only `outOfMemory`,
- * `unsupportedFeature` and `specUnsupported` trigger the downgrade sequence.
- * `unsupportedArchitecture` (llama.cpp's `unknown model architecture: '<name>'`)
- * is checked first: no profile can load a model whose architecture the build
- * doesn't know. `specUnsupported`: with speculative decoding on, a server that
- * dies on its first completion (any exit during the warm-up, or a
- * `GGML_ASSERT`/abort on the first request after ready) has a broken
- * speculative path in this build (a DFlash build that loads, reports healthy,
- * then asserts in `llama-graph.cpp` on the first request). Pure.
+ * Classifies a failed start from the stderr tail; only `outOfMemory`, `unsupportedFeature` and `specUnsupported` trigger
+ * downgrades. `unsupportedArchitecture` is checked first, as no profile can load it. With speculative decoding on, a
+ * server dying on its first completion is `specUnsupported`: some DFlash builds load, report healthy, then assert. Pure.
  */
 export function classifyServerStartFailure(stderrTail: string, context?: IServerFailureContext): ServerStartFailureKind {
 	const text = stderrTail.toLowerCase();
@@ -273,12 +242,9 @@ export function classifyServerStartFailure(stderrTail: string, context?: IServer
 }
 
 /**
- * The start-failure downgrade sequence, as a pure step function:
- * 1. `flash-attn on` -> `auto`; 2. drop speculative decoding; 3. step the
- * context down (never below 65536). Each step is tried once, in order. A
- * `specUnsupported` failure goes straight to step 2 (once); later failures
- * continue the sequence. Generic crashes (`other`) and an unknown
- * architecture never downgrade. Returns `undefined` when no step is left.
+ * The start-failure downgrade sequence: 1. `flash-attn on` -> `auto`; 2. drop speculative decoding; 3. step the context
+ * down. Each step is tried once, in order; `specUnsupported` goes straight to step 2. Generic crashes and unknown
+ * architectures never downgrade. `undefined` when no step is left. Pure.
  */
 export function nextServerDowngrade(current: IServerStartConfig, attempted: readonly ServerDowngradeStep[], failure: ServerStartFailureKind): { readonly step: ServerDowngradeStep; readonly config: IServerStartConfig } | undefined {
 	if (failure === 'other' || failure === 'unsupportedArchitecture') {
@@ -321,11 +287,7 @@ export interface IAdmissionResult {
 	readonly neededBytes: number;
 }
 
-/**
- * Admission right before spawn: `full-gpu` needs the footprint in the
- * device's free budget; `near-fit` needs at least NEAR_FIT_RATIO of it on the
- * device and the rest in free system memory above the OS reserve. Pure.
- */
+/** Admission right before spawn: `full-gpu` needs the footprint in the device's free budget; `near-fit` needs NEAR_FIT_RATIO of it there and the rest in free RAM above the reserve. Pure. */
 export function checkAdmission(input: IAdmissionInput): IAdmissionResult {
 	const spareRam = Math.max(0, input.systemFreeBytes - systemMemoryReserveBytes(input.systemMemoryBytes));
 	if (input.profile === 'full-gpu') {
@@ -336,11 +298,7 @@ export function checkAdmission(input: IAdmissionInput): IAdmissionResult {
 	return { admitted, availableBytes: available, neededBytes: input.footprintBytes };
 }
 
-/**
- * System memory still free, beyond the reserve, once an admitted model is
- * loaded. A unified-memory device takes the whole footprint from it; otherwise
- * only what `near-fit` keeps outside the GPU does. Pure.
- */
+/** Free system memory beyond the reserve once an admitted model loads: unified memory takes the whole footprint, otherwise only what `near-fit` keeps off the GPU. Pure. */
 export function spareSystemMemoryAfterAdmission(input: IAdmissionInput, unifiedMemory: boolean): number {
 	const spareRam = Math.max(0, input.systemFreeBytes - systemMemoryReserveBytes(input.systemMemoryBytes));
 	const fromSystem = unifiedMemory ? input.footprintBytes : input.profile === 'full-gpu' ? 0 : Math.max(0, input.footprintBytes - input.deviceFreeBytes);
@@ -357,7 +315,6 @@ export interface ILocalModelEligibilityEvent {
 	fitClass: LocalModelFitResult;
 	visible: boolean;
 	target: string;
-	runtimeSource: string;
 	backend: string;
 	profile: LocalModelServingProfile | 'none';
 	gpuMemoryGiB: number;
@@ -372,7 +329,6 @@ type LocalModelEligibilityClassification = {
 	fitClass: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fit class of the device for the model: full, near, insufficient or unknown.' };
 	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model was offered on this device.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Platform and architecture, for example win32-arm64.' };
-	runtimeSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the llama.cpp binary came from: setting, env, path, packageManager or none.' };
 	backend: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'GPU backend of the selected device (vulkan, metal, ...) or none.' };
 	profile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Serving profile: full-gpu, near-fit or none.' };
 	gpuMemoryGiB: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'GPU capacity used for the fit decision, in GiB (rounded to 0.1).' };

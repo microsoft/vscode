@@ -11,13 +11,9 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import * as path from '../../../../../../base/common/path.js';
 
 /*
- * An exclusive lock owned by the operating system, like VS Code's single
- * instance check (`claimInstance` in `code/electron-main/main.ts`): the holder
- * listens on a static IPC handle, so the lock is released when the holder's
- * process dies. Windows uses a named pipe and Linux an abstract socket: both
- * vanish with their holder. Elsewhere (macOS) the handle is a socket file that
- * a holder which died leaves behind: such a stale lock is reported and only
- * removed by an explicit user action ({@link clearStaleProcessLock}).
+ * An exclusive OS-owned lock, like VS Code's single instance check: the holder listens on a static IPC handle. Windows
+ * named pipes and Linux abstract sockets vanish with their holder; on macOS a dead holder leaves a socket file behind,
+ * reported as stale and only removed by an explicit user action ({@link clearStaleProcessLock}).
  */
 
 /** A held lock; disposing it releases the lock. */
@@ -39,12 +35,7 @@ const PROCESS_LOCK_VERSION = '1';
 const MAX_SCOPE_DIR_LENGTH = 80;
 const PROBE_TIMEOUT_MS = 5_000;
 
-/**
- * Takes the lock `type` of `scopeDir`, or returns `'busy'` while a live
- * process (this one included) holds it, or `'stale'` for a socket file that
- * nothing listens on: its holder died (macOS). Rejects when the handle cannot
- * be listened on for another reason.
- */
+/** Takes the lock `type` of `scopeDir`; `'busy'` while a live process (this one included) holds it, `'stale'` for a socket file nobody listens on (macOS). */
 export async function acquireProcessLock(scopeDir: string, type: string, options: IProcessLockOptions = {}): Promise<IProcessLock | 'busy' | 'stale'> {
 	const platform = options.platform ?? process.platform;
 	const handle = await lockHandle(scopeDir, type, platform);
@@ -56,11 +47,8 @@ export async function acquireProcessLock(scopeDir: string, type: string, options
 }
 
 /**
- * Removes the socket file of a `'stale'` lock, only once a fresh probe finds
- * nothing answering on it; `false` when something answers (a live holder) or
- * the file could not be removed. Only for an explicit user action: two
- * instances clearing at the same moment could still remove each other's new
- * socket (accepted).
+ * Removes a stale lock's socket file once a fresh probe finds nothing answering; `false` otherwise. Only for an explicit
+ * user action: two instances clearing at once could remove each other's new socket (accepted).
  */
 export async function clearStaleProcessLock(scopeDir: string, type: string, options: IProcessLockOptions = {}): Promise<boolean> {
 	const platform = options.platform ?? process.platform;
@@ -79,12 +67,7 @@ export async function clearStaleProcessLock(scopeDir: string, type: string, opti
 	}
 }
 
-/**
- * The lock's handle, derived from the canonical identity of `scopeDir` so
- * every spelling of one directory shares it: its real path (created first),
- * lowercased where file systems are case-insensitive by default (on a rare
- * case-sensitive volume that can only cause a false `busy`).
- */
+/** The lock's handle, from `scopeDir`'s canonical identity (real path, lowercased where file systems are case-insensitive by default), so every spelling shares it. */
 async function lockHandle(scopeDir: string, type: string, platform: NodeJS.Platform): Promise<string> {
 	let dir: string;
 	try {

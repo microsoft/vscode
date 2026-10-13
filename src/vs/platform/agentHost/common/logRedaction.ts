@@ -5,12 +5,7 @@
 
 import type { IHeaders } from '../../../base/parts/request/common/request.js';
 
-/*
- * Redaction of signed URLs before anything reaches a log: model downloads use
- * Azure Storage SAS URLs, whose query is a credential. Request URLs, response
- * headers (a redirect's `Location`) and error messages that echo a URL all go
- * through these helpers.
- */
+/* Redaction of signed URLs before anything reaches a log: Azure Storage SAS queries are credentials, and URLs, headers and error messages may echo them. */
 
 /** Query parameters that carry signed-URL credentials (Azure Storage SAS, user delegation keys, response overrides). */
 const SIGNED_QUERY_PARAMETERS = ['sig', 'se', 'sp', 'sv', 'skoid', 'sktid', 'skt', 'ske', 'sks', 'skv', 'st', 'sr', 'srt', 'ss', 'spr', 'rscd', 'rsct', 'rscc', 'rsce', 'rscl', 'saoid', 'suoid', 'scid', 'sdd', 'ses'];
@@ -46,11 +41,7 @@ export function redactUrlForLog(url: string): string {
 	return query < 0 ? url : `${url.slice(0, query)}?<redacted>`;
 }
 
-/**
- * `text` with every ASCII percent escape decoded once. Malformed escapes and
- * escapes of non-ASCII bytes stay as they are: parameter names and URL
- * delimiters are ASCII, and decoding never throws. Pure.
- */
+/** `text` with every ASCII percent escape decoded once; malformed or non-ASCII escapes stay as they are, and it never throws. Pure. */
 function percentDecodeAsciiOnce(text: string): string {
 	return text.replace(/%[0-9a-f]{2}/gi, escape => {
 		const code = parseInt(escape.slice(1), 16);
@@ -91,12 +82,7 @@ function hasSignedSearchParameter(text: string): boolean {
 	return false;
 }
 
-/**
- * Whether `text` holds a signed-URL parameter (`sig=`, `se=`, ...) anywhere,
- * also percent-encoded (`%73ig=`, `sig%3D`, nested up to three times) and,
- * when `text` is a URL, as a parsed query parameter name in any case. A
- * benign query (`?view=full`) is not one. Pure.
- */
+/** Whether `text` holds a signed-URL parameter anywhere, also percent-encoded (nested up to three times) or as a parsed query name in any case. Pure. */
 export function hasSignedUrlParameter(text: string): boolean {
 	return percentDecodedForms(text).some(form => SIGNED_PARAMETER_TEST.test(form) || hasSignedSearchParameter(form));
 }
@@ -107,11 +93,8 @@ export function hasUrlUserinfo(text: string): boolean {
 }
 
 /**
- * Free text (an error message, a header value) with the query of every
- * absolute URL and the userinfo of every URL removed, every remaining
- * signed-URL parameter (key and value) replaced by `<redacted>`, and every
- * token whose percent-decoded form holds one ({@link hasSignedUrlParameter})
- * replaced by `<redacted>` as a whole. Pure.
+ * Free text with the query of every absolute URL and the userinfo of every URL removed, and every remaining signed-URL
+ * parameter, or token whose decoded form holds one, replaced by `<redacted>`. Pure.
  */
 export function redactSecretsInText(text: string): string {
 	return text
@@ -121,13 +104,7 @@ export function redactSecretsInText(text: string): string {
 		.replace(PERCENT_ENCODED_TOKEN, token => hasSignedUrlParameter(token) || hasUrlUserinfo(token) ? '<redacted>' : token);
 }
 
-/**
- * Free text with every absolute URL reduced to its origin (`https://host`):
- * no userinfo, path, query or fragment, then redacted as text
- * ({@link redactSecretsInText}). For shared infrastructure logs (the proxy
- * resolver) that would otherwise echo model download URLs, whose paths and
- * queries must never be logged. Pure.
- */
+/** Free text with every absolute URL reduced to its origin, then redacted as text; for shared infrastructure logs that would otherwise echo download URLs. Pure. */
 export function originsOnlyForLog(text: string): string {
 	return redactSecretsInText(text.replace(ABSOLUTE_URL, (...args: unknown[]) => {
 		const groups = args[args.length - 1] as { readonly scheme: string; readonly host: string };
@@ -140,13 +117,9 @@ const CREDENTIAL_SCAN_MAX_DEPTH = 8;
 const CREDENTIAL_SCAN_MAX_NODES = 10_000;
 
 /**
- * Whether `value` holds credential-like text anywhere: a signed-URL parameter
- * (also percent-encoded, {@link hasSignedUrlParameter}) or a URL with
- * userinfo, in any string value, array item or object key. Walks at most
- * {@link CREDENTIAL_SCAN_MAX_DEPTH} levels and {@link CREDENTIAL_SCAN_MAX_NODES}
- * nodes and fails closed beyond them. The check at every Agent Host storage
- * boundary of the on-device model code: no SAS URL or token is
- * persisted. Pure.
+ * Whether `value` holds credential-like text (a signed-URL parameter or a URL with userinfo) in any string, array item
+ * or object key; fails closed beyond the scan bounds. The check at every Agent Host storage boundary of the on-device
+ * model code, so no SAS URL or token is persisted. Pure.
  */
 export function containsCredential(value: unknown): boolean {
 	let budget = CREDENTIAL_SCAN_MAX_NODES;
@@ -192,11 +165,7 @@ export function reportDroppedStorageEntries(log: { warn(message: string): void }
 	}
 }
 
-/**
- * A copy of `headers` for logs: URL-valued headers (`Location`,
- * `Content-Location`, ...) lose their query; every other value is redacted as
- * text ({@link redactSecretsInText}). The original headers are unchanged. Pure.
- */
+/** A copy of `headers` for logs: URL-valued headers lose their query and every other value is redacted as text. Pure. */
 export function redactHeadersForLog(headers: IHeaders): IHeaders {
 	const result: IHeaders = Object.create(null);
 	for (const [name, value] of Object.entries(headers)) {
@@ -206,18 +175,9 @@ export function redactHeadersForLog(headers: IHeaders): IHeaders {
 	return result;
 }
 
-/** The message of a thrown value for logs and user-visible diagnostics, with signed URLs redacted. Pure. */
-export function errorMessageForLog(error: unknown): string {
-	return redactSecretsInText(error instanceof Error ? error.message : String(error));
-}
-
 const LOGGABLE_CODE = /^[A-Za-z0-9_.-]{1,64}$/;
 
-/**
- * The code (`ENOENT`, `network`, ...) or else the name (`TypeError`) of a
- * thrown value, for logs: never its message, which may hold a URL, a query or
- * a path. Pure.
- */
+/** The code, or else the name, of a thrown value for logs; never its message, which may hold a URL or a path. Pure. */
 export function errorCodeForLog(error: unknown): string {
 	const code = error && typeof error === 'object' ? (error as { readonly code?: unknown }).code : undefined;
 	if (typeof code === 'string' && LOGGABLE_CODE.test(code)) {
@@ -230,23 +190,14 @@ export function errorCodeForLog(error: unknown): string {
 }
 
 /**
- * Whether `value` may serve as a registry identifier (an asset name, a
- * version, a family or CAPI id): `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` and no
- * signed-URL parameter. The one check for every identifier read from a
- * registry, the catalog cache, a foreign `manifest.json`/`active.json`, or
- * persisted provider state and setup records; a record that fails it is
- * dropped, never repaired. Pure.
+ * Whether `value` may serve as a registry identifier: `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` with no signed-URL parameter.
+ * The one check for every identifier read from a registry, cache, foreign manifest or persisted state. Pure.
  */
 export function isSafeRegistryIdentifier(value: unknown): value is string {
 	return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value) && !hasSignedUrlParameter(value);
 }
 
-/**
- * One of our own identifiers (a family or CAPI id) for a log line when it
- * passes {@link isSafeRegistryIdentifier}; `placeholder` otherwise. Registry
- * free text (display names, asset names, versions, file names) is never
- * logged. Pure.
- */
+/** One of our own identifiers for a log line when it passes {@link isSafeRegistryIdentifier}, else `placeholder`; registry free text is never logged. Pure. */
 export function identifierForLog(value: unknown, placeholder = '<family>'): string {
 	return isSafeRegistryIdentifier(value) ? value : placeholder;
 }

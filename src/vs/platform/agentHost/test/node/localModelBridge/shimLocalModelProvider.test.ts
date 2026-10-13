@@ -17,14 +17,14 @@ import * as path from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
-import { computeLocalModelConsentScope, deriveLocalModelReadiness, type ILocalModelConsent, type ILocalModelErrorV1, type ILocalModelFamilyV1, type LocalModelPublicRegistryState } from '../../../common/localModel.js';
+import { computeLocalModelConsentScope, deriveLocalModelReadiness, type ILocalModelConsent, type ILocalModelFamilyV1, type LocalModelPublicRegistryState } from '../../../common/localModel.js';
 import type { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import type { ILocalModelLiveConfig } from '../../../node/copilot/localModelBridge/localModelProvider.js';
 import { OPTIONAL_SPEC_FLAGS, REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, REQUIRED_LLAMA_SERVER_FLAGS } from '../../../node/copilot/localModelBridge/shim/constants.js';
 import { LocalModelDownloadError, type ILocalModelDownloadRequest, type ILocalModelDownloadResult } from '../../../node/copilot/localModelBridge/shim/downloader.js';
 import type { IGpuAdapter, IGpuMemoryProbeOutcome } from '../../../node/copilot/localModelBridge/shim/gpuMemoryProbe.js';
 import { buildSyntheticGguf, readGgufArchitectureFromFile, type GgufArchitectureRead, type IGgufModelMetadata } from '../../../node/copilot/localModelBridge/shim/gguf.js';
-import type { ILlamaRuntimeResolution, LlamaArchitectureCheck, LlamaDeviceListing } from '../../../node/copilot/localModelBridge/shim/llamaCppInstaller.js';
+import { getLlamaServerKey, type ILlamaRuntimeResolution, type LlamaArchitectureSupport } from '../../../node/copilot/localModelBridge/shim/llamaCppRuntime.js';
 import { parseLlamaPreset } from '../../../node/copilot/localModelBridge/shim/llamaPreset.js';
 import { computeContentId, deriveCapiId, isAutoCapable, LocalModelCatalogError, mergeCatalogFamilies, sourceKey, type ICatalogInstallFact, type ICatalogSnapshot, type ILocalModelProfile, type IMergedCatalogFamily, type IResolvedModelVersion } from '../../../node/copilot/localModelBridge/shim/modelCatalog.js';
 import type { IProcessRunner } from '../../../node/copilot/localModelBridge/shim/processRunner.js';
@@ -199,74 +199,42 @@ const extraModels: ITestModel[] = [];
 
 class FakeRuntime implements IShimRuntime {
 	present = true;
-	approved = true;
-	/** The detected llama-server lacks required features (`runtimeTooOld`). */
+	/** The setting's llama-server lacks required features (`runtimeTooOld`). */
 	tooOld = false;
-	/** The approved file was replaced: its hash no longer carries the approval. */
-	binaryChanged = false;
 	binary = LLAMA_SERVER;
-	sha256 = 'b'.repeat(64);
+	/** Modification time of the binary: another one is another build ({@link getLlamaServerKey}). */
+	mtimeMs = 1;
 	devices: ILlamaDevice[] = [N1X_VULKAN];
 	/** `--spec-type` values of the build (`draft-dflash` enables DFlash). */
 	specTypes: string[] = [];
 	readonly topologyKeys: (string | undefined)[] = [];
-	readonly approvals: string[] = [];
-	verifications = 0;
 	/** Holds the next `listDevices` call (one shot) until completed. */
 	listDevicesGate: DeferredPromise<void> | undefined;
 	listDevicesWaiting = false;
-	/** The detected binary isn't approved yet: reported by its file only (no probe, no version) until approved. */
-	unprobedUntilApproved = false;
-	/** The detected binary's runtime digest can't be computed: offered only to explain why, never approvable. */
-	unverifiable = false;
-	/** Qualification (the probe after approval) fails with this error. */
-	qualificationError: ILocalModelErrorV1 | undefined;
-	readonly approveCalls: { readonly realPath: string; readonly expectedSha256: string }[] = [];
-	/** `--list-devices` executions (only ever of a binary whose fresh hash carries its approval). */
-	deviceListings = 0;
-
-	private get _approved(): boolean {
-		return this.approved && !this.binaryChanged;
-	}
-
-	/** The file's hash right now. */
-	get currentSha256(): string {
-		return this.binaryChanged ? 'c'.repeat(64) : this.sha256;
-	}
 
 	async resolve(options: { readonly topologyKey?: string }): Promise<ILlamaRuntimeResolution> {
 		this.topologyKeys.push(options.topologyKey);
-		if (this.present && this.tooOld) {
-			const resolution = this._resolution();
-			return { runtime: { ...resolution.runtime, trust: 'none' }, candidate: resolution.candidate, approved: false, error: { code: 'runtimeTooOld', message: 'The llama-server is too old.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } };
+		if (!this.present) {
+			return { runtime: {} };
 		}
-		return this.present ? this._resolution() : { runtime: { source: 'none', trust: 'none' }, approved: false };
-	}
-	async approve(realPath: string, expectedSha256: string): Promise<boolean> {
-		this.approveCalls.push({ realPath, expectedSha256 });
-		if (expectedSha256 !== this.currentSha256) {
-			return false;
+		if (this.tooOld) {
+			return { runtime: {}, error: { code: 'runtimeTooOld', message: 'The llama-server is too old.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } };
 		}
-		this.approvals.push(realPath);
-		this.sha256 = this.currentSha256;
-		this.approved = true;
-		this.binaryChanged = false;
-		return true;
+		return {
+			runtime: { version: '0.6.0-dev (b11459)', backend: 'vulkan' },
+			capability: {
+				realPath: this.binary, mtimeMs: this.mtimeMs, size: 1, libraries: '', topologyKey: '',
+				version: { version: '0.6.0-dev', build: 11459, commit: 'f498f864f' },
+				flags: [...REQUIRED_LLAMA_SERVER_FLAGS, ...REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, '--flash-attn', '--ctx-checkpoints', ...(this.specTypes.length ? OPTIONAL_SPEC_FLAGS : [])],
+				specTypes: [...this.specTypes],
+				devices: this.devices.map(({ name, description, totalBytes, backend }) => ({ name, description, totalBytes, backend })),
+			},
+		};
 	}
-	async verifyApproval(candidate: { readonly realPath: string }): Promise<boolean> {
-		this.verifications++;
-		const verified = this._approved && candidate.realPath === this.binary;
-		if (verified) {
-			this.afterVerified?.();
-		}
-		return verified;
-	}
-	/** Runs once a fresh-hash verification succeeded (e.g. to replace the file right after it). */
-	afterVerified: (() => void) | undefined;
-	async listDevices(candidate: { readonly realPath: string }): Promise<LlamaDeviceListing> {
-		this.verifications++;
-		if (!this._approved || candidate.realPath !== this.binary) {
-			return { kind: 'untrusted' };
+	/** Only the current {@link binary} runs: another one (the old target of a retargeted link) is gone. */
+	async listDevices(realPath: string): Promise<ILlamaDevice[] | undefined> {
+		if (realPath !== this.binary) {
+			return undefined;
 		}
 		const gate = this.listDevicesGate;
 		if (gate) {
@@ -275,54 +243,19 @@ class FakeRuntime implements IShimRuntime {
 			await gate.p;
 			this.listDevicesWaiting = false;
 		}
-		this.deviceListings++;
-		const devices = this.devices.map(device => ({ ...device }));
-		const after = this.afterListDevices;
-		this.afterListDevices = undefined;
-		after?.();
-		return { kind: 'devices', devices };
+		return this.devices.map(device => ({ ...device }));
 	}
-	/** Runs once after the next successful `--list-devices` (e.g. to replace the file right after admission probed it). */
-	afterListDevices: (() => void) | undefined;
 	/** What the architecture probe answers per architecture (default `supported`). */
-	readonly architectureSupport = new Map<string, LlamaArchitectureCheck>();
+	readonly architectureSupport = new Map<string, LlamaArchitectureSupport>();
 	readonly architectureProbes: string[] = [];
-	async checkArchitectureSupport(_candidate: { readonly realPath: string }, architecture: string): Promise<LlamaArchitectureCheck> {
+	async checkArchitectureSupport(_file: unknown, architecture: string): Promise<LlamaArchitectureSupport> {
 		this.architectureProbes.push(architecture);
 		return this.architectureSupport.get(architecture) ?? 'supported';
 	}
-	/** The user put a usable llama.cpp on PATH (or set the setting): it is found, approved and qualifies. */
+	/** The user set up a usable llama.cpp: it is resolved and qualifies. */
 	provide(): void {
 		this.present = true;
-		this.approved = true;
-		this.binaryChanged = false;
 		this.tooOld = false;
-	}
-	private _resolution(): ILlamaRuntimeResolution {
-		const approved = this._approved;
-		const sha256 = this.currentSha256;
-		const candidate = { path: this.binary, realPath: this.binary, source: 'path' as const };
-		if (!approved && this.unverifiable) {
-			return { runtime: { source: 'path', trust: 'pendingApproval', path: this.binary }, candidate, approved: false, error: { code: 'runtimeUnverifiable', message: 'VS Code can\'t verify the llama-server.', actions: ['openSettings'] } };
-		}
-		if (!approved && this.unprobedUntilApproved) {
-			return { runtime: { source: 'path', trust: 'pendingApproval', path: this.binary, sha256, size: 1 }, candidate, approved: false, unprobed: { size: 1, sha256 } };
-		}
-		if (approved && this.qualificationError) {
-			return { runtime: { source: 'path', trust: 'none' }, candidate, approved: false, error: this.qualificationError };
-		}
-		return {
-			runtime: { source: 'path', version: '0.6.0-dev (b11459)', backend: 'vulkan', ...(approved ? { trust: 'userApproved' } : { trust: 'pendingApproval', path: this.binary, sha256, size: 1 }) },
-			candidate,
-			capability: {
-				realPath: this.binary, mtimeMs: 1, size: 1, sha256, topologyKey: '',
-				version: { version: '0.6.0-dev', build: 11459, commit: 'f498f864f' },
-				flags: [...REQUIRED_LLAMA_SERVER_FLAGS, ...REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, '--flash-attn', '--ctx-checkpoints', ...(this.specTypes.length ? OPTIONAL_SPEC_FLAGS : [])],
-				specTypes: [...this.specTypes],
-				devices: this.devices.map(({ name, description, totalBytes, backend }) => ({ name, description, totalBytes, backend })),
-			},
-			approved,
-		};
 	}
 }
 class FakeGpuProbe {
@@ -442,8 +375,6 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		readonly persistent?: IPersistent;
 		readonly models?: ITestModel[];
 		readonly runtime?: FakeRuntime;
-		/** A real runtime (for example the production host's) used instead of the fake one. */
-		readonly realRuntime?: IShimRuntime;
 		readonly gpu?: FakeGpuProbe;
 		readonly downloader?: FakeDownloader;
 		readonly server?: Partial<IFakeLlamaServerOptions>;
@@ -488,7 +419,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			createCatalog: () => catalog,
 			store: new LocalModelStore({ copilotHome: persistent.home, storage }),
 			downloader,
-			runtime: options.realRuntime ?? runtime,
+			runtime,
 			gpuProbe: gpu,
 			createSupervisor: log => {
 				const supervisor = new ServerSupervisor({
@@ -562,6 +493,37 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		return versionDir;
 	}
 
+	/** Sets `model` up and waits until it is the active model and ready. */
+	async function setUpActive(harness: Harness, model: ITestModel): Promise<void> {
+		await setUpAndWait(harness, model);
+		await waitFor(() => activeReady(harness, model.profile.familyId));
+	}
+
+	/** A started harness with MAI active and ready, and Example Coder installed. */
+	async function createTwoInstalled(options: IHarnessOptions = {}): Promise<Harness> {
+		const harness = createHarness(options);
+		await start(harness);
+		await setUpActive(harness, MAI);
+		await setUpAndWait(harness, EXAMPLE);
+		return harness;
+	}
+
+	/** A setup of `familyId` whose download is interrupted by a quit (after a Cancel, with `cancel`); returns its operation id. */
+	async function interruptDownload(persistent: IPersistent, options: { readonly familyId?: string; readonly cancel?: boolean; readonly runtime?: FakeRuntime } = {}): Promise<string> {
+		const familyId = options.familyId ?? EXAMPLE_ID;
+		const first = createHarness({ persistent, runtime: options.runtime, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
+		await start(first);
+		await first.provider.setUp(familyId, consent(first, familyId), CancellationToken.None);
+		await waitFor(() => first.downloader.requests.length === 1);
+		const operationId = family(first, familyId)!.operation!.id;
+		if (options.cancel) {
+			first.provider.cancel(operationId);
+		}
+		first.provider.dispose();
+		await settle();
+		return operationId;
+	}
+
 	test('projects offerable families with the Stage B fit, entry and usage; a model that does not fit stays hidden', async () => {
 		const huge = createModel('huge-model', 'Huge Model', { recommendedVramBytes: 200 * GIB, minLlamaCppBuild: 11000 });
 		const harness = createHarness({ models: [MAI, EXAMPLE, huge] });
@@ -578,7 +540,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		}, {
 			schemaVersion: 1,
 			device: { id: 'Vulkan0', capacityBytes: 68784 * MIB, confidence: 'measured', vendor: 'nvidia' },
-			runtime: { source: 'path', version: '0.6.0-dev (b11459)', backend: 'vulkan', trust: 'userApproved' },
+			runtime: { version: '0.6.0-dev (b11459)', backend: 'vulkan' },
 			catalog: { state: 'ready', registries: { azureml: 'ready' } },
 			families: [row(MAI), row(EXAMPLE)],
 			useInAuto: true,
@@ -596,8 +558,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				phases.push(phase);
 			}
 		}));
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, MAI);
 		const status = harness.provider.status.get();
 		const child = harness.spawner.processes[0];
 		const request = harness.downloader.requests[0];
@@ -635,30 +596,10 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('a second install does not become active; it gets a ready offer and an inactive row', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
-		assert.deepStrictEqual({
-			active: harness.provider.status.get().active?.familyId,
-			example: { owned: family(harness, EXAMPLE_ID)?.install?.owned, readyOfferId: family(harness, EXAMPLE_ID)?.readyOfferId },
-			spawns: harness.spawner.processes.length,
-			rows: harness.provider.getModelRows().map(row => [row.id, row.active]),
-		}, {
-			active: MAI_ID,
-			example: { owned: true, readyOfferId: `${EXAMPLE_ID}:${EXAMPLE.resolved.contentId}` },
-			spawns: 1,
-			rows: [['example-coder', false], ['MAI-Code-1.1-Flash', true]],
-		});
-	});
-
 	test('with Use in Auto off (the default), an Auto session never loads the stopped model; turning it on loads it', async () => {
 		const harness = createHarness();
 		await start(harness, liveConfig({ useInAuto: false }));
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, MAI);
 		await harness.provider.stop({ stopNow: true });
 		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
 		harness.provider.onAutoSessionStarted();
@@ -675,8 +616,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	test('model A keeps serving while B downloads; Cancel and Resume target B only', async () => {
 		const harness = createHarness();
 		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, MAI);
 		harness.downloader.gate = new DeferredPromise<void>();
 		await harness.provider.setUp(EXAMPLE_ID, consent(harness, EXAMPLE_ID), CancellationToken.None);
 		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.phase === 'downloading');
@@ -733,12 +673,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 	test('Resume after the registry was unreachable queries it again instead of pausing on the stale state', async () => {
 		const persistent = createPersistent();
-		const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		first.provider.dispose();
-		await settle();
+		await interruptDownload(persistent);
 
 		// The next start finds the registry unreachable: the interrupted download cannot auto-resume.
 		const second = createHarness({ persistent, models: [] });
@@ -769,12 +704,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 	test('content changed while paused asks again instead of resuming', async () => {
 		const persistent = createPersistent();
-		const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		first.provider.dispose();
-		await settle();
+		await interruptDownload(persistent);
 
 		const example2 = createModel('example-coder', 'Example Coder', { version: '2', minLlamaCppBuild: 11000 });
 		extraModels.push(example2);
@@ -798,14 +728,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 	test('review-15 (b): restored provider state drops every family id, CAPI id, target or record that is unsafe or credential-bearing; nothing of it is published or written back', async () => {
 		const persistent = createPersistent();
-		const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		const operationId = family(first, EXAMPLE_ID)!.operation!.id;
-		first.provider.cancel(operationId);
-		first.provider.dispose();
-		await settle();
+		const operationId = await interruptDownload(persistent, { cancel: true });
 
 		const stored = persistent.storage.get('localModel.provider') as { operations: Record<string, unknown>[]; families: Record<string, unknown>; setUp: Record<string, string>; consent: string[]; hidden: string[]; measured: Record<string, unknown> };
 		const valid = stored.operations[0] as { target: Record<string, unknown> };
@@ -855,14 +778,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 	test('a persisted replace operation of the removed Switch to Public Build is dropped on load: it neither resumes nor downloads, and is not written back', async () => {
 		const persistent = createPersistent();
-		const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		const operationId = family(first, EXAMPLE_ID)!.operation!.id;
-		first.provider.cancel(operationId);
-		first.provider.dispose();
-		await settle();
+		const operationId = await interruptDownload(persistent, { cancel: true });
 
 		const stored = persistent.storage.get('localModel.provider') as { operations: Record<string, unknown>[] };
 		persistent.storage.set('localModel.provider', {
@@ -888,7 +804,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('a DFlash build that crashes on the first completion serves without speculative decoding, persisted per runtime digest and content: later starts skip DFlash; another build tries it again', async () => {
+	test('a DFlash build that crashes on the first completion serves without speculative decoding, persisted per llama-server build and content: later starts skip DFlash; another build tries it again', async () => {
 		const dflash = createModel('dflash-coder', 'DFlash Coder', { minLlamaCppBuild: 11000 }, undefined, { dflash: true });
 		extraModels.push(dflash);
 		const familyId = dflash.profile.familyId;
@@ -901,9 +817,9 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			},
 		};
 		const persistent = createPersistent();
-		const dflashRuntime = (sha256: string) => Object.assign(new FakeRuntime(), { specTypes: ['draft-dflash'], sha256 });
-		const run = async (sha256: string, setUp: boolean) => {
-			const harness = createHarness({ persistent, models: [dflash], runtime: dflashRuntime(sha256), server: crashWithDflash });
+		const dflashRuntime = (mtimeMs: number) => Object.assign(new FakeRuntime(), { specTypes: ['draft-dflash'], mtimeMs });
+		const run = async (mtimeMs: number, setUp: boolean) => {
+			const harness = createHarness({ persistent, models: [dflash], runtime: dflashRuntime(mtimeMs), server: crashWithDflash });
 			// Each published load: its step, why it is a retry, and whether a comparable load's duration is known.
 			const loads: string[] = [];
 			store.add(autorun(reader => {
@@ -932,16 +848,16 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			await settle();
 			return result;
 		};
-		const first = await run('b'.repeat(64), true);
+		const first = await run(1, true);
 		const persisted = (persistent.storage.get('localModel.provider') as { speculativeUnsupported: string[] }).speculativeUnsupported;
-		const restarted = await run('b'.repeat(64), false);
-		const otherBuild = await run('d'.repeat(64), false);
+		const restarted = await run(1, false);
+		const otherBuild = await run(2, false);
 		assert.deepStrictEqual({ first, persisted, restarted, otherBuild }, {
 			first: {
 				drafts: ['Vulkan0', null], dflashSupported: false, downgrades: ['specUnsupported'],
 				loads: ['loading/-/false', 'warmingUp/-/false', 'loading/withoutSpeculativeDecoding/false', 'warmingUp/withoutSpeculativeDecoding/false'],
 			},
-			persisted: [`${'b'.repeat(64)}:${dflash.resolved.contentId}`],
+			persisted: [`${getLlamaServerKey({ realPath: LLAMA_SERVER, size: 1, mtimeMs: 1, libraries: '' })}:${dflash.resolved.contentId}`],
 			// Skipping DFlash because of the recorded crash is a normal load, with the duration of the last load without it.
 			restarted: { drafts: [null], dflashSupported: false, downgrades: [], loads: ['loading/-/true', 'warmingUp/-/true'] },
 			// No load with DFlash ever completed; the retry without it expects the duration of the loads without it.
@@ -953,11 +869,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('concurrent swap requests share one operation; the drain has no timeout and Stop Now ends it', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		const supervisor = harness.supervisor();
 		const lease = supervisor.acquireLease(supervisor.state.get().identity!)!;
 		const operationIds = new Set<string>();
@@ -1005,8 +917,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ models: [big], metadata: () => metadata, server: { nCtx: 131_072 } });
 		extraModels.push(big);
 		await start(harness);
-		await setUpAndWait(harness, big);
-		await waitFor(() => activeReady(harness, bigId));
+		await setUpActive(harness, big);
 		const row = () => {
 			const { maxContextWindow, maxPromptTokens, maxOutputTokens, thinking } = harness.provider.getModelRows()[0];
 			return { maxContextWindow, maxPromptTokens, maxOutputTokens, thinking };
@@ -1090,8 +1001,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			await waitFor(() => activeReady(harness, model.profile.familyId) && !family(harness, model.profile.familyId)?.operation);
 		};
 		await start(harness);
-		await setUpAndWait(harness, hybrid);
-		await waitFor(() => activeReady(harness, hybrid.profile.familyId));
+		await setUpActive(harness, hybrid);
 		await setUpAndWait(harness, plain);
 		await activate(plain);
 		freeSystemMemory = 0;
@@ -1109,8 +1019,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ models: [big], metadata: () => ({ ...DEFAULT_METADATA, contextLength: 262_144 }), server: { nCtx: 131_072 } });
 		extraModels.push(big);
 		await start(harness);
-		await setUpAndWait(harness, big);
-		await waitFor(() => activeReady(harness, bigId));
+		await setUpActive(harness, big);
 		const supervisor = harness.supervisor();
 		const lease = supervisor.acquireLease(supervisor.state.get().identity!)!;
 		await harness.provider.setContextSize(bigId, 262_144);
@@ -1132,8 +1041,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ models: [big], metadata: () => ({ ...DEFAULT_METADATA, contextLength: 262_144 }), server: { nCtx: 131_072 } });
 		extraModels.push(big, big2);
 		await start(harness);
-		await setUpAndWait(harness, big);
-		await waitFor(() => activeReady(harness, bigId));
+		await setUpActive(harness, big);
 		harness.catalog.models = [big2];
 		harness.catalog.contentIds.set(sourceKey(big2.profile), big2.resolved.contentId);
 		await harness.provider.refreshCatalog();
@@ -1175,8 +1083,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ models: [big], metadata: () => metadata, server: { nCtx: 262_144 } });
 		extraModels.push(big);
 		await start(harness);
-		await setUpAndWait(harness, big);
-		await waitFor(() => activeReady(harness, bigId));
+		await setUpActive(harness, big);
 		await harness.provider.stop({ stopNow: false });
 		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
 		await harness.provider.setContextSize(bigId, 262_144);
@@ -1229,11 +1136,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('a swap with no running responses never reports waiting for them: the old server unloading is part of loading; once its model is active, it isn\'t named as the one loaded next', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		// The old server takes a while to exit, as a large model's does while it frees its GPU memory.
 		harness.spawner.processes[0].exitDelayMs = 50;
 		const phases: (string | undefined)[] = [];
@@ -1261,11 +1164,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('Cancel of a load is reflected at once (the operation ends, the server shows stopping before its process is gone); repeated Cancels do nothing more', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		harness.server.loading = process => process === harness.spawner.processes[1];
 		await harness.provider.makeActive(EXAMPLE_ID);
 		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.phase === 'loading' && harness.provider.status.get().active?.load?.step === 'loading');
@@ -1366,8 +1265,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ runtime, gpu, models: [large] });
 		await start(harness);
 		const offer = family(harness, MAI_ID)?.offer;
-		await setUpAndWait(harness, large);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, large);
 		const child = harness.spawner.processes[0];
 		assert.deepStrictEqual({ device: harness.provider.status.get().device, fit: offer?.fit, bound: [child.arg('--device'), child.arg('--split-mode')] }, {
 			device: { id: 'Vulkan1', capacityBytes: 96 * GIB, confidence: 'measured', vendor: 'nvidia' },
@@ -1444,38 +1342,82 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('without llama.cpp, MAI is downloaded but not loaded; selecting it gives directions (Get llama.cpp, Open Settings, Retry); once llama.cpp is found, Retry loads it', async () => {
-		const runtime = new FakeRuntime();
-		runtime.present = false;
-		const harness = createHarness({ runtime });
-		harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'found', architecture: 'maion-coder' });
-		await start(harness);
-		const offered = family(harness, MAI_ID);
-		await setUpAndWait(harness, MAI);
-		const downloaded = { active: harness.provider.status.get().active, install: !!family(harness, MAI_ID)?.install, downloads: harness.downloader.requests.length, probes: [...runtime.architectureProbes], spawns: harness.spawner.processes.length };
-
-		await harness.provider.makeActive(MAI_ID).catch(() => undefined);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error' || harness.provider.status.get().active?.server === 'error');
-		const failed = family(harness, MAI_ID)?.operation;
-		const error = failed?.state === 'error' ? failed.error : harness.provider.status.get().active?.error;
-
-		// The user installs llama.cpp and selects Retry.
-		runtime.provide();
-		if (failed?.state === 'error') {
-			await harness.provider.retry(failed.id);
-		} else {
-			await harness.provider.start();
-		}
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
-		assert.deepStrictEqual({ offered: { offer: !!offered?.offer, entry: offered?.entry && { modelFilesPresent: offered.entry.modelFilesPresent } }, downloaded, error, spawns: harness.spawner.processes.length }, {
+	test('without a usable llama.cpp (none, or too old), a model is downloaded but not loaded; loading it gives directions (Get llama.cpp, Open Settings, Retry); once one is found, Retry or selecting the model again loads it and the failed change no longer reports its error', async () => {
+		let homes = 0;
+		const run = async (unusable: 'notFound' | 'tooOld', recover: 'retry' | 'selectAgain') => {
+			const runtime = new FakeRuntime();
+			runtime.present = unusable !== 'notFound';
+			runtime.tooOld = unusable === 'tooOld';
+			const harness = createHarness({ runtime, persistent: createPersistent(`home-${++homes}`) });
+			harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'found', architecture: 'maion-coder' });
+			await start(harness);
+			const offered = family(harness, MAI_ID);
+			await setUpAndWait(harness, MAI);
+			const status = harness.provider.status.get();
+			const downloaded = { active: status.active, runtime: status.runtime, downloads: harness.downloader.requests.length, probes: [...runtime.architectureProbes], spawns: harness.spawner.processes.length };
+			await harness.provider.makeActive(MAI_ID).catch(() => undefined);
+			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			const failed = recovery(harness, MAI_ID);
+			const operation = family(harness, MAI_ID)!.operation!;
+			runtime.provide();
+			if (recover === 'retry') {
+				await harness.provider.retry(operation.id);
+			} else {
+				// As the detail page's Load does: Start, not the operation's Retry.
+				await harness.provider.start();
+			}
+			await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+			return { offered: { offer: !!offered?.offer, entry: offered?.entry && { modelFilesPresent: offered.entry.modelFilesPresent } }, downloaded, error: operation.error, failed, recovered: recovery(harness, MAI_ID), spawns: harness.spawner.processes.length };
+		};
+		const directions = ['getLlamaCpp', 'openSettings', 'retry'];
+		const expected = (error: { readonly code: string; readonly message: string }) => ({
 			offered: { offer: true, entry: { modelFilesPresent: false } },
-			downloaded: { active: undefined, install: true, downloads: 1, probes: [], spawns: 0 },
-			error: {
-				code: 'runtimeNotFound',
-				message: 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.',
-				actions: ['getLlamaCpp', 'openSettings', 'retry'],
-			},
+			downloaded: { active: undefined, runtime: {}, downloads: 1, probes: [], spawns: 0 },
+			error: { ...error, actions: directions },
+			failed: { active: MAI_ID, server: 'error', operation: { kind: 'swap', state: 'error', code: error.code }, readiness: 'error' },
+			recovered: { active: MAI_ID, server: 'ready', operation: undefined, readiness: 'ready' },
 			spawns: 1,
+		});
+		const notFound = { code: 'runtimeNotFound', message: 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.' };
+		assert.deepStrictEqual({
+			notFoundRetry: await run('notFound', 'retry'),
+			notFoundSelectAgain: await run('notFound', 'selectAgain'),
+			tooOldRetry: await run('tooOld', 'retry'),
+		}, {
+			notFoundRetry: expected(notFound),
+			notFoundSelectAgain: expected(notFound),
+			tooOldRetry: expected({ code: 'runtimeTooOld', message: 'The llama-server is too old.' }),
+		});
+	});
+
+	test('every load resolves the setting\'s llama-server again: once an upgrade retargets its link (the old target gone), Start runs the new target; while the link dangles the load fails with directions, and Retry runs the build it points at next', async () => {
+		const runtime = new FakeRuntime();
+		const harness = createHarness({ runtime });
+		await start(harness);
+		await setUpActive(harness, MAI);
+		const resolvesBefore = runtime.topologyKeys.length;
+		const stopped = async () => {
+			await harness.provider.stop({ stopNow: false });
+			await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		};
+		await stopped();
+		runtime.binary = 'C:\\llama\\b12000\\llama-server.exe';
+		await harness.provider.start();
+		await waitFor(() => activeReady(harness, MAI_ID));
+		await stopped();
+		runtime.present = false;
+		await harness.provider.start();
+		await waitFor(() => harness.provider.status.get().active?.server === 'error');
+		const dangling = harness.provider.status.get().active?.error;
+		runtime.binary = 'C:\\llama\\b12100\\llama-server.exe';
+		runtime.provide();
+		// The Retry of a server error.
+		await harness.provider.start();
+		await waitFor(() => activeReady(harness, MAI_ID));
+		assert.deepStrictEqual({ spawned: harness.spawner.processes.map(child => child.file), dangling: dangling && [dangling.code, dangling.actions], resolves: runtime.topologyKeys.length - resolvesBefore }, {
+			spawned: [LLAMA_SERVER, 'C:\\llama\\b12000\\llama-server.exe', 'C:\\llama\\b12100\\llama-server.exe'],
+			dangling: ['runtimeNotFound', ['getLlamaCpp', 'openSettings', 'retry']],
+			resolves: 3,
 		});
 	});
 
@@ -1505,12 +1447,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 	test('a setup agreed to only for model files already on this device never downloads: when the files are gone, the automatic resume and Resume ask again (consentChanged)', async () => {
 		const persistent = createPersistent();
-		const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		first.provider.dispose();
-		await settle();
+		await interruptDownload(persistent);
 		const stored = persistent.storage.get('localModel.provider') as { operations: Record<string, unknown>[] };
 		const downloadRecord = stored.operations[0];
 		/** Restarts with `record` in a home where EXAMPLE's files aren't (or are no longer) on disk. */
@@ -1546,11 +1483,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('a device that stops being an NVIDIA GPU while a swap waits for running responses: the incoming model never loads, the server stops, and neither a start nor a direct request loads one', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		const turn = harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
@@ -1581,7 +1514,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 	test('serving compatibility: a supported architecture, an inconclusive probe or an unknown architecture continue to the download', async () => {
 		let homes = 0;
-		const run = async (read: GgufArchitectureRead, support?: LlamaArchitectureCheck) => {
+		const run = async (read: GgufArchitectureRead, support?: LlamaArchitectureSupport) => {
 			const runtime = new FakeRuntime();
 			if (support) {
 				runtime.architectureSupport.set('qwen3', support);
@@ -1636,71 +1569,44 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('load time: a model whose architecture llama.cpp does not know fails with runtimeUnsupportedModel once, without downgrade retries', async () => {
-		const harness = createHarness({ server: { loading: true } });
-		// The pre-download read could not tell (the registry refused the Range request).
-		harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'unknown', reason: 'http' });
-		harness.spawner.behavior = child => {
-			child.writeStderr(STOCK_UNKNOWN_ARCHITECTURE_STDERR);
-			child.exit(1);
+	test('load time: a model whose architecture llama.cpp does not know fails with runtimeUnsupportedModel once, without downgrade retries, naming the change a build needs when the architecture is unpackaged (maion-coder)', async () => {
+		const run = async (architecture: string) => {
+			const harness = createHarness({ server: { loading: true }, metadata: () => ({ ...DEFAULT_METADATA, architecture }), persistent: createPersistent(`home-${architecture}`) });
+			// The pre-download read could not tell (the registry refused the Range request).
+			harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'unknown', reason: 'http' });
+			harness.spawner.behavior = child => {
+				child.writeStderr(STOCK_UNKNOWN_ARCHITECTURE_STDERR);
+				child.exit(1);
+			};
+			await start(harness);
+			await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
+			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			const status = harness.provider.status.get();
+			return {
+				operation: family(harness, MAI_ID)?.operation?.error,
+				active: { server: status.active?.server, error: status.active?.error },
+				spawns: harness.spawner.processes.length,
+				server: harness.telemetry.events.filter(event => event.name === 'localModel.server' && (event.data.event === 'profileDowngraded' || event.data.event === 'startFailed')).map(event => `${event.data.event}:${event.data.errorCode}`),
+			};
 		};
-		await start(harness);
-		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
-		const status = harness.provider.status.get();
-		assert.deepStrictEqual({
-			operation: family(harness, MAI_ID)?.operation?.error,
-			active: { server: status.active?.server, error: status.active?.error?.code },
-			spawns: harness.spawner.processes.length,
-			server: harness.telemetry.events.filter(event => event.name === 'localModel.server' && (event.data.event === 'profileDowngraded' || event.data.event === 'startFailed')).map(event => `${event.data.event}:${event.data.errorCode}`),
-		}, {
-			operation: {
+		const expected = (change: string) => {
+			const error = {
 				code: 'runtimeUnsupportedModel',
-				message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.',
+				message: `This llama.cpp build (0.6.0-dev (b11459)) can't run Example Flash 1.0. Install a llama.cpp build that ${change}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`,
 				actions: ['getLlamaCpp', 'openSettings', 'retry'],
-			},
-			active: { server: 'error', error: 'runtimeUnsupportedModel' },
-			spawns: 1,
-			server: ['startFailed:runtimeUnsupportedModel'],
-		});
-	});
-
-	test('load time: a model llama.cpp does not know because its architecture is unpackaged (maion-coder) names the change a build needs', async () => {
-		const harness = createHarness({ server: { loading: true }, metadata: () => ({ ...DEFAULT_METADATA, architecture: 'maion-coder' }) });
-		// The pre-download read could not tell (the registry refused the Range request); the loaded GGUF names maion-coder.
-		harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'unknown', reason: 'http' });
-		harness.spawner.behavior = child => {
-			child.writeStderr(STOCK_UNKNOWN_ARCHITECTURE_STDERR);
-			child.exit(1);
+			};
+			return { operation: error, active: { server: 'error', error }, spawns: 1, server: ['startFailed:runtimeUnsupportedModel'] };
 		};
-		await start(harness);
-		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
-		const expected = {
-			code: 'runtimeUnsupportedModel',
-			message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.',
-			actions: ['getLlamaCpp', 'openSettings', 'retry'],
-		};
-		assert.deepStrictEqual({
-			operation: family(harness, MAI_ID)?.operation?.error,
-			active: harness.provider.status.get().active?.error,
-			spawns: harness.spawner.processes.length,
-		}, {
-			operation: expected,
-			active: expected,
-			spawns: 1,
+		assert.deepStrictEqual({ packaged: await run('qwen2'), unpackaged: await run('maion-coder') }, {
+			packaged: expected('supports it'),
+			unpackaged: expected('includes ggml-org/llama.cpp#29778'),
 		});
 	});
 
 	test('Resume and Retry after an offline restart ask again when the refreshed catalog changed the size or the license of the same content', async () => {
 		const scenario = async (name: string, changed: ITestModel, act: (provider: ShimLocalModelProvider, operationId: string) => Promise<void>) => {
 			const persistent = createPersistent(`home-${name}`);
-			const first = createHarness({ persistent, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-			await start(first);
-			await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-			await waitFor(() => first.downloader.requests.length === 1);
-			first.provider.dispose();
-			await settle();
+			await interruptDownload(persistent);
 
 			// The next start is offline: the interrupted download cannot auto-resume.
 			const second = createHarness({ persistent, models: [] });
@@ -1794,27 +1700,22 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('direct turns route through the sentinel row to the active model and fail closed for an inactive one', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
-		const requestContext: CopilotRequestContext = { requestId: 'request-1', sessionId: 'session-1', interactionType: 'conversation-agent', transport: 'http', url: 'http://on-device.vscode.invalid/v1/chat/completions', headers: {}, signal: new AbortController().signal };
-		const send = async (model: string) => {
-			const response = await harness.provider.requestHandler.handleRequest(new Request('http://on-device.vscode.invalid/v1/chat/completions', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json', authorization: 'Bearer runtime-token' },
-				body: JSON.stringify({ model, stream: true, messages: [{ role: 'user', content: 'hi' }] }),
-			}), requestContext);
-			return { status: response.status, body: await response.text() };
-		};
-		const active = await send('MAI-Code-1.1-Flash');
-		const inactive = await send('example-coder');
-		assert.deepStrictEqual({ activeStatus: active.status, streamed: active.body.includes('Hello'), inactive: { status: inactive.status, code: (JSON.parse(inactive.body) as { error: { code: string } }).error.code } }, {
-			activeStatus: 200,
-			streamed: true,
-			inactive: { status: 409, code: 'modelNotActive' },
+	test('a second install does not become active: it gets a ready offer and an inactive row; direct turns route through the sentinel row to the active model and fail closed for the inactive one', async () => {
+		const harness = await createTwoInstalled();
+		assert.deepStrictEqual({
+			active: harness.provider.status.get().active?.familyId,
+			example: { owned: family(harness, EXAMPLE_ID)?.install?.owned, readyOfferId: family(harness, EXAMPLE_ID)?.readyOfferId },
+			spawns: harness.spawner.processes.length,
+			rows: harness.provider.getModelRows().map(row => [row.id, row.active]),
+			activeTurn: await sendDirect(harness, MAI.profile.assetName, 'session-1'),
+			inactiveTurn: await sendDirect(harness, EXAMPLE.profile.assetName, 'session-1'),
+		}, {
+			active: MAI_ID,
+			example: { owned: true, readyOfferId: `${EXAMPLE_ID}:${EXAMPLE.resolved.contentId}` },
+			spawns: 1,
+			rows: [['example-coder', false], ['MAI-Code-1.1-Flash', true]],
+			activeTurn: 'served by generation 1',
+			inactiveTurn: '409: Example Coder isn\'t loaded.',
 		});
 	});
 
@@ -1833,11 +1734,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	}
 
 	test('a turn that used the model keeps it through a swap until the turn ends: the drain counts it as one response, its next request is still served, other sessions are refused', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		const turn = harness.provider.beginTurn('session-1');
 		const first = await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
@@ -1882,8 +1779,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		extraModels.push(big);
 		const harness = createHarness({ models: [big], metadata: () => metadata, server: { nCtx: 131_072 } });
 		await start(harness);
-		await setUpAndWait(harness, big);
-		await waitFor(() => activeReady(harness, bigId));
+		await setUpActive(harness, big);
 		const turn = harness.provider.beginTurn('session-1');
 		const first = await sendDirect(harness, big.profile.assetName, 'session-1');
 		await harness.provider.setContextSize(bigId, 65_536);
@@ -1911,11 +1807,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('Stop Now ends a drain that waits for a turn: the swap completes and the turn no longer holds the old model', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
@@ -1942,11 +1834,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	});
 
 	test('cancelling a swap while it waits for running responses keeps the previous model loaded and active: it serves the turn and other sessions again, and nothing else loads', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		const turn = harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
@@ -1993,58 +1881,10 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		};
 	}
 
-	test('approving llama.cpp after a model change failed for want of the approval loads the model; the failed change no longer reports its error', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
-		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
-		// A detected llama-server that was never approved (detection runs again when the setting changes).
-		harness.runtime.approved = false;
-		harness.provider.updateLiveConfig(liveConfig({ llamaServerPath: 'C:\\elsewhere\\llama-server.exe' }));
-		await waitFor(() => harness.provider.status.get().runtime.trust === 'pendingApproval');
-		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.state === 'error');
-		const failed = recovery(harness, EXAMPLE_ID);
-		await harness.provider.approveRuntime({ scope: computeLocalModelConsentScope({ runtime: harness.provider.status.get().runtime }) });
-		// The picker continues an approval with Start, not with the failed operation's Retry.
-		await harness.provider.start();
-		await waitFor(() => activeReady(harness, EXAMPLE_ID));
-		await settle();
-		assert.deepStrictEqual({ failed, recovered: recovery(harness, EXAMPLE_ID) }, {
-			failed: { active: EXAMPLE_ID, server: 'error', operation: { kind: 'swap', state: 'error', code: 'runtimeApprovalRequired' }, readiness: 'error' },
-			recovered: { active: EXAMPLE_ID, server: 'ready', operation: undefined, readiness: 'ready' },
-		});
-	});
-
-	test('selecting the model again once llama.cpp is found loads it; the failed change no longer reports its error', async () => {
-		const runtime = new FakeRuntime();
-		runtime.present = false;
-		const harness = createHarness({ runtime });
-		harness.catalog.architectures.set(MAI.profile.assetName, { kind: 'found', architecture: 'maion-coder' });
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await harness.provider.makeActive(MAI_ID).catch(() => undefined);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
-		const failed = recovery(harness, MAI_ID);
-		runtime.provide();
-		// Selecting the active model again starts it, as the detail page's Load does: Start, not the operation's Retry.
-		await harness.provider.start();
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await settle();
-		assert.deepStrictEqual({ failed, recovered: recovery(harness, MAI_ID) }, {
-			failed: { active: MAI_ID, server: 'error', operation: { kind: 'swap', state: 'error', code: 'runtimeNotFound' }, readiness: 'error' },
-			recovered: { active: MAI_ID, server: 'ready', operation: undefined, readiness: 'ready' },
-		});
-	});
-
 	test('a hold ends with its turn however the turn ends: replaced by the session\'s next turn (a cancelled turn), ended, or the provider disposed', async () => {
 		const harness = createHarness();
 		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, MAI);
 		const responses = () => family(harness, MAI_ID)?.usage.runningStreams;
 		const supervisor = harness.supervisor();
 		const generation = supervisor.state.get().identity!.servingGeneration;
@@ -2091,8 +1931,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const capi = createFakeCapi();
 		const harness = createHarness({ proxyFetch: capi.fetch });
 		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await setUpActive(harness, MAI);
 		const familyDir = familyDirOf(harness, MAI);
 		const localBefore = await autoTurn(harness.provider, true);
 
@@ -2189,73 +2028,32 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('a too-old llama.cpp: the model is downloaded but not loaded; loading it gives directions (Get llama.cpp, Open Settings, Retry), and Retry loads it once a newer build is found', async () => {
-		const runtime = new FakeRuntime();
-		runtime.tooOld = true;
-		const harness = createHarness({ runtime });
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		const downloaded = { active: harness.provider.status.get().active, trust: harness.provider.status.get().runtime.trust, spawns: harness.spawner.processes.length };
-
-		await harness.provider.makeActive(MAI_ID).catch(() => undefined);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error' || harness.provider.status.get().active?.server === 'error');
-		const failed = family(harness, MAI_ID)?.operation;
-		const error = failed?.state === 'error' ? failed.error : harness.provider.status.get().active?.error;
-
-		// The user installs a newer llama.cpp and selects Retry.
-		runtime.tooOld = false;
-		if (failed?.state === 'error') {
-			await harness.provider.retry(failed.id);
-		} else {
-			await harness.provider.start();
-		}
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
-		assert.deepStrictEqual({ downloaded, error, spawns: harness.spawner.processes.length }, {
-			downloaded: { active: undefined, trust: 'none', spawns: 0 },
-			error: { code: 'runtimeTooOld', message: 'The llama-server is too old.', actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-			spawns: 1,
-		});
-	});
-
-	test('a download resumes after a restart whatever llama.cpp is found: the download consent never covers, approves or runs a llama-server', async () => {
+	test('a download resumes after a restart whatever llama.cpp is set: the download consent never covers or runs a llama-server', async () => {
 		const persistent = createPersistent('home-resume');
-		const pending = (sha256: string) => Object.assign(new FakeRuntime(), { approved: false, unprobedUntilApproved: true, sha256 });
-		const runtime = pending('b'.repeat(64));
-		const first = createHarness({ persistent, runtime, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
-		await start(first);
-		await first.provider.setUp(MAI_ID, consent(first, MAI_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
-		first.provider.dispose();
-		await settle();
+		await interruptDownload(persistent, { familyId: MAI_ID, runtime: Object.assign(new FakeRuntime(), { present: false }) });
 		const record = (persistent.storage.get('localModel.provider') as { operations: Record<string, unknown>[] }).operations[0];
 
-		// Another llama-server is found after the restart: the download still resumes.
-		const restarted = pending('d'.repeat(64));
+		// Another llama-server is set after the restart: the download still resumes.
+		const restarted = Object.assign(new FakeRuntime(), { tooOld: true });
 		const harness = createHarness({ persistent, runtime: restarted });
 		await start(harness);
 		await waitFor(() => !!family(harness, MAI_ID)?.install && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({
 			runtimeKeys: Object.keys(record).filter(key => key.startsWith('runtime')),
-			approvals: [...runtime.approvals, ...restarted.approvals],
 			downloads: harness.downloader.requests.length,
 			active: harness.provider.status.get().active,
-			trust: harness.provider.status.get().runtime.trust,
+			runtime: harness.provider.status.get().runtime,
 			spawns: harness.spawner.processes.length,
 		}, {
 			runtimeKeys: [],
-			approvals: [],
 			downloads: 1,
 			active: undefined,
-			trust: 'pendingApproval',
+			runtime: {},
 			spawns: 0,
 		});
 	});
 	test('a load still being prepared never overtakes a swap: the newly active model and its running response are untouched', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		await harness.provider.stop({ stopNow: false });
 		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
 
@@ -2288,110 +2086,6 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			runningResponses: 1,
 		});
 		response.dispose();
-	});
-
-	test('a crash restart revalidates the approved binary: a replaced llama-server returns to pending approval and is not run', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		const verificationsBefore = harness.runtime.verifications;
-		harness.runtime.binaryChanged = true;
-		harness.spawner.processes[0].exit(3221225477);
-		await waitFor(() => harness.provider.status.get().active?.server === 'starting');
-		harness.clock.advance(5_000);
-		await waitFor(() => harness.provider.status.get().active?.server === 'error');
-		const active = harness.provider.status.get().active!;
-		assert.deepStrictEqual({
-			server: active.server,
-			error: active.error && { code: active.error.code, actions: active.error.actions },
-			runtime: { trust: harness.provider.status.get().runtime.trust, path: harness.provider.status.get().runtime.path },
-			spawns: harness.spawner.processes.length,
-			verified: harness.runtime.verifications > verificationsBefore,
-			serverEvents: harness.telemetry.names('localModel.server', 'event'),
-		}, {
-			server: 'error',
-			error: { code: 'runtimeChanged', actions: [] },
-			runtime: { trust: 'pendingApproval', path: LLAMA_SERVER },
-			spawns: 1,
-			verified: true,
-			serverEvents: ['ready', 'crash', 'admissionRejected'],
-		});
-	});
-
-	test('starting an installed model on a llama-server pending approval asks for approval instead of reporting llama.cpp missing', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
-		// A detected llama-server that was never approved (detection runs again when the setting changes).
-		harness.runtime.approved = false;
-		harness.provider.updateLiveConfig(liveConfig({ llamaServerPath: 'C:\\elsewhere\\llama-server.exe' }));
-		await waitFor(() => harness.provider.status.get().runtime.trust === 'pendingApproval');
-		await harness.provider.start();
-		await waitFor(() => harness.provider.status.get().active?.server === 'error');
-		const active = harness.provider.status.get().active!;
-		const blocked = { error: active.error && { code: active.error.code, message: active.error.message, actions: active.error.actions }, spawns: harness.spawner.processes.length };
-		const runtime = harness.provider.status.get().runtime;
-		await harness.provider.approveRuntime({ scope: computeLocalModelConsentScope({ runtime }) });
-		await harness.provider.start();
-		await waitFor(() => activeReady(harness, MAI_ID));
-		assert.deepStrictEqual({ blocked, spawns: harness.spawner.processes.length }, {
-			blocked: {
-				error: { code: 'runtimeApprovalRequired', message: `The llama-server at ${LLAMA_SERVER} needs your approval before Example Flash 1.0 can run on it.`, actions: [] },
-				spawns: 1,
-			},
-			spawns: 2,
-		});
-	});
-
-	test('starting an installed model on a llama-server that can\'t be verified reports why, with its own actions, instead of asking for an impossible approval', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
-		harness.runtime.approved = false;
-		harness.runtime.unverifiable = true;
-		harness.provider.updateLiveConfig(liveConfig({ llamaServerPath: 'C:\\elsewhere\\llama-server.exe' }));
-		await waitFor(() => harness.provider.status.get().runtime.trust === 'pendingApproval');
-		await harness.provider.start();
-		await waitFor(() => harness.provider.status.get().active?.server === 'error');
-		const active = harness.provider.status.get().active!;
-		assert.deepStrictEqual({ error: active.error, spawns: harness.spawner.processes.length }, {
-			error: { code: 'runtimeUnverifiable', message: 'VS Code can\'t verify the llama-server.', actions: ['openSettings'] },
-			spawns: 1,
-		});
-	});
-
-	test('a replacement while admission probes is caught by the verification right before spawn: the crash restart spawns nothing', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		// Admission's --list-devices verifies and runs; the file changes right after it.
-		harness.runtime.afterListDevices = () => {
-			harness.runtime.binaryChanged = true;
-		};
-		harness.spawner.processes[0].exit(3221225477);
-		await waitFor(() => harness.provider.status.get().active?.server === 'starting');
-		harness.clock.advance(5_000);
-		await waitFor(() => harness.provider.status.get().active?.server === 'error');
-		const active = harness.provider.status.get().active!;
-		assert.deepStrictEqual({
-			error: active.error && { code: active.error.code, actions: active.error.actions },
-			runtime: harness.provider.status.get().runtime.trust,
-			spawns: harness.spawner.processes.length,
-			serverEvents: harness.telemetry.names('localModel.server', 'event'),
-		}, {
-			error: { code: 'runtimeChanged', actions: [] },
-			runtime: 'pendingApproval',
-			spawns: 1,
-			serverEvents: ['ready', 'crash', 'startFailed'],
-		});
 	});
 
 	test('cancel during the first load stops that load and keeps a resumable paused record; Resume loads it', async () => {
@@ -2455,18 +2149,13 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('the production host runs only verified binaries before consent and excludes open workspace roots, canonicalized through symlinks', async () => {
+	test('the production host runs only the setting\'s llama-server: nothing on PATH or in LLAMACPP_SERVER_PATH', async () => {
 		const exe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
-		const workspace = path.join(root, 'workspace');
-		const tools = path.join(root, 'tools');
-		for (const dir of [path.join(workspace, 'bin'), path.join(tools, 'bin')]) {
-			await fs.promises.mkdir(dir, { recursive: true });
-			await fs.promises.writeFile(path.join(dir, exe), 'not really llama-server');
-			await fs.promises.chmod(path.join(dir, exe), 0o755);
+		for (const dir of ['tools', 'custom']) {
+			await fs.promises.mkdir(path.join(root, dir), { recursive: true });
+			await fs.promises.writeFile(path.join(root, dir, exe), 'not really llama-server');
+			await fs.promises.chmod(path.join(root, dir, exe), 0o755);
 		}
-		// The client opened the workspace through a symlink; PATH names its real location.
-		const link = path.join(root, 'workspace-link');
-		await fs.promises.symlink(workspace, link, 'junction');
 		const executed: string[] = [];
 		const runner: IProcessRunner = {
 			run: async file => {
@@ -2474,7 +2163,6 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				return { exitCode: 1, signal: undefined, stdout: '', stderr: '', timedOut: false, truncated: false, aborted: false };
 			},
 		};
-		let workspaceFolders: string[] = [];
 		const storage = new Map<string, unknown>();
 		const host = createNodeShimLocalModelProviderHost({
 			requestService: { request: () => Promise.reject(new Error('no network in tests')) },
@@ -2488,165 +2176,22 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			resolveCapiBaseUrls: async () => [],
 			onDidChangeCapiAccounts: Event.None,
 			productVersion: '1.2.3',
-			workspaceFolders: () => workspaceFolders,
-			env: {
-				PATH: [path.join(workspace, 'bin'), path.join(tools, 'bin')].join(path.delimiter),
-				// The only candidate kind run before consent besides package-manager and approved binaries.
-				LLAMACPP_SERVER_PATH: path.join(workspace, 'bin', exe),
-				LOCALAPPDATA: path.join(root, 'appdata'),
-			},
+			env: { PATH: path.join(root, 'tools'), LLAMACPP_SERVER_PATH: path.join(root, 'tools', exe) },
 			runner,
 		});
-		const detect = async () => {
+		const resolve = async (settingPath?: string) => {
 			executed.length = 0;
-			const resolution = await host.runtime.resolve({ enabled: true });
-			return {
-				executed: [...new Set(executed.filter(file => file.startsWith(root)).map(file => path.relative(root, file)))],
-				offered: resolution.runtime.trust === 'pendingApproval' && resolution.runtime.path ? path.relative(root, resolution.runtime.path) : undefined,
-				probedBeforeConsent: !!resolution.capability,
-			};
+			const resolution = await host.runtime.resolve({ enabled: true, settingPath });
+			return { executed: [...new Set(executed.filter(file => file.startsWith(root)).map(file => path.relative(root, file)))], error: resolution.error?.code };
 		};
-		const withoutWorkspace = await detect();
-		workspaceFolders = [link];
-		const withWorkspace = await detect();
-		assert.deepStrictEqual({ withoutWorkspace, withWorkspace }, {
-			// Fail closed: the unverified PATH binary is only offered (never run); the env binary is run.
-			withoutWorkspace: { executed: [path.join('workspace', 'bin', exe)], offered: path.join('tools', 'bin', exe), probedBeforeConsent: false },
-			// Defense in depth: inside the (symlinked) workspace even the env binary is neither run nor offered.
-			withWorkspace: { executed: [], offered: path.join('tools', 'bin', exe), probedBeforeConsent: false },
+		assert.deepStrictEqual({ unset: await resolve(), set: await resolve(path.join(root, 'custom', exe)) }, {
+			unset: { executed: [], error: undefined },
+			set: { executed: [path.join('custom', exe)], error: 'probeFailed' },
 		});
 	});
 
-	test('a cached approval is not trust: when the approved binary was replaced, setup never runs Stage B on it; the download goes ahead without loading the model, and the changed binary waits for approval', async () => {
-		// Replaced on disk after detection; the provider still holds the earlier (approved) resolution.
-		const runtime = new FakeRuntime();
-		const harness = createHarness({ runtime });
-		await start(harness);
-		runtime.binaryChanged = true;
-		await setUpAndWait(harness, MAI);
-		const shown = harness.provider.status.get().runtime;
-		assert.deepStrictEqual({
-			runtime: { trust: shown.trust, path: shown.path, sha256: shown.sha256 },
-			active: harness.provider.status.get().active,
-			deviceListings: runtime.deviceListings,
-			approvals: runtime.approvals,
-			downloads: harness.downloader.requests.length,
-			spawns: harness.spawner.processes.length,
-		}, {
-			runtime: { trust: 'pendingApproval', path: LLAMA_SERVER, sha256: 'c'.repeat(64) },
-			active: undefined,
-			deviceListings: 0,
-			approvals: [],
-			downloads: 1,
-			spawns: 0,
-		});
-	});
-	test('through the production runtime, a modified sibling library of an approved llama-server is rejected before anything runs (runtimeChanged)', async () => {
-		const exe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
-		const library = process.platform === 'win32' ? 'llama-server-impl.dll' : process.platform === 'darwin' ? 'libllama.dylib' : 'libllama.so';
-		const bin = path.join(root, 'llama-install', 'bin');
-		await fs.promises.mkdir(bin, { recursive: true });
-		await fs.promises.writeFile(path.join(bin, exe), 'stub that loads the implementation');
-		await fs.promises.chmod(path.join(bin, exe), 0o755);
-		await fs.promises.writeFile(path.join(bin, library), 'implementation');
-		const realExe = await fs.promises.realpath(path.join(bin, exe));
-		const help = [...REQUIRED_LLAMA_SERVER_FLAGS, ...REQUIRED_DRAFT_LLAMA_SERVER_FLAGS].map(flag => `${flag} N    description`).join('\n');
-		const executed: string[] = [];
-		const runner: IProcessRunner = {
-			run: async (file, args) => {
-				const ours = path.normalize(file).toLowerCase() === realExe.toLowerCase();
-				if (ours) {
-					executed.push(args[0]);
-				}
-				const stdout = !ours ? '' : args[0] === '--version' ? 'version: 11459 (f498f864f)\n' : args[0] === '--help' ? help : args[0] === '--list-devices' ? `Available devices:\n  Vulkan0: ${N1X_NAME} (68784 MiB, 68784 MiB free)\n` : '';
-				return { exitCode: ours ? 0 : 1, signal: undefined, stdout, stderr: '', timedOut: false, truncated: false, aborted: false };
-			},
-		};
-		const storage = new Map<string, unknown>();
-		const production = createNodeShimLocalModelProviderHost({
-			requestService: { request: () => Promise.reject(new Error('no network in tests')) },
-			storage: { get: <T>(key: string) => storage.get(key) as T | undefined, set: (key, value) => { storage.set(key, value); } },
-			telemetry: new RecordingTelemetry(),
-			log: new NullLogService(),
-			copilotHome: path.join(root, 'copilot-home-real-runtime'),
-			userDataPath: path.join(root, 'user-data'),
-			homeDir: path.join(root, 'home'),
-			tempDir: path.join(root, 'tmp'),
-			resolveCapiBaseUrls: async () => [],
-			onDidChangeCapiAccounts: Event.None,
-			productVersion: '1.2.3',
-			workspaceFolders: () => [],
-			env: { PATH: bin },
-			runner,
-		});
-		const harness = createHarness({ realRuntime: production.runtime });
-		await start(harness);
-		const offered = harness.provider.status.get().runtime;
-		await harness.provider.approveRuntime({ scope: computeLocalModelConsentScope({ runtime: offered }) });
-		const approved = { trust: harness.provider.status.get().runtime.trust, executed: [...executed] };
-		executed.length = 0;
-		// The stub executable is unchanged; the library it loads is replaced.
-		await fs.promises.writeFile(path.join(bin, library), 'tampered implementation');
-		await setUpAndWait(harness, MAI);
-		await settle();
-		const shown = harness.provider.status.get().runtime;
-		assert.deepStrictEqual({
-			offered: { trust: offered.trust, path: offered.path === realExe, digest: /^[0-9a-f]{64}$/.test(offered.sha256 ?? ''), version: offered.version },
-			approved,
-			afterTamper: { active: harness.provider.status.get().active, executed, trust: shown.trust, newDigest: !!shown.sha256 && shown.sha256 !== offered.sha256, downloads: harness.downloader.requests.length, spawns: harness.spawner.processes.length },
-		}, {
-			offered: { trust: 'pendingApproval', path: true, digest: true, version: undefined },
-			approved: { trust: 'userApproved', executed: ['--version', '--help', '--list-devices'] },
-			// The download doesn't need llama.cpp: it goes ahead, and the changed one is neither run nor trusted.
-			afterTamper: { active: undefined, executed: [], trust: 'pendingApproval', newDigest: true, downloads: 1, spawns: 0 },
-		});
-	});
-
-	test('a consent approves only the hash it showed: a same-path swap A to B while the dialog is open is rejected, never approved; a download consent never covers llama.cpp', async () => {
-		const runtime = new FakeRuntime();
-		runtime.approved = false;
-		const harness = createHarness({ runtime });
-		await start(harness);
-		const shownA = harness.provider.status.get().runtime.sha256;
-		const approveConsent = { scope: computeLocalModelConsentScope({ runtime: harness.provider.status.get().runtime }) };
-		const setUpConsent = consent(harness, MAI_ID);
-		// The file at the same path becomes B before the host notices.
-		runtime.sha256 = 'e'.repeat(64);
-		const approveRuntime = await harness.provider.approveRuntime(approveConsent).then(() => 'approved', (error: Error) => error.message);
-		const shownAfter = harness.provider.status.get().runtime;
-		// A download agreed to while A was shown still holds: it doesn't cover llama.cpp, and approves nothing.
-		const second = new FakeRuntime();
-		second.approved = false;
-		const other = createHarness({ runtime: second, persistent: createPersistent('home-other') });
-		await start(other);
-		const otherConsent = consent(other, MAI_ID);
-		second.sha256 = 'e'.repeat(64);
-		await other.provider.setUp(MAI_ID, otherConsent, CancellationToken.None);
-		await waitFor(() => !!family(other, MAI_ID)?.install && !family(other, MAI_ID)?.operation);
-		assert.deepStrictEqual({
-			shownA,
-			approveRuntime,
-			shownAfter: { trust: shownAfter.trust, sha256: shownAfter.sha256 },
-			approveCalls: runtime.approveCalls.map(call => call.expectedSha256),
-			approvals: runtime.approvals,
-			setUpScopeUnchanged: setUpConsent.scope === consent(harness, MAI_ID).scope,
-			setUp: { approveCalls: second.approveCalls.length, approvals: second.approvals, downloads: other.downloader.requests.length, active: other.provider.status.get().active, spawns: other.spawner.processes.length },
-		}, {
-			shownA: 'b'.repeat(64),
-			approveRuntime: 'The llama-server changed since it was shown for approval',
-			shownAfter: { trust: 'pendingApproval', sha256: 'e'.repeat(64) },
-			approveCalls: ['b'.repeat(64)],
-			approvals: [],
-			setUpScopeUnchanged: true,
-			setUp: { approveCalls: 0, approvals: [], downloads: 1, active: undefined, spawns: 0 },
-		});
-	});
 	test('cancelling a swap while its load is still being prepared never starts that model', async () => {
-		const harness = createHarness();
-		await start(harness);
-		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID));
-		await setUpAndWait(harness, EXAMPLE);
+		const harness = await createTwoInstalled();
 		const preparing = new DeferredPromise<void>();
 		harness.runtime.listDevicesGate = preparing;
 		await harness.provider.makeActive(EXAMPLE_ID);
@@ -2666,74 +2211,29 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('a download locked by another window is published with Retry; the Retry downloads', async () => {
-		const downloader = new FakeDownloader();
-		downloader.lockedElsewhere = true;
-		const harness = createHarness({ downloader });
-		await start(harness);
-		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
-		const failed = family(harness, MAI_ID)!.operation!;
-		await harness.provider.retry(failed.id);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
-		assert.deepStrictEqual({
-			error: { code: failed.error?.code, actions: failed.error?.actions },
-			downloads: downloader.requests.length,
-		}, {
-			error: { code: 'lockedElsewhere', actions: ['retry'] },
-			downloads: 2,
-		});
-	});
-
-	test('a download lock left behind by a holder that died is published with Retry; the Retry clears it once, then downloads', async () => {
-		const downloader = new FakeDownloader();
-		downloader.staleLock = true;
-		const harness = createHarness({ downloader });
-		await start(harness);
-		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
-		const failed = family(harness, MAI_ID)!.operation!;
-		const clearedBeforeRetry = downloader.cleared.length;
-		await harness.provider.retry(failed.id);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
-		const familyDir = path.join('azureml-models', MAI.profile.registry, MAI.profile.assetName);
-		assert.deepStrictEqual({
-			error: { code: failed.error?.code, actions: failed.error?.actions },
-			clearedBeforeRetry,
-			cleared: downloader.cleared.map(dir => path.relative(harness.persistent.home, dir)),
-			downloads: downloader.requests.map(request => path.relative(harness.persistent.home, request.familyDir)),
-		}, {
-			error: { code: 'staleLock', actions: ['retry'] },
-			clearedBeforeRetry: 0,
-			cleared: [familyDir],
-			downloads: [familyDir, familyDir],
-		});
-	});
-
-	test('a detected llama-server awaiting approval is offered by path only; the download never approves it; Use This llama.cpp approves its file hash, qualifies it, and the model then loads or says why it can\'t', async () => {
-		const setUpWith = async (name: string, qualificationError: ILocalModelErrorV1 | undefined) => {
-			const runtime = new FakeRuntime();
-			runtime.approved = false;
-			runtime.unprobedUntilApproved = true;
-			runtime.qualificationError = qualificationError;
-			const harness = createHarness({ runtime, persistent: createPersistent(name) });
+	test('a download locked by another window, or by a holder that died, is published with Retry; the Retry clears a stale lock once, then downloads', async () => {
+		const run = async (lock: 'lockedElsewhere' | 'staleLock') => {
+			const downloader = new FakeDownloader();
+			downloader[lock] = true;
+			const harness = createHarness({ downloader, persistent: createPersistent(`home-${lock}`) });
 			await start(harness);
-			const offered = harness.provider.status.get().runtime;
-			await setUpAndWait(harness, MAI);
-			const downloaded = { approveCalls: runtime.approveCalls.length, active: harness.provider.status.get().active, spawns: harness.spawner.processes.length };
-			await harness.provider.approveRuntime({ scope: computeLocalModelConsentScope({ runtime: offered }) }).catch(() => undefined);
-			await harness.provider.makeActive(MAI_ID).catch(() => undefined);
-			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error' || harness.provider.status.get().active?.server === 'error' || (activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation));
-			const operation = family(harness, MAI_ID)?.operation;
-			const error = operation?.state === 'error' ? operation.error : harness.provider.status.get().active?.error;
-			return { offered, downloaded, approveCalls: runtime.approveCalls, error: error && { code: error.code, actions: error.actions }, ready: activeReady(harness, MAI_ID), downloads: harness.downloader.requests.length };
+			await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
+			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			const failed = family(harness, MAI_ID)!.operation!;
+			const clearedBeforeRetry = downloader.cleared.length;
+			await harness.provider.retry(failed.id);
+			await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+			return {
+				error: { code: failed.error?.code, actions: failed.error?.actions },
+				clearedBeforeRetry,
+				cleared: downloader.cleared.map(dir => path.relative(harness.persistent.home, dir)),
+				downloads: downloader.requests.map(request => path.relative(harness.persistent.home, request.familyDir)),
+			};
 		};
-		const tooOld = { code: 'runtimeTooOld', message: 'The llama-server is missing features.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } as const;
-		const offered = { source: 'path', trust: 'pendingApproval', path: LLAMA_SERVER, sha256: 'b'.repeat(64), size: 1 };
-		const downloaded = { approveCalls: 0, active: undefined, spawns: 0 };
-		assert.deepStrictEqual({ qualified: await setUpWith('home-qualified', undefined), tooOld: await setUpWith('home-too-old', { ...tooOld, actions: [...tooOld.actions] }) }, {
-			qualified: { offered, downloaded, approveCalls: [{ realPath: LLAMA_SERVER, expectedSha256: 'b'.repeat(64) }], error: undefined, ready: true, downloads: 1 },
-			tooOld: { offered, downloaded, approveCalls: [{ realPath: LLAMA_SERVER, expectedSha256: 'b'.repeat(64) }], error: { code: 'runtimeTooOld', actions: ['getLlamaCpp', 'openSettings', 'retry'] }, ready: false, downloads: 1 },
+		const familyDir = path.join('azureml-models', MAI.profile.registry, MAI.profile.assetName);
+		assert.deepStrictEqual({ lockedElsewhere: await run('lockedElsewhere'), staleLock: await run('staleLock') }, {
+			lockedElsewhere: { error: { code: 'lockedElsewhere', actions: ['retry'] }, clearedBeforeRetry: 0, cleared: [], downloads: [familyDir, familyDir] },
+			staleLock: { error: { code: 'staleLock', actions: ['retry'] }, clearedBeforeRetry: 0, cleared: [familyDir], downloads: [familyDir, familyDir] },
 		});
 	});
 });

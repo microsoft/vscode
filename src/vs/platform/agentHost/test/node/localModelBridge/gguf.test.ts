@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSyntheticGguf, estimateContextMemory, estimateContextMemoryBytes, estimateKvCacheBytes, estimateKvCacheBytesPerToken, GGUF_LIMITS, hasRecurrentLayers, readGgufArchitecture, readGgufArchitectureFromFile, readGgufArchitectureFromPrefix, readGgufModelMetadata, type IGgufByteSource, type IGgufModelMetadata } from '../../../node/copilot/localModelBridge/shim/gguf.js';
+import { buildSyntheticGguf, estimateContextMemory, estimateContextMemoryBytes, GGUF_LIMITS, hasRecurrentLayers, readGgufArchitecture, readGgufArchitectureFromFile, readGgufArchitectureFromPrefix, readGgufModelMetadata, type IGgufByteSource, type IGgufModelMetadata } from '../../../node/copilot/localModelBridge/shim/gguf.js';
 import { computeFootprintBytes } from '../../../node/copilot/localModelBridge/shim/servingProfile.js';
 
 type GgufTestValue =
@@ -93,13 +93,11 @@ suite('localModel gguf', () => {
 		const metadata = await readGgufModelMetadata(source(buildGguf(QWEN_LIKE)));
 		assert.deepStrictEqual({
 			metadata,
-			bytesPerToken: estimateKvCacheBytesPerToken(metadata),
-			kvAt262k: estimateKvCacheBytes(metadata, 262_144),
-			kvAt64k: estimateKvCacheBytes(metadata, 65_536),
+			kvAt262k: estimateContextMemory(metadata, 262_144).kvBytes,
+			kvAt64k: estimateContextMemory(metadata, 65_536).kvBytes,
 		}, {
 			metadata: { architecture: 'qwen3', blockCount: 48, embeddingLength: 4096, headCount: 32, headCountKv: 4, keyLength: 128, valueLength: 128, contextLength: 262144, vocabSize: 4, chatTemplate: '{% for m in messages %}{{ m.content }}{% endfor %}' },
-			// 48 layers × 4 KV heads × (128 + 128) × 2 bytes
-			bytesPerToken: 98_304,
+			// 48 layers × 4 KV heads × (128 + 128) × 2 bytes per token
 			kvAt262k: 25_769_803_776,
 			kvAt64k: 6_442_450_944,
 		});
@@ -113,9 +111,9 @@ suite('localModel gguf', () => {
 			['llama.attention.head_count', { type: 'u32', value: 16 }],
 			['llama.attention.head_count_kv', { type: 'i32Array', value: [8, 0] }],
 		])));
-		assert.deepStrictEqual({ metadata, bytesPerToken: estimateKvCacheBytesPerToken(metadata) }, {
+		assert.deepStrictEqual({ metadata, kvAt256: estimateContextMemory(metadata, 256).kvBytes }, {
 			metadata: { architecture: 'llama', blockCount: 2, embeddingLength: 2048, headCount: 16, headCountKv: [8, 0], keyLength: 128, valueLength: 128 },
-			bytesPerToken: 8 * 256 * 2,
+			kvAt256: 8 * 256 * 2 * 256,
 		});
 	});
 
@@ -197,15 +195,12 @@ suite('localModel gguf', () => {
 			table,
 			// The SWA cache follows the ubatch: 1024 cells at llama.cpp's default 512.
 			exampleFlashSwaAtDefaultUbatchMiB: estimateContextMemory(models[0].metadata, 131_072).swaBytes / MiB,
-			kvPerToken: models.map(model => estimateKvCacheBytesPerToken(model.metadata)),
 		}, {
 			table: {
 				exampleFlash: [row(32_768, 896, 350, 0, 58_131, 56_346), row(65_536, 1_792, 350, 0, 59_045, 57_242), row(131_072, 3_584, 350, 0, 60_873, 59_034), row(262_144, 7_168, 350, 0, 64_528, 62_618)],
 				qwen35: [row(32_768, 1_024, 0, 50.25, 6_160, 5_805), row(65_536, 2_048, 0, 50.25, 7_204, 6_917), row(131_072, 4_096, 0, 50.25, 9_293, 8_729), row(262_144, 8_192, 0, 50.25, 13_471, 12_825)],
 			},
 			exampleFlashSwaAtDefaultUbatchMiB: 140,
-			// Example Flash: 7 full layers x 8 heads x 256 x 2 bytes; Qwen3.5: 8 attention layers x 4 heads x 512 x 2 bytes.
-			kvPerToken: [28_672, 32_768],
 		});
 		// Only Qwen3.5's recurrent layers need a context checkpoint to reuse the cache across turns.
 		assert.deepStrictEqual(models.map(model => hasRecurrentLayers(model.metadata)), [false, true]);

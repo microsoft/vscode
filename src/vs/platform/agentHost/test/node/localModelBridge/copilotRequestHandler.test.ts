@@ -556,13 +556,21 @@ suite('LocalModelCopilotRequestHandler', () => {
 				]);
 			});
 
-			test('a failure after the first token returns an error response and never calls the cloud', async () => {
-				const failures: [string, (local: LocalStream) => void][] = [
+			test('a failure after the first token, or an EOF before any choice finished, returns 502 and never calls the cloud; never a truncated answer', async () => {
+				const ends = (...chunks: string[]) => (local: LocalStream) => {
+					chunks.forEach(chunk => local.push(chunk));
+					local.close();
+				};
+				const endings: [string, (local: LocalStream) => void][] = [
 					['connection lost', local => local.error(new Error('server crashed'))],
 					['error event', local => local.push('error: {"message":"out of memory"}\n\n')],
+					['content delta then EOF', ends(event({ choices: [{ index: 0, delta: { content: 'Partial' } }] }))],
+					['tool-call delta then EOF', ends(event({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_a', type: 'function', function: { name: 'read', arguments: '{"pa' } }] } }] }))],
+					['[DONE] without a finish_reason', ends(event({ choices: [{ index: 0, delta: { content: 'Partial' } }] }), event({ choices: [], usage: { completion_tokens: 1 } }), 'data: [DONE]\n\n')],
+					['finish_reason and [DONE]', ends(event({ choices: [{ index: 0, delta: { content: 'Done.' }, finish_reason: 'stop' }] }), event({ choices: [], usage: { completion_tokens: 2 } }), 'data: [DONE]\n\n')],
 				];
 				const results = [];
-				for (const [name, fail] of failures) {
+				for (const [name, end] of endings) {
 					const h = createHarness();
 					await declareWithoutIds(h);
 					const generation = h.ledger.beginTurn('session-1');
@@ -571,7 +579,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 					await flush();
 					h.locals[0].push(FIRST_EVENT);
 					await flush();
-					fail(h.locals[0]);
+					end(h.locals[0]);
 					const response = await pending;
 					results.push({
 						name,
@@ -583,50 +591,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 						telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`),
 					});
 				}
-				const expected = (name: string) => ({
-					name,
-					status: 502,
-					body: { error: { code: 'localModelFailed', type: 'localModelFailed', message: 'Example Flash 1.0 is unavailable. Start a new chat or pick another model.' } },
-					cloud: [],
-					released: { slots: 0, leases: 0 },
-					turn: 'local',
-					telemetry: ['local:streamError'],
-				});
-				assert.deepStrictEqual(results, [expected('connection lost'), expected('error event')]);
-			});
-
-			test('an EOF before any choice finished returns 502, never a truncated answer', async () => {
-				const endings: [string, string[]][] = [
-					['content delta then EOF', [event({ choices: [{ index: 0, delta: { content: 'Partial' } }] })]],
-					['tool-call delta then EOF', [event({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_a', type: 'function', function: { name: 'read', arguments: '{"pa' } }] } }] })]],
-					['[DONE] without a finish_reason', [event({ choices: [{ index: 0, delta: { content: 'Partial' } }] }), event({ choices: [], usage: { completion_tokens: 1 } }), 'data: [DONE]\n\n']],
-					['finish_reason and [DONE]', [event({ choices: [{ index: 0, delta: { content: 'Done.' }, finish_reason: 'stop' }] }), event({ choices: [], usage: { completion_tokens: 2 } }), 'data: [DONE]\n\n']],
-				];
-				const results = [];
-				for (const [name, rest] of endings) {
-					const h = createHarness();
-					await declareWithoutIds(h);
-					const generation = h.ledger.beginTurn('session-1');
-					const { request, ctx } = nonStreaming();
-					const pending = h.handler.handleRequest(request, ctx);
-					await flush();
-					h.locals[0].push(FIRST_EVENT);
-					for (const chunk of rest) {
-						h.locals[0].push(chunk);
-					}
-					h.locals[0].close();
-					const response = await pending;
-					results.push({
-						name,
-						status: response.status,
-						body: await response.json(),
-						cloud: proxiedChats(h),
-						released: { slots: h.serving.slotsInUse, leases: h.serving.leasesHeld },
-						turn: h.ledger.endTurn('session-1', generation)?.execution,
-						telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`),
-					});
-				}
-				const truncated = (name: string) => ({
+				const failed = (name: string) => ({
 					name,
 					status: 502,
 					body: { error: { code: 'localModelFailed', type: 'localModelFailed', message: 'Example Flash 1.0 is unavailable. Start a new chat or pick another model.' } },
@@ -636,9 +601,11 @@ suite('LocalModelCopilotRequestHandler', () => {
 					telemetry: ['local:streamError'],
 				});
 				assert.deepStrictEqual(results, [
-					truncated('content delta then EOF'),
-					truncated('tool-call delta then EOF'),
-					truncated('[DONE] without a finish_reason'),
+					failed('connection lost'),
+					failed('error event'),
+					failed('content delta then EOF'),
+					failed('tool-call delta then EOF'),
+					failed('[DONE] without a finish_reason'),
 					{
 						name: 'finish_reason and [DONE]',
 						status: 200,
@@ -908,41 +875,24 @@ suite('LocalModelCopilotRequestHandler', () => {
 			]);
 		});
 
-		test('never replays output: a mid-stream failure ends the stream with an error', async () => {
-			const h = createHarness();
-			await declare(h);
-			const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL));
-			await flush();
-			h.locals[0].push(event({ choices: [{ delta: { content: 'a' } }] }));
-			const response = await pending;
-			h.locals[0].error(new Error('server crashed'));
-			const outcome = await response.text().then(() => 'completed', () => 'errored');
-			assert.deepStrictEqual({ outcome, cloud: proxiedChats(h), slots: h.serving.slotsInUse, leases: h.serving.leasesHeld, telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`) }, {
-				outcome: 'errored',
-				cloud: [],
-				slots: 0,
-				leases: 0,
-				telemetry: ['local:streamError'],
-			});
-		});
-
-		test('a streamed response that ends before any choice finished errors instead of ending cleanly', async () => {
-			const endings: [string, string][] = [
-				['EOF after a content delta', ''],
-				['[DONE] without a finish_reason', 'data: [DONE]\n\n'],
+		test('never replays output: a mid-stream failure, or a stream that ends before any choice finished, errors instead of ending cleanly', async () => {
+			const endings: [string, (local: LocalStream) => void][] = [
+				['connection lost', local => local.error(new Error('server crashed'))],
+				['EOF after a content delta', local => local.close()],
+				['[DONE] without a finish_reason', local => {
+					local.push('data: [DONE]\n\n');
+					local.close();
+				}],
 			];
 			const results = [];
-			for (const [name, ending] of endings) {
+			for (const [name, end] of endings) {
 				const h = createHarness();
 				await declare(h);
 				const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL));
 				await flush();
 				h.locals[0].push(event({ choices: [{ delta: { content: 'a' } }] }));
 				const response = await pending;
-				if (ending) {
-					h.locals[0].push(ending);
-				}
-				h.locals[0].close();
+				end(h.locals[0]);
 				const reader = response.body!.getReader();
 				const outcome = await (async () => {
 					try {
@@ -954,15 +904,15 @@ suite('LocalModelCopilotRequestHandler', () => {
 				})();
 				results.push({ name, outcome, cloud: proxiedChats(h), slots: h.serving.slotsInUse, leases: h.serving.leasesHeld, telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`) });
 			}
-			const expected = (name: string) => ({
+			const expected = (name: string, message = 'Example Flash 1.0 is unavailable. Start a new chat or pick another model.') => ({
 				name,
-				outcome: 'errored: Example Flash 1.0 is unavailable. Start a new chat or pick another model.',
+				outcome: `errored: ${message}`,
 				cloud: [],
 				slots: 0,
 				leases: 0,
 				telemetry: ['local:streamError'],
 			});
-			assert.deepStrictEqual(results, [expected('EOF after a content delta'), expected('[DONE] without a finish_reason')]);
+			assert.deepStrictEqual(results, [expected('connection lost', 'server crashed'), expected('EOF after a content delta'), expected('[DONE] without a finish_reason')]);
 		});
 
 		test('without a route, serves only the current model locally and never falls back', async () => {

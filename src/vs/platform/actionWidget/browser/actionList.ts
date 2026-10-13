@@ -346,10 +346,7 @@ function renderAdditionalBadges(
 	container.style.display = badges?.length ? '' : 'none';
 }
 
-/**
- * Whether the row exposes a submenu or keyboard-accessible hover panel. A submenu is
- * always advertised, also when hover content shows above it, since ArrowRight opens it.
- */
+/** Whether the row exposes a submenu or keyboard-accessible hover panel; a submenu is always advertised, since ArrowRight opens it. */
 function hasExpandablePanel<T>(item: IActionListItem<T>): boolean {
 	return !!item.submenuActions?.length || !!item.hover?.expandable;
 }

@@ -25,7 +25,7 @@ const family: ILocalModelFamilyV1 = {
 const status: ILocalModelStatusV1 = {
 	schemaVersion: 1,
 	device: { id: 'Vulkan0', capacityBytes: 72_124_497_920, confidence: 'measured', vendor: 'nvidia' },
-	runtime: { source: 'none', trust: 'none' },
+	runtime: {},
 	catalog: { state: 'ready', registries: { azureml: 'empty' } },
 	families: [family],
 	active: { familyId: 'other-local', contentId: 'c2', servingGeneration: 3, server: 'error', error: { code: 'crashed', message: 'It crashed.', actions: ['retry'] } },
@@ -42,11 +42,13 @@ suite('localModel contract', () => {
 			fromRootState: readLocalModelStatusFromRootState(rootState),
 			absent: readLocalModelStatusFromRootState({ agents: [] }),
 			error: readLocalModelStatusFromRootState(new Error('disconnected')),
+			notVersion1: [readLocalModelStatus(undefined), readLocalModelStatus([]), readLocalModelStatus({ schemaVersion: 2, families: [] })],
 		}, {
 			direct: status,
 			fromRootState: status,
 			absent: undefined,
 			error: undefined,
+			notVersion1: [undefined, undefined, undefined],
 		});
 	});
 
@@ -69,7 +71,7 @@ suite('localModel contract', () => {
 		assert.deepStrictEqual(read, {
 			schemaVersion: 1,
 			device: { confidence: 'unknown' },
-			runtime: { source: 'none', trust: 'none', version: 'b11459' },
+			runtime: { version: 'b11459' },
 			catalog: { state: 'unavailable', registries: { azureml: 'unavailable' } },
 			families: [{
 				familyId: 'a',
@@ -85,54 +87,21 @@ suite('localModel contract', () => {
 		});
 	});
 
-	test('rejects values that are not a version 1 status', () => {
-		assert.deepStrictEqual([
-			readLocalModelStatus(undefined),
-			readLocalModelStatus([]),
-			readLocalModelStatus({ schemaVersion: 2, families: [] }),
-		], [undefined, undefined, undefined]);
-	});
-
-	test('reads a status from an older host that still offered Switch to Public Build and named install channels without them', () => {
+	test('reads a status from an older host: Switch to Public Build, named install channels, and its llama.cpp install, discovery and approval state are dropped', () => {
 		const install = { contentId: 'c', adopted: false, owned: true, modelId: 'vscode-on-device/A' } as const;
-		const read = readLocalModelStatus({
+		const publicBuild = readLocalModelStatus({
 			...status,
 			families: [{ ...family, install: { ...install, channel: 'azureml', publicBuildAvailable: true }, operation: { id: 'op-2', kind: 'replace', state: 'running', resumeOnStartup: true, phase: 'downloading' } }],
 		});
-		assert.deepStrictEqual(read?.families.map(candidate => ({ install: candidate.install, operation: candidate.operation })), [{ install, operation: undefined }]);
-	});
-
-	test('reads the identity of a binary awaiting approval only with its path, and fingerprints its hash in the consent scope', () => {
-		const sha256 = 'a1b2c3d4e5f6'.padEnd(64, '0');
-		const runtimeOf = (runtime: Record<string, unknown>) => readLocalModelStatus({ schemaVersion: 1, runtime })?.runtime;
-		const pending = { source: 'path', trust: 'pendingApproval', path: 'C:\\tools\\llama-server.exe' } as const;
-		const scope = (value: string) => computeLocalModelConsentScope({ runtime: { ...pending, sha256: value } });
-		assert.deepStrictEqual({
-			pending: runtimeOf({ ...pending, sha256, size: 4096 }),
-			uppercase: runtimeOf({ ...pending, sha256: sha256.toUpperCase(), size: 4096 })?.sha256,
-			short: runtimeOf({ ...pending, sha256: 'abc', size: -1 }),
-			notPending: runtimeOf({ source: 'path', trust: 'userApproved', path: pending.path, sha256, size: 4096 }),
-			sameFileSameScope: scope(sha256) === scope(sha256),
-			otherFileOtherScope: scope(sha256) === scope('f'.repeat(64)),
-		}, {
-			pending: { ...pending, sha256, size: 4096 },
-			uppercase: undefined,
-			short: pending,
-			notPending: { source: 'path', trust: 'userApproved' },
-			sameFileSameScope: true,
-			otherFileOtherScope: false,
-		});
-	});
-
-	test('reads a status from an older host: its llama.cpp install state is dropped and an install VS Code made counts as approved', () => {
 		const read = readLocalModelStatus({
 			schemaVersion: 1,
-			runtime: { source: 'packageManager', packageManager: 'winget', installChannel: 'winget', trust: 'installedByVSCode', version: 'b11459', operation: { id: 'runtime-1', kind: 'upgrade', state: 'error', error: { code: 'packageInstallFailed', message: 'winget failed.', actions: ['retry'] } } },
+			runtime: { source: 'packageManager', packageManager: 'winget', installChannel: 'winget', trust: 'installedByVSCode', version: 'b11459', path: 'C:\\tools\\llama-server.exe', sha256: 'a'.repeat(64), size: 4096, operation: { id: 'runtime-1', kind: 'upgrade', state: 'error', error: { code: 'packageInstallFailed', message: 'winget failed.', actions: ['retry'] } } },
 			families: [{ ...family, operation: undefined, entry: { runtimeNeeded: true, modelFilesPresent: false, packagedRuntimeUnsupported: true } }],
 			active: { familyId: family.familyId, contentId: 'c', servingGeneration: 1, server: 'error', error: { code: 'runtimeUnsupportedModel', message: 'Update llama.cpp.', actions: ['updateRuntime', 'openSettings', 'retry'] } },
 		});
-		assert.deepStrictEqual({ runtime: read?.runtime, entry: read?.families[0].entry, actions: read?.active?.error?.actions }, {
-			runtime: { source: 'packageManager', trust: 'userApproved', version: 'b11459' },
+		assert.deepStrictEqual({ publicBuild: publicBuild?.families.map(candidate => ({ install: candidate.install, operation: candidate.operation })), runtime: read?.runtime, entry: read?.families[0].entry, actions: read?.active?.error?.actions }, {
+			publicBuild: [{ install, operation: undefined }],
+			runtime: { version: 'b11459' },
 			entry: { modelFilesPresent: false },
 			actions: ['openSettings', 'retry'],
 		});
@@ -222,11 +191,12 @@ suite('localModel contract', () => {
 			cancelWithoutOperation: isLocalModelRequest({ nonce: 'n', action: 'cancel' }),
 			start: isLocalModelRequest({ nonce: 'n', action: 'start' }),
 			removedUpdateRuntime: isLocalModelRequest({ nonce: 'n', action: 'updateRuntime' }),
+			removedApproveRuntime: isLocalModelRequest({ nonce: 'n', action: 'approveRuntime', consent }),
 			unknownAction: isLocalModelRequest({ nonce: 'n', action: 'format' }),
 			removedReplaceWithPublic: isLocalModelRequest({ nonce: 'n', action: 'replaceWithPublic', familyId: 'f', consent }),
 			emptyNonce: isLocalModelRequest({ nonce: '', action: 'start' }),
 			// An older client's consent also says how llama.cpp is provided: only the scope counts.
-			olderClientConsent: isLocalModelRequest({ nonce: 'n', action: 'approveRuntime', consent: { scope: 's', runtimeChoice: 'useDetected' } }),
+			olderClientConsent: isLocalModelRequest({ nonce: 'n', action: 'setUp', familyId: 'f', consent: { scope: 's', runtimeChoice: 'useDetected' } }),
 			getLlamaCppIsNotARequest: isLocalModelRequest({ nonce: 'n', action: 'getLlamaCpp' }),
 			setContextSize: isLocalModelRequest({ nonce: 'n', action: 'setContextSize', familyId: 'f', contextTokens: 131072 }),
 			setContextSizeWithoutTokens: isLocalModelRequest({ nonce: 'n', action: 'setContextSize', familyId: 'f' }),
@@ -241,6 +211,7 @@ suite('localModel contract', () => {
 			cancelWithoutOperation: false,
 			start: true,
 			removedUpdateRuntime: false,
+			removedApproveRuntime: false,
 			unknownAction: false,
 			removedReplaceWithPublic: false,
 			emptyNonce: false,
@@ -255,23 +226,18 @@ suite('localModel contract', () => {
 	});
 
 	test('fingerprints only what the consent shows: a download covers the model, never llama.cpp', () => {
-		const runtime = { path: 'C:\\tools\\llama-server.exe', version: 'b11459', sha256: 'a'.repeat(64) };
 		const base = computeLocalModelConsentScope({ family });
 		assert.deepStrictEqual({
 			stable: computeLocalModelConsentScope({ family: { ...family, entry: { ...family.entry!, disk: { volume: 'D:', availableBytes: 1, requiredBytes: 2 } } } }) === base,
 			sizeChanged: computeLocalModelConsentScope({ family: { ...family, offer: { ...family.offer!, downloadBytes: 1 } } }) === base,
 			licenseChanged: computeLocalModelConsentScope({ family: { ...family, offer: { ...family.offer!, licenseName: 'Other' } } }) === base,
 			filesNowPresent: computeLocalModelConsentScope({ family: { ...family, entry: { ...family.entry!, modelFilesPresent: true } } }) === base,
-			runtimeApproval: computeLocalModelConsentScope({ runtime }),
-			runtimePathChanged: computeLocalModelConsentScope({ runtime: { ...runtime, path: 'C:\\other.exe' } }) === computeLocalModelConsentScope({ runtime }),
 			model: JSON.parse(base),
 		}, {
 			stable: true,
 			sizeChanged: false,
 			licenseChanged: false,
 			filesNowPresent: false,
-			runtimeApproval: JSON.stringify([2, 'runtime', runtime.path, 'b11459', 'a'.repeat(64)]),
-			runtimePathChanged: false,
 			model: [3, 'model', family.familyId, [56_688_834_848, 56_688_834_848, 'MIT', 'https://example.com/license'], false],
 		});
 	});

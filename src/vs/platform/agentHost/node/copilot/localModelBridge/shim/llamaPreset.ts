@@ -5,12 +5,7 @@
 
 import { DFLASH_SPEC_TYPE, PRESET_INI_MAX_BYTES, PRESET_MAX_PARALLEL } from './constants.js';
 
-/*
- * `llama-config.json` / `llama-default.ini` -> `llama-server` arguments.
- * The preset is registry data, so parsing is strict: allowlisted keys and
- * values only (the INI also needs one version and one section named after the
- * asset).
- */
+/* `llama-config.json` / `llama-default.ini` -> `llama-server` arguments. The preset is registry data, so parsing is strict: allowlisted keys and values only. */
 
 /** Preset keys and how their values are validated. */
 type PresetValueKind = 'positiveInt' | 'nonNegativeInt' | 'int' | 'unitFloat' | 'nonNegativeFloat' | 'boolean' | 'layers' | 'onOff' | 'onOffAuto' | 'specType' | 'ggufName';
@@ -98,14 +93,8 @@ function isValidValue(kind: PresetValueKind, value: string): boolean {
 }
 
 /**
- * Parses and validates `llama-default.ini` for `assetName`. Pure.
- *
- * Rules: at most {@link PRESET_INI_MAX_BYTES}; `version = 1` before the
- * section; exactly one section, whose name equals the asset name
- * (case-insensitive); only allowlisted keys, each at most once; `fit` is
- * `on`/`off`; `spec-type` is `draft-dflash`; `parallel` <= 64; `jinja` must
- * not be disabled (agent sessions need tool calls); a DFlash preset names
- * exactly one companion GGUF.
+ * Parses and validates `llama-default.ini` for `assetName`: `version = 1`, exactly one section named after the asset,
+ * allowlisted keys at most once each, and `jinja` not disabled (agent sessions need tool calls). Pure.
  */
 export function parseLlamaPreset(text: string, assetName: string): LlamaPresetParseResult {
 	if (text.length > PRESET_INI_MAX_BYTES) {
@@ -196,14 +185,8 @@ const CONFIG_JSON_FIELDS = new Set(['model', 'draftModel', 'ctxSize', 'parallel'
 const CONFIG_JSON_FIELD_KEYS = new Set(['ctx-size', 'parallel', 'load-on-startup', 'n-gpu-layers', 'spec-draft-model']);
 
 /**
- * Parses and validates `llama-config.json` (the registry's current runtime
- * config) into the same preset shape as {@link parseLlamaPreset}. Pure.
- *
- * Shape: `{ model, draftModel?, ctxSize, parallel, nGpuLayers, args }`. The
- * GGUF names are bare file names; `args` is a flat `llama-server` argument
- * list using only the allowlisted preset flags (each at most once; `--jinja`
- * and `--no-host` take no value). The same cross-key rules apply as for the
- * INI. `--jinja` is added when absent, as tool calls need it.
+ * Parses and validates `llama-config.json` into the same preset shape as {@link parseLlamaPreset}: bare GGUF names and
+ * an `args` list of allowlisted flags, with the INI's cross-key rules. `--jinja` is added when absent, as tool calls need it. Pure.
  */
 export function parseLlamaConfigJson(text: string, assetName: string): LlamaPresetParseResult {
 	if (text.length > PRESET_INI_MAX_BYTES || text.includes('\0')) {
@@ -319,11 +302,9 @@ export interface ILlamaPresetArgs {
 const BOOLEAN_FLAG_KEYS = new Set(['jinja', 'no-host']);
 
 /**
- * Builds the preset portion of the `llama-server` arguments, in preset order,
- * with profile overrides applied in place, optional flags the probe did not
- * find filtered out, and the speculative configuration dropped as a whole
- * when DFlash is unsupported or the overrides ask for it. `--spec-draft-model`
- * is emitted last but one, before `--jinja`, matching the MAI v3 golden. Pure.
+ * Builds the preset's `llama-server` arguments in preset order, with overrides applied, unsupported optional flags dropped
+ * and the speculative configuration dropped as a whole when unsupported. `--spec-draft-model` comes last but one, before
+ * `--jinja`, matching the MAI v3 golden. Pure.
  */
 export function buildLlamaPresetArgs(preset: ILlamaPreset, support: ILlamaServerFlagSupport, overrides: ILlamaPresetOverrides = {}): ILlamaPresetArgs {
 	const speculative = !!preset.draftModel && support.dflashSupported && !overrides.dropSpeculative;

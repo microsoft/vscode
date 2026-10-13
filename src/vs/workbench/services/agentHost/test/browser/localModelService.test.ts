@@ -112,7 +112,7 @@ const otherFamily: ILocalModelFamilyV1 = {
 const status: ILocalModelStatusV1 = {
 	schemaVersion: 1,
 	device: { confidence: 'measured' },
-	runtime: { source: 'packageManager', trust: 'userApproved' },
+	runtime: { version: 'b11459' },
 	catalog: { state: 'ready', registries: { azureml: 'empty' } },
 	families: [family, otherFamily],
 	active: { familyId: otherFamily.familyId, contentId: 'c2', servingGeneration: 1, server: 'ready' },
@@ -181,7 +181,6 @@ suite('LocalModelService', () => {
 			withoutHandler,
 			setUp: service.setUp(local, family.familyId, consent),
 			unknownFamily: service.setUp(local, 'unknown', consent),
-			approveRuntime: service.approveRuntime(local, { scope: 'runtime' }),
 			// The active model is in use: the swap is still sent at once; the host drains it first.
 			makeActive: service.makeActive(local, family.familyId),
 			activeAgain: service.makeActive(local, otherFamily.familyId),
@@ -198,11 +197,10 @@ suite('LocalModelService', () => {
 				return rest;
 			}),
 		}, {
-			results: { withoutHandler: false, setUp: true, unknownFamily: false, approveRuntime: true, makeActive: true, activeAgain: true, unknownMakeActive: false, remove: false, stopNow: true },
+			results: { withoutHandler: false, setUp: true, unknownFamily: false, makeActive: true, activeAgain: true, unknownMakeActive: false, remove: false, stopNow: true },
 			asked: [`remove:${family.familyId}`],
 			dispatched: [
 				{ action: 'setUp', familyId: family.familyId, consent },
-				{ action: 'approveRuntime', consent: { scope: 'runtime' } },
 				{ action: 'makeActive', familyId: family.familyId },
 				{ action: 'makeActive', familyId: otherFamily.familyId },
 				{ action: 'stopNow' },

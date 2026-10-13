@@ -65,7 +65,7 @@ function createStatus(active: ILocalModelStatusV1['active'], maiOperation?: ILoc
 	return {
 		schemaVersion: 1,
 		device: { confidence: 'measured' },
-		runtime: { source: 'packageManager', trust: 'userApproved' },
+		runtime: { version: 'b11459' },
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families: [maiOperation ? { ...mai, operation: maiOperation } : mai, qwen],
 		active,

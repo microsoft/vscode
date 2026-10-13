@@ -137,10 +137,7 @@ export interface IAgentHostHostServiceInputs {
 	readonly userDataPath: URI;
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
-	/**
-	 * On-device models run only in the local utility-process host. Every other
-	 * host gets the null implementation, which never creates a provider.
-	 */
+	/** On-device models run only in the local utility-process host; other hosts get the null implementation. */
 	readonly localModel?: { readonly kind: 'localUtilityProcess' } | { readonly kind: 'unavailable' };
 }
 

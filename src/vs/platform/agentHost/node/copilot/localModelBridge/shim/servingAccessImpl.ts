@@ -8,33 +8,20 @@ import { localize } from '../../../../../../nls.js';
 import { DOWN_MARK_MS, LOAD_TIMEOUT_MS, QUEUE_TIMEOUT_MS } from './constants.js';
 import { LocalModelServingError, type IDirectFamilyLookup, type ILocalModelClock, type ILocalModelLiveGates, type IQueuedSlotOptions, type IServingAccess, type IServingIdentity, type IServingLease, type IServingSlot, type IServingSnapshot } from './servingAccess.js';
 
-/**
- * What {@link ServingAccess} needs from the provider and the supervisor. The
- * provider owns the active model, swaps and live settings; the supervisor
- * owns leases (the in-flight count its drains wait for).
- */
+/** What {@link ServingAccess} needs: the provider owns the active model, swaps and live settings; the supervisor owns leases. */
 export interface IServingAccessHost {
 	getGates(): ILocalModelLiveGates;
 	getAccountGeneration(): number;
 	getActiveServing(): IServingSnapshot | undefined;
 	/** See {@link IServingAccess.getHeldServing}. */
 	getHeldServing(sessionId: string | undefined): IServingSnapshot | undefined;
-	/**
-	 * The supervisor's lease on `identity`'s generation (`undefined` unless ready
-	 * and admitting, or held by the open turn of `sessionId`); a request of an
-	 * open turn makes the turn hold the generation.
-	 */
+	/** The supervisor's lease on `identity`'s generation; see {@link IServingAccess.acquireServingLease}. */
 	acquireLease(identity: IServingIdentity, sessionId: string | undefined): IServingLease | undefined;
 	/** Whether `servingGeneration` drains but still serves the turns that hold it. */
 	servesHeldTurns(servingGeneration: number): boolean;
 	/** A swap in progress to `familyId`; `settled` resolves when it ends (either way). */
 	getIncomingSwap(): { readonly familyId: string; readonly settled: Promise<void> } | undefined;
-	/**
-	 * For a direct request: loads the active family `familyId` when it is
-	 * unloaded, sharing a start in progress. Resolves when the attempt ends;
-	 * rejects with a {@link LocalModelServingError} (the supervisor's code and
-	 * message) when it cannot be served. Never swaps.
-	 */
+	/** For a direct request: loads the unloaded active family `familyId`, sharing a start in progress; rejects with a {@link LocalModelServingError}. Never swaps. */
 	startActive(familyId: string): Promise<void>;
 	findFamilyByAlias(alias: string): IDirectFamilyLookup | undefined;
 	/** Display name of an installed family, for messages. */
@@ -66,13 +53,7 @@ function loadTimeoutError(displayName: string | undefined): LocalModelServingErr
 		: localize('localModel.serving.loadTimeoutGeneric', "The on-device model took too long to load. Try again, or use Auto."));
 }
 
-/**
- * The shim's {@link IServingAccess}: leases bound to a
- * serving generation, `llama-server` slots (non-blocking for Auto, FIFO with
- * a {@link QUEUE_TIMEOUT_MS} timeout for direct requests), endpoint down
- * marks, and `ensureStarted` for direct requests (start a stopped active
- * model; wait for a swap to the requested family; never swap).
- */
+/** The shim's {@link IServingAccess}: generation-bound leases, slots (non-blocking for Auto, FIFO with a timeout for direct requests), endpoint down marks and `ensureStarted`. */
 export class ServingAccess implements IServingAccess, IDisposable {
 
 	private readonly _slotsInUse = new Map<number, number>();

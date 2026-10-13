@@ -247,13 +247,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	/**
-	 * Keeps the notification already on screen when it is still the one to
-	 * show: unchanged, it keeps its controls and focus as they are; a progress
-	 * update changes its message, its bar, and the labels and states of its
-	 * actions in place. Rebuilding instead would move keyboard focus off an
-	 * action such as Pause, whenever any notification changes.
-	 */
+	/** Keeps the notification on screen when it is still the one to show, updating it in place; rebuilding would move keyboard focus off an action such as Pause. */
 	private _updateInPlace(notification: IChatInputNotification, body: IChatInputNotificationBody): boolean {
 		const rendered = this._rendered;
 		if (!rendered || !this._visible || rendered.notification.id !== notification.id) {
@@ -283,11 +277,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		return true;
 	}
 
-	/**
-	 * What a rendered notification looks like apart from its message, its
-	 * progress, and the labels and states of its actions, which change in place,
-	 * e.g. when Cancel reads Cancelling... and can't be chosen again.
-	 */
+	/** What a rendered notification looks like apart from what changes in place: its message, progress, and action labels and states. */
 	private _getLayoutKey(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[]): string {
 		return JSON.stringify([
 			notification.severity,
@@ -318,12 +308,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	/**
-	 * Shows `progress` on the notification's standard progress bar: an animated
-	 * indeterminate bar without a percentage, otherwise its fill. The bar
-	 * switches between the two in place; value attributes are only set while
-	 * it is determinate.
-	 */
+	/** Shows `progress` on the standard progress bar: indeterminate without a percentage, else its fill, switching in place. */
 	private _updateProgress(rendered: IRenderedNotification, progress: IChatInputNotificationProgress, label: string): void {
 		const bar = rendered.progressBar;
 		if (!bar) {
@@ -348,12 +333,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		element.setAttribute('aria-valuenow', String(percent));
 	}
 
-	/**
-	 * Shows the in-progress indicator of an active agent session, as the Agent
-	 * Sessions view does: the animated pixel spinner, or the in-progress icon
-	 * with reduced motion, following changes to it. Created once per rendered
-	 * notification, so progress updates in place keep it running.
-	 */
+	/** Shows the in-progress indicator of an active agent session, as the Agent Sessions view does; created once per rendered notification so updates keep it running. */
 	private _renderBusyIcon(iconElement: HTMLElement): void {
 		iconElement.classList.add('busy');
 		const spinner = this._contentDisposables.add(new MutableDisposable<IPixelSpinner>());

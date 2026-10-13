@@ -44,10 +44,7 @@ interface IChatInputNotificationActionBase {
 	readonly outlined?: boolean;
 	readonly tooltip?: string;
 	readonly primary?: boolean;
-	/**
-	 * Shows the action but it can't be chosen, e.g. while a request it sent
-	 * takes effect. A progress update can change this, and the label, in place.
-	 */
+	/** Shows the action but it can't be chosen, e.g. while a request it sent takes effect; progress updates can change it in place. */
 	readonly disabled?: boolean;
 	readonly keepOpen?: boolean;
 	/** Stable id reported to telemetry, so two actions of the same kind can be told apart. */
@@ -115,23 +112,14 @@ export interface IChatInputNotificationProgress {
 	readonly percent?: number;
 }
 
-/**
- * Notifications of one feature that must not compete: of the members of a group
- * that apply to an input, only those with the highest priority are considered,
- * and the rest wait until those are dismissed or removed.
- */
+/** Notifications of one feature that must not compete: only the highest-priority applicable members are considered; the rest wait. */
 export interface IChatInputNotificationGroup {
 	readonly id: string;
 	readonly priority: number;
 }
 
 export interface IChatInputNotificationSetOptions {
-	/**
-	 * Updates the content of a notification that is already set, such as its
-	 * progress, without bringing it in front of newer notifications of the
-	 * same severity or undoing the user's dismissal. Sets it as usual when it
-	 * isn't set yet.
-	 */
+	/** Updates the content of a set notification (e.g. progress) without moving it in front of newer ones or undoing a dismissal; sets it as usual otherwise. */
 	readonly inPlace?: boolean;
 }
 
@@ -144,11 +132,7 @@ export interface IChatInputNotification {
 	/** Optional header icon. Defaults to the severity icon. */
 	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
-	/**
-	 * What assistive technology reads as the notification's name and hears
-	 * announced, when its message changes more often than that should be
-	 * heard, e.g. a countdown that moves every second. Defaults to the message.
-	 */
+	/** What assistive technology reads and hears when the message changes too often to announce, e.g. a countdown. Defaults to the message. */
 	readonly ariaMessage?: string;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
@@ -177,26 +161,11 @@ export interface IChatInputNotification {
 	 * that is distinct from a one-off dismissal. Omit to hide the button.
 	 */
 	readonly mute?: IChatInputNotificationMuteAction;
-	/**
-	 * Shows a progress bar under the message. While the notification id and its
-	 * layout (severity, icon, description and the kinds and styles of its
-	 * actions) stay the same, updates change the message, the bar and the
-	 * labels and states of its actions in place, so focus stays on its actions.
-	 */
+	/** Shows a progress bar under the message; while the id and layout stay the same, updates change the message, bar and actions in place so focus stays. */
 	readonly progress?: IChatInputNotificationProgress;
-	/**
-	 * Shows the in-progress indicator of an active agent session in place of
-	 * the icon while the reported operation runs: an animated spinner, or the
-	 * in-progress icon with reduced motion. It keeps running through progress
-	 * updates in place.
-	 */
+	/** Shows the in-progress indicator of an active agent session in place of the icon while the operation runs, kept through updates in place. */
 	readonly busy?: boolean;
-	/**
-	 * When set, screen readers hear the notification again only when this key
-	 * changes, rather than whenever its message or description changes. For
-	 * notifications whose text changes often, such as progress, so only
-	 * meaningful changes (a new phase, a pause, a failure) are announced.
-	 */
+	/** When set, screen readers hear the notification again only when this key changes (a new phase, a pause, a failure), not on every text change. */
 	readonly announcementKey?: string;
 	/** Defers this notification to higher-priority members of the same group. */
 	readonly group?: IChatInputNotificationGroup;

@@ -14,6 +14,7 @@ const MiB = 1024 ** 2;
 const offer = { fit: 'full', requiredGpuBytes: 60 * GB, downloadBytes: 56.7 * GB, peakDiskBytes: 57.2 * GB, licenseName: 'MIT', licenseUrl: 'https://example.com/license' } as const;
 const install = { contentId: 'c1', adopted: false, owned: true, modelId: 'MAI-Code-1.1-Flash' } as const;
 const running = { kind: 'setup', state: 'running', resumeOnStartup: true } as const;
+const qwenInstall = { ...install, contentId: 'q1', modelId: 'Qwen-Coder' } as const;
 const entry = { modelFilesPresent: false, disk: { volume: 'C:', availableBytes: 412 * GB, requiredBytes: 57.2 * GB } } as const;
 
 /** One family; an installed one has Example Flash's context sizes unless it says otherwise. */
@@ -34,7 +35,7 @@ function status(families: readonly ILocalModelFamilyV1[], active?: ILocalModelSt
 	return {
 		schemaVersion: 1,
 		device: { capacityBytes: 64 * GB, confidence: 'measured', vendor: 'nvidia' },
-		runtime: { source: 'packageManager', trust: 'userApproved' },
+		runtime: { version: 'b11459' },
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families,
 		active,
@@ -73,15 +74,15 @@ const STATES = {
 	]),
 	Installed: status([
 		family('active', 'Example Flash 1.0', { install: { ...install, update: { contentId: 'c2', downloadBytes: 2.1 * GB } }, offer }),
-		family('inactive', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder' }, offer, context: ON_DEVICE_CONTEXT.qwen }),
+		family('inactive', 'Qwen Coder', { install: qwenInstall, offer, context: ON_DEVICE_CONTEXT.qwen }),
 		family('direct-only', 'Direct-Only Model', { autoCapable: false, install: { ...install, contentId: 'd1', modelId: 'Direct-Only' }, offer }),
 	], active('active')),
 	StartsWhenNeeded: status([family('active', 'Example Flash 1.0', { install, offer })], active('active', { server: 'stopped' })),
-	LoadingModel: status([family('active', 'Example Flash 1.0', { install, offer }), family('inactive', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder' }, offer, context: ON_DEVICE_CONTEXT.qwen })], active('active', { server: 'starting', load: { step: 'loading', startedAt: 0 } })),
+	LoadingModel: status([family('active', 'Example Flash 1.0', { install, offer }), family('inactive', 'Qwen Coder', { install: qwenInstall, offer, context: ON_DEVICE_CONTEXT.qwen })], active('active', { server: 'starting', load: { step: 'loading', startedAt: 0 } })),
 	TooSlowForAuto: status([family('active', 'Example Flash 1.0', { install, offer })], active('active', { autoEligible: false, profile: 'near-fit' })),
 	Errors: status([
 		family('network', 'Interrupted Download', { offer, operation: { id: 'op1', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'network', message: 'The download was interrupted. Select Retry to resume.', actions: ['retry'] } } }),
-		family('runtime', 'Old Runtime', { offer, operation: { id: 'op2', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'runtimeTooOld', message: 'The llama-server at C:\\llama\\llama-server.exe is missing features VS Code needs (--fit). Install a newer llama.cpp build, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } } }),
+		family('runtime', 'Old Runtime', { offer, operation: { id: 'op2', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'runtimeTooOld', message: 'The llama-server at C:\\llama\\llama-server.exe is missing features VS Code needs (--fit). Install a newer llama.cpp build, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } } }),
 		family('orphan', 'Orphaned Server', { install, offer }),
 	], active('orphan', { server: 'error', error: { code: 'orphan', message: 'A previous server is still running.', actions: ['retry', 'stopPrevious'] } })),
 	// A model that isn't downloaded can't be selected: Download, the download's progress or Paused shows where an installed model's summary would be.
@@ -93,106 +94,81 @@ const STATES = {
 	], active('active')),
 } satisfies Record<string, ILocalModelStatusV1>;
 
-const DETECTED_RUNTIME = { source: 'path', version: 'b11459', trust: 'pendingApproval', path: 'C:\\Users\\me\\llama.cpp\\llama-server.exe', sha256: '3f9a1c27b84e5d06a7c2e9f41b8d3e5a6c7f0b2d4e9a1c3b5d7f9e0a2c4b6d8f', size: 48 * 1024 * 1024 } as const;
+/** Example Flash 1.0 as set up on this device. */
+function exampleFlash(overrides: Partial<ILocalModelFamilyV1> = {}): ILocalModelFamilyV1 {
+	return family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true, ...overrides });
+}
+
+const qwenOffer = { ...offer, downloadBytes: 18.4 * GB, requiredGpuBytes: 22 * GB, licenseName: 'Apache 2.0' } as const;
+
+/** Qwen Coder as set up on this device. */
+function qwen(overrides: Partial<ILocalModelFamilyV1> = {}): ILocalModelFamilyV1 {
+	return family('qwen', 'Qwen Coder', { install: qwenInstall, offer: qwenOffer, consentGiven: true, context: ON_DEVICE_CONTEXT.qwen, ...overrides });
+}
+
+const llamaCppDirections = ['getLlamaCpp', 'openSettings', 'retry'] as const;
+const downloading = { ...running, id: 'op1', phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB, bytesPerSecond: 48 * 1024 * 1024 } as const;
+/** Loading, 12 s into a load whose last comparable one took 31 s. */
+const loadingWithEstimate = () => status([exampleFlash()], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } }));
 
 /** The detail page of one family in each state a user meets, opened as the show-details command does; a load's status is taken when it renders. */
 const DETAILS: Record<string, { readonly familyId: string; readonly status: ILocalModelStatusV1 | (() => ILocalModelStatusV1); readonly pendingStops?: readonly string[]; readonly motionReduced?: boolean; readonly focusStateIcon?: boolean }> = {
 	/** Download covers only the model: its size, source and license; loading it needs llama.cpp, which VS Code doesn't install. */
-	DetailsDownloadNoLlamaCpp: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, entry })], undefined, { runtime: { source: 'none', trust: 'none' } }) },
+	DetailsDownloadNoLlamaCpp: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, entry })], undefined, { runtime: {} }) },
 	/** Downloaded, but no usable llama.cpp: loading it gives directions, with Get llama.cpp, Open Settings and Retry. */
 	DetailsNeedsLlamaCpp: {
 		familyId: 'example-flash',
-		status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'error', error: { code: 'runtimeNotFound', message: 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } }), { runtime: { source: 'none', trust: 'none' } }),
+		status: status([exampleFlash()], active('example-flash', { server: 'error', error: { code: 'runtimeNotFound', message: 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: llamaCppDirections } }), { runtime: {} }),
 	},
-	/** The llama.cpp found can't run the model's architecture (MAI before ggml-org/llama.cpp#29778). */
+	/** The llama.cpp set can't run the model's architecture (MAI before ggml-org/llama.cpp#29778). */
 	DetailsUnsupportedLlamaCpp: {
 		familyId: 'example-flash',
-		status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'error', error: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (b11459) can\'t run Example Flash 1.0. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } })),
+		status: status([exampleFlash()], active('example-flash', { server: 'error', error: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (b11459) can\'t run Example Flash 1.0. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.', actions: llamaCppDirections } })),
 	},
-	DetailsDownloading: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: { ...running, id: 'op1', phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB, bytesPerSecond: 48 * 1024 * 1024 } })]) },
+	DetailsDownloading: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: downloading })]) },
 	DetailsPaused: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: { id: 'op1', kind: 'setup', state: 'paused', pausedReason: 'network', resumeOnStartup: true, phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB } })]) },
 	DetailsErrorRetry: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: { id: 'op1', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'network', message: 'The download was interrupted. Select Retry to resume.', actions: ['retry'] } } })]) },
-	DetailsRuntimeApproval: {
-		familyId: 'example-flash',
-		status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'error', error: { code: 'runtimeApprovalRequired', message: 'Example Flash 1.0 can\'t start until you approve the llama-server VS Code found.', actions: ['retry'] } }), { runtime: DETECTED_RUNTIME }),
-	},
 	/** Loaded: the header offers Stop and Remove. */
-	DetailsReady: { familyId: 'example-flash', status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash')) },
+	DetailsReady: { familyId: 'example-flash', status: status([exampleFlash()], active('example-flash')) },
 	/** Stop was just selected: it reads as in progress until the host stops the model. */
-	DetailsStopPending: { familyId: 'example-flash', pendingStops: [getLocalModelServerStopId('example-flash')], status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash')) },
+	DetailsStopPending: { familyId: 'example-flash', pendingStops: [getLocalModelServerStopId('example-flash')], status: status([exampleFlash()], active('example-flash')) },
 	/** An update is available for a model that isn't loaded: Load, Update and Remove. */
-	DetailsUpdateAvailable: {
-		familyId: 'qwen',
-		status: status([
-			family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true }),
-			family('qwen', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder', update: { contentId: 'q2', downloadBytes: 2.1 * GB } }, offer: { ...offer, downloadBytes: 18.4 * GB, requiredGpuBytes: 22 * GB, licenseName: 'Apache 2.0' }, consentGiven: true, context: ON_DEVICE_CONTEXT.qwen }),
-		], active('example-flash')),
-	},
+	DetailsUpdateAvailable: { familyId: 'qwen', status: status([exampleFlash(), qwen({ install: { ...qwenInstall, update: { contentId: 'q2', downloadBytes: 2.1 * GB } } })], active('example-flash')) },
 	/** A long name and all three header icons, the first warming up: the name gives way to the icons. */
 	DetailsLongNameWarmingUp: {
 		familyId: 'example-flash',
 		status: status([family('example-flash', 'Example Flash 1.0 Extended Context Preview', { install: { ...install, update: { contentId: 'c2', downloadBytes: 2.1 * GB } }, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'warmingUp', startedAt: 0 } })),
 	},
 	/** Qwen's thinking is a switch, and a new context size applies the next time it loads. */
-	DetailsNotLoaded: {
-		familyId: 'qwen',
-		status: status([
-			family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true }),
-			family('qwen', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder' }, offer: { ...offer, downloadBytes: 18.4 * GB, requiredGpuBytes: 22 * GB, licenseName: 'Apache 2.0' }, consentGiven: true, context: ON_DEVICE_CONTEXT.qwen }),
-		], active('example-flash')),
-	},
+	DetailsNotLoaded: { familyId: 'qwen', status: status([exampleFlash(), qwen()], active('example-flash')) },
 	/** A new context size for the loaded model: it reloads once its running responses finish. */
 	DetailsContextReloading: {
 		familyId: 'example-flash',
-		status: status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true, context: { ...ON_DEVICE_CONTEXT.exampleFlash, tokens: 262144 }, operation: { ...running, id: 'op1', kind: 'swap', phase: 'draining' } })], active('example-flash', { contextTokens: 131072, swapTo: 'example-flash', drain: { runningStreams: 2 } })),
+		status: status([exampleFlash({ context: { ...ON_DEVICE_CONTEXT.exampleFlash, tokens: 262144 }, operation: { ...running, id: 'op1', kind: 'swap', phase: 'draining' } })], active('example-flash', { contextTokens: 131072, swapTo: 'example-flash', drain: { runningStreams: 2 } })),
 	},
 	/** Then it loads again at the new size, 12 s into a reload whose last comparable load took 31 s. */
 	DetailsReloading: {
 		familyId: 'example-flash',
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true, context: { ...ON_DEVICE_CONTEXT.exampleFlash, tokens: 262144 }, operation: { ...running, id: 'op1', kind: 'swap', phase: 'loading' } })], active('example-flash', { server: 'starting', swapTo: 'example-flash', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } })),
+		status: () => status([exampleFlash({ context: { ...ON_DEVICE_CONTEXT.exampleFlash, tokens: 262144 }, operation: { ...running, id: 'op1', kind: 'swap', phase: 'loading' } })], active('example-flash', { server: 'starting', swapTo: 'example-flash', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } })),
 	},
 	/** 256K selected, but this device only has the GPU memory to serve 128K. */
-	DetailsContextReduced: {
-		familyId: 'qwen',
-		status: status([family('qwen', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder' }, offer: { ...offer, downloadBytes: 18.4 * GB, requiredGpuBytes: 22 * GB, licenseName: 'Apache 2.0' }, consentGiven: true, context: { ...ON_DEVICE_CONTEXT.qwen, tokens: 262144 } })], active('qwen', { contextTokens: 131072 }), { device: { capacityBytes: 8 * GB, confidence: 'measured' } }),
-	},
-	/** Loading, 12 s into a load whose last comparable one took 31 s: the bar and time remaining are estimated. */
-	DetailsLoadingWithEstimate: {
-		familyId: 'example-flash',
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } })),
-	},
+	DetailsContextReduced: { familyId: 'qwen', status: status([qwen({ context: { ...ON_DEVICE_CONTEXT.qwen, tokens: 262144 } })], active('qwen', { contextTokens: 131072 }), { device: { capacityBytes: 8 * GB, confidence: 'measured' } }) },
+	/** The bar and time remaining are estimated from the last comparable load. */
+	DetailsLoadingWithEstimate: { familyId: 'example-flash', status: loadingWithEstimate },
 	/** The first load of this model at this context size: no estimate, so the bar is indeterminate. */
-	DetailsLoadingFirstTime: {
-		familyId: 'example-flash',
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 4_000 } })),
-	},
+	DetailsLoadingFirstTime: { familyId: 'example-flash', status: () => status([exampleFlash()], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 4_000 } })) },
 	/** Keyboard focus on the in-progress indicator turns it into Cancel, the step's stop action. */
-	DetailsLoadingFocusCancel: {
-		familyId: 'example-flash',
-		focusStateIcon: true,
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } })),
-	},
+	DetailsLoadingFocusCancel: { familyId: 'example-flash', focusStateIcon: true, status: loadingWithEstimate },
 	/** With reduced motion, the in-progress icon stands in for the spinner. */
-	DetailsLoadingReducedMotion: {
-		familyId: 'example-flash',
-		motionReduced: true,
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } })),
-	},
+	DetailsLoadingReducedMotion: { familyId: 'example-flash', motionReduced: true, status: loadingWithEstimate },
 	/** This llama.cpp build crashed on the warm-up with speculative decoding: the model loads again without it. */
-	DetailsRetryWithoutSpeculativeDecoding: {
-		familyId: 'example-flash',
-		status: () => status([family('example-flash', 'Example Flash 1.0', { install, offer, consentGiven: true })], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 3_000, retry: 'withoutSpeculativeDecoding' } })),
-	},
+	DetailsRetryWithoutSpeculativeDecoding: { familyId: 'example-flash', status: () => status([exampleFlash()], active('example-flash', { server: 'starting', load: { step: 'loading', startedAt: Date.now() - 3_000, retry: 'withoutSpeculativeDecoding' } })) },
 	/** Pause was just selected: it shows as in progress until the host pauses the download. */
-	DetailsPausePending: {
-		familyId: 'example-flash',
-		pendingStops: ['op1'],
-		status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: { ...running, id: 'op1', phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB, bytesPerSecond: 48 * 1024 * 1024 } })]),
-	},
+	DetailsPausePending: { familyId: 'example-flash', pendingStops: ['op1'], status: status([family('example-flash', 'Example Flash 1.0', { offer, operation: downloading })]) },
 	/** 256K selected on a device whose GPU can't hold it; a smaller size fits. */
 	DetailsMemoryWarning: {
 		familyId: 'qwen',
-		status: status([family('qwen', 'Qwen Coder', { install: { ...install, contentId: 'q1', modelId: 'Qwen-Coder' }, offer: { ...offer, downloadBytes: 3.2 * GB, requiredGpuBytes: 8.5 * GB, licenseName: 'Apache 2.0' }, consentGiven: true, context: { ...ON_DEVICE_CONTEXT.qwen, tokens: 262144 }, memoryWarning: { requiredBytes: 12825 * MiB, capacityBytes: 8 * GB } })], active('example-flash'), { device: { capacityBytes: 8 * GB, confidence: 'measured' } }),
+		status: status([qwen({ offer: { ...offer, downloadBytes: 3.2 * GB, requiredGpuBytes: 8.5 * GB, licenseName: 'Apache 2.0' }, context: { ...ON_DEVICE_CONTEXT.qwen, tokens: 262144 }, memoryWarning: { requiredBytes: 12825 * MiB, capacityBytes: 8 * GB } })], active('example-flash'), { device: { capacityBytes: 8 * GB, confidence: 'measured' } }),
 	},
 };
 

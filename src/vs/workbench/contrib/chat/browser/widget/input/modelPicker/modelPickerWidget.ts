@@ -60,10 +60,7 @@ import { getEnsembleTierLabel, getHydraFusionTierLabel, getModelPickerUnavailabl
 export interface IModelPickerOpenOptions {
 	readonly initialFilterValue?: string;
 	readonly initialFocusItemId?: string;
-	/**
-	 * Opens the "On This Device" tab at the detail page of this on-device model
-	 * family, including one that needs setup and has no model to select yet.
-	 */
+	/** Opens the "On This Device" tab at this family's detail page, including one that needs setup and has no model to select yet. */
 	readonly localModelFamilyId?: string;
 }
 
@@ -612,13 +609,7 @@ export class ModelPickerWidget extends Disposable {
 		}];
 	}
 
-	/**
-	 * The on-device rows for this picker: only while the setting is on,
-	 * for a chat on the local Copilot Agent Host. The delegate names the chat's
-	 * connection when it can; otherwise the local Agent Host is assumed.
-	 * Created on demand, so pickers of users who haven't opted in never bind to
-	 * the on-device model service.
-	 */
+	/** The on-device rows for this picker, only while the setting is on for a local Copilot chat; created on demand so pickers of users who haven't opted in never bind to the service. */
 	private _getLocalModels(): ModelPickerLocalModels | undefined {
 		const connection = this._delegate.getLocalModelConnection?.();
 		const applies = this._configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true

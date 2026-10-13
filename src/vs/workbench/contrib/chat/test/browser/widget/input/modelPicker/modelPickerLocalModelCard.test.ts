@@ -35,7 +35,7 @@ function createStatus(family: ILocalModelFamilyV1, overrides: Partial<ILocalMode
 	return {
 		schemaVersion: 1,
 		device: { capacityBytes: 64 * GB, confidence: 'measured' },
-		runtime: { source: 'none', trust: 'none' },
+		runtime: {},
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families: [family],
 		useInAuto: true,
@@ -103,14 +103,17 @@ suite('LocalModelCard', () => {
 		};
 	}
 
-	test('a model to download shows its consent inline: the model only, never llama.cpp, even when one awaits approval; Download agrees to exactly the family it showed', () => {
+	test('a model to download shows its consent inline: the model only, never llama.cpp; Download agrees to exactly the family it showed', () => {
 		const family = createFamily({ offer, entry: { modelFilesPresent: false } });
-		const status = createStatus(family, { runtime: { source: 'path', version: 'b11459', trust: 'pendingApproval', path: 'C:\\llama\\llama-server.exe' } });
+		const status = createStatus(family);
 		const { card, requests, consentLog, button, read } = createCard(status);
 		const page = read();
 		button('Download').click();
 		card.dispose();
-		assert.deepStrictEqual({ page, requests, consentLog }, {
+		// Leaving it without agreeing is reported once.
+		const left = createCard(status);
+		left.card.dispose();
+		assert.deepStrictEqual({ page, requests, consentLog, leftConsentLog: left.consentLog }, {
 			page: {
 				state: 'Not set up',
 				headings: ['2:Example Flash 1.0', '3:Download'],
@@ -128,17 +131,12 @@ suite('LocalModelCard', () => {
 				{ action: 'setUp', familyId: FAMILY_ID, readiness: 'requiresSetup', consent: { scope: computeLocalModelConsentScope({ family }) }, entryPath: 'modelOnly' },
 			],
 			consentLog: ['consentShown:modelOnly'],
+			leftConsentLog: ['consentShown:modelOnly', 'consentCancelled:modelOnly'],
 		});
 	});
 
-	test('leaving the consent without agreeing is reported once', () => {
-		const left = createCard(createStatus(createFamily({ offer })));
-		left.card.dispose();
-		assert.deepStrictEqual(left.consentLog, ['consentShown:modelOnly', 'consentCancelled:modelOnly']);
-	});
-
 	test('an installed model that can\'t load without a usable llama.cpp gives directions: Get llama.cpp, Open Settings and Retry', () => {
-		const message = 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.';
+		const message = 'Example Flash 1.0 needs llama.cpp to run. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.';
 		const status = createStatus(createFamily({ install }), { active: active({ server: 'error', error: { code: 'runtimeNotFound', message, actions: ['getLlamaCpp', 'openSettings', 'retry'] } }) });
 		const result = createCard(status);
 		const page = result.read();
@@ -158,41 +156,6 @@ suite('LocalModelCard', () => {
 		});
 	});
 
-	test('an installed active model whose llama.cpp needs approval shows the approval in place of Retry', () => {
-		const runtime = { source: 'path', version: 'b11500', trust: 'pendingApproval', path: '/usr/local/bin/llama-server', sha256: '0123456789abcdef'.repeat(4) } as const;
-		const status = createStatus(createFamily({ install, offer }), { runtime, active: active({ server: 'error', error: { code: 'runtimeApprovalRequired', message: 'Example Flash 1.0 needs your approval of llama.cpp to start.', actions: ['retry'] } }) });
-		const result = createCard(status);
-		const page = result.read();
-		result.button('Use This llama.cpp').click();
-		result.card.dispose();
-		assert.deepStrictEqual({ page, requests: result.requests }, {
-			page: {
-				state: 'Error',
-				headings: ['2:Example Flash 1.0', '3:llama.cpp'],
-				text: [
-					'Example Flash 1.0 needs your approval of llama.cpp to start.',
-					'Use llama.cpp found at /usr/local/bin/llama-server (b11500)? Runtime digest 0123456789ab...',
-					'VS Code didn\'t install this llama-server. Use it only if you trust it.',
-					'VS Code runs it to serve on-device models.',
-				],
-				buttons: ['[Use This llama.cpp]'],
-			},
-			requests: [
-				{ action: 'approveRuntime', familyId: FAMILY_ID, readiness: 'error', consent: { scope: computeLocalModelConsentScope({ runtime }) } },
-			],
-		});
-	});
-
-	test('an active model held back by llama.cpp approval offers Retry, which starts it, once llama.cpp is trusted again', () => {
-		const status = createStatus(createFamily({ install }), { runtime: { source: 'packageManager', trust: 'userApproved' }, active: active({ server: 'error', error: { code: 'runtimeChanged', message: 'The llama-server changed since you approved it.', actions: [] } }) });
-		const result = createCard(status);
-		const buttons = result.read().buttons;
-		result.button('Retry').click();
-		assert.deepStrictEqual({ buttons, requests: result.requests }, {
-			buttons: ['[Retry]'],
-			requests: [{ action: 'retry', familyId: FAMILY_ID, readiness: 'error', operationId: undefined }],
-		});
-	});
 	test('progress updates in place and keeps focus; a change of state re-renders and keeps focus on the header icon, which follows the state', () => {
 		const downloading = (completedBytes: number) => createStatus(createFamily({ offer, operation: { id: 'op1', kind: 'setup', state: 'running', resumeOnStartup: true, phase: 'downloading', completedBytes, totalBytes: 100 * GB, bytesPerSecond: GB / 4 } }));
 		const result = createCard(downloading(42 * GB));
@@ -440,26 +403,6 @@ suite('LocalModelCard', () => {
 		});
 	});
 
-	test('a Stop that was sent reads as in progress at once, and focus stays on the icon as it changes from Stop to the in-progress indicator to Load', () => {
-		const loaded = createStatus(createFamily({ install, offer }), { active: active() });
-		const result = createCard(loaded);
-		const stop = result.headerAction('Stop Example Flash 1.0');
-		stop.focus();
-		stop.click();
-		result.update(loaded, new Set([getLocalModelServerStopId(FAMILY_ID)]));
-		const whilePending = { icons: result.headerIcons(), focused: document.activeElement === stop };
-		result.update(createStatus(createFamily({ install, offer }), { active: active({ server: 'stopping' }) }));
-		const stopping = { icons: result.headerIcons(), focused: document.activeElement === stop };
-		result.update(createStatus(createFamily({ install, offer }), { active: active({ server: 'stopped' }) }));
-		const stopped = { icons: result.headerIcons(), focused: document.activeElement === stop };
-		assert.deepStrictEqual({ requests: result.requests.map(request => request.action), whilePending, stopping, stopped }, {
-			requests: ['stop'],
-			whilePending: { icons: ['(Stopping Example Flash 1.0 (busy: stop-circle))', 'Remove Example Flash 1.0... (trash)'], focused: true },
-			stopping: { icons: ['(Stopping Example Flash 1.0 (busy: stop-circle))', 'Remove Example Flash 1.0... (trash)'], focused: true },
-			stopped: { icons: ['Load Example Flash 1.0 (play-circle)', 'Remove Example Flash 1.0... (trash)'], focused: true },
-		});
-	});
-
 	test('a warning at the top says when the device can\'t hold the model at its context size, suggesting a smaller one only when one fits', () => {
 		const qwenContext = { tokens: 262144, options: [{ tokens: 65536, gpuBytes: 6917 * MiB }, { tokens: 131072, gpuBytes: 8729 * MiB }, { tokens: 262144, gpuBytes: 12825 * MiB }] };
 		const warn = (capacityBytes: number) => createCard(createStatus(createFamily({ install, offer, context: qwenContext, memoryWarning: { requiredBytes: 12825 * MiB, capacityBytes } }))).warning();
@@ -540,22 +483,40 @@ suite('LocalModelCard', () => {
 		});
 	}));
 
-	test('a Pause that was sent shows at once on the header icon, which can\'t be chosen again until the status changes and then reads Resume, keeping focus', () => {
+	test('a Pause or Stop that was sent reads as in progress at once on its header icon, which can\'t be chosen again until the status changes; focus stays on the icon as it follows the state', () => {
+		const run = (label: string, pendingId: string, initial: ILocalModelStatusV1, steps: readonly ILocalModelStatusV1[]) => {
+			const result = createCard(initial);
+			const icon = result.headerAction(label);
+			icon.focus();
+			icon.click();
+			result.update(initial, new Set([pendingId]));
+			const states = [result.headerIcons()];
+			for (const step of steps) {
+				result.update(step);
+				states.push(result.headerIcons());
+			}
+			return { requests: result.requests.map(request => [request.action, request.operationId]), states, focused: document.activeElement === icon, buttons: result.read().buttons };
+		};
 		const operation = { id: 'op1', kind: 'setup', state: 'running', resumeOnStartup: true, phase: 'downloading', completedBytes: 10, totalBytes: 100 } as const;
-		const downloading = createStatus(createFamily({ offer, operation }));
-		const result = createCard(downloading);
-		const icon = result.headerAction('Downloading Example Flash 1.0 10%, Pause');
-		icon.focus();
-		icon.click();
-		result.update(downloading, new Set(['op1']));
-		const whilePending = { icons: result.headerIcons(), focused: document.activeElement === icon };
-		result.update(createStatus(createFamily({ offer, operation: { ...operation, state: 'paused', pausedReason: 'user' } })));
-		const after = { icons: result.headerIcons(), focused: document.activeElement === icon, buttons: result.read().buttons };
-		assert.deepStrictEqual({ requests: result.requests.map(request => [request.action, request.operationId]), whilePending, after }, {
-			requests: [['cancel', 'op1']],
-			whilePending: { icons: ['(Downloading Example Flash 1.0 10%, Pausing… (busy: debug-pause))'], focused: true },
-			// The header icon resumes it: the Status section has no duplicate button.
-			after: { icons: ['Resume Example Flash 1.0 (play-circle)', 'Remove Example Flash 1.0... (trash)'], focused: true, buttons: [] },
+		const loaded = (server: 'ready' | 'stopping' | 'stopped') => createStatus(createFamily({ install, offer }), { active: active({ server }) });
+		const remove = 'Remove Example Flash 1.0... (trash)';
+		assert.deepStrictEqual({
+			pause: run('Downloading Example Flash 1.0 10%, Pause', 'op1', createStatus(createFamily({ offer, operation })), [createStatus(createFamily({ offer, operation: { ...operation, state: 'paused', pausedReason: 'user' } }))]),
+			stop: run('Stop Example Flash 1.0', getLocalModelServerStopId(FAMILY_ID), loaded('ready'), [loaded('stopping'), loaded('stopped')]),
+		}, {
+			pause: {
+				requests: [['cancel', 'op1']],
+				// The header icon resumes it: the Status section has no duplicate button.
+				states: [['(Downloading Example Flash 1.0 10%, Pausing… (busy: debug-pause))'], ['Resume Example Flash 1.0 (play-circle)', remove]],
+				focused: true,
+				buttons: [],
+			},
+			stop: {
+				requests: [['stop', undefined]],
+				states: [['(Stopping Example Flash 1.0 (busy: stop-circle))', remove], ['(Stopping Example Flash 1.0 (busy: stop-circle))', remove], ['Load Example Flash 1.0 (play-circle)', remove]],
+				focused: true,
+				buttons: [],
+			},
 		});
 	});
 
@@ -575,6 +536,7 @@ suite('LocalModelCard', () => {
 			buttons: [],
 		});
 	});
+
 	test('the thinking level is the chat\'s setting of the direct model: choosing one saves it, reports it and keeps focus on it', async () => {
 		const effort = createDirectModel({ type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'], default: 'medium' });
 		const result = createCard(createStatus(createFamily({ install, offer, context: exampleFlashContext }), { active: active() }), effort.directModel);

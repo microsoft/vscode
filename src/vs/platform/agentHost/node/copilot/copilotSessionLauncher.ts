@@ -296,11 +296,7 @@ interface ICopilotSessionLaunchBase {
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
-	/**
-	 * The on-device model provider installed on {@link client}, if the
-	 * user opted in. Contributes the replaceable direct-selection rows
-	 * and turn attribution; absent for everyone else.
-	 */
+	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
 
 	/**
@@ -437,12 +433,9 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 }
 
 /**
- * Encodes a resolved effort for the runtime, on every path that sets one
- * (create, model change, resume override). An on-device row's Off (`none`)
- * is sent as `minimal`: the runtime treats `none` as "no reasoning" and sends
- * no `reasoning_effort` at all, which an `enable_thinking` chat template would
- * read as its default (on); the request handler turns `minimal` into
- * `enable_thinking: false`. Everything else, including `undefined`, is unchanged.
+ * Encodes a resolved effort for the runtime. An on-device row's Off (`none`) is sent as `minimal`: the runtime sends no
+ * `reasoning_effort` for `none`, which an `enable_thinking` template would read as on; the handler maps `minimal` to
+ * `enable_thinking: false`. Everything else is unchanged.
  */
 export function toRuntimeReasoningEffort(model: ModelSelection | undefined, effort: SessionConfig['reasoningEffort']): SessionConfig['reasoningEffort'] {
 	return isLocalModelSelectionId(model?.id) && (effort as string | undefined) === 'none' ? toSdkReasoningEffort('minimal') : effort;
@@ -694,12 +687,7 @@ function withoutLocalModelEntries(config: ICopilotByokSessionConfig): Required<I
 	};
 }
 
-/**
- * The BYOK config a session launches with (create and resume): the external
- * BYOK config plus the on-device provider's current contribution. The
- * contribution is added whether or not external BYOK is enabled. Without a
- * contribution, `byok` is returned unchanged.
- */
+/** The BYOK config a session launches with: the external BYOK config plus the on-device provider's contribution (even when external BYOK is off). */
 export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig {
 	if (!local || (local.providers.length === 0 && local.models.length === 0)) {
 		return byok;
@@ -709,12 +697,8 @@ export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, loc
 }
 
 /**
- * The BYOK snapshot to sync onto a live session. External BYOK stays
- * additive ({@link mergeByokSessionConfig}); the on-device rows are
- * replaceable: every sentinel entry is dropped from `applied` first and the
- * provider's `local` contribution (possibly empty) is appended, so an
- * uninstalled model's row is withdrawn. Without a provider this is exactly
- * {@link mergeByokSessionConfig}. Returns `undefined` when nothing changes.
+ * The BYOK snapshot to sync onto a live session: external BYOK stays additive ({@link mergeByokSessionConfig}), while
+ * on-device rows are replaced, so an uninstalled model's row is withdrawn. `undefined` when nothing changes.
  */
 export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig | undefined {
 	if (!local) {
@@ -731,12 +715,8 @@ export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, ext
 }
 
 /**
- * The session-wide selection id of a direct-selection row: sentinel models
- * surface under the provider-qualified `vscode-on-device/<id>`, like every
- * named BYOK provider's models. The runtime accepts the
- * bare `<id>` in `setModel` too, but resolves it as a CAPI model and never
- * reaches the sentinel, so rows are only ever published and selected by this
- * id.
+ * The selection id of a direct-selection row, `vscode-on-device/<id>`. The runtime accepts the bare `<id>` in `setModel`
+ * but resolves it as a CAPI model, so rows are only ever published and selected by this id.
  */
 export function getLocalModelSelectionId(rowId: string): string {
 	return `${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/${rowId}`;

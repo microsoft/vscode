@@ -36,10 +36,7 @@ function isTransientError(error: unknown): boolean {
 	return false;
 }
 
-/**
- * The same error with signed URLs removed from its message, stack and cause
- * (they reach logs and callers' diagnostics). Cancellation passes through.
- */
+/** The same error with signed URLs removed from its message, stack and cause; cancellation passes through. */
 function redactError<T>(error: T): T {
 	if (!(error instanceof Error) || isCancellationError(error)) {
 		return error;

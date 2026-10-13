@@ -78,12 +78,9 @@ export const enum CopilotCliConfigKey {
 	LocalModelEnabled = 'localModelEnabled',
 	/** Whether Auto may route to the active on-device model. Read live at dispatch. */
 	LocalModelUseInAuto = 'localModelUseInAuto',
-	/** Absolute path to an approved custom `llama-server`; empty uses detection. */
+	/** Absolute path to the user's `llama-server`; empty means there is no llama.cpp to run. */
 	LocalModelLlamaServerPath = 'localModelLlamaServerPath',
-	/**
-	 * Account-dependent part of the on-device gate, computed by the workbench:
-	 * preview features allowed, signed in, and AI features enabled.
-	 */
+	/** Account-dependent part of the on-device gate, computed by the workbench: preview features allowed, signed in, AI features enabled. */
 	LocalModelAccountGate = 'localModelAccountGate',
 }
 
@@ -400,7 +397,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.LocalModelLlamaServerPath]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.localModelLlamaServerPath.title', "llama-server Path"),
-		description: localize('agentHost.config.localModelLlamaServerPath.description', "Absolute path to an approved llama-server executable. Empty detects an installed llama.cpp."),
+		description: localize('agentHost.config.localModelLlamaServerPath.description', "Absolute path to the llama-server executable that serves on-device models. VS Code doesn't install llama.cpp."),
 		default: '',
 	}),
 	[CopilotCliConfigKey.LocalModelAccountGate]: schemaProperty<boolean>({

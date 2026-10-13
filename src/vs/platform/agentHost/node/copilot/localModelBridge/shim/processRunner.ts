@@ -7,13 +7,7 @@ import { spawn, type ChildProcess, type SpawnOptions } from 'child_process';
 import * as fs from 'fs';
 import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
-/*
- * One-shot process execution for the on-device model bridge:
- * `llama-server` probes, the DXGI helper, `reg query`, `sysctl`,
- * `nvidia-smi` and package-manager installs. Long-lived processes (the
- * server itself) use {@link NodeLongLivedProcessSpawner}; orphan checks and
- * termination use {@link NodeProcessControl}.
- */
+/* One-shot process execution for the on-device model bridge (probes and OS tools); the server uses {@link NodeLongLivedProcessSpawner}, orphan checks {@link NodeProcessControl}. */
 
 /** Options for {@link IProcessRunner.run}. */
 export interface IProcessRunOptions {
@@ -52,10 +46,7 @@ export interface IProcessRunner {
 	run(file: string, args: readonly string[], options: IProcessRunOptions): Promise<IProcessRunResult>;
 }
 
-/**
- * Node implementation of {@link IProcessRunner}: `spawn` without a shell,
- * `windowsHide`, hard timeout and output cap, abortable.
- */
+/** Node {@link IProcessRunner}: `spawn` without a shell, `windowsHide`, hard timeout and output cap, abortable. */
 export class NodeProcessRunner implements IProcessRunner {
 
 	run(file: string, args: readonly string[], options: IProcessRunOptions): Promise<IProcessRunResult> {
@@ -264,12 +255,7 @@ export interface ILongLivedProcess {
 	readonly exited: Promise<ILongLivedProcessExit>;
 	onStdout(listener: (chunk: string) => void): IDisposable;
 	onStderr(listener: (chunk: string) => void): IDisposable;
-	/**
-	 * Signals only the child itself; group/tree termination goes through
-	 * {@link IProcessControl.terminateTree}. `false` when the signal could not
-	 * be delivered (for example `EPERM`): the process may still be running;
-	 * only {@link exited} reports its exit.
-	 */
+	/** Signals only the child itself (trees go through {@link IProcessControl.terminateTree}); `false` when the signal wasn't delivered and the process may still run. */
 	kill(signal: 'SIGTERM' | 'SIGKILL'): boolean;
 }
 
@@ -278,11 +264,7 @@ export interface ILongLivedProcessSpawner {
 	spawn(file: string, args: readonly string[], options: ILongLivedProcessOptions): ILongLivedProcess;
 }
 
-/**
- * Node {@link ILongLivedProcessSpawner}: `spawn` without a shell,
- * `stdio: ['ignore', 'pipe', 'pipe']`, `windowsHide` on Windows and
- * `detached` (own process group) on macOS/Linux.
- */
+/** Node {@link ILongLivedProcessSpawner}: no shell, stdin ignored, `windowsHide` on Windows, own process group on macOS/Linux. */
 export class NodeLongLivedProcessSpawner implements ILongLivedProcessSpawner {
 
 	constructor(
@@ -360,12 +342,8 @@ export interface IProcessControl {
 	/** `undefined` when no process with `pid` exists. */
 	inspect(pid: number): Promise<IProcessInfo | undefined>;
 	/**
-	 * Terminates `pid` and its children: `taskkill /T /F /PID <pid>` on Windows;
-	 * `SIGTERM` to the process group on macOS/Linux, then `SIGKILL` after
-	 * {@link POSIX_SIGKILL_GRACE_MS} if it is still alive. `true` when the
-	 * termination succeeded (`taskkill` exit code 0, or 128: no such process)
-	 * or the process no longer exists; callers still confirm the exit
-	 * themselves before relying on it.
+	 * Terminates `pid` and its children: `taskkill /T /F` on Windows; `SIGTERM` to the process group on macOS/Linux, then
+	 * `SIGKILL` after {@link POSIX_SIGKILL_GRACE_MS}. `true` when it succeeded or the process is gone; callers still confirm the exit.
 	 */
 	terminateTree(pid: number): Promise<boolean>;
 }

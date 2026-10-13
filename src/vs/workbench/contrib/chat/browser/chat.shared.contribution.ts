@@ -1776,7 +1776,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[LocalModelLlamaServerPathSettingId]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.copilot.localModel.llamaServerPath', "Absolute path to a `llama-server` executable for on-device models. VS Code doesn't install llama.cpp: install a build that supports your model, then set this to its `llama-server`. Setting it approves that executable, so VS Code runs it without asking. When empty, `LLAMACPP_SERVER_PATH`, `PATH` and common install locations are searched."),
+			markdownDescription: nls.localize('chat.copilot.localModel.llamaServerPath', "Absolute path to a `llama-server` executable for on-device models. VS Code doesn't install llama.cpp: install a build that supports your model, then set this to its `llama-server`."),
 			default: '',
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental', 'advanced'],

@@ -28,11 +28,11 @@ import { getLocalModelSafetyDisclosure, ILocalModelContextV1, ILocalModelFamilyV
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { getLocalModelErrorActionLabel } from '../../../agentSessions/agentHost/localModelErrorActions.js';
-import { buildLocalModelRuntimeApproval, buildLocalModelSetUpConsent, formatLocalModelBytes, formatLocalModelDuration, getLocalModelDrainingStreams, getLocalModelLoad, getLocalModelLoadProgress, getLocalModelLoadStepKey, getLocalModelRuntimeApprovalConsent, getLocalModelSetUpAgreement, ILocalModelLicenseLink, ILocalModelRuntimeApproval, ILocalModelSetUpConsent, isLocalModelReload, LOCAL_MODEL_RUNTIME_CHANGED_CODE, LocalModelEntryPath, LocalModelLoadTicker } from '../../../agentSessions/agentHost/localModelSetupFlow.js';
+import { buildLocalModelSetUpConsent, formatLocalModelBytes, formatLocalModelDuration, getLocalModelDrainingStreams, getLocalModelLoad, getLocalModelLoadProgress, getLocalModelLoadStepKey, getLocalModelSetUpAgreement, ILocalModelLicenseLink, ILocalModelSetUpConsent, isLocalModelReload, LocalModelEntryPath, LocalModelLoadTicker } from '../../../agentSessions/agentHost/localModelSetupFlow.js';
 import { getLocalModelServerStopId } from '../../../../../../services/agentHost/common/localModelService.js';
 import { createModelCardChoiceControl, IModelCardChoice } from './modelPickerCard.js';
 import { createMessageBanner } from './modelPickerHover.js';
-import { formatLocalModelContextTokens, getLocalModelErrorActions, getLocalModelFamilyError, getLocalModelLoadStepLabel, getLocalModelOperationPercent, getLocalModelPausedLabel, getLocalModelPausedReasonLabel, getLocalModelPreparingLabel, getLocalModelRunningAction, getLocalModelServingContextTokens, getLocalModelStateLabel, getLocalModelThinkingProperty, getLocalModelThinkingTitle, ILocalModelDetails, ILocalModelDirectModelConfig, ILocalModelFamilyError, ILocalModelPickerActionRequest, needsLocalModelSetUpConsent } from './modelPickerLocalModelItems.js';
+import { formatLocalModelContextTokens, getLocalModelFamilyError, getLocalModelLoadStepLabel, getLocalModelOperationPercent, getLocalModelPausedLabel, getLocalModelPausedReasonLabel, getLocalModelPreparingLabel, getLocalModelRunningAction, getLocalModelServingContextTokens, getLocalModelStateLabel, getLocalModelThinkingProperty, getLocalModelThinkingTitle, ILocalModelDetails, ILocalModelDirectModelConfig, ILocalModelFamilyError, ILocalModelPickerActionRequest, needsLocalModelSetUpConsent } from './modelPickerLocalModelItems.js';
 import { getModelConfigChoices, setModelConfigValues } from './modelPickerModelConfig.js';
 
 /** The parts of the Status section that follow progress without a re-render. */
@@ -60,7 +60,6 @@ function getCardSignature({ status, family, readiness, directModel, pendingStops
 		status.active && { ...status.active, drain: !!status.active.drain },
 		status.useInAuto,
 		status.device,
-		status.families.some(candidate => candidate.operation?.error?.code === LOCAL_MODEL_RUNTIME_CHANGED_CODE),
 		getThinkingSignature(directModel),
 		[operation?.id, getLocalModelServerStopId(family.familyId)].map(id => !!id && !!pendingStops?.has(id)),
 	]);
@@ -73,11 +72,7 @@ interface IStatusProgress {
 	readonly note: string | undefined;
 }
 
-/**
- * The progress of a model load, estimated from the last comparable one, or
- * else of the family's operation. A load also shows while the operation that
- * started it (a swap) is in its loading phase.
- */
+/** The progress of a model load (estimated from the last comparable one, also during a swap's loading phase), else of the family's operation. */
 function getStatusProgress(family: ILocalModelFamilyV1, status: ILocalModelStatusV1, now: number): IStatusProgress | undefined {
 	const operation = family.operation;
 	const load = getLocalModelLoad(status, family);
@@ -195,16 +190,8 @@ function getBusyStateIcon(family: ILocalModelFamilyV1, status: ILocalModelStatus
 }
 
 /**
- * The first header icon of `family`, which shows its state: Load while it
- * isn't loaded (made active at once, or started when it is the active one),
- * Resume while paused, Stop while loaded, and while it is busy the
- * in-progress indicator, which turns into the step's stop action: Pause for a
- * download or update, Cancel for a load or a model change (which, while it
- * waits for running responses, keeps the active model), or Stop Now while an
- * update waits for them. A
- * stop that was sent keeps the indicator, which can't be chosen until the
- * state changes. None while the model needs setting up or failed: the page
- * shows the consent or the error with its fixes.
+ * The first header icon of `family`: Load while not loaded, Resume while paused, Stop while loaded, and while busy the
+ * in-progress indicator that turns into the step's stop action. None while the model needs setting up or failed.
  */
 function getStateIcon({ family, readiness, status, pendingStops }: ILocalModelDetails): IStateIcon | undefined {
 	const name = family.displayName;
@@ -251,12 +238,8 @@ function getStateIcon({ family, readiness, status, pendingStops }: ILocalModelDe
 }
 
 /**
- * The first header icon of the detail page: Load, Resume or Stop, or, while
- * the model is busy, the in-progress indicator of an active session (an
- * animated spinner, or the in-progress icon with reduced motion), which turns
- * into the icon of the step's stop action on hover or keyboard focus while it
- * can be chosen. It is the same element through state changes, so focus stays
- * on it and the spinner keeps running through updates.
+ * The detail page's first header icon: Load, Resume, Stop, or the in-progress indicator that turns into the step's stop
+ * action on hover or focus. It stays the same element through state changes, so focus and the spinner persist.
  */
 class LocalModelStateActionViewItem extends ActionViewItem {
 
@@ -307,14 +290,8 @@ class LocalModelStateActionViewItem extends ActionViewItem {
 }
 
 /**
- * The detail page of an on-device model family in the model picker, mounted
- * like a cloud model's card: its name and header icons, the first of which
- * shows its state (Load, Resume, Stop, or the in-progress indicator that
- * turns into the step's stop action), then Update and Remove; a warning when
- * the device can't hold it at its context size, an error with its fixes,
- * progress (of a load, estimated from the last one), the setup consent and
- * llama.cpp approval (whose buttons are the consent), its thinking level for
- * this chat and its context size, and Use in Auto. Updates follow the
+ * The detail page of an on-device model family in the model picker, mounted like a cloud model's card: header icons,
+ * memory warning, error, progress, setup consent, thinking level, context size and Use in Auto. Updates follow the
  * family's status and keep keyboard focus.
  */
 export class LocalModelCard extends DisposableStore {
@@ -462,18 +439,14 @@ export class LocalModelCard extends DisposableStore {
 		}
 		const failure = getLocalModelFamilyError(family, status);
 		const consent = needsLocalModelSetUpConsent(family, readiness) ? buildLocalModelSetUpConsent(status, family) : undefined;
-		const approval = family.install ? buildLocalModelRuntimeApproval(status) : undefined;
-		// The consent or approval is what the page asks for, so it leads.
-		this._hasPrimary = (!!consent && consent.buttons.length > 0) || !!approval;
+		// The consent is what the page asks for, so it leads.
+		this._hasPrimary = !!consent && consent.buttons.length > 0;
 
 		if (failure) {
 			this._renderError(details, failure);
 		}
 		if (getStatusProgress(family, status, Date.now())) {
 			this._renderStatus(details);
-		}
-		if (approval) {
-			this._renderRuntime(details, approval);
 		}
 		if (consent) {
 			this._renderConsent(details, consent);
@@ -563,13 +536,7 @@ export class LocalModelCard extends DisposableStore {
 
 	// #endregion
 
-	/**
-	 * The name, which also gives the model's state to screen readers, and,
-	 * like a cloud model's header icons, the model's actions: the first shows
-	 * its state ({@link getStateIcon}), then Update when one is available, and
-	 * Remove. The elements stay across renders: an icon keeps focus when it
-	 * changes, e.g. from Load to the in-progress indicator to Stop.
-	 */
+	/** The name, which also gives the state to screen readers, and the header icons (state, Update, Remove); the elements persist so a changing icon keeps focus. */
 	private _renderHeader(details: ILocalModelDetails): void {
 		const { family, readiness, status } = details;
 		this._name.textContent = family.displayName;
@@ -621,11 +588,7 @@ export class LocalModelCard extends DisposableStore {
 		this._stateAction.enabled = !!state.request;
 	}
 
-	/**
-	 * The header icons after the state, each named after the family: Update
-	 * when one is available and nothing is being set up, updated or removed,
-	 * and Remove, which asks first.
-	 */
+	/** The header icons after the state: Update when one is available and nothing else is running, and Remove, which asks first. */
 	private _getTrailingActions(details: ILocalModelDetails): { readonly key: string; readonly id: string; readonly label: string; readonly icon: ThemeIcon; readonly request: ILocalModelPickerActionRequest['action'] }[] {
 		const { family, readiness } = details;
 		const name = family.displayName;
@@ -641,11 +604,7 @@ export class LocalModelCard extends DisposableStore {
 		return entries;
 	}
 
-	/**
-	 * Warns, like a cloud model's warning, that this device doesn't have the
-	 * GPU memory for the model at its context size, and suggests a smaller one
-	 * when one fits.
-	 */
+	/** Warns, like a cloud model's warning, that the device lacks the GPU memory for this context size, suggesting a smaller one that fits. */
 	private _renderMemoryWarning({ family }: ILocalModelDetails, warning: ILocalModelMemoryWarningV1): void {
 		const name = escapeMarkdownSyntaxTokens(family.displayName);
 		const required = formatLocalModelBytes(warning.requiredBytes);
@@ -660,27 +619,21 @@ export class LocalModelCard extends DisposableStore {
 		this.element.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warningCompact, this._contentDisposables, this._openerService));
 	}
 
-	/** The error and its fixes. An approval or consent below replaces Retry, which would only fail again. */
+	/** The error and its fixes. */
 	private _renderError(details: ILocalModelDetails, failure: ILocalModelFamilyError): void {
 		const { error, operationId } = failure;
 		const section = this._section();
 		this._message(section, error.message, error.code === 'insufficientMemory' ? 'warning' : 'error');
-		const actions = getLocalModelErrorActions(details.family, failure, details.status);
-		if (!actions.length) {
+		if (!error.actions.length) {
 			return;
 		}
 		const bar = this._buttonBar(section);
-		for (const action of actions) {
+		for (const action of error.actions) {
 			this._button(bar, `error:${action}`, getLocalModelErrorActionLabel(action), this._request(details, action, action === 'retry' ? { operationId } : undefined), 'lead');
 		}
 	}
 
-	/**
-	 * The Status section: the running or paused operation, or the model's
-	 * load, with its progress. A load's bar and time remaining are estimated
-	 * from the last comparable load, so they move on their own, counting down
-	 * a second at a time. The first header icon stops, pauses or resumes it.
-	 */
+	/** The Status section: the running or paused operation, or the model's load, with progress; a load's bar and time remaining are estimated and count down on their own. */
 	private _renderStatus(details: ILocalModelDetails): void {
 		const { family, status } = details;
 		const operation = family.operation?.state === 'error' ? undefined : family.operation;
@@ -728,16 +681,6 @@ export class LocalModelCard extends DisposableStore {
 		progress.note.hidden = !view.note;
 	}
 
-	/** llama.cpp: the approval of a detected `llama-server`. VS Code doesn't install llama.cpp. */
-	private _renderRuntime(details: ILocalModelDetails, approval: ILocalModelRuntimeApproval): void {
-		const section = this._section(localize('localModel.card.runtime', "llama.cpp"));
-		this._text(section, approval.message);
-		for (const detail of approval.details) {
-			this._text(section, detail);
-		}
-		this._button(this._buttonBar(section), 'approval:use', localize('localModel.approve.use', "Use This llama.cpp"), this._request(details, 'approveRuntime', { consent: getLocalModelRuntimeApprovalConsent(details.status) }), 'primary');
-	}
-
 	/** The download consent: the model's size, source and license, or its files already on this device. Its button is the consent. */
 	private _renderConsent(details: ILocalModelDetails, consent: ILocalModelSetUpConsent): void {
 		const { family } = details;
@@ -775,11 +718,7 @@ export class LocalModelCard extends DisposableStore {
 		this._request(rendered, 'setUp', { consent: agreement.consent, entryPath: agreement.entryPath })();
 	}
 
-	/**
-	 * The thinking level of the family's direct model in this chat, when its chat
-	 * template supports one: the same per-chat setting and control as a cloud
-	 * model's thinking effort. It needs no reload.
-	 */
+	/** The thinking level of the family's direct model in this chat, when its template supports one: the same per-chat setting as a cloud model's; needs no reload. */
 	private _renderThinking(details: ILocalModelDetails): void {
 		const directModel = details.directModel;
 		const property = directModel && getLocalModelThinkingProperty(directModel.model, directModel.configurationAccess);
@@ -804,11 +743,8 @@ export class LocalModelCard extends DisposableStore {
 	}
 
 	/**
-	 * The context size the family loads with, each with the GPU memory it needs.
-	 * Choosing another reloads a loaded model once its running responses finish,
-	 * without asking; otherwise it applies at the next load. When the loaded
-	 * model serves with a different size than selected, it says so; the notes
-	 * also describe the choices for assistive technology.
+	 * The context size the family loads with, each with its GPU memory. Choosing another reloads a loaded model once its
+	 * running responses finish; otherwise it applies at the next load.
 	 */
 	private _renderContext(details: ILocalModelDetails, context: ILocalModelContextV1): void {
 		const { family, status } = details;
@@ -853,11 +789,7 @@ export class LocalModelCard extends DisposableStore {
 		this._choices.get('context')?.domNode.setAttribute('aria-describedby', ids.join(' '));
 	}
 
-	/**
-	 * The Use in Auto switch (off unless the user turns it on), what it does
-	 * and the safety disclosure, which the switch's accessible description
-	 * includes.
-	 */
+	/** The Use in Auto switch (off by default), what it does and the safety disclosure, which the switch's accessible description includes. */
 	private _renderUseInAuto(details: ILocalModelDetails): void {
 		const { status, family } = details;
 		const active = status.active?.familyId === family.familyId ? status.active : undefined;

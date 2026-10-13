@@ -70,7 +70,6 @@ class TestLocalModelProvider extends Disposable implements ILocalModelProvider {
 	async start(): Promise<void> { this.calls.push('start'); }
 	async stop(options: { readonly stopNow: boolean }): Promise<void> { this.calls.push(options.stopNow ? 'stopNow' : 'stop'); }
 	async stopPrevious(): Promise<void> { this.calls.push('stopPrevious'); }
-	async approveRuntime(consent: ILocalModelConsent): Promise<void> { this.calls.push(`approveRuntime:${consent.scope}`); }
 	async refreshCatalog(): Promise<void> { this.calls.push('refreshCatalog'); }
 	updateLiveConfig(_config: ILocalModelLiveConfig): void { }
 	setSessionDirectFamily(): void { }
@@ -176,7 +175,6 @@ suite('LocalModelSetupChannel', () => {
 
 	test('routes every action to the provider', async () => {
 		const { provider, request } = createChannel();
-		const consent = { scope: 'runtime-scope' };
 		let nonce = 0;
 		for (const value of [
 			{ action: 'pause', operationId: 'op' },
@@ -188,9 +186,9 @@ suite('LocalModelSetupChannel', () => {
 			{ action: 'stop' },
 			{ action: 'stopNow' },
 			{ action: 'stopPrevious' },
-			{ action: 'approveRuntime', consent },
-			// An older client's Update llama.cpp: no longer an action.
+			// An older client's Update llama.cpp and llama.cpp approval: no longer actions.
 			{ action: 'updateRuntime' },
+			{ action: 'approveRuntime', consent: { scope: 'runtime-scope' } },
 			{ action: 'refreshCatalog' },
 		]) {
 			request({ ...value, nonce: `n${nonce++}` });
@@ -208,7 +206,6 @@ suite('LocalModelSetupChannel', () => {
 			'stop',
 			'stopNow',
 			'stopPrevious',
-			'approveRuntime:runtime-scope',
 		]);
 	});
 

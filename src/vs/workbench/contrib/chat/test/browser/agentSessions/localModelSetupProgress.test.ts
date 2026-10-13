@@ -506,65 +506,45 @@ suite('LocalModelSetupProgress', () => {
 		});
 	});
 
-	test('a model change or load that fails for want of llama.cpp shows the error with Get llama.cpp, Open Settings and Retry', () => {
-		const notFound = { code: 'runtimeNotFound', message: 'llama.cpp isn\'t set up on this device. Get llama.cpp, or set chat.copilot.localModel.llamaServerPath.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } as const;
-		const { connection, commands, opener, visible } = setup(createStatus([withOperation({ id: 'swap-1', kind: 'swap', state: 'error', phase: 'loading', error: notFound }, installedFamily)], { active: { ...readyActive, server: 'stopped' } }));
-		const swapFailed = describeNotice(visible());
-		runNoticeAction(visible(), 'Retry', commands);
-		// Selecting the active model started it, without an operation.
-		connection.setStatus(createStatus([installedFamily], { active: { ...readyActive, server: 'error', error: notFound } }));
-		const loadFailed = describeNotice(visible());
-		runNoticeAction(visible(), 'Retry', commands);
-		runNoticeAction(visible(), 'Get llama.cpp', commands);
-		assert.deepStrictEqual({ swapFailed, loadFailed, requests: connection.requests, opened: opener.opened }, {
-			swapFailed: `Error: ${notFound.message} [Open Settings, Retry, Get llama.cpp*]`,
-			loadFailed: `Error: ${notFound.message} [Open Settings, Retry, Get llama.cpp*]`,
-			requests: [{ action: 'retry', operationId: 'swap-1' }, { action: 'start' }],
+	test('a failure for want of a usable llama.cpp, before the download, in a model change or at load, offers Open Settings, Retry and Get llama.cpp', () => {
+		const remedies = ['getLlamaCpp', 'openSettings', 'retry'] as const;
+		const notFound = { code: 'runtimeNotFound', message: 'llama.cpp isn\'t set up on this device. Get llama.cpp, or set chat.copilot.localModel.llamaServerPath.', actions: remedies } as const;
+		const unsupported = { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0 yet. Get a newer llama.cpp, or set chat.copilot.localModel.llamaServerPath to a build that supports it.', actions: remedies } as const;
+		const run = (error: typeof notFound | typeof unsupported, failed: ILocalModelStatusV1) => {
+			const { connection, commands, opener, visible } = setup(failed);
+			const operationFailed = describeNotice(visible());
+			runNoticeAction(visible(), 'Retry', commands);
+			// Selecting the active model started it, without an operation.
+			connection.setStatus(createStatus([installedFamily], { active: { ...readyActive, server: 'error', error } }));
+			const loadFailed = describeNotice(visible());
+			runNoticeAction(visible(), 'Retry', commands);
+			runNoticeAction(visible(), 'Get llama.cpp', commands);
+			return { operationFailed, loadFailed, requests: connection.requests, opened: opener.opened };
+		};
+		const expected = (error: typeof notFound | typeof unsupported, operationId: string) => ({
+			operationFailed: `Error: ${error.message} [Open Settings, Retry, Get llama.cpp*]`,
+			loadFailed: `Error: ${error.message} [Open Settings, Retry, Get llama.cpp*]`,
+			requests: [{ action: 'retry', operationId }, { action: 'start' }],
 			opened: ['https://github.com/ggml-org/llama.cpp/releases'],
 		});
-	});
-
-	test('runtimeUnsupportedModel, before the download or at load, offers Open Settings, Retry and Get llama.cpp', () => {
-		const unsupported = { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0 yet. Get a newer llama.cpp, or set chat.copilot.localModel.llamaServerPath to a build that supports it.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } as const;
-		const { connection, commands, visible } = setup(createStatus([withOperation({ state: 'error', phase: 'resolving', error: unsupported })]));
-		const beforeDownload = describeNotice(visible());
-		runNoticeAction(visible(), 'Retry', commands);
-		connection.setStatus(createStatus([installedFamily], { active: { ...readyActive, server: 'error', error: unsupported } }));
-		const atLoad = describeNotice(visible());
-		runNoticeAction(visible(), 'Retry', commands);
-		assert.deepStrictEqual({ beforeDownload, atLoad, requests: connection.requests }, {
-			beforeDownload: `Error: ${unsupported.message} [Open Settings, Retry, Get llama.cpp*]`,
-			atLoad: `Error: ${unsupported.message} [Open Settings, Retry, Get llama.cpp*]`,
-			requests: [{ action: 'retry', operationId: 'op-1' }, { action: 'start' }],
+		assert.deepStrictEqual({
+			swapWithoutLlamaCpp: run(notFound, createStatus([withOperation({ id: 'swap-1', kind: 'swap', state: 'error', phase: 'loading', error: notFound }, installedFamily)], { active: { ...readyActive, server: 'stopped' } })),
+			unsupportedBeforeDownload: run(unsupported, createStatus([withOperation({ state: 'error', phase: 'resolving', error: unsupported })])),
+		}, {
+			swapWithoutLlamaCpp: expected(notFound, 'swap-1'),
+			unsupportedBeforeDownload: expected(unsupported, 'op-1'),
 		});
 	});
 
-	test('Review opens the model\'s details for a changed or unapproved llama.cpp and for a model that changed since consent', () => {
-		const pending = { source: 'path', version: 'b11500', trust: 'pendingApproval', path: 'C:\\llama\\llama-server.exe' } as const;
-		const changed = setup(createStatus([withOperation({ state: 'error', phase: 'resolving', error: { code: 'runtimeChanged', message: 'The llama-server at C:\\llama\\llama-server.exe changed since you approved it. Set up the model again to review it.', actions: ['retry'] } })], { runtime: pending }));
-		const approval = setup(createStatus([installedFamily], { runtime: pending, active: { ...readyActive, server: 'error', error: { code: 'runtimeApprovalRequired', message: 'The llama-server at C:\\llama\\llama-server.exe needs your approval before Example Flash 1.0 can run on it.', actions: [] } } }));
+	test('Review opens the model\'s details for a model that changed since consent', () => {
 		const consent = setup(createStatus([withOperation({ state: 'paused', pausedReason: 'consentChanged', phase: 'downloading' })]));
-		const notices = [changed, approval, consent].map(window => describeNotice(window.visible()));
-		runNoticeAction(changed.visible(), 'Review llama.cpp…', changed.commands);
-		runNoticeAction(approval.visible(), 'Review llama.cpp…', approval.commands);
+		const notice = describeNotice(consent.visible());
 		runNoticeAction(consent.visible(), 'Review…', consent.commands);
 
-		assert.deepStrictEqual({
-			notices,
-			commands: [changed, approval, consent].map(window => window.commands.executed),
-			requests: [changed, approval, consent].flatMap(window => window.connection.requests),
-		}, {
-			notices: [
-				'Error: The llama-server at C:\\llama\\llama-server.exe changed since you approved it. Set up the model again to review it. [Review llama.cpp…*]',
-				'Error: The llama-server at C:\\llama\\llama-server.exe needs your approval before Example Flash 1.0 can run on it. [Review llama.cpp…*]',
-				'Warning: Paused: Example Flash 1.0 changed since you agreed to set it up. Review the details to continue. [Review…*]',
-			],
-			commands: [
-				[[LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, offeredFamily.familyId]],
-				[[LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, installedFamily.familyId]],
-				[[LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, offeredFamily.familyId]],
-			],
-			// Approval and setup consent happen on the details page.
+		assert.deepStrictEqual({ notice, commands: consent.commands.executed, requests: consent.connection.requests }, {
+			notice: 'Warning: Paused: Example Flash 1.0 changed since you agreed to set it up. Review the details to continue. [Review…*]',
+			commands: [[LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, offeredFamily.familyId]],
+			// Setup consent happens on the details page.
 			requests: [],
 		});
 	});

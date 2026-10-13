@@ -5,8 +5,6 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { getCopilotHomePath } from '../../../../environment/common/copilotHome.js';
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
@@ -18,7 +16,6 @@ import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from '../../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../agentHostProxyResolver.js';
-import { IAgentHostStateManager, type AgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostStorageService } from '../../agentHostStorageService.js';
 import { LocalModelSetupChannel } from '../../localModelSetupChannel.js';
 import { ICopilotApiService } from '../../shared/copilotApiService.js';
@@ -29,35 +26,9 @@ import { createNodeShimLocalModelProviderHost, ShimLocalModelProvider, type IShi
 export const ILocalModelSetupService = createDecorator<ILocalModelSetupService>('localModelSetupService');
 
 /**
- * The open workspace roots this Agent Host knows of: the file-system working
- * directories of every session it has loaded. This is not an authoritative
- * list of the clients' open folders (none exists before sessions load), so
- * it is only defense in depth: llama.cpp detection already runs nothing
- * without verified provenance before the user's consent. Read live on every
- * detection pass.
- */
-export function collectSessionWorkspaceFolders(stateManager: Pick<AgentHostStateManager, 'getSessionUris' | 'getSessionState' | 'getSessionSummary'>): string[] {
-	const folders = new Set<string>();
-	for (const session of stateManager.getSessionUris()) {
-		const directories = [...stateManager.getSessionState(session)?.workingDirectories ?? [], ...stateManager.getSessionSummary(session)?.workingDirectories ?? []];
-		for (const directory of directories) {
-			const uri = URI.parse(directory);
-			if (uri.scheme === Schemas.file) {
-				folders.add(uri.fsPath);
-			}
-		}
-	}
-	return [...folders];
-}
-
-/**
- * Owns the single {@link ILocalModelProvider} of this Agent Host process and the
- * setup channel that publishes its status and claims client requests.
- *
- * Registered for every host graph: the local utility-process host
- * (`agentHostMain.ts`) gets {@link LocalModelSetupService}; every other host
- * (standalone server, tests) gets {@link NullLocalModelSetupService}, which
- * never creates a provider, so remote hosts publish no status.
+ * Owns the single {@link ILocalModelProvider} of this Agent Host process and its setup channel. Only the local
+ * utility-process host gets {@link LocalModelSetupService}; every other host gets {@link NullLocalModelSetupService},
+ * so remote hosts publish no status.
  */
 export interface ILocalModelSetupService {
 	readonly _serviceBrand: undefined;
@@ -68,12 +39,7 @@ export interface ILocalModelSetupService {
 	/** The provider currently owned by this process, if any. */
 	readonly provider: ILocalModelProvider | undefined;
 
-	/**
-	 * Applies the provider selection made at Copilot client start. `shim`
-	 * creates the provider and its setup channel on first use and keeps them
-	 * across client restarts; `none` disposes them and withdraws the published
-	 * status. Returns the provider to install, if any.
-	 */
+	/** Applies the provider selection made at client start: `shim` creates the provider and channel once and keeps them across restarts; `none` disposes them. Returns the provider to install. */
 	applySelection(selection: LocalModelProviderSelection): ILocalModelProvider | undefined;
 }
 
@@ -98,7 +64,6 @@ export class LocalModelSetupService extends Disposable implements ILocalModelSet
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IRequestService private readonly _requestService: IRequestService,
@@ -159,7 +124,6 @@ export class LocalModelSetupService extends Disposable implements ILocalModelSet
 			resolveCapiBaseUrls: () => resolveLocalModelCapiBaseUrls(this._copilotApiService, githubTokens(), process.env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE']),
 			onDidChangeCapiAccounts: Event.signal(Event.filter(authentication.onDidChangeAuthToken, event => event.resource === endpoints.getCopilotResource().resource)),
 			productVersion: this._productService.version,
-			workspaceFolders: () => collectSessionWorkspaceFolders(this._stateManager),
 		});
 	}
 

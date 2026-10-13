@@ -198,10 +198,7 @@ export class TabbedModelPicker extends Disposable {
 		super.dispose();
 	}
 
-	/**
-	 * Updates an open picker: shows an on-device model family's detail page, or
-	 * opens search with an initial query and focused row.
-	 */
+	/** Updates an open picker: shows an on-device model family's detail page, or opens search with an initial query and focused row. */
 	openWithFilter(options: IModelPickerOpenOptions): void {
 		if (options.localModelFamilyId !== undefined) {
 			this._searchVisible = false;
@@ -244,10 +241,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 	}
 
-	/**
-	 * Shows the "On This Device" tab with the detail page of `familyId` on top,
-	 * or just the tab when the family isn't listed.
-	 */
+	/** Shows the "On This Device" tab with the detail page of `familyId` on top, or just the tab when the family isn't listed. */
 	private _showLocalModelDetailsOnOpen(familyId: string | undefined): void {
 		if (!this._context) {
 			return;
@@ -270,12 +264,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 	}
 
-	/**
-	 * Replaces the on-device rows of an open picker, keeping focus on the row it was on,
-	 * and updates a shown detail page in place, or leaves it when its family is gone.
-	 * When the "On This Device" tab comes or goes the tab strip is rebuilt, and a picker
-	 * that was showing the tab falls back to Copilot.
-	 */
+	/** Replaces the on-device rows of an open picker, keeping focus and updating a shown detail page; the tab strip is rebuilt when the tab comes or goes. */
 	setLocalModels(localModels: IModelPickerLocalModels | undefined): void {
 		if (!this._context || (!localModels && !this._context.localModels)) {
 			return;
@@ -500,10 +489,8 @@ export class TabbedModelPicker extends Disposable {
 		const hydraFusionModels = this._hydraFusionModels(context);
 		// Ensemble's HydraFusion is never a row of its own, even when Ensemble does not offer it.
 		const ensembleHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelEnsemble && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
-		// On-device direct models are listed only in the "On This Device" tab, never as a
-		// provider of their own or among the cloud models (also while on-device status
-		// is unavailable, e.g. just after the feature is turned off), and comparisons
-		// don't offer them.
+		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
+		// the cloud models (even while status is unavailable), and comparisons don't offer them.
 		const localModels = context.localModels;
 		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
 		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
@@ -872,11 +859,7 @@ export class TabbedModelPicker extends Disposable {
 		return localModels ? context.models.filter(model => !!localModels.getDirectModel(model)) : [];
 	}
 
-	/**
-	 * The "On This Device" tab: a row per on-device family. An installed family's row
-	 * is also its direct model's, selected like any other model, so each model is
-	 * listed once. Every row opens its family's detail page.
-	 */
+	/** The "On This Device" tab: a row per family; an installed family's row is also its direct model's, so each model is listed once. */
 	private _buildLocalModelItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		return context.localModels?.getItems({
 			models: this._localDirectModels(context),
@@ -899,12 +882,7 @@ export class TabbedModelPicker extends Disposable {
 		return this._localDirectModels(context).find(candidate => context.localModels?.getDirectModel(candidate)?.familyId === familyId);
 	}
 
-	/**
-	 * The detail page content of an on-device family, with its direct model and
-	 * the chat's configuration of it, whose thinking level the page sets. A saved
-	 * change is reported like a cloud model's, and the rows behind the page
-	 * follow it.
-	 */
+	/** The detail page content of an on-device family, with its direct model and the chat's configuration of it. */
 	private _getLocalModelDetails(familyId: string, context: ITabbedModelPickerContext): ILocalModelDetails | undefined {
 		const details = context.localModels?.getDetails(familyId);
 		const model = details && this._getLocalDirectModel(familyId, context);
@@ -924,12 +902,7 @@ export class TabbedModelPicker extends Disposable {
 		};
 	}
 
-	/**
-	 * Shows the detail page of an on-device model family over the open list. It
-	 * follows the family's status through {@link setLocalModels}, and Back returns
-	 * to the family's row: its Details button, or the row itself when Right Arrow
-	 * opened the page.
-	 */
+	/** Shows an on-device family's detail page over the open list; it follows {@link setLocalModels}, and Back returns focus to the family's row. */
 	private _showLocalModelDetails(familyId: string, returnFocusToRow = false): void {
 		const context = this._context;
 		const details = context && this._getLocalModelDetails(familyId, context);
@@ -1326,10 +1299,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 	}
 
-	/**
-	 * Restores a usable manual model from Copilot, never a routing model, another
-	 * provider, or an on-device model (selecting one loads it, unloading the active one).
-	 */
+	/** Restores a usable manual model from Copilot: never a routing model, another provider, or an on-device model (selecting one loads it). */
 	private _fallbackModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const isCandidate = (model: ILanguageModelChatMetadataAndIdentifier) => !isAutoModel(model) && !isHydraFusionModel(model)
 			&& !isUserProvidedModel(model, this._languageModelsService)

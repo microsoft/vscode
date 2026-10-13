@@ -1367,49 +1367,27 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('renders progress as the standard progress bar, labelled, determinate or animated while indeterminate', () => {
-		const { notificationService, widget } = createWidget();
-		const bar = () => widget.domNode.querySelector<HTMLElement>('.chat-input-notification-progress .monaco-progress-container[role="progressbar"]');
-		const describe = (element: HTMLElement | null) => element && {
-			label: element.getAttribute('aria-label'),
-			min: element.getAttribute('aria-valuemin'),
-			max: element.getAttribute('aria-valuemax'),
-			now: element.getAttribute('aria-valuenow'),
-			indeterminate: element.classList.contains('infinite'),
-			fill: element.querySelector<HTMLElement>('.progress-bit')?.style.width,
-		};
-		showNotification(notificationService, { id: 'download', message: 'Downloading', actions: [], progress: { percent: 42.4 } });
-		const determinate = describe(bar());
-		showNotification(notificationService, { id: 'install', message: 'Installing', actions: [], progress: {} });
-		const indeterminate = describe(bar());
-		showNotification(notificationService, { id: 'plain', message: 'Plain', actions: [] });
-		assert.deepStrictEqual({ determinate, indeterminate, plain: bar() }, {
-			determinate: { label: 'Downloading', min: '0', max: '100', now: '42', indeterminate: false, fill: '42%' },
-			indeterminate: { label: 'Installing', min: null, max: null, now: null, indeterminate: true, fill: '2%' },
-			plain: null,
-		});
-	});
-
-	test('progress switches between indeterminate and determinate in place, on the same bar', () => {
+	test('renders progress as the standard progress bar, labelled, determinate or animated while indeterminate, switching in place on the same bar', () => {
 		const { notificationService, widget } = createWidget();
 		const report = (percent: number | undefined) => showNotification(notificationService, { id: 'load', message: 'Loading', progress: { percent }, announcementKey: 'loading', actions: [] });
-		const bar = () => widget.domNode.querySelector<HTMLElement>('.chat-input-notification-progress .monaco-progress-container');
+		const bar = () => widget.domNode.querySelector<HTMLElement>('.chat-input-notification-progress .monaco-progress-container[role="progressbar"]');
 		const describe = () => {
 			const element = bar();
-			return element && `${element.classList.contains('infinite') ? 'indeterminate' : `${element.getAttribute('aria-valuenow')} of ${element.getAttribute('aria-valuemax')}`}, min ${element.getAttribute('aria-valuemin')}`;
+			return element && `${element.getAttribute('aria-label')}: ${element.classList.contains('infinite') ? 'indeterminate' : `${element.getAttribute('aria-valuenow')} of ${element.getAttribute('aria-valuemax')}`}, min ${element.getAttribute('aria-valuemin')}, fill ${element.querySelector<HTMLElement>('.progress-bit')?.style.width}`;
 		};
 		report(undefined);
 		const first = bar();
 		const states = [describe()];
-		report(30);
-		states.push(describe());
-		report(31);
-		states.push(describe());
-		report(undefined);
-		states.push(describe());
-		assert.deepStrictEqual({ states, sameBar: bar() === first }, {
-			states: ['indeterminate, min null', '30 of 100, min 0', '31 of 100, min 0', 'indeterminate, min null'],
+		for (const percent of [30, 42.4, undefined]) {
+			report(percent);
+			states.push(describe());
+		}
+		const sameBar = bar() === first;
+		showNotification(notificationService, { id: 'plain', message: 'Plain', actions: [] });
+		assert.deepStrictEqual({ states, sameBar, plain: bar() }, {
+			states: ['Loading: indeterminate, min null, fill 2%', 'Loading: 30 of 100, min 0, fill 30%', 'Loading: 42 of 100, min 0, fill 42%', 'Loading: indeterminate, min null, fill 2%'],
 			sameBar: true,
+			plain: null,
 		});
 	});
 

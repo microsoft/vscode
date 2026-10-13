@@ -24,8 +24,6 @@ import { FakeClock } from './fakeServingAccess.js';
 interface ITestPlan extends IServerLaunchPlan {
 	readonly built: IServerStartConfig[];
 	readonly admitted: IServerStartConfig[];
-	/** How many times the binary was verified before a spawn. */
-	readonly verified: { count: number };
 }
 
 /** mai-coder-llamacpp 0.4.1-dev (build 4, commit 9a3ad6c) serving MAI-Code-1.1-Flash v5 with DFlash: healthy, then this on the first completion, and exit. */
@@ -47,7 +45,6 @@ suite('localModel server supervisor (§5.8)', () => {
 	function createPlan(overrides: Partial<IServerLaunchPlan> = {}): ITestPlan {
 		const built: IServerStartConfig[] = [];
 		const admitted: IServerStartConfig[] = [];
-		const verified = { count: 0 };
 		const familyDir = path.join(dir, 'azureml-models', 'azureml', 'Qwen2.5-0.5B-Instruct');
 		return {
 			familyId: 'qwen2.5-0.5b-instruct-local',
@@ -73,13 +70,8 @@ suite('localModel server supervisor (§5.8)', () => {
 				admitted.push(config);
 				return { admitted: true, device: 'Vulkan0' };
 			},
-			verifyBinary: async () => {
-				verified.count++;
-				return true;
-			},
 			built,
 			admitted,
-			verified,
 			...overrides,
 		};
 	}
@@ -512,56 +504,26 @@ suite('localModel server supervisor (§5.8)', () => {
 		});
 	});
 
-	test('a build that does not know the model architecture fails with runtimeUnsupportedModel at once: no downgrade retries', async () => {
-		const { supervisor, spawner, events } = createSupervisor({ server: { loading: true } });
-		spawner.behavior = child => {
-			// winget b11459 loading MAI-Code-1.1-Flash v5 (paths shortened).
-			child.writeStderr('0.00.102.227 I srv    load_model: loading model \'C:\\models\\MAI-Code-1.1-Flash-Q2-XS.gguf\'\n0.00.252.163 E llama_model_load: error loading model: unknown model architecture: \'maion-coder\'\n0.00.252.175 E llama_model_load_from_file_impl: failed to load model\n0.00.397.148 E srv  llama_server: exiting due to model loading error\n');
-			child.exit(1);
-		};
-		const plan = createPlan({ hasDraft: true, displayName: 'Example Flash 1.0', runtimeVersion: '0.6.0-dev (b11459)', initialConfig: { flashAttn: 'on', speculative: true, ctxSize: 262144 } });
-		const error = await supervisor.start(plan).then(() => undefined, (e: LocalModelServingError) => e);
-		assert.deepStrictEqual({
-			error: { code: error?.code, message: error?.message },
-			state: supervisor.state.get().error,
-			spawns: spawner.processes.length,
-			events: events.map(event => `${event.event}:${event.errorCode}`),
-		}, {
-			error: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.' },
-			state: { code: 'runtimeUnsupportedModel', message: 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run Example Flash 1.0. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.', actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-			spawns: 1,
-			events: ['startFailed:runtimeUnsupportedModel'],
-		});
-	});
-
-	test('load time: a build that can\'t run the model gives directions to get one that can, naming the change MAI\'s architecture needs (maion-coder, ggml-org/llama.cpp#29778)', async () => {
+	test('load time: a build that doesn\'t know the model\'s architecture fails with runtimeUnsupportedModel at once, without downgrade retries, with directions to get one that can, naming the change MAI\'s architecture needs (maion-coder, ggml-org/llama.cpp#29778)', async () => {
 		const run = async (architecture: string) => {
-			const { supervisor, spawner } = createSupervisor({ server: { loading: true } });
+			const { supervisor, spawner, events } = createSupervisor({ server: { loading: true } });
 			spawner.behavior = child => {
-				child.writeStderr(`0.00.252.163 E llama_model_load: error loading model: unknown model architecture: '${architecture}'\n0.00.397.148 E srv  llama_server: exiting due to model loading error\n`);
+				// winget b11459 loading MAI-Code-1.1-Flash v5 (paths shortened).
+				child.writeStderr(`0.00.102.227 I srv    load_model: loading model 'C:\\models\\MAI-Code-1.1-Flash-Q2-XS.gguf'\n0.00.252.163 E llama_model_load: error loading model: unknown model architecture: '${architecture}'\n0.00.397.148 E srv  llama_server: exiting due to model loading error\n`);
 				child.exit(1);
 			};
-			const error = await supervisor.start(createPlan({ displayName: 'MAI Code 1.1 Flash', runtimeVersion: '0.6.0-dev (b11459)', architecture })).then(() => undefined, (e: LocalModelServingError) => e);
-			const result = { error: { code: error?.code, message: error?.message, actions: error?.actions }, state: supervisor.state.get().error, spawns: spawner.processes.length };
+			const error = await supervisor.start(createPlan({ hasDraft: true, displayName: 'MAI Code 1.1 Flash', runtimeVersion: '0.6.0-dev (b11459)', architecture, initialConfig: { flashAttn: 'on', speculative: true, ctxSize: 262144 } })).then(() => undefined, (e: LocalModelServingError) => e);
+			const result = { error: { code: error?.code, message: error?.message, actions: error?.actions }, state: supervisor.state.get().error, spawns: spawner.processes.length, events: events.map(event => `${event.event}:${event.errorCode}`) };
 			supervisor.dispose();
 			return result;
 		};
-		const unpackagedMessage = 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run MAI Code 1.1 Flash. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.';
-		const packagedMessage = 'This llama.cpp build (0.6.0-dev (b11459)) can\'t run MAI Code 1.1 Flash. Install a llama.cpp build that supports it, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server, or add llama-server to PATH, and select Retry.';
-		assert.deepStrictEqual({
-			mai: await run('maion-coder'),
-			other: await run('qwen9'),
-		}, {
-			mai: {
-				error: { code: 'runtimeUnsupportedModel', message: unpackagedMessage, actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-				state: { code: 'runtimeUnsupportedModel', message: unpackagedMessage, actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-				spawns: 1,
-			},
-			other: {
-				error: { code: 'runtimeUnsupportedModel', message: packagedMessage, actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-				state: { code: 'runtimeUnsupportedModel', message: packagedMessage, actions: ['getLlamaCpp', 'openSettings', 'retry'] },
-				spawns: 1,
-			},
+		const expected = (change: string) => {
+			const error = { code: 'runtimeUnsupportedModel', message: `This llama.cpp build (0.6.0-dev (b11459)) can't run MAI Code 1.1 Flash. Install a llama.cpp build that ${change}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`, actions: ['getLlamaCpp', 'openSettings', 'retry'] };
+			return { error, state: error, spawns: 1, events: ['startFailed:runtimeUnsupportedModel'] };
+		};
+		assert.deepStrictEqual({ mai: await run('maion-coder'), other: await run('qwen9') }, {
+			mai: expected('includes ggml-org/llama.cpp#29778'),
+			other: expected('supports it'),
 		});
 	});
 
@@ -608,40 +570,6 @@ suite('localModel server supervisor (§5.8)', () => {
 			spawns: 1,
 			record: undefined,
 			events: ['startFailed'],
-		});
-	});
-
-	test('a DFlash build that asserts on its first completion (the warm-up) is retried once without speculative decoding, recorded and served', async () => {
-		const { supervisor, spawner, events } = createSupervisor({
-			server: {
-				onChatCompletion: process => {
-					if (process.arg('--device-draft')) {
-						process.writeStderr(DFLASH_ASSERT_STDERR);
-						process.exit(3);
-					}
-				},
-			},
-		});
-		let recorded = 0;
-		const plan = createPlan({ hasDraft: true, initialConfig: { flashAttn: 'on', speculative: true, ctxSize: 262144 }, onSpeculativeUnsupported: () => recorded++ });
-		const identity = await supervisor.start(plan);
-		const state = supervisor.state.get();
-		assert.deepStrictEqual({
-			generation: identity.servingGeneration,
-			configs: plan.built,
-			draftDevice: spawner.processes.map(child => child.arg('--device-draft') ?? null),
-			server: state.server,
-			config: state.config,
-			recorded,
-			events: events.map(event => `${event.event}:${event.errorCode}`),
-		}, {
-			generation: 1,
-			configs: [{ flashAttn: 'on', speculative: true, ctxSize: 262144 }, { flashAttn: 'on', speculative: false, ctxSize: 262144 }],
-			draftDevice: ['Vulkan0', null],
-			server: 'ready',
-			config: { flashAttn: 'on', speculative: false, ctxSize: 262144 },
-			recorded: 1,
-			events: ['profileDowngraded:specUnsupported', 'ready:'],
 		});
 	});
 
@@ -706,8 +634,18 @@ suite('localModel server supervisor (§5.8)', () => {
 			}
 		};
 		const warmUpLoads = trace(warmUp.supervisor, true);
-		await warmUp.supervisor.start(createDflashPlan());
+		let recorded = 0;
+		const warmUpPlan = createPlan({ hasDraft: true, initialConfig: { flashAttn: 'on', speculative: true, ctxSize: 262144 }, onSpeculativeUnsupported: () => recorded++ });
+		const warmUpIdentity = await warmUp.supervisor.start(warmUpPlan);
 		const warmUpTrace = [...warmUpLoads];
+		const warmUpRetry = {
+			generation: warmUpIdentity.servingGeneration,
+			configs: warmUpPlan.built,
+			draftDevice: warmUp.spawner.processes.map(child => child.arg('--device-draft') ?? null),
+			config: warmUp.supervisor.state.get().config,
+			recorded,
+			events: warmUp.events.map(event => `${event.event}:${event.errorCode}`),
+		};
 		// Free the machine-wide server lock for the next scenario.
 		await warmUp.supervisor.stop('system');
 
@@ -729,7 +667,16 @@ suite('localModel server supervisor (§5.8)', () => {
 		const firstRequestTrace = [...firstRequestLoads];
 		await firstRequest.supervisor.stop('system');
 
-		assert.deepStrictEqual({ warmUpTrace, firstRequestTrace }, {
+		assert.deepStrictEqual({ warmUpRetry, warmUpTrace, firstRequestTrace }, {
+			// Retried once without speculative decoding, recorded and served.
+			warmUpRetry: {
+				generation: 1,
+				configs: [{ flashAttn: 'on', speculative: true, ctxSize: 262144 }, { flashAttn: 'on', speculative: false, ctxSize: 262144 }],
+				draftDevice: ['Vulkan0', null],
+				config: { flashAttn: 'on', speculative: false, ctxSize: 262144 },
+				recorded: 1,
+				events: ['profileDowngraded:specUnsupported', 'ready:'],
+			},
 			warmUpTrace: [
 				'stopped:-', 'starting:-',
 				'starting:loading@1000000/true/-', 'starting:warmingUp@1000000/true/-',
@@ -771,62 +718,6 @@ suite('localModel server supervisor (§5.8)', () => {
 		const atAdmission = await supervisor.start(plan).then(() => 'started', (e: LocalModelServingError) => e.code);
 		assert.deepStrictEqual({ before, atAdmission, spawns: spawner.processes.length, server: supervisor.state.get().server, record: await readRecord() }, {
 			before: 'modelNotActive', atAdmission: 'modelNotActive', spawns: 0, server: 'stopped', record: undefined,
-		});
-	});
-
-	test('the binary is verified immediately before every spawn: a replacement during admission, between bind retries or before a crash restart spawns nothing (runtimeChanged)', async () => {
-		const binary = { replaced: false };
-		const steps: string[] = [];
-		const verifying = (plan: Partial<IServerLaunchPlan> = {}) => createPlan({
-			verifyBinary: async () => {
-				steps.push(binary.replaced ? 'verify:replaced' : 'verify');
-				return !binary.replaced;
-			},
-			...plan,
-		});
-		const outcome = async (supervisor: ServerSupervisor, spawner: FakeLlamaSpawner, plan: ITestPlan, start: Promise<unknown>) => ({
-			error: await start.then(() => 'started', (e: LocalModelServingError) => e.code),
-			state: supervisor.state.get().error,
-			spawns: spawner.processes.length,
-			record: await readRecord(),
-		});
-		const runtimeChanged = { code: 'runtimeChanged', message: 'Qwen 0.5B didn\'t start because llama.cpp changed since you approved it. Review it again to continue.', actions: [] };
-
-		// Replaced while the admission probe ran.
-		const admission = createSupervisor();
-		const replacedAtAdmission = verifying({ admit: async () => { steps.push('admit'); binary.replaced = true; return { admitted: true, device: 'Vulkan0' }; } });
-		const duringAdmission = { ...await outcome(admission.supervisor, admission.spawner, replacedAtAdmission, admission.supervisor.start(replacedAtAdmission)), steps: steps.splice(0) };
-
-		// Replaced between port-bind retries (no admission in between).
-		binary.replaced = false;
-		const bind = createSupervisor({ server: { loading: child => child.port === 41000 } });
-		bind.spawner.behavior = (child, index) => {
-			steps.push('spawn');
-			if (index === 0) {
-				binary.replaced = true;
-				child.writeStderr('main: couldn\'t bind HTTP server socket, hostname: 127.0.0.1, port: 41000\n');
-				child.exit(1);
-			}
-		};
-		const bindPlan = verifying({ admit: async () => { steps.push('admit'); return { admitted: true, device: 'Vulkan0' }; } });
-		const betweenBindRetries = { ...await outcome(bind.supervisor, bind.spawner, bindPlan, bind.supervisor.start(bindPlan)), steps: steps.splice(0) };
-
-		// Replaced while serving; the crash restart verifies again before spawning.
-		binary.replaced = false;
-		const crash = createSupervisor();
-		const crashPlan = verifying();
-		await crash.supervisor.start(crashPlan);
-		binary.replaced = true;
-		crash.spawner.running!.exit(0xC0000005);
-		await waitFor(() => crash.supervisor.state.get().server === 'starting');
-		crash.clock.advance(5_000);
-		await waitFor(() => crash.supervisor.state.get().server === 'error');
-		const crashRestart = { state: crash.supervisor.state.get().error, spawns: crash.spawner.processes.length, record: await readRecord(), steps: steps.splice(0), events: crash.events.map(event => event.event) };
-
-		assert.deepStrictEqual({ duringAdmission, betweenBindRetries, crashRestart }, {
-			duringAdmission: { error: 'runtimeChanged', state: runtimeChanged, spawns: 0, record: undefined, steps: ['admit', 'verify:replaced'] },
-			betweenBindRetries: { error: 'runtimeChanged', state: runtimeChanged, spawns: 1, record: undefined, steps: ['admit', 'verify', 'spawn', 'verify:replaced'] },
-			crashRestart: { state: runtimeChanged, spawns: 1, record: undefined, steps: ['verify', 'verify:replaced'], events: ['ready', 'crash', 'startFailed'] },
 		});
 	});
 

@@ -1247,7 +1247,7 @@ suite('TabbedModelPicker', () => {
 		return {
 			schemaVersion: 1,
 			device: { confidence: 'measured' },
-			runtime: { source: 'packageManager', trust: 'userApproved' },
+			runtime: { version: 'b11459' },
 			catalog: { state: 'ready', registries: { azureml: 'ready' } },
 			families: [
 				onDeviceFamily('example-flash', exampleFlash.metadata.name, { install: onDeviceInstall(exampleFlash), context: { tokens: 131072, options: [{ tokens: 65536, gpuBytes: 56e9 }, { tokens: 131072, gpuBytes: 58e9 }] } }),
@@ -1281,10 +1281,10 @@ suite('TabbedModelPicker', () => {
 		};
 	}
 
-	test('on-device models get a tab of their own after Copilot, which lists none of them, and only once a user has opted in', () => {
+	test('on-device models get a tab of their own after Copilot, which lists none of them, and only once a user has opted in; until then they stay out of the cloud tabs', () => {
 		const [auto, copilot] = copilotModels;
 		const shown = (selectedModelId: string, localModels: IModelPickerLocalModels | undefined) => {
-			const { popup, dismiss } = createPicker({ models: [...copilotModels, ollamaModel, ...localModels ? [exampleFlash, qwen] : []], selectedModelId, localModels });
+			const { popup, dismiss } = createPicker({ models: [...copilotModels, ollamaModel, exampleFlash, qwen], selectedModelId, localModels });
 			const result = tabState(popup);
 			dismiss();
 			return result;
@@ -1301,13 +1301,6 @@ suite('TabbedModelPicker', () => {
 			onDevice: { tabs, active: 'On This Device', rows: ['Example Flash 1.0', 'Qwen Coder', 'Example Vision 7B', 'Example Mini 3B'] },
 			notOptedIn: { tabs: ['Copilot', 'Ollama'], active: 'Copilot', rows: copilotRows },
 		});
-	});
-
-	test('on-device direct models stay out of the cloud tabs while on-device status is unavailable', () => {
-		const { popup, dismiss } = createPicker({ models: [...copilotModels, ollamaModel, exampleFlash, qwen], selectedModelId: copilotModels[1].identifier, localModels: undefined });
-		const result = tabState(popup);
-		dismiss();
-		assert.deepStrictEqual(result, { tabs: ['Copilot', 'Ollama'], active: 'Copilot', rows: copilotRows });
 	});
 
 	test('the On This Device tab lists each family once on a single line, and an installed one selects its model', () => {

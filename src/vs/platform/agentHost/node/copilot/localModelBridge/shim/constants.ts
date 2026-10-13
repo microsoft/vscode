@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Data for the Copilot request-handler bridge ("shim"). Only code under
- * `localModelBridge/` reads these. Values marked "Provisional" are
- * placeholders until measured on target hardware.
- */
+/* Data for the Copilot request-handler bridge ("shim"); values marked "Provisional" are placeholders until measured on target hardware. */
 
 // #region Targets
 
-/** `process.platform`-`process.arch` pairs the bridge supports. musl Linux works only through `llamaServerPath`. */
+/** `process.platform`-`process.arch` pairs the bridge supports. */
 export const LOCAL_MODEL_SUPPORTED_TARGETS = ['win32-x64', 'win32-arm64', 'darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'] as const;
 export type LocalModelTarget = typeof LOCAL_MODEL_SUPPORTED_TARGETS[number];
 
@@ -32,12 +28,7 @@ export const PUBLIC_REGISTRY = 'azureml';
 /** The registry of a catalog entry; its models live under `azureml-models/<registry>/` in the shared store. */
 export type LocalModelRegistryName = typeof PUBLIC_REGISTRY;
 
-/**
- * The registry's canonical catalog metadata (`annotations.systemCatalogData`
- * in search rows, `modelEntity.systemMetadata` in lookups,
- * `properties.system_metadata` in versions listings), the scope of the
- * Copilot CLI and app. Values are typed (numbers, booleans, string arrays).
- */
+/** The registry's canonical catalog metadata keys, the scope of the Copilot CLI and app; values are typed. */
 export const LOCAL_MODEL_METADATA = {
 	publisher: 'publisher',
 	modelFlavor: 'modelFlavor',
@@ -57,13 +48,7 @@ export const LOCAL_MODEL_METADATA = {
 /** The Microsoft GGUF coding scope a catalog model must be in, the Copilot CLI's scope. */
 export const LOCAL_MODEL_METADATA_SCOPE = { publisher: 'Microsoft', modelFlavor: 'GGUF', keyword: 'Coding' } as const;
 
-/**
- * Azure ML tags (string values). The production registry publishes the
- * canonical names (`maxInputTokens`, `textContextWindow`,
- * `supportsToolCalling`, `license`, ...); an earlier tag contract
- * (`localCoding`, `maxPromptTokens`, `supportsToolCalls`, ...) is still read as
- * a fallback.
- */
+/** Azure ML tags (string values): the production registry's canonical names, with an earlier tag contract still read as a fallback. */
 export const LOCAL_MODEL_TAGS = {
 	localCoding: 'localCoding',
 	modelFormat: 'modelFormat',
@@ -90,13 +75,7 @@ export const LOCAL_MODEL_TAGS = {
 	modelUri: 'modelUri',
 } as const;
 
-/**
- * Requirements used until the production registry publishes
- * `githubCopilotLocalRequirements` for this exact version (the Copilot CLI's
- * temporary values): the measured size of its three files and a 96 GiB GPU
- * memory recommendation.
- * Published requirements always win.
- */
+/** The Copilot CLI's temporary requirements for this exact version until the registry publishes `githubCopilotLocalRequirements`; published values always win. */
 export const UNPUBLISHED_REQUIREMENTS_FALLBACK = {
 	registry: 'azureml',
 	assetName: 'MAI-Code-1.1-Flash-On-Device',
@@ -109,18 +88,10 @@ export const UNPUBLISHED_REQUIREMENTS_FALLBACK = {
 export const DISPLAY_NAME_MAX_LENGTH = 100;
 
 /*
- * The Azure ML catalog endpoints, the same ones the Copilot CLI uses. Neither
- * the search nor the lookup is a documented Azure API: they are the anonymous
- * backends of the Azure AI Foundry portal, so no Azure account is needed. The
- * documented routes (the Azure ML CLI, SDK and REST API) all require Azure
- * sign-in.
- * - Search: `eastus` is only the region that answers; `crossRegion` searches
- *   the registry's indexes in every region. It accepts only User-Agents that
- *   start with the portal's `AzureAiStudio`, so VS Code appends its own name
- *   and version ({@link getAzureMlSearchUserAgent}).
- * - Lookup: for a version, its metadata and a read-only SAS URL of the
- *   storage container that holds its files (`nonazureaccount`: for users
- *   without an Azure account). Downloads then use the documented Blob API.
+ * The Azure ML catalog endpoints the Copilot CLI uses: the anonymous backends of the Azure AI Foundry portal, so no Azure
+ * account is needed (the documented routes all require sign-in). The search only accepts User-Agents starting with
+ * `AzureAiStudio` ({@link getAzureMlSearchUserAgent}); `eastus` is only the region that answers `crossRegion`. The lookup
+ * returns a version's metadata and a read-only SAS URL of its storage container; downloads then use the documented Blob API.
  */
 export const AZURE_ML_PUBLIC_SEARCH_URL = 'https://ai.azure.com/api/eastus/ux/v1.0/entities/crossRegion';
 export const AZURE_ML_SEARCH_USER_AGENT = 'AzureAiStudio';
@@ -132,11 +103,7 @@ export function getAzureMlSearchUserAgent(productVersion: string | undefined): s
 }
 /** Download hosts (HTTPS on 443 only): the registry's storage accounts, and Azure ML's API hosts, whose data proxy can hand out SAS URLs. */
 export const AZURE_ML_DOWNLOAD_HOST_SUFFIXES: readonly string[] = ['.blob.core.windows.net', '.api.azureml.ms'];
-/**
- * Sent on every blob request: a storage endpoint that gzips small blobs for
- * clients that accept it drops `Content-Length` and weakens the ETag the size
- * checks and resume rely on.
- */
+/** Sent on every blob request: gzipped small blobs lose `Content-Length` and get weak ETags, which the size checks and resume rely on. */
 export const BLOB_REQUEST_HEADERS: Readonly<Record<string, string>> = { 'Accept-Encoding': 'identity' };
 export const CATALOG_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
 export const MAX_CONCURRENT_RESOLUTIONS = 2;
@@ -160,11 +127,8 @@ export const PLACE_RENAME_RETRIES = 4;
 export const PLACE_RENAME_RETRY_DELAY_MS = 250;
 export const PARTIAL_FILE_SUFFIX = '.vscode.partial';
 /**
- * Consecutive transfer attempts of one file that fail transiently (a dropped
- * or stalled connection, a timeout, HTTP 5xx/408/429) before the download
- * pauses for Retry. An attempt that wrote new bytes resets the count, so a
- * long download survives many separate interruptions. Each retry resumes from
- * the partial file, as the Copilot CLI does.
+ * Consecutive transient failures of one file's transfer before the download pauses for Retry. An attempt that wrote new
+ * bytes resets the count, so a long download survives many interruptions.
  */
 export const DOWNLOAD_MAX_TRANSFER_ATTEMPTS = 8;
 /** Backoff before the n-th transient retry: this, doubled per consecutive failure, at most {@link DOWNLOAD_RETRY_MAX_DELAY_MS}. */
@@ -177,54 +141,7 @@ export const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
 
 // #endregion
 
-// #region llama.cpp detection
-
-/** Environment variable the Copilot CLI and app use to point at a `llama-server`. */
-export const LLAMACPP_SERVER_PATH_ENV_VAR = 'LLAMACPP_SERVER_PATH';
-
-export const LLAMA_SERVER_EXECUTABLE_NAME = { win32: 'llama-server.exe', posix: 'llama-server' } as const;
-
-/**
- * Windows registry `Path` values read live during detection, because a package
- * manager may have changed PATH after VS Code started.
- */
-export const WINDOWS_LIVE_PATH_SOURCES: readonly { readonly hive: 'HKCU' | 'HKLM'; readonly key: string; readonly value: string }[] = [
-	{ hive: 'HKCU', key: 'Environment', value: 'Path' },
-	{ hive: 'HKLM', key: 'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', value: 'Path' },
-];
-
-/**
- * A well-known `llama-server` location checked after `PATH`: where a package
- * manager (winget, Homebrew, apt) or a manual install puts it. A binary found
- * here is reported with source `packageManager` and, like any detected binary,
- * runs only after approval.
- *
- * `path` uses `/` separators and is resolved below `root`; one segment may end
- * in `*` to match directory entries by prefix.
- */
-export interface ILlamaServerKnownLocation {
-	readonly root: 'localAppData' | 'home' | 'absolute';
-	readonly path: string;
-}
-
-/** Known install locations, checked after the setting, the env var and PATH. */
-export const LLAMA_SERVER_KNOWN_LOCATIONS: Readonly<Record<'win32' | 'darwin' | 'linux', readonly ILlamaServerKnownLocation[]>> = {
-	win32: [
-		{ root: 'localAppData', path: 'Microsoft/WinGet/Packages/ggml.llamacpp_*/llama-server.exe' },
-		{ root: 'localAppData', path: 'Microsoft/WinGet/Links/llama-server.exe' },
-	],
-	darwin: [
-		{ root: 'absolute', path: '/opt/homebrew/bin/llama-server' },
-		{ root: 'absolute', path: '/usr/local/bin/llama-server' },
-		{ root: 'home', path: '.local/bin/llama-server' },
-	],
-	linux: [
-		{ root: 'absolute', path: '/home/linuxbrew/.linuxbrew/bin/llama-server' },
-		{ root: 'home', path: '.linuxbrew/bin/llama-server' },
-		{ root: 'absolute', path: '/usr/bin/llama-server' },
-		{ root: 'home', path: '.local/bin/llama-server' },
-	],
-};
+// #region llama.cpp qualification
 
 /** Flags a `llama-server --help` must list to qualify (capability-based; no version pin). */
 export const REQUIRED_LLAMA_SERVER_FLAGS: readonly string[] = [
@@ -243,21 +160,13 @@ export const REQUIRED_LLAMA_SERVER_FLAGS: readonly string[] = [
 	'--split-mode',
 ];
 
-/**
- * The environment form of `--api-key` (`llama-server --help`: `--api-key KEY
- * ... (env: LLAMA_API_KEY)`). Per-spawn keys travel in it rather than on the
- * command line, which other users can read in process listings on Linux and macOS.
- */
+/** The environment form of `--api-key`: per-spawn keys travel in it, not on the command line, which other users can read in process listings on Linux and macOS. */
 export const LLAMA_API_KEY_ENV = 'LLAMA_API_KEY';
 
 /** Additionally required when the preset uses a draft model. */
 export const REQUIRED_DRAFT_LLAMA_SERVER_FLAGS: readonly string[] = ['--device-draft'];
 
-/**
- * Speculative-decoding flags. Optional: when `--spec-type` or the
- * `draft-dflash` value is missing, the whole speculative configuration is
- * dropped and `dflashSupported` is recorded as false.
- */
+/** Optional speculative-decoding flags: when `--spec-type` or its `draft-dflash` value is missing, the speculative configuration is dropped and `dflashSupported` is false. */
 export const OPTIONAL_SPEC_FLAGS: readonly string[] = ['--spec-type', '--spec-draft-model', '--spec-draft-n-max', '--spec-draft-p-min', '--spec-draft-ngl'];
 export const DFLASH_SPEC_TYPE = 'draft-dflash';
 
@@ -275,20 +184,12 @@ export const GGUF_ARCHITECTURE_READ_MAX_BYTES = 8 * 1024 * 1024;
 /** Longest architecture name that is probed (llama.cpp names are short, for example `qwen3moe` or `gpt-oss`). */
 export const LLAMA_ARCHITECTURE_NAME_MAX_LENGTH = 64;
 
-/**
- * llama.cpp architectures that no llama.cpp release supports yet, with the
- * change that adds support: the directions for such a model name the change a
- * llama.cpp build needs. Remove an entry once a llama.cpp release supports it.
- */
+/** Architectures no llama.cpp release supports yet, with the change that adds support; remove an entry once a release supports it. */
 export const UNPACKAGED_LLAMA_ARCHITECTURES: Readonly<Record<string, string>> = {
 	'maion-coder': 'ggml-org/llama.cpp#29778',
 };
 
-/**
- * Architecture names reported as-is in telemetry; anything else is reported
- * as `other`. Public llama.cpp `LLM_ARCH` names only: an architecture read
- * from a (possibly private) GGUF header is content, not a closed set.
- */
+/** Public llama.cpp `LLM_ARCH` names reported as-is in telemetry; anything else (a GGUF header may be private content) is `other`. */
 export const LOCAL_MODEL_TELEMETRY_ARCHITECTURES: readonly string[] = [
 	'llama', 'llama4', 'mistral3', 'qwen2', 'qwen2moe', 'qwen3', 'qwen3moe', 'qwen3next', 'qwen35', 'qwen35moe',
 	'gemma2', 'gemma3', 'gemma3n', 'phi3', 'phimoe', 'gpt-oss', 'deepseek2', 'glm4', 'glm4moe', 'granite', 'granitemoe',
@@ -299,27 +200,17 @@ export const LOCAL_MODEL_TELEMETRY_ARCHITECTURES: readonly string[] = [
 
 // #region Fit and serving
 
-// Provisional until measured on target hardware.
+// Provisional until measured on target hardware:
 export const NEAR_FIT_RATIO = 0.85;
-// Provisional until measured on target hardware.
 export const MIN_AUTO_DECODE_TPS = 8;
-// Provisional until measured on target hardware.
 export const MAX_AUTO_TTFT_MS = 10_000;
-// Provisional until measured on target hardware.
 export const IDLE_UNLOAD_MS = 15 * 60_000;
-// Provisional until measured on target hardware.
 export const FIRST_OUTPUT_TIMEOUT_MS = 120_000;
-// Provisional until measured on target hardware.
 export const LOAD_TIMEOUT_MS = 10 * 60_000;
-// Provisional until measured on target hardware.
 export const QUEUE_TIMEOUT_MS = 120_000;
-// Provisional until measured on target hardware.
 export const DOWN_MARK_MS = 60_000;
 
-/**
- * Prompt processing with fewer uncached tokens than this is not shown as reading
- * the conversation: it ends within about one batch and would only flash from 0 to 100 %.
- */
+/** Prompts with fewer uncached tokens aren't shown as reading the conversation: they finish within about one batch and would only flash. */
 export const PROMPT_PROGRESS_MIN_TOKENS = 1024;
 /** Minimum interval between two prompt processing percentages reported for one request. */
 export const PROMPT_PROGRESS_INTERVAL_MS = 500;
@@ -328,12 +219,7 @@ export const PROMPT_PROGRESS_INTERVAL_MS = 500;
 export const SYSTEM_MEMORY_RESERVE_MIN_BYTES = 8 * 1024 * 1024 * 1024;
 export const SYSTEM_MEMORY_RESERVE_RATIO = 0.1;
 
-/**
- * Footprint formula: `(primary + draft + context buffers) x 1.02 + 256 MiB`. The
- * context buffers (KV, SWA, recurrent state, compute) are estimated from the
- * GGUF header; the factor and overhead cover what llama.cpp does not report
- * (driver context, allocator slack).
- */
+/** Footprint: `(primary + draft + context buffers) x 1.02 + 256 MiB`; the factor and overhead cover what llama.cpp doesn't report (driver context, allocator slack). */
 export const FOOTPRINT_OVERHEAD_BYTES = 256 * 1024 * 1024;
 export const FOOTPRINT_FACTOR = 1.02;
 
@@ -347,11 +233,7 @@ export const REDUCED_CONTEXT_STEPS: readonly number[] = [262_144, 131_072, 65_53
 /** Tokens reserved for chat-template overhead in the `/auto` limits patch. */
 export const CHAT_TEMPLATE_RESERVE_TOKENS = 1024;
 export const PRESET_MAX_PARALLEL = 64;
-/**
- * `--ctx-checkpoints` for a model with recurrent layers whose preset turns
- * checkpoints off: without one, llama.cpp reprocesses the whole prompt on
- * every turn. Each checkpoint holds the recurrent state in system memory.
- */
+/** `--ctx-checkpoints` for a recurrent model whose preset turns them off (llama.cpp would reprocess the whole prompt every turn); each holds recurrent state in system memory. */
 export const RECURRENT_MODEL_CTX_CHECKPOINTS = 4;
 
 export const SERVER_HEALTH_POLL_MS = 500;
@@ -383,10 +265,7 @@ export const ROUTE_TABLE_SOFT_CAP = 1024;
 
 // #region llama.cpp probing
 
-/**
- * Output cap for `llama-server --help` only. b11459 already prints ~60 KB, so the
- * general 64 KiB probe cap would soon truncate it and drop late flags (`--parallel`).
- */
+/** Output cap for `llama-server --help` only: b11459 already prints ~60 KB, so the 64 KiB probe cap would soon drop late flags (`--parallel`). */
 export const LLAMA_SERVER_HELP_OUTPUT_CAP_BYTES = 256 * 1024;
 
 // #endregion

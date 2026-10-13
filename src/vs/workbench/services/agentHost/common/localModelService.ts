@@ -12,42 +12,25 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export const ILocalModelService = createDecorator<ILocalModelService>('localModelService');
 
-/**
- * The key, among {@link ILocalModelService.getPendingStops}, of a Stop sent
- * for the server of `familyId`, the active model, until its state changes.
- */
+/** The {@link ILocalModelService.getPendingStops} key of a Stop sent for the server of the active model `familyId`, until its state changes. */
 export function getLocalModelServerStopId(familyId: string): string {
 	return `server:${familyId}`;
 }
 
-/**
- * The key, among {@link ILocalModelService.getPendingStops}, of a Stop Now
- * sent for the drain of operation `operationId`, until its state or phase
- * changes. A Cancel or Pause of the operation is pending as its own id.
- */
+/** The {@link ILocalModelService.getPendingStops} key of a Stop Now sent for operation `operationId`'s drain; a Cancel or Pause is pending as the operation's own id. */
 export function getLocalModelStopNowId(operationId: string): string {
 	return `stopNow:${operationId}`;
 }
 
-/**
- * Outcome of the pre-send guard. `block` keeps the draft: the chat is
- * bound to an installed on-device model that is not the active one.
- */
+/** Outcome of the pre-send guard; `block` keeps the draft when the chat is bound to an installed on-device model that isn't active. */
 export type LocalModelSendCheck =
 	| { readonly kind: 'allow' }
 	| { readonly kind: 'block'; readonly reason: 'modelNotActive'; readonly familyId: string; readonly activeFamilyId: string | undefined };
 
 /**
- * User-facing confirmations the service needs before it may send a request.
- * Registered by the setup-flow contribution (dialogs). Each
- * method resolves `false` when the user cancels. Without a registered
- * handler, actions that need a confirmation are not sent.
- *
- * Setup and runtime approval need no confirmation here: their consent is
- * given on the model's detail page in the model picker, which sends it with
- * the request. Neither does loading another model: it starts at once, and the
- * notice above the chat input shows it waiting for running responses, then
- * loading, with Cancel.
+ * User-facing confirmations the service needs before sending some requests; each resolves `false` when the user
+ * cancels. Without a registered handler, actions that need one are not sent. Setup and loading another model need
+ * none: consent is given on the detail page, and a load can be cancelled from the notice above the chat input.
  */
 export interface ILocalModelInteractionHandler {
 	/** "Stop {n} running responses?" */
@@ -57,14 +40,9 @@ export interface ILocalModelInteractionHandler {
 }
 
 /**
- * The workbench side of on-device models.
- *
- * Status is held **per Agent Host connection**: a host that does not publish
- * `vscode.localModel.status` (remote hosts, other implementations) reads as
- * `undefined`, so the local host's state never bleeds into another target.
- * Every action is addressed to the connection the status came from and is sent
- * only while that connection publishes status. Actions that return a boolean
- * resolve `true` when the request was sent.
+ * The workbench side of on-device models. Status is held per Agent Host connection, so a host that doesn't publish it
+ * reads as `undefined` and the local host's state never bleeds into another target; actions go to the connection the
+ * status came from. Boolean results are `true` when the request was sent.
  */
 export interface ILocalModelService {
 	readonly _serviceBrand: undefined;
@@ -75,16 +53,9 @@ export interface ILocalModelService {
 	/** Registers the confirmation UI. Only one handler is active; the last registration wins. */
 	registerInteractionHandler(handler: ILocalModelInteractionHandler): IDisposable;
 
-	/**
-	 * Sends `setUp` with the consent the user gave on the family's detail page,
-	 * computed from the status that page showed.
-	 */
+	/** Sends `setUp` with the consent the user gave on the family's detail page, computed from the status that page showed. */
 	setUp(connection: IAgentConnection, familyId: string, consent: ILocalModelConsent): boolean;
-	/**
-	 * Sends `makeActive`, without asking: the host unloads the active model
-	 * once its running responses finish, then loads this one. Cancelling it
-	 * while it waits keeps the active model loaded.
-	 */
+	/** Sends `makeActive` without asking: the host unloads the active model after its running responses finish, then loads this one. */
 	makeActive(connection: IAgentConnection, familyId: string): boolean;
 	cancel(connection: IAgentConnection, operationId: string): boolean;
 	pause(connection: IAgentConnection, operationId: string): boolean;
@@ -96,35 +67,22 @@ export interface ILocalModelService {
 	/** Asks first, then cancels the running responses of a drain. */
 	stopNow(connection: IAgentConnection): Promise<boolean>;
 	/**
-	 * Stops whose request was sent and doesn't show in `connection`'s status
-	 * yet, so every surface can acknowledge the click at once: operations, by
-	 * id, whose Cancel or Pause was sent, those whose drain Stop Now ended
-	 * ({@link getLocalModelStopNowId}), and the active model's server once
-	 * Stop was sent ({@link getLocalModelServerStopId}). A stop stops being
-	 * pending once the state or phase it should change changes, or after a
-	 * few seconds without a change.
+	 * Stops sent but not yet reflected in `connection`'s status, so every surface can acknowledge the click at once:
+	 * operation ids, {@link getLocalModelStopNowId} and {@link getLocalModelServerStopId} keys. Each stops being pending
+	 * once the state it should change changes, or after a few seconds.
 	 */
 	getPendingStops(connection: IAgentConnection): IObservable<ReadonlySet<string>>;
 	update(connection: IAgentConnection, familyId: string): boolean;
 	/** Asks first (with usage counts), then `remove`. */
 	remove(connection: IAgentConnection, familyId: string): Promise<boolean>;
 	stopPrevious(connection: IAgentConnection): boolean;
-	/** Sends `approveRuntime` with the approval given on a model's detail page. */
-	approveRuntime(connection: IAgentConnection, consent: ILocalModelConsent): boolean;
 	refreshCatalog(connection: IAgentConnection): boolean;
-	/**
-	 * Sends `setContextSize`: `tokens`, one of the installed family's context
-	 * options, for its next load. The host reloads a loaded model right away,
-	 * once its running responses finish.
-	 */
+	/** Sends `setContextSize` with one of the installed family's context options; the host reloads a loaded model once its running responses finish. */
 	setContextSize(connection: IAgentConnection, familyId: string, tokens: number): boolean;
 
 	/** Writes `chat.copilot.localModel.useInAuto` (the picker's inline toggle). */
 	setUseInAuto(value: boolean): Promise<void>;
 
-	/**
-	 * Pre-send guard for a chat on `connection` whose selected model id is
-	 * `selectedModelId` (the agent-host model row id, not a vendor-qualified id).
-	 */
+	/** Pre-send guard for a chat on `connection` whose selected model is `selectedModelId` (the agent-host row id, not a vendor-qualified id). */
 	checkBeforeSend(connection: IAgentConnection, sessionResource: URI, selectedModelId: string | undefined): Promise<LocalModelSendCheck>;
 }

@@ -10,7 +10,7 @@ import { computeLocalModelConsentScope, type ILocalModelFamilyV1, type ILocalMod
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { LocalModelService } from '../../../../../services/agentHost/browser/localModelService.js';
-import { buildLocalModelRuntimeApproval, buildLocalModelSetUpConsent, getLocalModelRuntimeApprovalConsent, getLocalModelSetUpAgreement, LocalModelSetupFlow } from '../../../browser/agentSessions/agentHost/localModelSetupFlow.js';
+import { buildLocalModelSetUpConsent, getLocalModelSetUpAgreement, LocalModelSetupFlow } from '../../../browser/agentSessions/agentHost/localModelSetupFlow.js';
 import { createStatus, installedFamily, offeredFamily, otherFamily, ScriptedDialogService, TestLocalModelConnection } from './localModelTestUtils.js';
 
 const KEEP_WORKING = 'You can keep using Copilot while it downloads.';
@@ -34,9 +34,9 @@ suite('LocalModelSetupFlow', () => {
 	}
 
 	suite('download consent covers only the model', () => {
-		test('approved llama.cpp and model files on the device: Set Up, nothing downloaded', () => {
+		test('a qualified llama.cpp and model files on the device: Set Up, nothing downloaded', () => {
 			const family: ILocalModelFamilyV1 = { ...offeredFamily, entry: { modelFilesPresent: true } };
-			const status = createStatus([family], { runtime: { source: 'packageManager', version: 'b11459', trust: 'userApproved' } });
+			const status = createStatus([family], { runtime: { version: 'b11459' } });
 			assert.deepStrictEqual(consentOf(status, family), {
 				kind: 'consent',
 				title: 'Set Up',
@@ -64,21 +64,9 @@ suite('LocalModelSetupFlow', () => {
 			});
 		});
 
-		test('the consent is the same whatever llama.cpp is found (none, awaiting approval, unsupported): the scope never covers it', () => {
+		test('no llama.cpp, model files on the device: Set Up says loading needs llama.cpp', () => {
 			const family: ILocalModelFamilyV1 = { ...offeredFamily, entry: { modelFilesPresent: true } };
-			const pending = consentOf(createStatus([family], { runtime: { source: 'path', version: 'b11459', trust: 'pendingApproval', path: 'C:\\tools\\llama\\llama-server.exe' } }), family);
-			const none = consentOf(createStatus([family]), family);
-			assert.deepStrictEqual({ pending, sameAsNone: JSON.stringify(pending) === JSON.stringify(none) }, {
-				pending: {
-					kind: 'consent',
-					title: 'Set Up',
-					details: ['Uses Example Flash 1.0, which is already on this device.', 'Loading Example Flash 1.0 needs llama.cpp, which VS Code doesn\'t install.'],
-					license: undefined,
-					buttons: ['Set Up'],
-					agreements: [{ consent: { scope: computeLocalModelConsentScope({ family }) }, entryPath: 'none' }],
-				},
-				sameAsNone: true,
-			});
+			assert.deepStrictEqual(consentOf(createStatus([family]), family).details, ['Uses Example Flash 1.0, which is already on this device.', 'Loading Example Flash 1.0 needs llama.cpp, which VS Code doesn\'t install.']);
 		});
 
 		test('the download can\'t start without enough disk space (no button)', () => {
@@ -100,7 +88,7 @@ suite('LocalModelSetupFlow', () => {
 			offer: { ...offeredFamily.offer!, fit: 'near', requiredGpuBytes: 72 * 1024 ** 3, licenseName: undefined, licenseUrl: undefined },
 			entry: { modelFilesPresent: false },
 		};
-		const consent = buildLocalModelSetUpConsent(createStatus([family], { runtime: { source: 'env', trust: 'userApproved' } }), family);
+		const consent = buildLocalModelSetUpConsent(createStatus([family], { runtime: { version: 'b11459' } }), family);
 		assert.deepStrictEqual({ details: consent.details, license: consent.license, entryPath: consent.entryPath }, {
 			details: [
 				'Download size: 56.7 GB. Free space needed during setup: 57.2 GB.',
@@ -143,49 +131,6 @@ suite('LocalModelSetupFlow', () => {
 				{ action: 'makeActive', familyId: installedFamily.familyId },
 				{ action: 'remove', familyId: active.familyId },
 			],
-		});
-	});
-
-	suite('runtime approval', () => {
-		test('names the detected llama.cpp by path, version and short runtime digest, and binds the consent to exactly that status', () => {
-			const sha256 = '0123456789abcdef'.repeat(4);
-			const withDigest = createStatus([installedFamily], { runtime: { source: 'path', version: 'b11459', trust: 'pendingApproval', path: '/opt/homebrew/bin/llama-server', sha256, size: 4096 } });
-			const noVersion = createStatus([installedFamily], { runtime: { source: 'path', trust: 'pendingApproval', path: 'C:\\tools\\llama-server.exe' } });
-			const consent = getLocalModelRuntimeApprovalConsent(withDigest);
-			assert.deepStrictEqual({
-				withDigest: buildLocalModelRuntimeApproval(withDigest),
-				noVersion: buildLocalModelRuntimeApproval(noVersion),
-				trusted: buildLocalModelRuntimeApproval(createStatus([installedFamily], { runtime: { source: 'path', trust: 'userApproved', path: 'C:\\tools\\llama-server.exe' } })),
-				consent,
-				differsFromSwappedFile: consent.scope !== getLocalModelRuntimeApprovalConsent(createStatus([installedFamily], { runtime: { ...withDigest.runtime, sha256: 'f'.repeat(64) } })).scope,
-			}, {
-				withDigest: {
-					message: 'Use llama.cpp found at /opt/homebrew/bin/llama-server (b11459)? Runtime digest 0123456789ab...',
-					details: ['VS Code didn\'t install this llama-server. Use it only if you trust it.', 'VS Code runs it to serve on-device models.'],
-				},
-				noVersion: {
-					message: 'Use llama.cpp found at C:\\tools\\llama-server.exe?',
-					details: ['VS Code didn\'t install this llama-server. Use it only if you trust it.', 'VS Code runs it to serve on-device models.'],
-				},
-				trusted: undefined,
-				consent: { scope: computeLocalModelConsentScope({ runtime: withDigest.runtime }) },
-				differsFromSwappedFile: true,
-			});
-		});
-
-		test('runtimeChanged: the approval says the approved llama-server changed; the download consent doesn\'t ask about llama.cpp', () => {
-			const runtime = { source: 'packageManager', version: 'b11500', trust: 'pendingApproval', path: 'C:\\llama\\llama-server.exe' } as const;
-			const changedError = { code: 'runtimeChanged', message: 'The llama-server changed since you approved it.', actions: ['retry'] } as const;
-			const failedSetup: ILocalModelFamilyV1 = { ...offeredFamily, entry: { modelFilesPresent: false }, operation: { id: 'op-1', kind: 'setup', state: 'error', resumeOnStartup: true, error: changedError } };
-			const setup = buildLocalModelSetUpConsent(createStatus([failedSetup], { runtime }), failedSetup);
-			const approval = buildLocalModelRuntimeApproval(createStatus([installedFamily], { runtime, active: { familyId: installedFamily.familyId, contentId: 'c1', servingGeneration: 1, server: 'error', error: { ...changedError, actions: [] } } }));
-			assert.deepStrictEqual({ setup: { line: setup.details[3], buttons: setup.buttons.map(button => button.label) }, approval: approval?.details[0] }, {
-				setup: {
-					line: 'Loading Example Flash 1.0 needs llama.cpp, which VS Code doesn\'t install. You can get it while the model downloads.',
-					buttons: ['Download'],
-				},
-				approval: 'This llama-server changed since you approved it, so it wasn\'t run. Use it only if you trust it.',
-			});
 		});
 	});
 });

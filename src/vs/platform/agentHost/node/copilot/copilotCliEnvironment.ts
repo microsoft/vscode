@@ -8,13 +8,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 
 const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2']);
-/**
- * Copilot CLI runtime feature flags under which the runtime
- * would declare on-device models to Auto and start its own `llama-server` for
- * the `winml` rows the Copilot CLI writes to the shared `providers.json`. VS
- * Code serves on-device models itself, so they are forced off; an inherited
- * value or enabled-flags entry never turns them on.
- */
+/** Copilot CLI runtime flags that would make it declare on-device models to Auto and start its own `llama-server`; VS Code serves them itself, so they are forced off. */
 const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS'] as const;
 /** An environment declaration of on-device Auto models the Copilot CLI runtime reads; never inherited. */
 const RUNTIME_LOCAL_MODELS_ENV_KEY = 'COPILOT_LOCAL_MODELS';
@@ -69,12 +63,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	return env;
 }
 
-/**
- * The SDK's default WebSocket forwarder drops `Authorization`, so while the
- * on-device model request handler is installed the runtime is told to use
- * HTTP Responses for CAPI instead. Nothing is touched otherwise, so users who
- * have not opted in keep the default transport.
- */
+/** The SDK's default WebSocket forwarder drops `Authorization`, so while the on-device handler is installed the runtime uses HTTP Responses for CAPI; otherwise nothing changes. */
 export function setLocalModelRequestHandlerEnvironment(env: Record<string, string | undefined>, requestHandlerInstalled: boolean): void {
 	if (requestHandlerInstalled) {
 		env['COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES'] = 'true';

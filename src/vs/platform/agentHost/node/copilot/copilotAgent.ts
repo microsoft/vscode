@@ -996,11 +996,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _localModelProvider: ILocalModelProvider | undefined;
 	/** Republishes the provider's direct-selection rows when they change. */
 	private readonly _localModelRowsListener = this._register(new MutableDisposable());
-	/**
-	 * The GitHub account the on-device model provider's routes belong to:
-	 * `undefined` while signed out or before the provider was applied; `login`
-	 * is `undefined` when the account could not be identified.
-	 */
+	/** The GitHub account the provider's routes belong to; `undefined` while signed out or before the provider was applied (`login` is `undefined` when unidentified). */
 	private _localModelAccount: { readonly login: string | undefined } | undefined;
 	/** Serializes {@link _localModelAccount} updates, so an identity resolved at activation is compared with the next token in order. */
 	private readonly _localModelAccountSequencer = new Sequencer();
@@ -1348,12 +1344,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		);
 	}
 
-	/**
-	 * Selects the on-device model provider for the client being started
-	 * and returns it when its request handler should be installed. With the
-	 * setting off and no provider applied before, nothing is touched, so users
-	 * who have not opted in keep the default networking path.
-	 */
+	/** Selects the provider for the client being started and returns it when its handler should be installed; users who haven't opted in keep the default networking path. */
 	private _applyLocalModelSelection(startupConfig: CopilotAgentStartupConfig): ILocalModelProvider | undefined {
 		if (!startupConfig.localModel && !this._localModelProvider) {
 			return undefined;
@@ -1378,12 +1369,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._localModelProvider;
 	}
 
-	/**
-	 * Keeps the direct-selection rows in step with the provider: they
-	 * are republished, and re-synced onto live sessions (the rows are
-	 * replaceable there), whenever they change, and published or withdrawn
-	 * now because the provider itself may have changed.
-	 */
+	/** Keeps the direct-selection rows in step with the provider: republished and re-synced onto live sessions whenever they or the provider change. */
 	private _watchLocalModelRows(): void {
 		const provider = this._localModelProvider;
 		this._localModelRowsListener.value = provider?.onDidChangeModelRows(() => {
@@ -1422,11 +1408,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/**
-	 * The per-chat thinking level of an on-device model, like a cloud model's:
-	 * the levels of a `reasoning_effort` chat template, or Off / On (`none` /
-	 * `medium`) for an `enable_thinking` toggle, which `llama-server` turns on by default.
-	 */
+	/** The per-chat thinking level of an on-device model: a `reasoning_effort` template's levels, or Off / On for an `enable_thinking` toggle (on by default in `llama-server`). */
 	private _createLocalModelThinkingConfigSchemaProperty(thinking: LocalModelThinkingSupport, modelId: string): ConfigPropertySchema | undefined {
 		const { levels, defaultLevel } = getLocalModelThinkingLevels(thinking);
 		if (thinking.kind === 'effort') {
@@ -1444,11 +1426,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Calls the on-device model provider's `onAccountChanged` when a token from
-	 * a different GitHub account replaces the current one. A renewed
-	 * token for the same account is not a change. The account is identified by
-	 * its login from `/copilot_internal/user`, which the SKU lookup has just
-	 * cached; an account that cannot be identified is treated as a change.
+	 * Calls the provider's `onAccountChanged` when a token from a different GitHub account replaces the current one (a
+	 * renewed token for the same account isn't a change). An account that can't be identified counts as a change.
 	 */
 	private _updateLocalModelAccount(token: string): Promise<void> {
 		return this._localModelAccountSequencer.queue(async () => {
@@ -1469,12 +1448,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/**
-	 * Records the account signed in when a provider is applied: its routes
-	 * belong to that account, so the first token from another account later
-	 * is a change, even though no token change happened while the provider
-	 * existed. Queued, so it is compared before any newer token.
-	 */
+	/** Records the account signed in when a provider is applied, so a later token from another account is a change; queued to compare before newer tokens. */
 	private _establishLocalModelAccount(): void {
 		const token = this._githubCredentials.token;
 		void this._localModelAccountSequencer.queue(async () => {
@@ -6847,7 +6821,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (localModelProvider) {
 			const modelId = launchPlan.kind === 'create' ? launchPlan.model?.id : launchPlan.fallback.model?.id;
 			if (!modelId || isAutoModel(modelId)) {
-				// An Auto session was created or resumed: load the active on-device model in the background.
 				localModelProvider.onAutoSessionStarted();
 			}
 		}

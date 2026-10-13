@@ -4,18 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Provider-neutral contract for on-device ("local") models.
- *
- * The local Agent Host publishes {@link ILocalModelStatusV1} as the root
- * transient value {@link LOCAL_MODEL_STATUS_KEY}; clients send
- * {@link ILocalModelRequest}s through the root config key
- * {@link LOCAL_MODEL_REQUEST_KEY}. Both ride namespaced root config values, not
- * AHP proper, so hosts that do not implement the feature publish nothing and
- * clients show nothing. The only provider is the Copilot request-handler
- * bridge, but the projection stays provider-neutral: nothing here names
- * Azure ML, llama.cpp internals or the shim.
- *
- * The values crossing the wire are read back through the validating reader in
+ * Provider-neutral contract for on-device ("local") models. The local Agent Host publishes {@link ILocalModelStatusV1}
+ * as the root transient value {@link LOCAL_MODEL_STATUS_KEY}; clients send {@link ILocalModelRequest}s through
+ * {@link LOCAL_MODEL_REQUEST_KEY}. Both ride namespaced root config values, not AHP proper, so hosts without the
+ * feature publish nothing and clients show nothing. Values read off the wire go through the validating reader in
  * `common/meta/localModelStatus.ts`; never cast them.
  */
 
@@ -29,50 +21,31 @@ export const LocalModelEnabledSettingId = 'chat.copilot.localModel.enabled';
 /** Whether Auto may route turns to the active on-device model. Read live at dispatch. Off unless the user turns it on. */
 export const LocalModelUseInAutoSettingId = 'chat.copilot.localModel.useInAuto';
 
-/**
- * The agreed safety disclosure for on-device models, the same text the
- * Copilot CLI and app show for local model auto routing. Shown wherever the
- * user opts in to on-device models or to Auto using them.
- */
+/** The agreed safety disclosure for on-device models (the Copilot CLI and app show the same text), shown wherever the user opts in. */
 export function getLocalModelSafetyDisclosure(): string {
 	return localize('localModel.safetyDisclosure', "Local models may not use the same safety filters as GitHub Copilot-provided models and may be more susceptible to malicious instructions, especially when actions are automatically approved.");
 }
 
-/** Absolute path to an approved custom `llama-server`. Explicit: probe failures are shown, never bypassed. */
+/** Absolute path to the user's `llama-server`, the only one VS Code runs. Explicit: probe failures are shown, never bypassed. */
 export const LocalModelLlamaServerPathSettingId = 'chat.copilot.localModel.llamaServerPath';
 
 /**
- * Root config key the client writes an {@link ILocalModelRequest} to. The host
- * claims the request's nonce and clears the key before acting on it, so a
- * repeated identical gesture still lands.
- *
- * The settings themselves are forwarded as the Copilot-owned root config keys
- * `CopilotCliConfigKey.LocalModel*` (see `copilotCliConfig.ts`), including the
- * workbench-computed `localModelAccountGate`.
+ * Root config key the client writes an {@link ILocalModelRequest} to. The host claims the request's nonce and clears the
+ * key before acting, so a repeated identical gesture still lands. The settings themselves are forwarded as the
+ * `CopilotCliConfigKey.LocalModel*` root config keys.
  */
 export const LOCAL_MODEL_REQUEST_KEY = 'vscode.localModel.request';
 
 /** Root transient value carrying the host's {@link ILocalModelStatusV1}. Absent when the host has no provider. */
 export const LOCAL_MODEL_STATUS_KEY = 'vscode.localModel.status';
 
-/**
- * Namespaced `_meta` key used on turn usage ({@link ILocalTurnExecution}) and on
- * each direct-selection model row ({@link ILocalModelRowMetaV1}).
- */
+/** Namespaced `_meta` key on turn usage ({@link ILocalTurnExecution}) and on direct-selection model rows ({@link ILocalModelRowMetaV1}). */
 export const LOCAL_MODEL_META_KEY = 'vscode.localModel';
 
-/**
- * Name of the sentinel BYOK provider whose rows select an on-device model
- * directly. Generic session code strips entries with this provider name from
- * the additive BYOK merge so the provider's rows stay replaceable.
- */
+/** Name of the sentinel BYOK provider whose rows select an on-device model; generic session code strips it from the additive BYOK merge so its rows stay replaceable. */
 export const LOCAL_MODEL_SENTINEL_PROVIDER_NAME = 'vscode-on-device';
 
-/**
- * Placeholder for the GPU memory figure in the setting description. Replaced
- * by the real requirement once the catalog's smallest `recommendedVramBytes` is
- * known for the shipping model.
- */
+/** Placeholder for the GPU memory figure in the setting description until the shipping model's requirement is known. */
 export const LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER = 64;
 
 // #endregion
@@ -89,23 +62,6 @@ export type LocalModelDeviceConfidence = typeof localModelDeviceConfidences[numb
  */
 export const localModelDeviceVendors = ['nvidia', 'amd', 'intel', 'apple', 'qualcomm', 'other'] as const;
 export type LocalModelDeviceVendor = typeof localModelDeviceVendors[number];
-
-/**
- * Where the resolved `llama-server` came from: the setting, the
- * `LLAMACPP_SERVER_PATH` environment variable, `PATH`, or a known install
- * location of a package manager (`packageManager`: winget, Homebrew, apt).
- * VS Code never installs llama.cpp itself.
- */
-export const localModelRuntimeSources = ['setting', 'env', 'path', 'packageManager', 'none'] as const;
-export type LocalModelRuntimeSource = typeof localModelRuntimeSources[number];
-
-/**
- * Why the host may execute the resolved binary: the user approved it (or named
- * it in `chat.copilot.localModel.llamaServerPath`), approval is still pending,
- * or there is no binary.
- */
-export const localModelRuntimeTrusts = ['userApproved', 'pendingApproval', 'none'] as const;
-export type LocalModelRuntimeTrust = typeof localModelRuntimeTrusts[number];
 
 export const localModelCatalogStates = ['loading', 'ready', 'empty', 'unavailable'] as const;
 export type LocalModelCatalogState = typeof localModelCatalogStates[number];
@@ -136,19 +92,11 @@ export type LocalModelPausedReason = typeof localModelPausedReasons[number];
 export const localModelOperationPhases = ['resolving', 'checkingDevice', 'downloading', 'verifying', 'placing', 'draining', 'loading'] as const;
 export type LocalModelOperationPhase = typeof localModelOperationPhases[number];
 
-/**
- * `getLlamaCpp` opens the page that tells how to get a llama.cpp build
- * (`runtimeNotFound`, `runtimeTooOld`, `runtimeUnsupportedModel`); `openSettings`
- * opens `chat.copilot.localModel.llamaServerPath`.
- */
+/** `getLlamaCpp` opens the page on getting a llama.cpp build; `openSettings` opens `chat.copilot.localModel.llamaServerPath`. */
 export const localModelErrorActions = ['retry', 'stopPrevious', 'openSettings', 'getLlamaCpp'] as const;
 export type LocalModelErrorAction = typeof localModelErrorActions[number];
 
-/**
- * A user-facing failure. `message` is already localized by the host. `code`
- * stays an open string so a newer host's code still reaches older clients;
- * clients fall back to the host-provided message for codes they do not know.
- */
+/** A user-facing failure; `message` is localized by the host. `code` stays an open string so a newer host's codes reach older clients, which show `message`. */
 export interface ILocalModelErrorV1 {
 	readonly code: string;
 	readonly message: string;
@@ -160,46 +108,16 @@ export interface ILocalModelDeviceV1 {
 	readonly id?: string;
 	readonly capacityBytes?: number;
 	readonly confidence: LocalModelDeviceConfidence;
-	/**
-	 * The vendor of the GPU the host's device probe selected; absent when the
-	 * probe found none. The host lists families only for an `nvidia` device,
-	 * so on any other device the status lists nothing.
-	 */
+	/** The vendor of the GPU the device probe selected; absent when it found none. Families are listed only for an `nvidia` device. */
 	readonly vendor?: LocalModelDeviceVendor;
 }
 
-/** The resolved llama.cpp runtime. VS Code never installs it: it detects one and asks the user to approve it. */
+/** The llama.cpp runtime: the `llama-server` of `chat.copilot.localModel.llamaServerPath`, which VS Code never installs; empty until one qualifies. */
 export interface ILocalModelRuntimeV1 {
-	readonly source: LocalModelRuntimeSource;
-	/**
-	 * Version string as reported by `llama-server --version`. Absent for a
-	 * `pendingApproval` binary: VS Code does not run it before the user
-	 * approves it.
-	 */
+	/** Version string as reported by `llama-server --version`; present exactly when the setting's `llama-server` qualified. */
 	readonly version?: string;
 	/** GPU backend the probe found (for example `vulkan` or `metal`). */
 	readonly backend?: string;
-	readonly trust: LocalModelRuntimeTrust;
-	/**
-	 * Absolute (real) path of a pre-existing binary awaiting approval. Set only
-	 * when {@link trust} is `pendingApproval`; feeds the consent text
-	 * "Use llama.cpp found at {path} ({version})", or "Use llama.cpp found at
-	 * {path}?" when there is no version.
-	 */
-	readonly path?: string;
-	/**
-	 * Runtime digest (lowercase hex SHA-256) of the install awaiting approval,
-	 * computed by the host over the sorted `(relative path, size, sha256)` of
-	 * the executable and every shared library it can load from its install
-	 * (Windows: `*.dll` beside it; macOS: `*.dylib` beside it and in `../lib`;
-	 * Linux: `*.so`/`*.so.*` beside it and in `../lib`). Set only with
-	 * {@link path}; absent when the install cannot be verified. The consent
-	 * scope includes it, so an approval covers exactly these files; the dialog
-	 * shows a short form.
-	 */
-	readonly sha256?: string;
-	/** Total bytes covered by {@link sha256} (the executable plus its shared libraries). Set only with {@link sha256}. */
-	readonly size?: number;
 }
 
 export interface ILocalModelCatalogV1 {
@@ -221,20 +139,16 @@ export interface ILocalModelOfferV1 {
 }
 
 /**
- * A completed install: files verified, manifest recorded, and servable by the
- * host. Files found on disk that have not been set up yet are reported through
- * {@link ILocalModelFamilyV1.entry} instead, so "Found on this device · Set Up"
- * (`requiresSetup`) never reads as `installed`.
+ * A completed install: files verified, manifest recorded, servable. Files on disk that aren't set up yet are reported
+ * through {@link ILocalModelFamilyV1.entry} instead, so `requiresSetup` never reads as `installed`.
  */
 export interface ILocalModelInstallV1 {
 	readonly contentId: string;
 	readonly adopted: boolean;
 	readonly owned: boolean;
 	/**
-	 * Selection id of this family's direct-selection model row:
-	 * `vscode-on-device/<alias>`, where the alias is the `llama-server`
-	 * `--alias` (the Azure ML asset name). Clients match the agent-host model
-	 * row's `id` against it; never build these strings themselves.
+	 * Selection id of this family's direct-selection model row: `vscode-on-device/<alias>`, the alias being the
+	 * `llama-server` `--alias`. Clients match the model row's `id` against it; never build these strings themselves.
 	 */
 	readonly modelId: string;
 	/** A newer build of the same model. */
@@ -255,19 +169,11 @@ export interface ILocalModelOperationV1 {
 	readonly error?: ILocalModelErrorV1;
 }
 
-/**
- * What is already on this device for a family that is not installed yet; drives
- * the setup entry paths and the consent text. Setup only acquires the model:
- * it never needs llama.cpp, which is needed (and asked for) only to load it.
- */
+/** What is already on this device for a family not installed yet; drives the setup entry paths and consent text. Setup never needs llama.cpp. */
 export interface ILocalModelEntryV1 {
 	/** The model files are already on this device (VS Code-owned, or adoptable from the Copilot CLI/app). */
 	readonly modelFilesPresent: boolean;
-	/**
-	 * Disk preflight for setup, measured when the status was published.
-	 * `volume` is the display name of the target volume. The host re-checks
-	 * before acting.
-	 */
+	/** Disk preflight for setup when the status was published; `volume` is the target volume's display name. The host re-checks before acting. */
 	readonly disk?: { readonly volume: string; readonly availableBytes: number; readonly requiredBytes: number };
 }
 
@@ -354,17 +260,9 @@ export interface ILocalModelActiveV1 {
 	readonly contextTokens?: number;
 	/** Passed the Auto performance gate. */
 	readonly autoEligible?: boolean;
-	/**
-	 * Present when the model's preset uses a DFlash draft: `true` when it
-	 * serves with speculative decoding, `false` when this llama.cpp build
-	 * crashed with it and the model serves without.
-	 */
+	/** Present when the preset uses a DFlash draft: whether it serves with speculative decoding (`false` once this build crashed with it). */
 	readonly dflashSupported?: boolean;
-	/**
-	 * Set while a user-initiated stop/swap waits for running responses (see
-	 * {@link ILocalModelUsageV1.runningStreams}): a turn that used the model
-	 * keeps it until the turn ends, and its later requests are still served.
-	 */
+	/** Set while a user-initiated stop or swap waits for running responses; a turn that used the model keeps it until the turn ends. */
 	readonly drain?: { readonly runningStreams: number };
 	/** Present while {@link server} is `starting`: the load's step and its expected duration. */
 	readonly load?: ILocalModelLoadV1;
@@ -380,11 +278,7 @@ export interface ILocalModelStatusV1 {
 	readonly device: ILocalModelDeviceV1;
 	readonly runtime: ILocalModelRuntimeV1;
 	readonly catalog: ILocalModelCatalogV1;
-	/**
-	 * Offerable (fit full/near, compatible), installed, or with an operation in
-	 * progress, on an NVIDIA device only ({@link ILocalModelDeviceV1.vendor}).
-	 * Empty means nothing is shown.
-	 */
+	/** Offerable, installed or busy families, on an NVIDIA device only ({@link ILocalModelDeviceV1.vendor}); empty means nothing is shown. */
 	readonly families: readonly ILocalModelFamilyV1[];
 	/** Absent when no model is active. */
 	readonly active?: ILocalModelActiveV1;
@@ -395,15 +289,9 @@ export interface ILocalModelStatusV1 {
 export type LocalModelReadiness = 'preparing' | 'paused' | 'error' | 'ready' | 'installed' | 'requiresSetup';
 
 /**
- * Derives a family's readiness, in order:
- * 1. operation running → `preparing`; paused → `paused`; error → `error`;
- * 2. installed and active, server `error` → `error` (refinement: a crashed or
- *    blocked server surfaces its {@link ILocalModelActiveV1.error});
- * 3. installed and active, server `ready` → `ready`;
- * 4. installed → `installed` (inactive, or active but idle/loading);
- * 5. offer present, or model files found on this device → `requiresSetup`.
- *
- * Returns `undefined` for a family that should not be listed.
+ * Derives a family's readiness, in order: a running, paused or failed operation gives `preparing`, `paused` or `error`;
+ * an installed active family gives `error` or `ready` from its server; another install gives `installed`; an offer or
+ * model files on this device give `requiresSetup`. `undefined` for a family that should not be listed.
  */
 export function deriveLocalModelReadiness(family: ILocalModelFamilyV1, status: Pick<ILocalModelStatusV1, 'active'>): LocalModelReadiness | undefined {
 	switch (family.operation?.state) {
@@ -428,12 +316,7 @@ export function deriveLocalModelReadiness(family: ILocalModelFamilyV1, status: P
 
 // #region Requests
 
-/**
- * Actions a client may request. `setContextSize` selects one of the family's
- * {@link ILocalModelContextV1.options} ({@link ILocalModelRequest.contextTokens});
- * for the active loaded family it reloads right away after running responses
- * finish, reported as a `swap` operation.
- */
+/** Actions a client may request. `setContextSize` on the active loaded family reloads it after running responses finish, reported as a `swap`. */
 export const localModelActions = [
 	'setUp',
 	'cancel',
@@ -447,7 +330,6 @@ export const localModelActions = [
 	'update',
 	'remove',
 	'stopPrevious',
-	'approveRuntime',
 	'refreshCatalog',
 	'setContextSize',
 ] as const;
@@ -463,16 +345,11 @@ export const localModelContextActions: readonly LocalModelAction[] = ['setContex
 export const localModelOperationActions: readonly LocalModelAction[] = ['cancel', 'pause', 'resume', 'retry'];
 
 /** Actions that must carry {@link ILocalModelRequest.consent}. */
-export const localModelConsentActions: readonly LocalModelAction[] = ['setUp', 'approveRuntime'];
+export const localModelConsentActions: readonly LocalModelAction[] = ['setUp'];
 
-/** What the user agreed to: a model download (`setUp`), or running a detected `llama-server` (`approveRuntime`). */
+/** What the user agreed to: a model download (`setUp`). */
 export interface ILocalModelConsent {
-	/**
-	 * Fingerprint of the facts the consent showed, from
-	 * {@link computeLocalModelConsentScope}. The host recomputes it from its own
-	 * projection before acting and before an automatic resume; a mismatch pauses
-	 * the operation with `consentChanged` instead of proceeding.
-	 */
+	/** Fingerprint from {@link computeLocalModelConsentScope}; the host recomputes it before acting or resuming and pauses with `consentChanged` on a mismatch. */
 	readonly scope: string;
 }
 
@@ -511,12 +388,7 @@ function isLocalModelConsent(value: unknown): value is ILocalModelConsent {
 	return typeof consent.scope === 'string' && consent.scope.length > 0 && consent.scope.length <= MAX_CONSENT_SCOPE_LENGTH;
 }
 
-/**
- * Validates an untrusted request value, including the per-action targets:
- * family actions need `familyId`, operation actions need `operationId`,
- * consent actions need a well-formed `consent`, and `setContextSize` needs
- * `contextTokens`.
- */
+/** Validates an untrusted request value, including the targets each action requires. */
 export function isLocalModelRequest(value: unknown): value is ILocalModelRequest {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
@@ -551,29 +423,10 @@ export function isLocalModelRequest(value: unknown): value is ILocalModelRequest
 }
 
 /**
- * Inputs to {@link computeLocalModelConsentScope}: the family of a model
- * download consent (`setUp`), or the detected runtime of an approval
- * (`approveRuntime`).
+ * Fingerprints exactly what a model download consent shows (the offer's sizes and license, and whether model files are
+ * reused), excluding dynamic values. Shared by client and host, so both must call it on the same projection.
  */
-export type ILocalModelConsentScopeInput =
-	| { readonly family: Pick<ILocalModelFamilyV1, 'familyId' | 'offer' | 'entry'>; readonly runtime?: undefined }
-	| { readonly family?: undefined; readonly runtime: Pick<ILocalModelRuntimeV1, 'path' | 'version' | 'sha256'> };
-
-/**
- * Fingerprints exactly what a consent shows. A model download: the offer's
- * sizes and license, and whether model files are reused. An approval of a
- * detected `llama-server`: its path, version and runtime digest, so the
- * consent covers exactly that executable and its shared libraries. Dynamic
- * values (free disk space, progress) are excluded. Pure and shared by the
- * client (when sending) and the host (when comparing), so both sides must call
- * it on the same projection. A download consent of an earlier version (which
- * also named the registry and build kind) is asked for again.
- */
-export function computeLocalModelConsentScope(input: ILocalModelConsentScopeInput): string {
-	const { family, runtime } = input;
-	if (runtime) {
-		return JSON.stringify([2, 'runtime', runtime.path ?? null, runtime.version ?? null, runtime.sha256 ?? null]);
-	}
+export function computeLocalModelConsentScope({ family }: { readonly family: Pick<ILocalModelFamilyV1, 'familyId' | 'offer' | 'entry'> }): string {
 	const offer = family.offer;
 	return JSON.stringify([
 		3,

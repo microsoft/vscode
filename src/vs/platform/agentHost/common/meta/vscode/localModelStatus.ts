@@ -19,8 +19,6 @@ import {
 	localModelOperationStates,
 	localModelPausedReasons,
 	localModelPublicRegistryStates,
-	localModelRuntimeSources,
-	localModelRuntimeTrusts,
 	localModelServerStates,
 	localModelServingProfiles,
 	type ILocalModelActiveV1,
@@ -40,14 +38,11 @@ import {
 	type ILocalModelRuntimeV1,
 	type ILocalModelStatusV1,
 	type ILocalModelUsageV1,
-	type LocalModelRuntimeTrust,
 } from '../../localModel.js';
 
 /*
- * Validating readers for the VS Code local-model extension values. Every field
- * is checked; unknown keys are ignored. A malformed optional sub-object is
- * dropped rather than failing the whole value, and a malformed required
- * identity (family id, active model id) drops that entry. Lists are bounded.
+ * Validating readers for the VS Code local-model extension values: every field is checked, unknown keys are ignored,
+ * malformed optional sub-objects and entries without identity are dropped, and lists are bounded.
  */
 
 const MAX_ID_LENGTH = 256;
@@ -124,29 +119,13 @@ function readDevice(value: unknown): ILocalModelDeviceV1 {
 	return device;
 }
 
-/** A trust of an older host: `installedByVSCode` was the approval of a llama.cpp VS Code installed. */
-function readTrust(value: unknown): LocalModelRuntimeTrust {
-	return value === 'installedByVSCode' ? 'userApproved' : oneOf(localModelRuntimeTrusts, value) ?? 'none';
-}
-
 function readRuntime(value: unknown): ILocalModelRuntimeV1 {
 	const raw = asBag(value);
-	const runtime: Mutable<ILocalModelRuntimeV1> = {
-		source: oneOf(localModelRuntimeSources, raw?.source) ?? 'none',
-		trust: readTrust(raw?.trust),
-	};
+	const runtime: Mutable<ILocalModelRuntimeV1> = {};
 	const version = boundedString(raw?.version, MAX_ID_LENGTH);
 	if (version) { runtime.version = version; }
 	const backend = id(raw?.backend);
 	if (backend) { runtime.backend = backend; }
-	const path = boundedString(raw?.path, MAX_PATH_LENGTH);
-	if (path && runtime.trust === 'pendingApproval') {
-		runtime.path = path;
-		const sha256 = typeof raw?.sha256 === 'string' && /^[0-9a-f]{64}$/.test(raw.sha256) ? raw.sha256 : undefined;
-		if (sha256) { runtime.sha256 = sha256; }
-		const size = count(raw?.size);
-		if (size !== undefined) { runtime.size = size; }
-	}
 	return runtime;
 }
 
@@ -350,12 +329,7 @@ function readActive(value: unknown): ILocalModelActiveV1 | undefined {
 	return active;
 }
 
-/**
- * Reads an {@link ILocalModelStatusV1} published under `vscode.localModel.status`.
- * Returns `undefined` unless the value is an object with `schemaVersion: 1`.
- * Families with a missing identity are dropped, duplicates keep the first
- * entry, and at most 32 families are returned.
- */
+/** Reads an {@link ILocalModelStatusV1}; `undefined` unless `schemaVersion: 1`. Families without identity are dropped, duplicates keep the first, at most 32. */
 export function readLocalModelStatus(value: unknown): ILocalModelStatusV1 | undefined {
 	const raw = asBag(value);
 	if (!raw || raw.schemaVersion !== 1) {

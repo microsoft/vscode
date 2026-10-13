@@ -19,32 +19,12 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { ILocalModelInteractionHandler } from '../../../../../services/agentHost/common/localModelService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
-/** Error code of an approved `llama-server` that changed on disk since approval and was not run. */
-export const LOCAL_MODEL_RUNTIME_CHANGED_CODE = 'runtimeChanged';
-
-/** Error code of an installed model whose detected `llama-server` was never approved, so it was not run. */
-export const LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE = 'runtimeApprovalRequired';
-
-/**
- * Opens the model picker of the most relevant chat input on the On This Device
- * tab, showing the detail page of the on-device model family given as the only
- * argument. The download consent and llama.cpp approval happen on that page.
- */
+/** Opens the most relevant chat input's model picker on the On This Device tab, at the detail page of the family given as the only argument. */
 export const LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID = 'workbench.action.chat.localModel.showDetails';
-
-/** Whether the status reports that the approved `llama-server` changed since approval, for `family` or the active model. */
-export function isLocalModelRuntimeChanged(status: ILocalModelStatusV1, family?: Pick<ILocalModelFamilyV1, 'familyId'>): boolean {
-	return status.active?.error?.code === LOCAL_MODEL_RUNTIME_CHANGED_CODE
-		|| status.families.some(candidate => (!family || candidate.familyId === family.familyId) && candidate.operation?.error?.code === LOCAL_MODEL_RUNTIME_CHANGED_CODE);
-}
 
 // #region Gate
 
-/**
- * Whether any on-device model UI may show: the opt-in setting is on and AI
- * features are enabled (`ChatContextKeys.enabled`). Each surface adds its own
- * conditions (the chat's session type, status published by the connection).
- */
+/** Whether any on-device model UI may show: the opt-in setting is on and AI features are enabled; each surface adds its own conditions. */
 export function observeLocalModelUiEnabled(configurationService: IConfigurationService, contextKeyService: IContextKeyService): IObservable<boolean> {
 	const setting = observableConfigValue<boolean>(LocalModelEnabledSettingId, false, configurationService);
 	const chatEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
@@ -144,30 +124,18 @@ export function getLocalModelLoad(status: Pick<ILocalModelStatusV1, 'active'>, f
 	return active?.familyId === family.familyId && active.server === 'starting' ? active.load : undefined;
 }
 
-/**
- * The step of a load that its text and announcements follow: `loading` or
- * `warmingUp`, or, through both steps of a retry, why it retries, so the
- * retry is said once.
- */
+/** The step of a load that its text and announcements follow: `loading`, `warmingUp`, or a retry's reason through both steps, so it is said once. */
 export function getLocalModelLoadStepKey(load: ILocalModelLoadV1): string {
 	return load.retry ?? load.step;
 }
 
-/**
- * Whether `family`'s running swap reloads its own model, e.g. for a new
- * context size: the host swaps the active model to itself, unloading it
- * (after its running responses) and loading it again.
- */
+/** Whether `family`'s running swap reloads its own model, e.g. for a new context size. */
 export function isLocalModelReload(status: Pick<ILocalModelStatusV1, 'active'>, family: Pick<ILocalModelFamilyV1, 'familyId' | 'operation'>): boolean {
 	const active = status.active;
 	return family.operation?.kind === 'swap' && family.operation.state === 'running' && active?.familyId === family.familyId && active.swapTo === family.familyId;
 }
 
-/**
- * The number of responses a drain of `family`'s operation waits for, or
- * `undefined` when none are running: the host is then unloading the model,
- * which reads as part of loading the next one.
- */
+/** The number of responses a drain of `family`'s operation waits for, or `undefined` when none run (the model is then unloading, as part of loading the next). */
 export function getLocalModelDrainingStreams(status: Pick<ILocalModelStatusV1, 'active'>, family: Pick<ILocalModelFamilyV1, 'usage'>): number | undefined {
 	const streams = status.active?.drain?.runningStreams ?? family.usage.runningStreams;
 	return streams > 0 ? streams : undefined;
@@ -183,11 +151,7 @@ export interface ILocalModelLoadProgress {
 	readonly overdue: boolean;
 }
 
-/**
- * The estimated progress of `load` at `now`: the time it has taken so far
- * against the last comparable load's duration, capped at 95% until the model
- * is ready.
- */
+/** The estimated progress of `load` at `now` against the last comparable load's duration, capped at 95% until the model is ready. */
 export function getLocalModelLoadProgress(load: ILocalModelLoadV1, now: number): ILocalModelLoadProgress {
 	const expectedMs = load.expectedMs;
 	if (!expectedMs || expectedMs <= 0) {
@@ -205,10 +169,8 @@ export function getLocalModelLoadProgress(load: ILocalModelLoadV1, now: number):
 }
 
 /**
- * Runs `tick` whenever the countdown of the estimated load `getLoad` returns
- * moves on: at each next whole second of its time remaining, so it counts down
- * one second at a time however late a timer fires. It stops once the estimate
- * runs out (the bar then holds) or there is no estimated load, and when disposed.
+ * Runs `tick` at each whole second of the estimated load's time remaining, however late a timer fires; stops once the
+ * estimate runs out, there is no estimated load, or when disposed.
  */
 export class LocalModelLoadTicker extends Disposable {
 
@@ -250,15 +212,10 @@ export interface ILocalModelLicenseLink {
 	readonly url: string;
 }
 
-/**
- * The download consent a model's detail page shows, built purely from status.
- * It covers only the model: its license, size and source, or reusing its files
- * already on this device. llama.cpp is needed (and asked for) only to load it.
- */
+/** The download consent a model's detail page shows, built purely from status; it covers only the model (llama.cpp is asked for only to load it). */
 export interface ILocalModelSetUpConsent {
 	/** `notEnoughDisk` explains why the download can't start; only `consent` leads to a request. */
 	readonly kind: 'consent' | 'notEnoughDisk';
-	/** The section title. */
 	readonly title: string;
 	/** One paragraph each. */
 	readonly details: readonly string[];
@@ -289,39 +246,13 @@ export function getLocalModelLicenseLink(offer: ILocalModelOfferV1 | undefined):
 	return { name: offer.licenseName, url };
 }
 
-/** Hex characters of the install's runtime digest (a SHA-256 over the executable and its libraries) shown in the approval text. */
-const SHA256_SHORT_LENGTH = 12;
-
-function runtimeApprovalMessage(path: string, version: string | undefined, sha256: string | undefined): string {
-	if (sha256) {
-		// The consent is bound to this hash; the short form lets the user recognize the file.
-		const short = sha256.slice(0, SHA256_SHORT_LENGTH);
-		return version
-			? localize('localModel.consent.runtimeApprovalWithHash', "Use llama.cpp found at {0} ({1})? Runtime digest {2}...", path, version, short)
-			: localize('localModel.consent.runtimeApprovalNoVersionWithHash', "Use llama.cpp found at {0}? Runtime digest {1}...", path, short);
-	}
-	return version
-		? localize('localModel.consent.runtimeApproval', "Use llama.cpp found at {0} ({1})?", path, version)
-		: localize('localModel.consent.runtimeApprovalNoVersion', "Use llama.cpp found at {0}?", path);
-}
-
 function keepWorkingLine(): string {
 	return localize('localModel.consent.keepWorking', "You can keep using Copilot while it downloads.");
 }
 
-/** Why a detected `llama-server` needs approval: never approved, or changed on disk since it was. */
-function runtimeTrustLine(changed: boolean): string {
-	return changed
-		? localize('localModel.consent.runtimeChangedTrust', "This llama-server changed since you approved it, so it wasn't run. Use it only if you trust it.")
-		: localize('localModel.consent.runtimeApprovalTrust', "VS Code didn't install this llama-server. Use it only if you trust it.");
-}
-
 /**
- * Builds the download consent of `family`'s detail page: what is downloaded
- * (or reused), from where and under which license, near fit and disk space.
- * Without an approved llama.cpp it says that loading the model needs one,
- * which VS Code doesn't install. Its buttons are the consent; see
- * {@link getLocalModelSetUpAgreement}.
+ * Builds the download consent of `family`'s detail page: what is downloaded or reused, from where, under which license,
+ * fit and disk space; without a qualified llama.cpp it says loading needs one. Its buttons are the consent.
  */
 export function buildLocalModelSetUpConsent(status: ILocalModelStatusV1, family: ILocalModelFamilyV1): ILocalModelSetUpConsent {
 	const name = family.displayName;
@@ -353,7 +284,7 @@ export function buildLocalModelSetUpConsent(status: ILocalModelStatusV1, family:
 	} else {
 		details.push(localize('localModel.consent.alreadyPresent', "Uses {0}, which is already on this device.", name));
 	}
-	if (status.runtime.trust !== 'userApproved') {
+	if (!status.runtime.version) {
 		details.push(downloads
 			? localize('localModel.consent.runtimeNeededDownload', "Loading {0} needs llama.cpp, which VS Code doesn't install. You can get it while the model downloads.", name)
 			: localize('localModel.consent.runtimeNeeded', "Loading {0} needs llama.cpp, which VS Code doesn't install.", name));
@@ -385,46 +316,12 @@ export interface ILocalModelSetUpAgreement {
 	readonly entryPath: LocalModelEntryPath;
 }
 
-/**
- * The consent for agreeing to the download consent built for `family`. Pass
- * the family the page showed, so the scope covers exactly what the user saw:
- * the host compares it with its own projection before acting.
- */
+/** The consent for `family` as the page showed it, so the scope covers exactly what the user saw; the host compares it with its own projection. */
 export function getLocalModelSetUpAgreement(family: ILocalModelFamilyV1): ILocalModelSetUpAgreement {
 	return {
 		consent: { scope: computeLocalModelConsentScope({ family }) },
 		entryPath: getLocalModelEntryPath(family),
 	};
-}
-
-/** The approval of a detected `llama-server` an installed model's detail page shows. */
-export interface ILocalModelRuntimeApproval {
-	readonly message: string;
-	/** One paragraph each. */
-	readonly details: readonly string[];
-}
-
-/**
- * The approval of the detected `llama-server`, also after an approved one
- * changed on disk (`runtimeChanged`), or `undefined` when none awaits approval.
- */
-export function buildLocalModelRuntimeApproval(status: ILocalModelStatusV1): ILocalModelRuntimeApproval | undefined {
-	const { path, version, sha256, trust } = status.runtime;
-	if (trust !== 'pendingApproval' || !path) {
-		return undefined;
-	}
-	return {
-		message: runtimeApprovalMessage(path, version, sha256),
-		details: [
-			runtimeTrustLine(isLocalModelRuntimeChanged(status)),
-			localize('localModel.approve.detail', "VS Code runs it to serve on-device models."),
-		],
-	};
-}
-
-/** The approval consent for the detected `llama-server` of the status the page showed. */
-export function getLocalModelRuntimeApprovalConsent(status: ILocalModelStatusV1): ILocalModelConsent {
-	return { scope: computeLocalModelConsentScope({ runtime: status.runtime }) };
 }
 
 /** "{n} chats are using it" text for a family, or `undefined` when nothing uses it. */
@@ -444,12 +341,7 @@ function usageSentence(chats: number, streams: number): string | undefined {
 
 // #endregion
 
-/**
- * The confirmations of the on-device model flow that stay dialogs: Stop Now
- * and Remove. Loading another model needs none: it starts at once, and the
- * notice above the chat input can cancel it. Setup consent and runtime
- * approval are given on the model's detail page in the model picker instead.
- */
+/** The on-device model confirmations that stay dialogs: Stop Now and Remove. Loading another model needs none (the notice can cancel it); setup consent is given on the model's detail page. */
 export class LocalModelSetupFlow implements ILocalModelInteractionHandler {
 
 	constructor(

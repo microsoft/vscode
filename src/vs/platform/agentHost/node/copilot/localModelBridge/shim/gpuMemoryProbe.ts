@@ -11,12 +11,7 @@ import type { IAgentHostStorageService } from '../../../agentHostStorageService.
 import { CATALOG_REFRESH_INTERVAL_MS } from './constants.js';
 import { NodeProcessRunner, parseRegistryInteger, queryRegistry, type IProcessRunner, type IRegistryValue } from './processRunner.js';
 
-/*
- * Stage A of the visibility check: a native GPU memory probe that
- * downloads nothing and runs only OS tools, each with a timeout. Stage B
- * (`llama-server --list-devices`, in servingProfile.ts) is authoritative
- * whenever it can run.
- */
+/* Stage A of the visibility check: a native GPU memory probe that runs only OS tools, each with a timeout. Stage B (`--list-devices`) is authoritative whenever it can run. */
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -203,10 +198,7 @@ export interface IDxgiAdapterRecord {
 	readonly description: string;
 }
 
-/**
- * Parses the helper's output. Returns `undefined` unless the terminating
- * `DXGI-END` line is present (truncated or failed runs are not trusted). Pure.
- */
+/** Parses the helper's output; `undefined` unless the terminating `DXGI-END` line is present (truncated or failed runs aren't trusted). Pure. */
 export function parseDxgiProbeOutput(output: string): IDxgiAdapterRecord[] | undefined {
 	const lines = output.split(/\r?\n/);
 	if (!lines.some(line => line.trim() === 'DXGI-END')) {
@@ -242,11 +234,8 @@ export function parseDxgiProbeOutput(output: string): IDxgiAdapterRecord[] | und
 }
 
 /**
- * Turns DXGI records into adapters: software adapters are skipped;
- * discrete capacity is `DedicatedVideoMemory`; integrated/unified capacity is
- * `DedicatedVideoMemory + SharedSystemMemory`, as reported by the OS. UMA
- * comes from D3D12 when available, otherwise Qualcomm adapters and adapters
- * with under 512 MiB dedicated memory count as integrated. Pure.
+ * Turns DXGI records into adapters, skipping software ones: discrete capacity is `DedicatedVideoMemory`, integrated adds
+ * `SharedSystemMemory`. UMA comes from D3D12, else Qualcomm or under 512 MiB dedicated counts as integrated. Pure.
  */
 export function adaptersFromDxgi(records: readonly IDxgiAdapterRecord[]): IGpuAdapter[] {
 	return records
@@ -268,12 +257,7 @@ const DISPLAY_CLASS_KEY = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d3
 /** `HardwareInformation.MemorySize` is a 32-bit value; at or above this it is capped and meaningless. */
 const REGISTRY_MEMORY_SIZE_CAP = 0xFFF00000;
 
-/**
- * Registry fallback (`estimated`): dedicated memory from
- * `HardwareInformation.qwMemorySize` (or the 32-bit `MemorySize` when below
- * its cap) per display-adapter subkey. Integrated GPUs, which report little
- * dedicated memory, end up `unknown`. Pure.
- */
+/** Registry fallback (`estimated`): dedicated memory per display adapter from `qwMemorySize` (or the 32-bit `MemorySize` below its cap); integrated GPUs end up `unknown`. Pure. */
 export function adaptersFromRegistry(values: readonly IRegistryValue[]): IGpuAdapter[] {
 	const byKey = new Map<string, Map<string, IRegistryValue>>();
 	for (const value of values) {
@@ -315,12 +299,7 @@ export function adaptersFromRegistry(values: readonly IRegistryValue[]): IGpuAda
 
 // #region macOS
 
-/**
- * macOS (`estimated`): arm64 uses `iogpu.wired_limit_mb` when > 0,
- * otherwise about 0.75 x RAM (Metal's default working set; not an Apple
- * guarantee). x64 has no GPU path (no Metal build from the package manager):
- * `unknown`. Pure.
- */
+/** macOS (`estimated`): arm64 uses `iogpu.wired_limit_mb` when > 0, else about 0.75 x RAM (Metal's default working set); x64 has no GPU path. Pure. */
 export function computeMacGpuCapacity(arch: string, wiredLimitMb: number | undefined, totalMemoryBytes: number): IGpuMemoryProbeResult {
 	if (arch !== 'arm64') {
 		return unknownResult(totalMemoryBytes);
@@ -379,11 +358,7 @@ export interface IAmdSysfsCard {
 /** VRAM at or below this marks an APU whose GTT (system memory) is GPU-addressable. */
 const APU_MAX_CARVEOUT_BYTES = 2 * GIB;
 
-/**
- * Linux (`estimated`): AMD sysfs VRAM (+ GTT for APUs), NVIDIA
- * `nvidia-smi` totals, and for unified-memory arm64 parts without a usable
- * total, `MemTotal`. Largest single device wins. Pure.
- */
+/** Linux (`estimated`): AMD sysfs VRAM (+ GTT for APUs), `nvidia-smi` totals, or `MemTotal` for unified-memory arm64; the largest device wins. Pure. */
 export function computeLinuxGpuCapacity(input: { readonly arch: string; readonly amdCards: readonly IAmdSysfsCard[]; readonly nvidia: readonly INvidiaSmiRow[]; readonly memTotalBytes: number | undefined; readonly systemMemoryBytes: number }): IGpuMemoryProbeResult {
 	const adapters: IGpuAdapter[] = [];
 	for (const card of input.amdCards) {
@@ -448,11 +423,8 @@ export interface IGpuMemoryProbeOutcome {
 }
 
 /**
- * Runs Stage A per OS and caches the static capability in Agent Host storage,
- * keyed by device ids and driver versions (the topology key). The cached
- * value is reused for {@link CATALOG_REFRESH_INTERVAL_MS} unless `force`; a
- * re-probe that sees a different topology reports `topologyChanged` so the
- * caller clears Stage B capability and the selected device.
+ * Runs Stage A per OS and caches the static capability by topology key, reused for {@link CATALOG_REFRESH_INTERVAL_MS}
+ * unless `force`. A re-probe that sees a new topology reports `topologyChanged`.
  */
 export class GpuMemoryProbe {
 

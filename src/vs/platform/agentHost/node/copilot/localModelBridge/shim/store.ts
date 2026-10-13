@@ -75,12 +75,7 @@ export interface ILocalModelOwnerRecord {
 	readonly writtenAt: string;
 	/** VS Code-private: the family's `capiId` (Auto id), so foreign readers don't need tags. */
 	readonly capiId?: string;
-	/**
-	 * VS Code-private: this family, in another registry's folder, holds content
-	 * VS Code found identical to a version of the registry on-device models come
-	 * from, so it is used as that version instead of downloading it again. Only
-	 * this record says so; no file is moved or rewritten.
-	 */
+	/** VS Code-private: this family's content, in another registry's folder, is used as the named on-device registry version instead of downloading it; nothing is moved. */
 	readonly promotedTo?: { readonly registry: 'azureml'; readonly assetName: string; readonly version: string; readonly contentId: string };
 }
 
@@ -142,13 +137,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-/**
- * Validating reader for `manifest.json`. The registry, name and version must
- * be safe identifiers ({@link isSafeRegistryIdentifier}) and nothing the
- * reader keeps may hold a credential ({@link containsCredential}); callers
- * also require the name and version to match the directory they read it
- * from. Pure.
- */
+/** Validating reader for `manifest.json`: identifiers must be safe and nothing kept may hold a credential; callers also check it matches its directory. Pure. */
 export function readManifest(value: unknown): ILocalModelManifest | undefined {
 	if (!isRecord(value) || !isRecord(value.serveOptions) || !Array.isArray(value.files)) {
 		return undefined;
@@ -276,10 +265,7 @@ const nodeDiskSpaceFileSystem: IDiskSpaceFileSystem = {
 	statfs: p => fs.promises.statfs(p),
 };
 
-/**
- * Runs `statfs` on the nearest existing ancestor of `targetPath` and compares
- * the available space with `requiredBytes`.
- */
+/** Compares the available space (`statfs` of the nearest existing ancestor of `targetPath`) with `requiredBytes`. */
 export async function checkDiskSpace(targetPath: string, requiredBytes: number, platform: NodeJS.Platform = process.platform, fileSystem: IDiskSpaceFileSystem = nodeDiskSpaceFileSystem): Promise<IDiskSpaceCheck> {
 	let current = path.resolve(targetPath);
 	let stat: { readonly dev: number } | undefined;
@@ -428,11 +414,7 @@ export interface ICommitVersionInput extends Omit<IManifestInput, 'versionDir'> 
 	readonly activate: boolean;
 }
 
-/**
- * Reads and writes the shared model layout: VS Code-owned versions,
- * read-only adoption of validated foreign installs, `active.json` only when
- * absent or VS Code-owned, prune/remove of owned versions only.
- */
+/** Reads and writes the shared model layout: VS Code-owned versions, read-only adoption of validated foreign installs; only owned files are ever removed. */
 export class LocalModelStore {
 
 	readonly rootDir: string;
@@ -462,10 +444,7 @@ export class LocalModelStore {
 		return readOwnerRecord(await readJson(path.join(this.familyDir(registry, assetName), OWNER_FILE_NAME)));
 	}
 
-	/**
-	 * Records `version` as VS Code-owned before any file is written, so partial
-	 * downloads are removable, and creates its directory.
-	 */
+	/** Records `version` as VS Code-owned before any file is written, so partial downloads are removable, then creates its directory. */
 	async beginVersion(registry: LocalModelRegistryName, assetName: string, version: string, capiId: string): Promise<string> {
 		const versionDir = this.versionDir(registry, assetName, version);
 		try {
@@ -484,10 +463,7 @@ export class LocalModelStore {
 		}
 	}
 
-	/**
-	 * Completes an owned version: writes `manifest.json` last (atomically), and
-	 * points `active.json` at it when `activate` and allowed.
-	 */
+	/** Completes an owned version: writes `manifest.json` last (atomically) and points `active.json` at it when `activate` and allowed. */
 	async commitVersion(input: ICommitVersionInput): Promise<ILocalModelInstalledVersion> {
 		const familyDir = this.familyDir(input.registry, input.assetName);
 		const versionDir = this.versionDir(input.registry, input.assetName, input.version);
@@ -525,12 +501,7 @@ export class LocalModelStore {
 		};
 	}
 
-	/**
-	 * Every family with something servable: those of {@link PUBLIC_REGISTRY},
-	 * and those in another registry's folder whose content VS Code recorded
-	 * identical to one of its versions (`promotedTo`). Anything else there is
-	 * neither listed nor touched.
-	 */
+	/** Every family with something servable: those of {@link PUBLIC_REGISTRY}, and those elsewhere recorded identical to one of its versions (`promotedTo`). */
 	async listInstalled(): Promise<ILocalModelInstalledVersion[]> {
 		const installs: ILocalModelInstalledVersion[] = [];
 		let registries: string[];
@@ -559,12 +530,8 @@ export class LocalModelStore {
 	}
 
 	/**
-	 * Chooses the version to serve: the newest complete VS Code-owned version
-	 * that may be listed (in another registry's folder, one recorded identical
-	 * to a {@link PUBLIC_REGISTRY} version); otherwise a foreign install that
-	 * passes validation (absolute `active.json` paths inside the family
-	 * directory that exist, manifest sizes matching). Foreign hashes are
-	 * verified separately by {@link verifyAdoptedVersion}.
+	 * Chooses the version to serve: the newest complete VS Code-owned version that may be listed, else a validated foreign
+	 * install. Foreign hashes are verified separately by {@link verifyAdoptedVersion}.
 	 */
 	async selectServingVersion(registry: string, assetName: string): Promise<ILocalModelInstalledVersion | undefined> {
 		const familyDir = this.familyDir(registry, assetName);
@@ -622,12 +589,7 @@ export class LocalModelStore {
 		return this._toInstalled(registry, assetName, version, familyDir, versionDir, realManifest, validated, active.capiId ?? owner?.capiId, false, verified, owner?.promotedTo);
 	}
 
-	/**
-	 * Re-hashes an adopted version lazily, once, before first use; results are
-	 * cached in Agent Host storage by path, mtime and size. Containment is
-	 * checked again on the canonical paths, and the primary must be among the
-	 * hashed files.
-	 */
+	/** Re-hashes an adopted version once before first use (cached by path, mtime and size); containment is checked again on canonical paths. */
 	async verifyAdoptedVersion(install: ILocalModelInstalledVersion, signal?: AbortSignal): Promise<boolean> {
 		if (install.hashesVerified) {
 			return true;
@@ -656,11 +618,7 @@ export class LocalModelStore {
 		return true;
 	}
 
-	/**
-	 * Canonical paths of every manifest file, in manifest order, or `undefined`
-	 * when any entry is absolute, escapes `versionDir` (lexically or after
-	 * resolving links), is missing, or does not match its recorded size.
-	 */
+	/** Canonical paths of every manifest file, or `undefined` when one is absolute, escapes `versionDir` (even through links), is missing or has the wrong size. */
 	private async _canonicalFiles(versionDir: string, manifest: ILocalModelManifest): Promise<string[] | undefined> {
 		const realVersionDir = await this._realpath(versionDir);
 		if (!realVersionDir || manifest.files.length === 0) {
@@ -706,11 +664,7 @@ export class LocalModelStore {
 		return removed;
 	}
 
-	/**
-	 * Remove: delete owned versions (and their partial files),
-	 * clear `active.json` if VS Code owns it, delete the owner record, and the
-	 * family directory when empty. `EBUSY`/`EPERM` -> `filesInUse`.
-	 */
+	/** Remove: deletes owned versions and partial files, `active.json` if VS Code owns it, the owner record, then the empty family directory. `EBUSY`/`EPERM` -> `filesInUse`. */
 	async removeFamily(registry: string, assetName: string): Promise<void> {
 		const familyDir = this.familyDir(registry, assetName);
 		const owner = await this.readOwner(registry, assetName);
@@ -738,22 +692,13 @@ export class LocalModelStore {
 		}
 	}
 
-	/**
-	 * Disk preflight for a setup into `registry/assetName`: `peakDiskBytes`
-	 * less what of `version` is already on this device
-	 * ({@link bytesOnDisk}), plus the margin.
-	 */
+	/** Disk preflight for a setup: `peakDiskBytes` minus what of `version` is already on disk ({@link bytesOnDisk}), plus the margin. */
 	async checkDiskSpace(registry: LocalModelRegistryName, assetName: string, peakDiskBytes: number, version?: string): Promise<IDiskSpaceCheck> {
 		const onDisk = version !== undefined ? await this.bytesOnDisk(registry, assetName, version) : 0;
 		return checkDiskSpace(this.familyDir(registry, assetName), requiredDiskBytes(Math.max(0, peakDiskBytes - onDisk)), this._platform);
 	}
 
-	/**
-	 * Bytes of a version already in its directory: placed files and VS Code's
-	 * partial downloads (`.vscode.partial`), which a download reuses or resumes.
-	 * Bookkeeping (`*.json`, pending writes) and other tools' partial files do
-	 * not count.
-	 */
+	/** Bytes of a version already on disk that a download reuses or resumes: placed files and VS Code's `.vscode.partial` files. */
 	async bytesOnDisk(registry: LocalModelRegistryName, assetName: string, version: string): Promise<number> {
 		const versionDir = this.versionDir(registry, assetName, version);
 		let entries: fs.Dirent[];

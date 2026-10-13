@@ -34,11 +34,7 @@ export async function loadAgentHostCertificates(
 	return [...systemCertificates, ...extraCertificates];
 }
 
-/**
- * The log `@vscode/proxy-agent` writes to, which includes the URLs it resolves:
- * reduced to their origins (`https://host`), since a model download URL's
- * path and query must never be logged.
- */
+/** The log `@vscode/proxy-agent` writes to, with URLs reduced to their origins: a model download URL's path and query must never be logged. */
 function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
 	const redactArg = (value: unknown) => typeof value === 'string' ? originsOnlyForLog(value) : value instanceof Error ? originsOnlyForLog(value.message) : value;
 	return {

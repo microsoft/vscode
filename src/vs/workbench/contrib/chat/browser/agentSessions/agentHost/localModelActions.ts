@@ -28,12 +28,7 @@ import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID } from './localModelSetupFlow.js';
 
-/**
- * Context keys of the on-device model flow, computed from the status
- * the current chat session's local Agent Host connection publishes. All are
- * `false` unless the setting is on and the focused chat is a local Copilot
- * agent-host chat whose host publishes status.
- */
+/** Context keys of the on-device model flow, from the status the current chat's local Agent Host publishes; all `false` unless the setting is on and the focused chat is a local Copilot agent-host chat. */
 export namespace LocalModelContextKeys {
 	export const visible = new RawContextKey<boolean>('chatLocalModelVisible', false, { type: 'boolean', description: localize('chatLocalModelVisible', "True when the current chat runs on the local agent host and it lists on-device models.") });
 	export const canSetUp = new RawContextKey<boolean>('chatLocalModelCanSetUp', false, { type: 'boolean', description: localize('chatLocalModelCanSetUp', "True when an on-device model can be set up.") });
@@ -158,10 +153,7 @@ function readinessLabel(readiness: LocalModelReadiness | undefined): string | un
 	}
 }
 
-/**
- * Picks the family a command applies to: the one named by `target`, the only
- * candidate, or the user's choice from a quick pick when several qualify.
- */
+/** Picks the family a command applies to: the one `target` names, the only candidate, or the user's quick pick choice. */
 async function pickFamily(accessor: ServicesAccessor, status: ILocalModelStatusV1, candidates: readonly ILocalModelFamilyV1[], target: ILocalModelCommandTarget, placeHolder: string): Promise<ILocalModelFamilyV1 | undefined> {
 	if (target.familyId || target.operationId) {
 		return candidates.find(family => family.familyId === target.familyId || (!!target.operationId && family.operation?.id === target.operationId));
@@ -208,12 +200,7 @@ abstract class LocalModelAction extends Action2 {
 	protected abstract runWithStatus(accessor: ServicesAccessor, context: ILocalModelCommandContext, target: ILocalModelCommandTarget): Promise<void>;
 }
 
-/**
- * Registers the on-device model Command Palette commands, including Retry.
- * Each takes an optional family or operation id. Also
- * registers the internal command that opens a family's detail page
- * ({@link LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID}).
- */
+/** Registers the on-device model Command Palette commands (each taking an optional family or operation id) and the internal {@link LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID}. */
 export function registerLocalModelActions(): void {
 	registerAction2(class SetUpLocalModelAction extends LocalModelAction {
 		constructor() {
@@ -365,11 +352,8 @@ function showsOnDeviceModels(widget: IChatWidget | undefined): widget is IChatWi
 }
 
 /**
- * Opens the model picker of the most relevant chat input that lists on-device
- * models (the last focused one, else any open one, else a new chat on the
- * local Copilot Agent Host in the chat view) on its "On This Device" tab, at
- * the detail page of `familyId`. Resolves whether such a picker opened; a
- * chat that can't show on-device models is never used.
+ * Opens the model picker of the most relevant chat input that lists on-device models (last focused, else any open,
+ * else a new local Copilot chat) on its "On This Device" tab at `familyId`'s detail page. Resolves whether it opened.
  */
 export async function showLocalModelDetails(chatWidgetService: IChatWidgetService, familyId: string, logService: ILogService): Promise<boolean> {
 	const lastFocused = chatWidgetService.lastFocusedWidget;

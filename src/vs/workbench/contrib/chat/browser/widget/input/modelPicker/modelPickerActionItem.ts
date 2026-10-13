@@ -55,12 +55,7 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
-	/**
-	 * The Agent Host connection the chat runs on, used to show and act on its
-	 * on-device models. `undefined` when the chat isn't on a local Agent Host.
-	 * When the delegate omits this, a chat on the local Copilot Agent Host
-	 * session type is assumed to use the local Agent Host.
-	 */
+	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
 	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.

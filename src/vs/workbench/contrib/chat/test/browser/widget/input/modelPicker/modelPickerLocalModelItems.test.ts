@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../../../base/common/observable.js';
@@ -68,7 +67,7 @@ function createStatus(families: readonly ILocalModelFamilyV1[], active?: ILocalM
 	return {
 		schemaVersion: 1,
 		device: { capacityBytes: 102 * GB, confidence: 'measured' },
-		runtime: { source: 'packageManager', trust: 'userApproved' },
+		runtime: { version: 'b11459' },
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families,
 		active,
@@ -169,7 +168,6 @@ function createLocalModelService(statusByConnection: Map<IAgentConnection, ISett
 		getPendingStops: () => pendingStops,
 		makeActive: (_connection: IAgentConnection, familyId: string) => { calls.push(`makeActive:${familyId}`); return true; },
 		setUp: (_connection: IAgentConnection, familyId: string, consent: ILocalModelConsent) => { calls.push(`setUp:${familyId}`); consents.push(consent); return true; },
-		approveRuntime: (_connection: IAgentConnection, consent: ILocalModelConsent) => { calls.push('approveRuntime'); consents.push(consent); return true; },
 		cancel: (_connection: IAgentConnection, operationId: string) => { calls.push(`cancel:${operationId}`); return true; },
 		start: () => { calls.push('start'); return true; },
 		setContextSize: (_connection: IAgentConnection, familyId: string, tokens: number) => { calls.push(`setContextSize:${familyId}:${tokens}`); return true; },
@@ -289,9 +287,6 @@ suite('ModelPickerLocalModelItems', () => {
 			orphan: createStatus([family], activeFor(family.familyId, { server: 'error', error: { code: 'orphan', message: 'A previous server is still running.', actions: ['retry', 'stopPrevious'] } })),
 			runtimeTooOld: createStatus([createFamily({ offer, operation: { id: 'op1', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'runtimeTooOld', message: 'The llama-server is too old.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } } })]),
 			runtimeUnsupportedModel: createStatus([family], activeFor(family.familyId, { server: 'error', error: unsupportedModel })),
-			runtimeApprovalRequired: createStatus([family], activeFor(family.familyId, { server: 'error', error: { code: 'runtimeApprovalRequired', message: 'Approve llama.cpp.', actions: ['retry'] } }), { runtime: { source: 'path', trust: 'pendingApproval', path: '/usr/bin/llama-server' } }),
-			// llama.cpp is trusted again, e.g. installed instead: the host lists no action, but starting it again works.
-			runtimeChangedNowTrusted: createStatus([family], activeFor(family.familyId, { server: 'error', error: { code: 'runtimeChanged', message: 'llama.cpp changed.', actions: [] } })),
 		};
 		const actual = Object.fromEntries(Object.entries(cases).map(([name, status]) => [name, rowsFor(status)[0]]));
 		assert.deepStrictEqual(actual, {
@@ -306,8 +301,6 @@ suite('ModelPickerLocalModelItems', () => {
 			orphan: expectedRow('Previous server still running', 'blank'),
 			runtimeTooOld: expectedRow('llama.cpp is too old', 'blank', { unavailable: 'Not downloaded', details: 'llama.cpp is too old' }),
 			runtimeUnsupportedModel: expectedRow('Needs a newer llama.cpp', 'blank'),
-			runtimeApprovalRequired: expectedRow('llama.cpp needs approval', 'blank'),
-			runtimeChangedNowTrusted: expectedRow('llama.cpp changed', 'blank'),
 		});
 	});
 
@@ -711,23 +704,6 @@ suite('ModelPickerLocalModelItems', () => {
 			const { controller, calls, events } = createController({ status: createStatus([createFamily({ install, context: exampleFlashContext })], activeFor(FAMILY_ID)) });
 			controller.getPresentation()!.getDetails(FAMILY_ID)!.actions.run({ action: 'setContextSize', familyId: FAMILY_ID, readiness: 'ready', contextTokens: 262144 });
 			assert.deepStrictEqual({ calls, events }, { calls: [`setContextSize:${FAMILY_ID}:262144`], events: ['setContextSize:ready:1'] });
-		});
-
-		test('approving llama.cpp for the active model that failed for want of it starts the model once the approval is trusted', async () => {
-			const runtime = { source: 'path', trust: 'pendingApproval', path: '/usr/bin/llama-server' } as const;
-			const failed = activeFor(FAMILY_ID, { server: 'error', error: { code: 'runtimeApprovalRequired', message: 'Approve llama.cpp.', actions: [] } });
-			const { controller, calls, localStatus } = createController({ status: createStatus([family], failed, { runtime }) });
-			controller.getPresentation()!.getDetails(FAMILY_ID)!.actions.run({ action: 'approveRuntime', familyId: FAMILY_ID, readiness: 'error', consent: { scope: 'approved' } });
-			const afterApproval = [...calls];
-			localStatus.set(createStatus([family], failed, { runtime: { ...runtime, trust: 'userApproved' } }), undefined);
-			await timeout(0);
-			// Starting once: later updates while it starts don't start it again.
-			localStatus.set(createStatus([family], { ...failed, server: 'stopped' }, { runtime: { ...runtime, trust: 'userApproved' } }), undefined);
-			await timeout(0);
-			assert.deepStrictEqual({ afterApproval, calls }, {
-				afterApproval: ['approveRuntime'],
-				calls: ['approveRuntime', 'start'],
-			});
 		});
 	});
 

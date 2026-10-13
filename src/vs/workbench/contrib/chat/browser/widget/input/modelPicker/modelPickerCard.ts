@@ -46,12 +46,7 @@ export interface IModelCardChoice {
 	readonly readOnly?: boolean;
 }
 
-/**
- * A segmented control for one setting on an on-device model's details page,
- * matching the cloud card's. Arrow keys move focus without choosing, so
- * browsing the choices doesn't change the model; each choice's description is
- * its tooltip and part of its accessible name.
- */
+/** A segmented control for one setting on an on-device model's details page; arrow keys move focus without choosing, and descriptions are tooltips and accessible names. */
 export function createModelCardChoiceControl(title: string, choices: readonly IModelCardChoice[]): Radio {
 	return new Radio({
 		ariaLabel: title,

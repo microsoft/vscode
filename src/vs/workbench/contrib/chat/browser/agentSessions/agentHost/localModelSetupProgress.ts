@@ -19,9 +19,8 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { getLocalModelServerStopId, getLocalModelStopNowId, ILocalModelService } from '../../../../../services/agentHost/common/localModelService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationGroup, IChatInputNotificationProgress, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
-import { getLocalModelErrorActions } from '../../widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { getLocalModelErrorActionLabel, runLocalModelErrorAction } from './localModelErrorActions.js';
-import { formatLocalModelBytes, formatLocalModelDuration, getLocalModelDrainingStreams, getLocalModelLoadProgress, getLocalModelLoadStepKey, ILocalModelLoadProgress, isLocalModelReload, LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE, LOCAL_MODEL_RUNTIME_CHANGED_CODE, LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, LocalModelLoadTicker, observeLocalModelUiEnabled } from './localModelSetupFlow.js';
+import { formatLocalModelBytes, formatLocalModelDuration, getLocalModelDrainingStreams, getLocalModelLoadProgress, getLocalModelLoadStepKey, ILocalModelLoadProgress, isLocalModelReload, LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, LocalModelLoadTicker, observeLocalModelUiEnabled } from './localModelSetupFlow.js';
 
 /** Minimum time between updates of a download's text within one phase; the bar still moves. */
 const DOWNLOAD_MESSAGE_INTERVAL_MS = 5_000;
@@ -120,12 +119,7 @@ export function getLocalModelProgressPercent(operation: ILocalModelOperationV1):
 	return Math.max(0, Math.min(100, Math.floor(operation.completedBytes / operation.totalBytes * 100)));
 }
 
-/**
- * The text of a model load: its step, and the time remaining while the
- * estimate from the last comparable load lasts, or that it is almost done
- * once the estimate ran out. A `reload` loads the model again, e.g. for a new
- * context size. A retry says why it retries through both of its steps.
- */
+/** The text of a model load: its step and the time remaining from the last comparable load (or that it's almost done); a retry says why. */
 export function getLocalModelLoadMessage(name: string, load: ILocalModelLoadV1, progress: ILocalModelLoadProgress | undefined, reload = false): string {
 	const remaining = progress?.remaining;
 	const overdue = !!progress?.overdue;
@@ -157,11 +151,7 @@ export function getLocalModelLoadMessage(name: string, load: ILocalModelLoadV1, 
 			: localize('localModel.progress.loadingStep', "Loading {0}\u2026", name);
 }
 
-/**
- * What the notice says once Pause, Cancel or Stop Now (`stopNow`) was sent,
- * until the operation's state changes. Cancelling a model change while it
- * waits for running responses keeps the active model.
- */
+/** What the notice says once Pause, Cancel or Stop Now was sent, until the operation's state changes. */
 function getStoppingMessage(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, operation: ILocalModelOperationV1, stopNow: boolean): string {
 	if (stopNow) {
 		return localize('localModel.progress.stoppingResponses', "Stopping the running responses\u2026");
@@ -174,12 +164,7 @@ function getStoppingMessage(status: ILocalModelStatusV1, family: ILocalModelFami
 	return localize('localModel.progress.pausing', "Pausing {0}\u2026", family.displayName);
 }
 
-/**
- * What the notice says about a paused operation. A pause by the user only
- * shows once this window saw the operation run, so the notice follows Pause
- * with Resume but doesn't reappear in every new window; one for quitting
- * resumes on its own.
- */
+/** What the notice says about a paused operation. A user pause shows only in a window that saw it run, so it doesn't reappear in every new window. */
 function getPausedMessage(family: ILocalModelFamilyV1, operation: ILocalModelOperationV1, seenRunning: boolean): string | undefined {
 	switch (operation.pausedReason) {
 		case 'diskFull':
@@ -226,11 +211,6 @@ function getCompletedMessage(kind: LocalModelOperationKind, family: ILocalModelF
 
 /** A stop sent for a running operation and not yet in effect: its Cancel or Pause, or Stop Now of its drain. */
 type PendingNoticeStop = 'operation' | 'stopNow';
-
-/** What an error notice's actions apply to. */
-type LocalModelErrorTarget =
-	| { readonly kind: 'operation'; readonly operationId: string; readonly familyId: string }
-	| { readonly kind: 'active'; readonly familyId: string };
 
 /** An action of the notice: a closure run through the notice action command, or a command. */
 type LocalModelNoticeAction = {
@@ -284,28 +264,14 @@ interface IOperationTracking {
 }
 
 /**
- * Reports on-device model operations in one notice above Copilot Agent Host
- * chat inputs: the most important of a failure (with the fixes its error
- * offers, e.g. Retry, Get llama.cpp, Open Settings or Stop Previous Server,
- * or Review llama.cpp for a binary that changed since it was approved or
- * still needs approval), a running operation (with its progress, the
- * in-progress indicator of an active session, and Pause, Cancel or Stop Now,
- * which show as in progress as soon as they are sent; a model change shows
- * it waiting for running responses, then loading, always with Cancel), a
- * model load (with progress estimated from the last comparable load,
- * whose time remaining counts down a second at a time while it shows), a pause (with Resume, or Review
- * when the model changed since consent) and an operation the Agent Host
- * stopped. The model's detail page, opened from the picker or the readout,
- * has everything else. Other on-device notices (ready, loading,
- * not loaded, cloud fallback) defer to it through
- * {@link getLocalModelNoticeGroup}. Nothing shows while no such chat input is
- * open; the picker shows the same states.
+ * Reports on-device model operations in one notice above Copilot Agent Host chat inputs: the most important of a
+ * failure (with its fixes), a running operation (with progress and Pause, Cancel or Stop Now), a model load (with
+ * progress estimated from the last comparable load), a pause, or an operation the Agent Host stopped. Other on-device
+ * notices defer to it through {@link getLocalModelNoticeGroup}.
  *
- * Everything is rebuilt from status, so a window reload or an automatic resume
- * shows the same notice. Completion is driven by the operation disappearing or
- * failing, never by byte counts, and is announced here, as is a newly
- * available update. Only the local Agent Host publishes status, so remote
- * hosts show nothing.
+ * Everything is rebuilt from status, so a window reload or an automatic resume shows the same notice. Completion is
+ * driven by the operation disappearing or failing, never by byte counts. Only the local Agent Host publishes status,
+ * so remote hosts show nothing.
  */
 export class LocalModelSetupProgress extends Disposable {
 
@@ -393,7 +359,7 @@ export class LocalModelSetupProgress extends Disposable {
 		const active = status.active;
 		if (active?.server === 'error' && active.error) {
 			const family = status.families.find(candidate => candidate.familyId === active.familyId);
-			notices.push(this._errorNotice(`active:${active.familyId}:${active.error.code}:${active.error.message}`, status, family, active.error, { kind: 'active', familyId: active.familyId }));
+			notices.push(this._errorNotice(`active:${active.familyId}:${active.error.code}:${active.error.message}`, family, active.error, undefined));
 		}
 		// A load the host started on its own, e.g. when a request needs the model; a swap's load is its operation's.
 		const loadingFamily = active?.server === 'starting' && active.load ? status.families.find(candidate => candidate.familyId === active.familyId) : undefined;
@@ -437,7 +403,7 @@ export class LocalModelSetupProgress extends Disposable {
 			}
 			case 'error':
 				if (operation.error) {
-					notices.push(this._errorNotice(`operation:${operation.id}:${operation.error.code}:${operation.error.message}`, status, family, operation.error, { kind: 'operation', operationId: operation.id, familyId: family.familyId }));
+					notices.push(this._errorNotice(`operation:${operation.id}:${operation.error.code}:${operation.error.message}`, family, operation.error, operation.id));
 				}
 				break;
 		}
@@ -496,14 +462,9 @@ export class LocalModelSetupProgress extends Disposable {
 	}
 
 	/**
-	 * How the running `operation` is stopped, each a secondary button: Cancel
-	 * takes back a model change (while it waits for running responses, the
-	 * active model stays loaded and nothing is unloaded) or stops its load,
-	 * Stop Now ends the responses a drain waits for (a text action beside
-	 * Cancel for a model change), and Pause stops a setup or update, which
-	 * keeps what it has done so far so it can resume. Once one was sent
-	 * (`pending`), only it shows, in progress, and it can't be chosen again
-	 * until the operation's state changes. Removing a model can't be stopped.
+	 * How the running `operation` is stopped, each a secondary button: Cancel takes back a model change or stops its load,
+	 * Stop Now ends the responses a drain waits for, and Pause stops a setup or update so it can resume. Once one was
+	 * sent, only it shows, in progress, until the operation's state changes.
 	 */
 	private _stopActions(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, operation: ILocalModelOperationV1, pending: PendingNoticeStop | undefined): LocalModelNoticeAction[] {
 		const button = { secondaryButton: true, disabled: pending !== undefined } as const;
@@ -540,13 +501,7 @@ export class LocalModelSetupProgress extends Disposable {
 		return [];
 	}
 
-	/**
-	 * A load the host started without an operation, e.g. when a request needs
-	 * the model or selecting the active model started it: its step, and
-	 * progress estimated from the last comparable load, or an indeterminate bar
-	 * for a first load, with Cancel, which stops the load (the model stays
-	 * the active one, not loaded).
-	 */
+	/** A load the host started without an operation: its step and estimated progress (indeterminate for a first load), with Cancel, which leaves the model active but not loaded. */
 	private _loadNotice(family: ILocalModelFamilyV1, load: ILocalModelLoadV1): ILocalModelNotice {
 		const now = Date.now();
 		const progress = getLocalModelLoadProgress(load, now);
@@ -661,7 +616,8 @@ export class LocalModelSetupProgress extends Disposable {
 		}
 	}
 
-	private _errorNotice(key: string, status: ILocalModelStatusV1, family: ILocalModelFamilyV1 | undefined, error: ILocalModelErrorV1, target: LocalModelErrorTarget): ILocalModelNotice {
+	/** `operationId` is the failed operation's, or `undefined` for the active server. */
+	private _errorNotice(key: string, family: ILocalModelFamilyV1 | undefined, error: ILocalModelErrorV1, operationId: string | undefined): ILocalModelNotice {
 		return {
 			key,
 			priority: LocalModelNoticePriority.Error,
@@ -669,36 +625,17 @@ export class LocalModelSetupProgress extends Disposable {
 			message: error.message || localize('localModel.error.generic', "Setting up {0} failed.", family?.displayName ?? ''),
 			announcementKey: key,
 			telemetryId: 'localModel.error',
-			actions: this._errorActions(status, family, error, target),
+			actions: this._errorActions(error, operationId),
 		};
 	}
 
-	/**
-	 * The remedies of an error, the first one primary and last: the fixes the
-	 * family's detail page offers for it ({@link getLocalModelErrorActions}),
-	 * e.g. Get llama.cpp and Open Settings when llama.cpp is missing, after
-	 * Review llama.cpp for a binary that needs approval. The detail page,
-	 * opened from the picker or the readout, has the rest.
-	 */
-	private _errorActions(status: ILocalModelStatusV1, family: ILocalModelFamilyV1 | undefined, error: ILocalModelErrorV1, target: LocalModelErrorTarget): LocalModelNoticeAction[] {
-		const remedies: LocalModelNoticeAction[] = [];
-		const operationId = target.kind === 'operation' ? target.operationId : undefined;
-		const runtimeChanged = error.code === LOCAL_MODEL_RUNTIME_CHANGED_CODE;
-		// The binary is approved (or set up again) on the model's details, which show what is approved.
-		if (runtimeChanged || error.code === LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE) {
-			remedies.push({ id: 'reviewRuntime', label: localize('localModel.error.reviewRuntime', "Review llama.cpp\u2026"), commandId: LOCAL_MODEL_SHOW_DETAILS_COMMAND_ID, commandArgs: [target.familyId] });
-		}
-		const actions = family ? getLocalModelErrorActions(family, { error, operationId }, status) : error.actions;
-		for (const action of actions) {
-			// Retrying the old approval only pauses for consent again; Review asks for a new one.
-			if (!(runtimeChanged && action === 'retry')) {
-				remedies.push({
-					id: action,
-					label: getLocalModelErrorActionLabel(action),
-					run: () => runLocalModelErrorAction(action, operationId, { connection: this._connection, localModelService: this._localModelService, commandService: this._commandService, openerService: this._openerService }),
-				});
-			}
-		}
+	/** The remedies an error offers, the first one primary and last; the detail page has the rest. */
+	private _errorActions(error: ILocalModelErrorV1, operationId: string | undefined): LocalModelNoticeAction[] {
+		const remedies = error.actions.map((action): LocalModelNoticeAction => ({
+			id: action,
+			label: getLocalModelErrorActionLabel(action),
+			run: () => runLocalModelErrorAction(action, operationId, { connection: this._connection, localModelService: this._localModelService, commandService: this._commandService, openerService: this._openerService }),
+		}));
 		const [primary, ...others] = remedies;
 		return [
 			...others,

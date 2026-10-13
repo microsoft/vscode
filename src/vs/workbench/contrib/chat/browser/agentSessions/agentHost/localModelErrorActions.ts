@@ -12,16 +12,9 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { ILocalModelService } from '../../../../../services/agentHost/common/localModelService.js';
 import { openLocalModelServerPathSetting } from './localModelSetupFlow.js';
 
-/*
- * The fixes of an on-device model error (`ILocalModelErrorV1.actions`): their
- * labels and what they do, shared by every surface that shows such an error
- * (the model's detail page in the model picker, the chat input notice).
- */
+/* The fixes of an on-device model error, shared by every surface that shows one. */
 
-/**
- * The page that says how to get a llama.cpp build for on-device models and
- * point VS Code at it. VS Code doesn't install llama.cpp.
- */
+/** The page on getting a llama.cpp build for on-device models; VS Code doesn't install llama.cpp. */
 export const LOCAL_MODEL_GET_LLAMA_CPP_URL = 'https://github.com/ggml-org/llama.cpp/releases';
 
 /** The label of an error's fix, the same wherever the error shows. */
@@ -47,13 +40,7 @@ export function openLocalModelGetLlamaCpp(openerService: IOpenerService): Promis
 	return openerService.open(URI.parse(LOCAL_MODEL_GET_LLAMA_CPP_URL), { openExternal: true, allowCommands: false, fromUserGesture: true });
 }
 
-/**
- * Runs an error's fix. Retry retries the failed operation `operationId`, or,
- * for an error of the active model's server (no operation), loads it again,
- * which also finds a llama.cpp installed since. Open Settings opens
- * `chat.copilot.localModel.llamaServerPath`; Get llama.cpp opens the page that
- * says how to get llama.cpp.
- */
+/** Runs an error's fix. Retry retries operation `operationId`, or reloads the active model for a server error (also finding a newly installed llama.cpp). */
 export function runLocalModelErrorAction(action: LocalModelErrorAction, operationId: string | undefined, context: ILocalModelErrorActionContext): Promise<unknown> {
 	const { connection, localModelService } = context;
 	switch (action) {

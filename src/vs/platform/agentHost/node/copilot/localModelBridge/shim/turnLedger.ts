@@ -7,10 +7,7 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { ILocalTurnExecution } from '../../../../common/localModel.js';
 import type { IServingHold, IServingIdentity } from './servingAccess.js';
 
-/**
- * How one model request ran. The local identity always comes from the
- * request's serving lease, never from the current active model.
- */
+/** How one model request ran; the local identity always comes from the request's serving lease, never the current active model. */
 export type LocalModelRequestOutcome =
 	| { readonly kind: 'local'; readonly serving: IServingIdentity }
 	| { readonly kind: 'fallback'; readonly reason: string; readonly fallbackModel: string; readonly serving: IServingIdentity }
@@ -29,18 +26,9 @@ interface IOpenTurn {
 const MAX_OPEN_TURNS = 512;
 
 /**
- * Per-turn local/fallback attribution, and each turn's serving hold.
- *
- * `CopilotAgentSession` opens a turn with {@link beginTurn} and closes it
- * with {@link endTurn}; the request handler {@link record}s each request's
- * outcome against the open turn of `ctx.sessionId`. Aggregation:
- * - only local requests → `local`;
- * - any fallback → `fallback`, or `mixed` with local requests too;
- * - only local/fallback requests without a `sessionId` overlapped the turn → `unknown`;
- * - otherwise nothing (`undefined`).
- *
- * A turn's {@link setHold hold} is released when the turn ends, is replaced
- * by the session's next turn or dropped, and on {@link dispose}.
+ * Per-turn local/fallback attribution and each turn's serving hold. The request handler records each request's outcome
+ * against the open turn of `ctx.sessionId`; a turn aggregates to `local`, `fallback`, `mixed`, `unknown` (only
+ * unattributed requests overlapped it) or nothing. A turn's hold is released when it ends, is replaced or dropped.
  */
 export class TurnLedger implements IDisposable {
 
@@ -62,11 +50,7 @@ export class TurnLedger implements IDisposable {
 		return generation;
 	}
 
-	/**
-	 * Records a request outcome against the open turn of `sessionId`. Outcomes
-	 * for sessions without an open turn are dropped; local or fallback outcomes
-	 * without a `sessionId` mark every open turn as possibly affected.
-	 */
+	/** Records an outcome against the open turn of `sessionId` (dropped without one); unattributed local or fallback outcomes mark every open turn. */
 	record(sessionId: string | undefined, outcome: LocalModelRequestOutcome): void {
 		if (sessionId === undefined) {
 			if (outcome.kind !== 'cloud') {
@@ -89,7 +73,6 @@ export class TurnLedger implements IDisposable {
 		return aggregateTurn(turn.outcomes, turn.sawUnattributed);
 	}
 
-	/** Whether `sessionId` has an open turn. */
 	hasOpenTurn(sessionId: string | undefined): boolean {
 		return sessionId !== undefined && this._openTurns.has(sessionId);
 	}
@@ -99,11 +82,7 @@ export class TurnLedger implements IDisposable {
 		return sessionId === undefined ? undefined : this._openTurns.get(sessionId)?.hold;
 	}
 
-	/**
-	 * Makes the open turn of `sessionId` keep `hold` until it ends, releasing
-	 * any hold it had. Without an open turn, `hold` is released at once and
-	 * `false` is returned.
-	 */
+	/** Makes the open turn of `sessionId` keep `hold` until it ends; without an open turn, `hold` is released at once and `false` returned. */
 	setHold(sessionId: string, hold: IServingHold): boolean {
 		const turn = this._openTurns.get(sessionId);
 		if (!turn) {

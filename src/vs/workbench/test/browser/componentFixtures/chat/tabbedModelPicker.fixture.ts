@@ -248,22 +248,8 @@ export type OnDeviceThinking = 'effort' | 'toggle';
 
 /** The `thinkingLevel` property the Copilot agent host advertises on a direct row whose chat template supports thinking. */
 const ON_DEVICE_THINKING: Record<OnDeviceThinking, IModelConfigPropertySchema> = {
-	effort: {
-		type: 'string',
-		group: 'navigation',
-		enum: ['low', 'medium', 'high'],
-		enumItemLabels: ['low', 'medium', 'high'].map(getReasoningEffortLabel),
-		enumDescriptions: ['low', 'medium', 'high'].map(level => getReasoningEffortDescription(level) ?? ''),
-		default: 'medium',
-	},
-	toggle: {
-		type: 'string',
-		group: 'navigation',
-		enum: ['none', 'medium'],
-		enumItemLabels: ['Off', 'On'],
-		enumDescriptions: ['Answers without thinking first', 'Thinks before answering'],
-		default: 'medium',
-	},
+	effort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['low', 'medium', 'high'].map(getReasoningEffortLabel), enumDescriptions: ['low', 'medium', 'high'].map(level => getReasoningEffortDescription(level) ?? ''), default: 'medium' },
+	toggle: { type: 'string', group: 'navigation', enum: ['none', 'medium'], enumItemLabels: ['Off', 'On'], enumDescriptions: ['Answers without thinking first', 'Thinks before answering'], default: 'medium' },
 };
 
 /**
@@ -293,29 +279,12 @@ function createOnDeviceModel(family: ILocalModelFamilyV1, thinking?: OnDeviceThi
 
 /** One on-device model family; the rest of the fields are filled in for a model that fits this device. */
 function createOnDeviceFamily(familyId: string, displayName: string, overrides: Partial<ILocalModelFamilyV1> = {}): ILocalModelFamilyV1 {
-	return {
-		familyId,
-		capiId: familyId,
-		autoCapable: true,
-		displayName,
-		usage: { runningStreams: 0, boundDirectChats: 0, liveAutoRoutes: 0 },
-		consentGiven: true,
-		...overrides,
-	};
+	return { familyId, capiId: familyId, autoCapable: true, displayName, usage: { runningStreams: 0, boundDirectChats: 0, liveAutoRoutes: 0 }, consentGiven: true, ...overrides };
 }
 
 /** An on-device model status for a device with room for the offered models. */
 function createOnDeviceStatus(families: readonly ILocalModelFamilyV1[], active?: ILocalModelStatusV1['active'], overrides: Partial<ILocalModelStatusV1> = {}): ILocalModelStatusV1 {
-	return {
-		schemaVersion: 1,
-		device: { capacityBytes: 102 * GB, confidence: 'measured' },
-		runtime: { source: 'packageManager', trust: 'userApproved' },
-		catalog: { state: 'ready', registries: { azureml: 'ready' } },
-		families,
-		active,
-		useInAuto: true,
-		...overrides,
-	};
+	return { schemaVersion: 1, device: { capacityBytes: 102 * GB, confidence: 'measured' }, runtime: { version: 'b11459' }, catalog: { state: 'ready', registries: { azureml: 'ready' } }, families, active, useInAuto: true, ...overrides };
 }
 
 /** The serving state of the loaded on-device model. */
@@ -340,6 +309,7 @@ const ON_DEVICE_STATUS = createOnDeviceStatus([
 /** Example Flash sets a reasoning effort; the coder model has no thinking control, so its summary is its context size. */
 const ON_DEVICE_THINKING_BY_FAMILY: IStringDictionary<OnDeviceThinking> = { 'example-flash': 'effort' };
 const ON_DEVICE_SELECTED_MODEL = createOnDeviceModel(ON_DEVICE_STATUS.families[0], 'effort')!;
+const ON_DEVICE_PICKER = { models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY } as const;
 
 /** Example Flash selected in the chat input: swapped in and loading for the first time at its context size, and once ready. */
 const ON_DEVICE_INPUT_FAMILY = createOnDeviceFamily('example-flash', 'Example Flash 1.0', { install: createOnDeviceInstall('Example-Flash'), context: ON_DEVICE_CONTEXT.exampleFlash });
@@ -909,25 +879,25 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	/** Opened on its own tab because an on-device model is selected: one row per family, in every state. */
 	PickerOnDeviceTab: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { anchored: true, models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier }),
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier }),
 	}),
 	/** The selected on-device model's detail page, as its readout in the chat input opens it, with its thinking level and context size. */
 	PickerOnDeviceDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { anchored: true, models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier, openSelectedDetails: true }),
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier, openSelectedDetails: true }),
 	}),
 	/** The Copilot tab is unchanged by on-device models, which only add a tab. */
 	PickerOnDeviceCopilotTab: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { anchored: true, models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
 	}),
 	/** With Auto selected, the Copilot tab leads with its Auto row, and on-device models stay in their own tab. */
 	PickerOnDeviceCopilotAutoSelected: defineComponentFixture({
-		render: context => renderPicker(context, { anchored: true, models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY, selectedModelId: 'agent-host-copilotcli/auto' }),
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: 'agent-host-copilotcli/auto' }),
 	}),
 	/** Search names each on-device model after its tab, beside a Copilot model of a similar name. */
 	PickerOnDeviceSearch: defineComponentFixture({
-		render: context => renderPicker(context, { models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY, searchQuery: 'Flash' }),
+		render: context => renderPicker(context, { ...ON_DEVICE_PICKER, searchQuery: 'Flash' }),
 	}),
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),

@@ -15,14 +15,13 @@ import type { IProductService } from '../../../../product/common/productService.
 import type { IRequestService } from '../../../../request/common/request.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { LOCAL_MODEL_STATUS_KEY } from '../../../common/localModel.js';
-import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import type { IAgentHostStorageService } from '../../../node/agentHostStorageService.js';
-import { collectSessionWorkspaceFolders, LocalModelSetupService, NullLocalModelSetupService } from '../../../node/copilot/localModelBridge/localModelSetupService.js';
+import { LocalModelSetupService, NullLocalModelSetupService } from '../../../node/copilot/localModelBridge/localModelSetupService.js';
 import { ShimLocalModelProvider } from '../../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
 import type { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 
@@ -44,7 +43,6 @@ suite('LocalModelSetupService', () => {
 		};
 		const service = store.add(new LocalModelSetupService(
 			configurationService,
-			stateManager,
 			logService,
 			proxyResolver,
 			upcastPartial<IRequestService>({}),
@@ -79,21 +77,6 @@ suite('LocalModelSetupService', () => {
 			provider: undefined,
 			withdrawn: undefined,
 			null: undefined,
-		});
-	});
-
-	test('reports the file-system working directories of loaded sessions as the open workspace roots', () => {
-		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		const summary = (resource: string, workingDirectories: string[]) => ({ resource, provider: 'copilot', title: resource, status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), workingDirectories, defaultChat: buildDefaultChatUri(resource) });
-		const before = collectSessionWorkspaceFolders(stateManager);
-		stateManager.createSession(summary('agent:/one', [URI.file('/work/a').toString(), 'vscode-vfs://github/microsoft/vscode']));
-		stateManager.createSession(summary('agent:/two', [URI.file('/work/b').toString(), URI.file('/work/a').toString()]));
-		const loaded = collectSessionWorkspaceFolders(stateManager);
-		stateManager.removeSession('agent:/two');
-		assert.deepStrictEqual({ before, loaded, afterRemoval: collectSessionWorkspaceFolders(stateManager) }, {
-			before: [],
-			loaded: [URI.file('/work/a').fsPath, URI.file('/work/b').fsPath],
-			afterRemoval: [URI.file('/work/a').fsPath],
 		});
 	});
 });

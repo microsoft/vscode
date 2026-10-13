@@ -14,14 +14,7 @@ import { LocalModelReadyNotificationContribution, registerLocalModelReadyOfferCo
 import { LocalModelSetupFlow } from './localModelSetupFlow.js';
 import { LocalModelSetupProgress } from './localModelSetupProgress.js';
 
-/**
- * The on-device model flow: the swap, Stop Now and Remove confirmations,
- * progress and error notices, the ready offer and the Command Palette context
- * keys. Setup consent and llama.cpp approval are given on each model's detail
- * page in the model picker. Created only while
- * `chat.copilot.localModel.enabled` is on, so users who haven't opted in pay
- * nothing.
- */
+/** The on-device model flow: confirmations, progress and error notices, the ready offer and context keys. Created only while `chat.copilot.localModel.enabled` is on, so users who haven't opted in pay nothing. */
 class LocalModelContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chat.localModel';

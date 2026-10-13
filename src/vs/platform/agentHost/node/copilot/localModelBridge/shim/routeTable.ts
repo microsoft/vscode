@@ -67,13 +67,9 @@ export function hashRouteToken(token: string): string {
 }
 
 /**
- * Auto session token → fallback route records.
- *
- * - Records are held only in memory; tokens are never logged (use
- *   {@link hashRouteToken}) or persisted. An Agent Host restart empties the table.
- * - A record is evicted only when it has no leases **and** `now > expiresAt +
- *   10 min`. Over the soft cap (1024), the oldest unleased records are evicted.
- * - Records from an older account generation are treated as missing.
+ * Auto session token → fallback route records, held only in memory (tokens are never logged or persisted). A record is
+ * evicted only when unleased and 10 min past `expiresAt`, or oldest-first above the soft cap (1024); records from an
+ * older account generation are treated as missing.
  */
 export class RouteTable {
 
@@ -96,10 +92,7 @@ export class RouteTable {
 		this.sweep();
 	}
 
-	/**
-	 * Looks up `token` and takes a lease on its record. Returns `undefined`
-	 * when there is no record, or it belongs to another account generation.
-	 */
+	/** Looks up `token` and leases its record; `undefined` when there is none or it belongs to another account generation. */
 	acquire(token: string, accountGeneration: number): IRouteLease | undefined {
 		this.sweep();
 		const entry = this._entries.get(token);

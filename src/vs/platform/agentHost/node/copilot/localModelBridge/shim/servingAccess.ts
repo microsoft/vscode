@@ -7,18 +7,9 @@ import { toDisposable, type IDisposable } from '../../../../../../base/common/li
 import type { LocalModelErrorAction, LocalModelServerState } from '../../../../common/localModel.js';
 import type { LocalModelThinkingSupport } from '../localModelThinking.js';
 
-/*
- * The narrow view of the serving side (supervisor + active-model state) that
- * the request router needs. The router never reads a mutable
- * "current active model" to attribute or serve a request it already bound:
- * everything is pinned to an {@link IServingIdentity}.
- */
+/* The router's narrow view of the serving side: everything it bound is pinned to an {@link IServingIdentity}, never to the mutable current active model. */
 
-/**
- * Identity of one load of one model. Every successful start
- * increments {@link servingGeneration}. Route records, request leases and turn
- * attribution bind to this identity.
- */
+/** Identity of one load of one model; each successful start increments {@link servingGeneration}, and routes, leases and attribution bind to it. */
 export interface IServingIdentity {
 	readonly familyId: string;
 	readonly contentId: string;
@@ -80,21 +71,14 @@ export interface ILocalModelLiveGates {
 	readonly useInAuto: boolean;
 }
 
-/**
- * A lease on one serving generation (an in-flight stream for usage
- * accounting). While held, the supervisor's user-initiated drain waits for it.
- * `dispose` is idempotent.
- */
+/** A lease on one serving generation (an in-flight stream); a user-initiated drain waits for it. `dispose` is idempotent. */
 export interface IServingLease extends IDisposable {
 	readonly identity: IServingIdentity;
 }
 
 /**
- * An agent turn's hold on the serving generation its requests ran on: a
- * user-initiated drain waits for the turn to end, not only for its in-flight
- * requests, and admits the turn's later requests meanwhile
- * ({@link IServingAccess.getHeldServing}). Ends with the turn (`TurnLedger`),
- * or when the generation stops. `dispose` is idempotent.
+ * An agent turn's hold on the generation its requests ran on: a user-initiated drain waits for the turn to end and
+ * admits its later requests meanwhile. Ends with the turn or the generation. `dispose` is idempotent.
  */
 export interface IServingHold extends IDisposable {
 	readonly servingGeneration: number;
@@ -139,12 +123,8 @@ export class LocalModelServingError extends Error {
 	}
 }
 
-/**
- * What the request router needs from the serving side. Implemented by the
- * shim's supervisor/orchestrator; an in-memory fake lives with the tests.
- */
+/** What the request router needs from the serving side; tests use an in-memory fake. */
 export interface IServingAccess {
-	/** Live gates. */
 	getGates(): ILocalModelLiveGates;
 
 	/** Increments on sign-out or account switch; older route records are treated as missing. */
@@ -154,11 +134,8 @@ export interface IServingAccess {
 	getActiveServing(): IServingSnapshot | undefined;
 
 	/**
-	 * The serving state of the generation the open turn of `sessionId` holds,
-	 * while that generation still serves the turn: ready, or draining for a
-	 * user-initiated stop, swap or reload (then it is reported `ready` and not
-	 * {@link IServingSnapshot.swapInProgress}, with its endpoint). `undefined`
-	 * otherwise. The turn's requests continue on it until the turn ends.
+	 * The serving state of the generation the open turn of `sessionId` holds while it still serves the turn (ready, or
+	 * draining for a user stop, swap or reload, then reported as `ready`); `undefined` otherwise.
 	 */
 	getHeldServing(sessionId: string | undefined): IServingSnapshot | undefined;
 
@@ -169,36 +146,20 @@ export interface IServingAccess {
 	markEndpointDown(servingGeneration: number): void;
 
 	/**
-	 * Take a lease on `identity.servingGeneration`. Returns `undefined` when that
-	 * generation is no longer the current one or no longer admits work (a
-	 * drain, swap, update or reload is in progress), unless the open turn of
-	 * `sessionId` holds it ({@link getHeldServing}). A request of an open turn
-	 * makes the turn hold the generation until the turn ends. A request holding
-	 * a lease is never served by a different generation.
+	 * Leases `identity.servingGeneration`, or `undefined` when it is no longer current or admitting work, unless the open
+	 * turn of `sessionId` holds it. A leased request is never served by a different generation.
 	 */
 	acquireServingLease(identity: IServingIdentity, sessionId?: string): IServingLease | undefined;
 
-	/**
-	 * Non-blocking slot acquisition for Auto requests. Returns `undefined` when
-	 * every slot is busy or direct requests are already queued.
-	 */
+	/** Non-blocking slot acquisition for Auto requests; `undefined` when every slot is busy or direct requests are queued. */
 	tryAcquireSlot(lease: IServingLease): IServingSlot | undefined;
 
-	/**
-	 * FIFO slot acquisition for direct requests. Rejects with a
-	 * {@link LocalModelServingError} `busyTimeout` after `QUEUE_TIMEOUT_MS`, or
-	 * with the signal's reason when aborted.
-	 */
+	/** FIFO slot acquisition for direct requests; rejects with `busyTimeout` after `QUEUE_TIMEOUT_MS`, or with the signal's reason when aborted. */
 	acquireSlot(lease: IServingLease, options: IQueuedSlotOptions): Promise<IServingSlot>;
 
 	/**
-	 * For direct requests: make sure `familyId` (the active family, or the
-	 * target of a swap in progress) is loaded and ready. Starts a stopped server
-	 * and waits up to `LOAD_TIMEOUT_MS`; during a swap
-	 * to `familyId` the call waits for the swap. Rejects with a
-	 * {@link LocalModelServingError} carrying the supervisor's code and message
-	 * (`modelNotActive` when the family stopped being active while waiting), or
-	 * with the signal's reason when aborted. Never triggers a swap.
+	 * For direct requests: makes sure `familyId` (active, or the target of a swap in progress) is loaded and ready, starting
+	 * a stopped server and waiting up to `LOAD_TIMEOUT_MS`. Rejects with a {@link LocalModelServingError}; never swaps.
 	 */
 	ensureStarted(familyId: string, signal: AbortSignal): Promise<IServingSnapshot>;
 

@@ -197,10 +197,7 @@
 	opacity: 1;
 }
 
-/*
- * Progress of a running operation: the standard progress bar under the title,
- * aligned with it. Indeterminate progress runs the bar's own animation.
- */
+/* Progress of a running operation: the standard progress bar under the title, aligned with it. */
 .chat-input-notification-widget .chat-input-notification-progress {
 	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size60) calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
 }

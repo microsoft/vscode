@@ -18,7 +18,6 @@ import { getSingletonServiceDescriptors } from '../../../../../../platform/insta
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ICreateTerminalOptions, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, IChatInputNotificationSetOptions } from '../../../browser/widget/input/chatInputNotificationService.js';
 
 /** The local agent host connection, publishing status and recording requests (nonce dropped). */
@@ -100,7 +99,7 @@ export function createStatus(families: readonly ILocalModelFamilyV1[], overrides
 	return {
 		schemaVersion: 1,
 		device: { id: 'Vulkan0', capacityBytes: 68784 * 1024 * 1024, confidence: 'measured', vendor: 'nvidia' },
-		runtime: { source: 'none', trust: 'none' },
+		runtime: {},
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families,
 		useInAuto: true,
@@ -163,26 +162,6 @@ export class RecordingCommandService extends mock<ICommandService>() {
 		this.executed.push([commandId, ...args]);
 		return undefined;
 	}
-}
-
-/** Records terminal creation and the text sent to it. */
-export class RecordingTerminalService extends mock<ITerminalService>() {
-	readonly calls: string[] = [];
-	readonly created: (ICreateTerminalOptions | undefined)[] = [];
-
-	override async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-		this.created.push(options);
-		this.calls.push('create');
-		const calls = this.calls;
-		return new class extends mock<ITerminalInstance>() {
-			override async sendText(text: string, shouldExecute: boolean): Promise<void> {
-				calls.push(`sendText:${text}:${shouldExecute ? 'run' : 'typed'}`);
-			}
-		};
-	}
-	override setActiveInstance(): void { this.calls.push('setActive'); }
-	override async revealActiveTerminal(): Promise<void> { this.calls.push('reveal'); }
-	override async focusInstance(): Promise<void> { this.calls.push('focus'); }
 }
 
 /**

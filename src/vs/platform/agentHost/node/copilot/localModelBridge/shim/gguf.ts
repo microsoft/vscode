@@ -5,11 +5,7 @@
 
 import * as fs from 'fs';
 
-/*
- * Minimal, bounded GGUF header reader. Reads only the metadata the
- * KV-cache estimate needs; every other value is skipped without being
- * materialized. Hard caps protect against hostile or corrupt files.
- */
+/* Minimal, bounded GGUF header reader: reads only the metadata the memory estimate needs, with hard caps against hostile or corrupt files. */
 
 /** Random-access bytes of a GGUF file. */
 export interface IGgufByteSource {
@@ -33,10 +29,8 @@ export interface IGgufModelMetadata {
 	/** `attention.sliding_window`: the window of the sliding-window-attention (SWA) layers. */
 	readonly slidingWindow?: number;
 	/**
-	 * Per layer, whether it uses sliding-window attention, from
-	 * `attention.sliding_window_pattern` (a bool per layer, or llama.cpp's
-	 * period `n`: every `n`-th layer is full attention). Absent when no SWA
-	 * layer is known: every attention layer then counts as full attention.
+	 * Per layer, whether it uses sliding-window attention (from `attention.sliding_window_pattern`); absent when no SWA
+	 * layer is known, so every attention layer counts as full attention.
 	 */
 	readonly slidingWindowLayers?: readonly boolean[];
 	/** `attention.key_length_swa` / `attention.value_length_swa`, when the SWA layers differ. */
@@ -221,7 +215,6 @@ class GgufStringArray {
 
 type GgufValue = number | boolean | string | readonly number[] | GgufStringArray | undefined;
 
-/** Keys whose values are kept; everything else is skipped. */
 /** A llama.cpp architecture name; may contain hyphens (`gpt-oss`, `command-r`, `maion-coder`). */
 const ARCHITECTURE_NAME = '[a-z0-9][a-z0-9_-]{0,63}';
 const WANTED_ARCHITECTURE_KEY = new RegExp(`^${ARCHITECTURE_NAME}\\.(block_count|embedding_length|context_length|full_attention_interval|attention\\.(head_count|head_count_kv|key_length|value_length|key_length_swa|value_length_swa|sliding_window|sliding_window_pattern)|ssm\\.(conv_kernel|state_size|group_count|inner_size))$`);
@@ -295,10 +288,7 @@ async function readPreamble(reader: BoundedReader): Promise<number> {
 	return kvCount;
 }
 
-/**
- * Reads the KV-cache-relevant metadata from a GGUF header (versions 2 and 3).
- * Throws {@link GgufFormatError} for malformed, oversized or incomplete headers.
- */
+/** Reads the KV-cache-relevant metadata from a GGUF header (v2 or v3); throws {@link GgufFormatError} for malformed, oversized or incomplete headers. */
 export async function readGgufModelMetadata(source: IGgufByteSource): Promise<IGgufModelMetadata> {
 	const reader = new BoundedReader(source);
 	const kvCount = await readPreamble(reader);
@@ -387,13 +377,7 @@ function readSlidingWindowLayers(pattern: GgufValue, blockCount: number): readon
 
 // #region Architecture only
 
-/**
- * Why `general.architecture` could not be read: the available bytes ended
- * first (`truncated`), the read cap was reached first (`overCap`), the header
- * is malformed or has no string architecture (`invalid`), or the bytes could
- * not be read or fetched (`unreadable`, `network`, `http`, `urlPolicy`,
- * `accessExpired`).
- */
+/** Why `general.architecture` could not be read: the bytes ended (`truncated`) or the read cap was reached (`overCap`) first, the header is `invalid`, or reading failed. */
 export type GgufArchitectureUnknownReason = 'truncated' | 'overCap' | 'invalid' | 'unreadable' | 'network' | 'http' | 'urlPolicy' | 'accessExpired';
 
 /** `general.architecture` of a GGUF, or why it is unknown (an unknown architecture never blocks anything). */
@@ -405,12 +389,9 @@ export type GgufArchitectureRead =
 const ARCHITECTURE_VALUE_MAX_BYTES = 256;
 
 /**
- * Reads only `general.architecture`: the preamble, then the key/value pairs
- * up to that key (normally the first), skipping the others without
- * materializing them. Safe on a prefix of a file: throws
- * {@link GgufTruncatedError} when `source` ends first, and
- * {@link GgufFormatError} for a malformed header or a missing or non-string
- * `general.architecture`. Returns the value as written; callers validate it.
+ * Reads only `general.architecture`, skipping other values without materializing them. Safe on a file prefix: throws
+ * {@link GgufTruncatedError} when `source` ends first and {@link GgufFormatError} for a malformed or missing value.
+ * Callers validate the returned value.
  */
 export async function readGgufArchitecture(source: IGgufByteSource): Promise<string> {
 	const reader = new BoundedReader(source);
@@ -429,11 +410,7 @@ export async function readGgufArchitecture(source: IGgufByteSource): Promise<str
 	throw new GgufFormatError('GGUF header has no general.architecture');
 }
 
-/**
- * {@link readGgufArchitecture} over the first `prefix.byteLength` bytes of a
- * file of `fileSize` bytes: `needMore` when the prefix ends before the value
- * and the file is longer than the prefix. Pure.
- */
+/** {@link readGgufArchitecture} over a prefix of a `fileSize`-byte file: `needMore` when the prefix ends before the value and the file is longer. Pure. */
 export async function readGgufArchitectureFromPrefix(prefix: Uint8Array, fileSize: number): Promise<GgufArchitectureRead | { readonly kind: 'needMore' }> {
 	try {
 		const architecture = await readGgufArchitecture({ size: prefix.byteLength, read: async (offset, length) => prefix.subarray(offset, offset + length) });
@@ -449,12 +426,7 @@ export async function readGgufArchitectureFromPrefix(prefix: Uint8Array, fileSiz
 /** Default `general.alignment` of a GGUF file. */
 const GGUF_DEFAULT_ALIGNMENT = 32;
 
-/**
- * A GGUF v3 file holding only string metadata and no tensors, padded to the
- * default alignment. The architecture probe uses one with just
- * `general.architecture` to ask llama.cpp whether it knows an architecture
- * without a real model. Pure.
- */
+/** A tensor-less GGUF v3 file holding only string metadata, padded to the default alignment; the architecture probe uses one instead of a real model. Pure. */
 export function buildSyntheticGguf(metadata: Readonly<Record<string, string>>): Uint8Array {
 	const encoder = new TextEncoder();
 	const entries = Object.entries(metadata).map(([key, value]) => [encoder.encode(key), encoder.encode(value)] as const);
@@ -564,20 +536,7 @@ export interface IGgufMemoryEstimate {
 	readonly computeBytes: number;
 }
 
-/**
- * Bytes of K + V cache per context token of the layers whose cache grows
- * with the context (full attention only; f16 cache by default). Pure.
- */
-export function estimateKvCacheBytesPerToken(metadata: IGgufModelMetadata, bytesPerElement = 2): number {
-	const heads = headsPerLayer(metadata);
-	return layerKinds(metadata).reduce((sum, kind, layer) => kind === 'full' ? sum + heads[layer] * (metadata.keyLength + metadata.valueLength) * bytesPerElement : sum, 0);
-}
-
-/**
- * Whether the model has recurrent layers, whose fixed state can't be rolled
- * back to an earlier position: llama.cpp reuses its cache across turns only
- * from a context checkpoint. Pure.
- */
+/** Whether the model has recurrent layers, whose fixed state can't be rolled back: llama.cpp reuses their cache across turns only from a checkpoint. Pure. */
 export function hasRecurrentLayers(metadata: IGgufModelMetadata): boolean {
 	return layerKinds(metadata).includes('recurrent');
 }
@@ -625,12 +584,6 @@ export function estimateContextMemory(metadata: IGgufModelMetadata, ctxTokens: n
 	return { kvBytes, swaBytes, recurrentBytes, computeBytes };
 }
 
-/** KV cache and recurrent state for `ctxTokens` of total context ({@link estimateContextMemory} without compute). Pure. */
-export function estimateKvCacheBytes(metadata: IGgufModelMetadata, ctxTokens: number, options: IGgufMemoryOptions = {}): number {
-	const estimate = estimateContextMemory(metadata, ctxTokens, options);
-	return estimate.kvBytes + estimate.swaBytes + estimate.recurrentBytes;
-}
-
 /** Everything {@link estimateContextMemory} counts, in bytes. Pure. */
 export function estimateContextMemoryBytes(metadata: IGgufModelMetadata, ctxTokens: number, options: IGgufMemoryOptions = {}): number {
 	const estimate = estimateContextMemory(metadata, ctxTokens, options);
@@ -669,11 +622,7 @@ export async function readGgufModelMetadataFromFile(filePath: string): Promise<I
 	}
 }
 
-/**
- * Reads `general.architecture` from a local GGUF (an adopted install, a
- * placed file, or the prefix a partial download has written), looking at no
- * more than its first `maxBytes`. Never throws.
- */
+/** Reads `general.architecture` from a local GGUF (or the prefix a partial download wrote), looking at most at its first `maxBytes`; never throws. */
 export async function readGgufArchitectureFromFile(filePath: string, maxBytes: number): Promise<GgufArchitectureRead> {
 	let source: IGgufByteSource & { close(): Promise<void> };
 	try {

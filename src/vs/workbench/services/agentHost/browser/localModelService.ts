@@ -29,12 +29,7 @@ interface IPendingStop {
 	readonly signature: string;
 }
 
-/**
- * The state and phase of operation `operationId` (also for its
- * {@link getLocalModelStopNowId}), a family's, or the state of the active
- * model's server for its {@link getLocalModelServerStopId}; `undefined` when
- * it is gone.
- */
+/** The state and phase of operation `operationId` (or of the operation or server a stop id names); `undefined` when it is gone. */
 function getOperationSignature(status: ILocalModelStatusV1 | undefined, operationId: string): string | undefined {
 	const active = status?.active;
 	if (active && operationId === getLocalModelServerStopId(active.familyId)) {
@@ -48,13 +43,7 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 	return a.size === b.size && [...a].every(value => b.has(value));
 }
 
-/**
- * Basic {@link ILocalModelService}: reads status per connection and writes
- * requests with a fresh nonce. Confirmations come from the registered
- * {@link ILocalModelInteractionHandler}; without one, actions that need a
- * confirmation are not sent. Consent for setup and runtime approval comes
- * with the request, from the model's detail page.
- */
+/** Basic {@link ILocalModelService}: reads status per connection and writes requests with a fresh nonce; confirmations come from the registered handler. */
 export class LocalModelService extends Disposable implements ILocalModelService {
 	declare readonly _serviceBrand: undefined;
 
@@ -170,10 +159,6 @@ export class LocalModelService extends Disposable implements ILocalModelService 
 
 	stopPrevious(connection: IAgentConnection): boolean {
 		return this._send(connection, { action: 'stopPrevious' });
-	}
-
-	approveRuntime(connection: IAgentConnection, consent: ILocalModelConsent): boolean {
-		return this._send(connection, { action: 'approveRuntime', consent });
 	}
 
 	refreshCatalog(connection: IAgentConnection): boolean {

@@ -16,19 +16,16 @@ import type { ITelemetryService } from '../../../../../telemetry/common/telemetr
 import type { ILocalModelErrorV1, LocalModelLoadRetryReason, LocalModelServerState, LocalModelServingProfile } from '../../../../common/localModel.js';
 import { errorCodeForLog } from '../../../../common/logRedaction.js';
 import { FIRST_OUTPUT_TIMEOUT_MS, IDLE_UNLOAD_MS, LLAMA_API_KEY_ENV, LOAD_TIMEOUT_MS, MAX_AUTO_TTFT_MS, MIN_AUTO_DECODE_TPS, RESTART_BACKOFF_MS, SERVER_API_KEY_BYTES, SERVER_HEALTH_POLL_MS, SERVER_PORT_BIND_RETRIES, SIGKILL_GRACE_MS, STDERR_TAIL_BYTES, SYSTEM_DRAIN_TIMEOUT_MS, WARMUP_GENERATED_TOKENS } from './constants.js';
-import { createLlamaRuntimeError, createRuntimeUnsupportedModelError, LLAMA_CPP_DIRECTIONS_ACTIONS } from './llamaCppInstaller.js';
+import { createLlamaRuntimeError, createRuntimeUnsupportedModelError, LLAMA_CPP_DIRECTIONS_ACTIONS } from './llamaCppRuntime.js';
 import { acquireProcessLock, clearStaleProcessLock, type IProcessLock, type IProcessLockOptions } from './processLock.js';
 import { PROCESS_START_TIME_TOLERANCE_MS, type ILongLivedProcess, type ILongLivedProcessSpawner, type IProcessControl, type IProcessIdentity } from './processRunner.js';
 import { LocalModelServingError, type ILocalModelClock, type ILocalModelLoopbackEndpoint, type ILocalModelServerProps, type IServingHold, type IServingIdentity, type IServingLease } from './servingAccess.js';
 import { classifyServerStartFailure, nextServerDowngrade, type IServerStartConfig, type ServerDowngradeStep, type ServerFailurePhase } from './servingProfile.js';
 
 /*
- * The `llama-server` supervisor: one server at a time, one owner
- * per machine (a process lock), readiness + warm-up + Auto performance
- * gate, admission right before every spawn, the start-failure downgrade
- * sequence, idle unload, crash restart with backoff, orphan recovery and
- * user/system drains. It knows nothing about catalogs or swaps: the provider
- * hands it a launch plan.
+ * The `llama-server` supervisor: one server at a time with one owner per machine, admission before every
+ * spawn, readiness and warm-up, start-failure downgrades, idle unload, crash restarts, orphan recovery and
+ * drains. It knows nothing about catalogs or swaps: the provider hands it a launch plan.
  */
 
 // #region Launch plan
@@ -46,11 +43,10 @@ export interface IServerLaunchPlan {
 	/** `--alias`: the Azure ML asset name. */
 	readonly alias: string;
 	readonly displayName: string;
-	/** Approved, real path of `llama-server`; recorded as the server's image path. */
+	/** Real path of the setting's `llama-server`; recorded as the server's image path. */
 	readonly binaryPath: string;
 	/** Working directory: the version directory (the preset names the draft GGUF relative to it). */
 	readonly versionDir: string;
-	/** The model's family directory. */
 	readonly familyDir: string;
 	/** Absolute path of the primary GGUF. */
 	readonly modelPath: string;
@@ -63,36 +59,16 @@ export interface IServerLaunchPlan {
 	readonly backend: string;
 	/** `llama-server --version` as shown in the status (`0.6.0-dev (b11459)`), for the `runtimeUnsupportedModel` message. */
 	readonly runtimeVersion?: string;
-	/**
-	 * `general.architecture` of the primary GGUF, for the `runtimeUnsupportedModel`
-	 * message: an architecture no llama.cpp release can run yet (`maion-coder`)
-	 * names the change a build needs.
-	 */
+	/** `general.architecture` of the primary GGUF, for the `runtimeUnsupportedModel` message. */
 	readonly architecture?: string;
 	readonly initialConfig: IServerStartConfig;
-	/**
-	 * Called once when this build's speculative decoding (DFlash) crashed the
-	 * server on its first completion and the model is served without it
-	 * (`specUnsupported`): the provider records it per runtime digest and
-	 * model content, so later starts skip DFlash directly.
-	 */
+	/** Called once when speculative decoding (DFlash) crashed this build and the model is served without it; the provider records it so later starts skip DFlash. */
 	onSpeculativeUnsupported?(): void;
 	/** Preset arguments plus profile overrides for a start configuration (downgrade steps change it). */
 	buildArgs(config: IServerStartConfig): readonly string[];
 	/** Runs admission (fresh `--list-devices`, free memory, footprint) for `config`; never cached. */
 	admit(config: IServerStartConfig, signal: AbortSignal): Promise<ServerAdmission>;
-	/**
-	 * Fresh verification of {@link binaryPath} (real path and runtime digest
-	 * against its approval), invoked immediately before every spawn: each
-	 * port-bind retry, downgrade retry and crash restart. `false` rejects the
-	 * launch with `runtimeChanged` and nothing is spawned.
-	 */
-	verifyBinary(signal: AbortSignal): Promise<boolean>;
-	/**
-	 * The activation this plan was prepared for. Once aborted (a swap, stop,
-	 * removal or disable superseded it) a pending start of the plan is
-	 * abandoned before anything is spawned, and it is never restarted.
-	 */
+	/** The activation this plan was prepared for; once aborted, a pending start is abandoned before spawning and never restarted. */
 	readonly signal?: AbortSignal;
 }
 
@@ -106,19 +82,16 @@ export interface ILlamaServerArgsInput {
 	readonly parallel: number;
 	readonly port: number;
 	/**
-	 * The per-spawn API key, passed as `--api-key` only for a build that
-	 * ignored {@link LLAMA_API_KEY_ENV}. Otherwise the key travels in the
-	 * environment ({@link buildServerEnvironment}), so it never shows in
-	 * process listings, which other users can read on Linux and macOS.
+	 * The per-spawn API key, passed as `--api-key` only for a build that ignored {@link LLAMA_API_KEY_ENV}.
+	 * Otherwise it travels in the environment so it never shows in process listings, which other users can read on Linux and macOS.
 	 */
 	readonly commandLineApiKey?: string;
 	readonly presetArgs: readonly string[];
 }
 
 /**
- * The `llama-server` command line: loopback only, an ephemeral port, the model pinned to
- * the selected device without splitting, then the preset arguments with profile
- * overrides. The per-spawn API key is on it only as a fallback. Pure.
+ * The `llama-server` command line: loopback only, an ephemeral port, the model pinned to the selected device,
+ * then the preset arguments with profile overrides. The per-spawn API key is on it only as a fallback. Pure.
  */
 export function buildLlamaServerArgs(input: ILlamaServerArgsInput): string[] {
 	return [
@@ -143,10 +116,8 @@ const API_KEY_PROBE_ATTEMPTS = 3;
 const API_KEY_PROBE_TIMEOUT_MS = 5_000;
 
 /**
- * Environment of `llama-server`: the host environment without anything that
- * could carry a credential and without `LLAMA_*` variables, which
- * llama.cpp would otherwise read as arguments, plus the per-spawn API key as
- * {@link LLAMA_API_KEY_ENV}. Pure.
+ * Environment of `llama-server`: the host environment without credential-like variables and without `LLAMA_*`
+ * variables (llama.cpp reads them as arguments), plus the per-spawn API key as {@link LLAMA_API_KEY_ENV}. Pure.
  */
 export function buildServerEnvironment(env: Readonly<Record<string, string | undefined>>, apiKey: string): Record<string, string> {
 	return {
@@ -191,14 +162,11 @@ export function parseServerRecord(raw: string): IServerRecord | undefined {
 }
 
 /**
- * What orphan recovery found: nothing that may still run (`none`), a live
- * owner (`ownedElsewhere`), or a server that may still be running (`orphan`:
- * Stop Previous Server), which includes a server lock its holder left behind
- * when it died (macOS).
+ * What orphan recovery found: nothing that may still run (`none`), a live owner (`ownedElsewhere`), or a server
+ * that may still run (`orphan`: Stop Previous Server), including a lock its dead holder left behind (macOS).
  */
 export type PreviousServerCheck = 'none' | 'ownedElsewhere' | 'orphan';
 
-/** The `code` of a file system error. */
 function errorCodeOf(error: unknown): string | undefined {
 	const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
 	return typeof code === 'string' ? code : undefined;
@@ -308,12 +276,7 @@ export interface IServerSupervisorState {
 	readonly config?: IServerStartConfig;
 	readonly warmup?: IServerWarmupResult;
 	readonly error?: ILocalModelErrorV1;
-	/**
-	 * Set while a stop waits for running responses: for a `user` stop, the
-	 * turns holding the generation plus in-flight requests of no holding turn
-	 * ({@link ServerSupervisor.responseCount}); for a `system` stop, the
-	 * in-flight requests.
-	 */
+	/** Set while a stop waits for running responses: {@link ServerSupervisor.responseCount} for a `user` stop, in-flight requests for a `system` stop. */
 	readonly drain?: { readonly runningStreams: number; readonly kind: 'user' | 'system' };
 	/** While `starting` with a spawned server: the step of this attempt, when it was spawned, and its configuration and device. */
 	readonly load?: IServerLoadProgress;
@@ -329,12 +292,7 @@ export interface IServerLoadProgress {
 	readonly startedAt: number;
 	readonly device: string;
 	readonly config: IServerStartConfig;
-	/**
-	 * Set when this attempt retries a start that speculative decoding crashed
-	 * (during its load or warm-up, or on the first request it served):
-	 * `withoutSpeculativeDecoding`. Other downgrade retries and starts that
-	 * skip it because of an earlier crash carry none.
-	 */
+	/** `withoutSpeculativeDecoding` when this attempt retries a start that speculative decoding crashed. */
 	readonly retry?: LocalModelLoadRetryReason;
 }
 
@@ -361,23 +319,11 @@ export interface IServerSupervisorTimings {
 	readonly warmupTimeoutMs: number;
 	/** A crash after this much uptime starts a fresh backoff sequence. */
 	readonly crashResetMs: number;
-	/**
-	 * Waits between attempts to write or delete the server record that the
-	 * file system refused (`EPERM`/`EBUSY`/`EACCES`, for example while
-	 * antivirus holds a new file on Windows).
-	 */
+	/** Retry delays for server-record writes or deletions the file system refused (`EPERM`/`EBUSY`/`EACCES`, e.g. antivirus on Windows). */
 	readonly recordRetryDelaysMs: readonly number[];
-	/**
-	 * How long a termination waits to observe the process gone (the child's
-	 * exit, or an orphan's pid and start time no longer running) before it
-	 * escalates, then gives up as unconfirmed.
-	 */
+	/** How long a termination waits to observe the process gone before it escalates, then gives up as unconfirmed. */
 	readonly exitWaitMs: number;
-	/**
-	 * Windows: how much longer to wait for a server that `taskkill /T /F` already
-	 * terminated to exit (a large model can take a while to release its GPU
-	 * memory), before it is reported as still running.
-	 */
+	/** Windows: how much longer to wait for a server `taskkill /T /F` terminated to exit (a large model can be slow to release GPU memory). */
 	readonly terminatedExitWaitMs: number;
 }
 
@@ -444,7 +390,6 @@ interface IRunningServer {
 	readonly listeners: IDisposable[];
 	/** Set when the supervisor itself terminates the process. */
 	terminating: boolean;
-	/** Set once the process has exited. */
 	exited: boolean;
 	/** Requests leased on it after it was ready. */
 	requests: number;
@@ -454,11 +399,7 @@ interface IRunningServer {
 
 interface IDrainWaiter {
 	readonly generation: number;
-	/**
-	 * `system` drains wait only for in-flight requests, at most the system drain
-	 * timeout; `user` drains for every response ({@link ServerSupervisor.responseCount}).
-	 * A system stop turns a user drain into a system drain.
-	 */
+	/** `system` drains wait only for in-flight requests, up to the system drain timeout; `user` drains wait for every response. */
 	kind: 'user' | 'system';
 	/** The system drain timeout. */
 	timer?: IDisposable;
@@ -517,22 +458,15 @@ export function getServerErrorActions(code: string): ILocalModelErrorV1['actions
 			return [...LLAMA_CPP_DIRECTIONS_ACTIONS];
 		case 'ownedElsewhere':
 		case 'insufficientMemory':
-		case 'runtimeChanged':
-		case 'runtimeApprovalRequired':
 			return [];
 		default: return ['retry'];
 	}
 }
 
 /**
- * Supervises the single `llama-server` of this Agent Host.
- *
- * Starts are serialized and single-flight per plan; every successful start
- * increments the serving generation that leases, routes and attribution bind
- * to. A user-initiated stop waits for running responses with no timeout
- * (see {@link stopNow}): in-flight requests and the agent turns that hold the
- * generation ({@link acquireHold}), whose later requests it still admits. A
- * system stop waits at most 10 s, for in-flight requests only.
+ * Supervises the single `llama-server` of this Agent Host. Starts are serialized and single-flight per plan;
+ * each successful start increments the serving generation that leases bind to. A user stop waits for running
+ * responses with no timeout ({@link stopNow} ends it); a system stop waits at most 10 s, for in-flight requests only.
  */
 export class ServerSupervisor extends Disposable {
 
@@ -548,11 +482,7 @@ export class ServerSupervisor extends Disposable {
 	private _starting: { readonly key: string; readonly promise: Promise<IServingIdentity>; readonly signal: AbortSignal | undefined } | undefined;
 	private _startAbort: AbortController | undefined;
 	private _running: IRunningServer | undefined;
-	/**
-	 * A server of ours whose termination could not be confirmed: it may still
-	 * run, so its record and the lock are kept and no replacement is started
-	 * until its exit is observed (or Stop Previous Server confirms it).
-	 */
+	/** A server of ours whose termination could not be confirmed: its record and the lock are kept and nothing replaces it until its exit is observed. */
 	private _unconfirmed: IRunningServer | undefined;
 	/** The server lock, held while a server of ours may run. */
 	private _lock: IProcessLock | undefined;
@@ -563,10 +493,7 @@ export class ServerSupervisor extends Disposable {
 	/** Turns holding each generation ({@link acquireHold}). */
 	private readonly _holds = new Map<number, Set<ServerHold>>();
 	private readonly _drainWaiters = new Set<IDrainWaiter>();
-	/**
-	 * Stop Now was requested for a stop that is queued or running: it never
-	 * waits for running responses. Cleared once no stop is pending.
-	 */
+	/** Stop Now was requested for a queued or running stop; cleared once no stop is pending. */
 	private _stopNowRequested = false;
 	/** Stops queued or running ({@link stop}). */
 	private _pendingStops = 0;
@@ -602,11 +529,7 @@ export class ServerSupervisor extends Disposable {
 		return this._leases.get(generation) ?? 0;
 	}
 
-	/**
-	 * Running responses on `generation`: each turn holding it counts once (also
-	 * while it runs a tool between requests), plus each in-flight request of no
-	 * holding turn. A user-initiated drain and the idle unload wait for none.
-	 */
+	/** Running responses on `generation`: each holding turn counts once (also between requests), plus each in-flight request of no holding turn. */
 	responseCount(generation: number): number {
 		const holds = this._holds.get(generation);
 		let owned = 0;
@@ -619,10 +542,8 @@ export class ServerSupervisor extends Disposable {
 	// #region Leases and holds
 
 	/**
-	 * A lease on `identity`'s generation, or `undefined` when that generation is
-	 * not the ready, admitting one (stopped, draining, replaced). A `hold`
-	 * that {@link admitsHold admits} its turn also admits the lease while its
-	 * generation drains for a user stop; the request then counts as that turn's.
+	 * A lease on `identity`'s generation, or `undefined` when it is not the ready, admitting one. A `hold` that
+	 * {@link admitsHold admits} its turn also admits the lease during a user drain; the request then counts as that turn's.
 	 */
 	acquireLease(identity: IServingIdentity, hold?: IServingHold): IServingLease | undefined {
 		const state = this._state.get();
@@ -662,10 +583,8 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * A turn's hold on `identity`'s generation, taken with the turn's first
-	 * request on it, or `undefined` when that generation is not the ready,
-	 * admitting one. It counts as a running response until it is disposed or
-	 * the generation stops (Stop Now, a crash, termination).
+	 * A turn's hold on `identity`'s generation, or `undefined` when it is not the ready, admitting one. It counts
+	 * as a running response until it is disposed or the generation stops.
 	 */
 	acquireHold(identity: IServingIdentity): IServingHold | undefined {
 		const state = this._state.get();
@@ -684,10 +603,7 @@ export class ServerSupervisor extends Disposable {
 		return hold;
 	}
 
-	/**
-	 * Whether `hold` still admits its turn's requests: its generation is the
-	 * running one, ready or draining for a user stop that Stop Now did not end.
-	 */
+	/** Whether `hold` still admits its turn's requests: its generation runs, ready or in a user drain Stop Now did not end. */
 	admitsHold(hold: IServingHold): boolean {
 		if (!(hold instanceof ServerHold) || hold.released || !this._holds.get(hold.servingGeneration)?.has(hold)) {
 			return false;
@@ -752,11 +668,7 @@ export class ServerSupervisor extends Disposable {
 
 	// #region Start
 
-	/**
-	 * Starts `plan` (no-op when it is already ready). Concurrent starts of the
-	 * same plan share one start; starts are serialized. Rejects with a
-	 * {@link LocalModelServingError} carrying a localized message.
-	 */
+	/** Starts `plan` (no-op when already ready); starts are serialized and single-flight per plan. Rejects with a {@link LocalModelServingError}. */
 	start(plan: IServerLaunchPlan, reason: ServerStartReason = 'trigger'): Promise<IServingIdentity> {
 		const key = planKey(plan);
 		const state = this._state.get();
@@ -989,14 +901,8 @@ export class ServerSupervisor extends Disposable {
 				presetArgs: plan.buildArgs(config),
 			});
 			// Immediately before spawning, after all launch preparation: a superseded activation or a
-			// stop never starts a process, and neither does a binary whose fresh digest lost its approval.
+			// stop never starts a process.
 			this._throwIfAborted(abort, plan);
-			const verified = await plan.verifyBinary(abort.signal);
-			this._throwIfAborted(abort, plan);
-			if (!verified) {
-				this._options.log.warn('[LocalModelServer] The approved llama-server changed right before launch; nothing was started');
-				throw new LocalModelServingError('runtimeChanged', runtimeChangedMessage(plan.displayName));
-			}
 			const spawning = this._options.clock.now();
 			const child = this._options.spawner.spawn(plan.binaryPath, args, {
 				cwd: plan.versionDir,
@@ -1014,7 +920,6 @@ export class ServerSupervisor extends Disposable {
 			const running: IRunningServer = { child, plan, endpoint, stderr, listeners, terminating: false, exited: false, requests: 0 };
 			void child.exited.then(result => {
 				running.exited = true;
-				// Its record is no longer needed once the exit was observed.
 				void this._deleteRecord();
 				if (this._unconfirmed === running) {
 					// A server whose termination could not be confirmed has exited after all: the lock can go.
@@ -1058,8 +963,7 @@ export class ServerSupervisor extends Disposable {
 					await this._stopOrThrow(plan);
 					this._throwIfAborted(abort, plan);
 					if (!keyOnCommandLine) {
-						// The build may ignore `LLAMA_API_KEY`, so any local process could use this server: replace it
-						// with one that takes the key on its command line (as before the key moved to the environment).
+						// The build may ignore `LLAMA_API_KEY`, so any local process could use this server: replace it with one that takes the key on its command line.
 						this._options.log.warn(`[LocalModelServer] llama-server did not confirm it requires the API key from LLAMA_API_KEY (${enforcement}); restarting it with --api-key`);
 						this._apiKeyOnCommandLine.add(plan.binaryPath);
 						continue;
@@ -1134,13 +1038,9 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * Whether a ready server refuses `/props` (not one of `llama-server`'s
-	 * public endpoints) without the API key: `enforced` on a 401 or 403,
-	 * `notEnforced` when it serves it (it did not take the key from
-	 * {@link LLAMA_API_KEY_ENV}), `inconclusive` when no attempt answered
-	 * either way (timeouts, connection errors, other statuses). Up to
-	 * {@link API_KEY_PROBE_ATTEMPTS} attempts, a health poll apart; stops at
-	 * once when the start is aborted or the process exits.
+	 * Whether a ready server refuses `/props` without the API key: `enforced` on a 401 or 403, `notEnforced` when it
+	 * serves it, `inconclusive` when no attempt answered either way. Up to {@link API_KEY_PROBE_ATTEMPTS} attempts,
+	 * a health poll apart.
 	 */
 	private async _confirmApiKeyEnforced(endpoint: ILocalModelLoopbackEndpoint, running: IRunningServer, signal: AbortSignal): Promise<'enforced' | 'notEnforced' | 'inconclusive' | 'exited' | 'aborted'> {
 		for (let attempt = 1; ; attempt++) {
@@ -1197,11 +1097,8 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * One prompt plus {@link WARMUP_GENERATED_TOKENS} generated tokens, streamed:
-	 * time to the first output token and decode throughput (the server's
-	 * `timings.predicted_per_second` when present). A connection that fails
-	 * (not a timeout or cancellation) sets `transport.failed`: the server may be
-	 * going down.
+	 * One prompt plus {@link WARMUP_GENERATED_TOKENS} streamed tokens, measuring time to first token and decode
+	 * throughput. A failed connection (not a timeout or cancellation) sets `transport.failed`: the server may be going down.
 	 */
 	private async _warmUp(endpoint: ILocalModelLoopbackEndpoint, plan: IServerLaunchPlan, signal: AbortSignal, transport?: { failed: boolean }): Promise<IServerWarmupResult | undefined> {
 		const abort = new AbortController();
@@ -1294,19 +1191,12 @@ export class ServerSupervisor extends Disposable {
 	// #region Stop and drain
 
 	/**
-	 * Stops the server. `user`: stop admitting new work (except the requests of
-	 * turns that hold the generation), wait for running responses
-	 * ({@link responseCount}) with no timeout ({@link stopNow} ends the wait),
-	 * then terminate. `system`: wait at most 10 s for in-flight requests only;
-	 * a user drain in progress, or one that starts while the system stop is
-	 * pending, becomes such a system drain at once. `idle`: only when no
-	 * response is running; no drain. Stops run one at a time.
+	 * Stops the server; stops run one at a time. `user`: stops admitting new work (except holding turns' requests)
+	 * and waits for running responses with no timeout ({@link stopNow} ends the wait). `system`: waits at most 10 s
+	 * for in-flight requests only, and turns a pending user drain into a system drain. `idle`: only when no response runs.
 	 *
-	 * `cancellation` ends a `user` stop that hasn't begun terminating the
-	 * server: before it runs, nothing happens; while it waits for running
-	 * responses, the server serves again as before. Either way the result is
-	 * `cancelled`. Once a system stop made it a system drain, or Stop Now
-	 * ended it, it can't be cancelled.
+	 * `cancellation` ends a `user` stop before it terminates the server, which then serves as before; the result is
+	 * `cancelled`. A stop escalated to a system drain or ended by Stop Now can't be cancelled.
 	 */
 	stop(kind: ServerStopKind, cancellation?: AbortSignal): Promise<IServerStopResult> {
 		this._restartTimer?.dispose();
@@ -1331,11 +1221,7 @@ export class ServerSupervisor extends Disposable {
 		});
 	}
 
-	/**
-	 * Ends the current drain immediately, or makes a stop that is queued and has
-	 * not started draining yet never wait; the server is then terminated, which
-	 * ends the running responses. Returns how many responses were running.
-	 */
+	/** Ends the current or queued drain at once and terminates the server, ending running responses. Returns how many were running. */
 	stopNow(): number {
 		const state = this._state.get();
 		const generation = state.identity?.servingGeneration;
@@ -1355,11 +1241,7 @@ export class ServerSupervisor extends Disposable {
 		return !!this._state.get().drain;
 	}
 
-	/**
-	 * A system stop arrived (or the supervisor is disposed): a user drain in
-	 * progress stops admitting the requests of holding turns and waits at most
-	 * the system drain timeout, for in-flight requests only.
-	 */
+	/** On a system stop or disposal: a user drain stops admitting holding turns' requests and waits at most the system drain timeout. */
 	private _escalateDrains(): void {
 		const state = this._state.get();
 		if (state.drain?.kind === 'user') {
@@ -1525,12 +1407,7 @@ export class ServerSupervisor extends Disposable {
 		}
 	}
 
-	/**
-	 * Terminates the running server. `true` only once no server of ours may
-	 * still run: its exit was observed (and no earlier one is unconfirmed).
-	 * Otherwise it becomes {@link _unconfirmed}: its record and the lock are
-	 * kept, and nothing replaces it.
-	 */
+	/** Terminates the running server; `true` only once its exit was observed. Otherwise it becomes {@link _unconfirmed}: its record and the lock are kept and nothing replaces it. */
 	private async _terminate(): Promise<boolean> {
 		const running = this._running;
 		if (!running) {
@@ -1721,14 +1598,9 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * Orphan recovery, serialized with starts and stops. Taking
-	 * the server lock proves that whoever recorded a server is gone; while
-	 * another live process holds it this is `ownedElsewhere` and nothing is
-	 * touched, and a lock its holder left behind (macOS) is an `orphan`.
-	 * `stopPrevious` is the user's Stop Previous Server: it first clears such
-	 * a stale lock, and also deletes a record that cannot be read. While this
-	 * supervisor holds the lock, it retries stopping a server of its own that
-	 * did not stop.
+	 * Orphan recovery, serialized with starts and stops. Taking the server lock proves that whoever recorded a server
+	 * is gone; while another live process holds it, this is `ownedElsewhere` and nothing is touched. `stopPrevious`
+	 * (Stop Previous Server) also clears a stale macOS lock and deletes an unreadable record.
 	 */
 	checkPreviousServer(options: { readonly stopPrevious?: boolean } = {}): Promise<PreviousServerCheck> {
 		return this._queue.queue(async () => {
@@ -1801,12 +1673,9 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * With the server lock held (its writer is gone), judges the server record:
-	 * a server whose pid, start time and image path all match is terminated and
-	 * must be confirmed gone; a record whose process is gone, or whose pid now
-	 * runs something else, is deleted. `false` while a server may still run: it
-	 * cannot be verified or was not confirmed stopped, or the record cannot be
-	 * read (deleted only when `force`: the user's Stop Previous Server).
+	 * With the server lock held, judges the server record: a server whose pid, start time and image path match is
+	 * terminated; a record whose process is gone or reused is deleted. `false` while a server may still run or the
+	 * record can't be read (deleted only when `force`).
 	 */
 	private async _recoverOrphan(force: boolean): Promise<boolean> {
 		let raw = '';
@@ -1845,11 +1714,9 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * Records the just-spawned server; `false` when the record could not be
-	 * written. Without a start time from the OS it records `spawnedAt`: the time
-	 * the spawn returned, given only when the spawn itself took at most half of
-	 * {@link PROCESS_START_TIME_TOLERANCE_MS}, so it stays within that tolerance
-	 * of the start time the OS reports later (whole seconds on macOS).
+	 * Records the just-spawned server; `false` when the record could not be written. Without an OS start time it records
+	 * `spawnedAt`, given only when the spawn took at most half of {@link PROCESS_START_TIME_TOLERANCE_MS}, so it stays
+	 * within that tolerance of the OS start time (whole seconds on macOS).
 	 */
 	private async _writeRecord(running: IRunningServer, pid: number, port: number, spawnedAt: number | undefined): Promise<boolean> {
 		const info = await this._options.processControl.inspect(pid).catch(() => undefined);
@@ -1904,10 +1771,8 @@ export class ServerSupervisor extends Disposable {
 	}
 
 	/**
-	 * Releases the server lock, never while a server of ours may still run
-	 * (running, or its exit not observed). The OS handle is closed after the
-	 * pending record work, so a late deletion of our record can never remove
-	 * the next owner's.
+	 * Releases the server lock, never while a server of ours may still run. The OS handle is closed after pending
+	 * record work, so a late deletion of our record can never remove the next owner's.
 	 */
 	private _releaseLock(): Promise<void> {
 		const lock = this._lock;
@@ -1952,11 +1817,7 @@ export class ServerSupervisor extends Disposable {
 		this._state.set({ ...rest, ...(load && state.server === 'starting' ? { load } : {}), ...(loaded && state.server === 'ready' ? { loaded } : {}) }, undefined);
 	}
 
-	/**
-	 * A start or stop asked a start in progress to stop: publish `stopping` at
-	 * once, while the process is still being terminated, so the status no
-	 * longer reads as loading.
-	 */
+	/** A start in progress was asked to stop: publishes `stopping` at once so the status no longer reads as loading. */
 	private _onStartAborted(plan: IServerLaunchPlan): void {
 		const state = this._state.get();
 		if (state.server === 'starting' && state.plan === plan) {
@@ -2030,10 +1891,6 @@ function serverRecordFailedMessage(displayName: string): string {
 
 function stillRunningMessage(displayName: string): string {
 	return localize('localModel.server.stillRunning', "{0}'s server didn't stop and may still be running. Select Stop Previous Server to stop it.", displayName);
-}
-
-function runtimeChangedMessage(displayName: string): string {
-	return localize('localModel.server.runtimeChanged', "{0} didn't start because llama.cpp changed since you approved it. Review it again to continue.", displayName);
 }
 
 function insufficientMemoryMessage(displayName: string): string {

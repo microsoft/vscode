@@ -22,11 +22,7 @@ import { AZURE_ML_DOWNLOAD_HOST_SUFFIXES, BLOB_REQUEST_HEADERS, DOWNLOAD_CONNECT
 import { readGgufArchitectureFromPrefix, type GgufArchitectureRead } from './gguf.js';
 import { acquireProcessLock, clearStaleProcessLock, type IProcessLock, type IProcessLockOptions } from './processLock.js';
 
-/*
- * Sequential, resumable, verified multi-file download. One download at
- * a time per family directory on this machine (a process lock). SAS URLs live
- * only in memory and are never logged; logs carry hosts only.
- */
+/* Sequential, resumable, verified multi-file download, one per family directory per machine. SAS URLs live only in memory and are never logged; logs carry hosts only. */
 
 // #region HTTP transport
 
@@ -44,32 +40,19 @@ export interface ILocalModelHttpResponse {
 	/** Response headers with lowercase names. */
 	readonly headers: Readonly<Record<string, string | undefined>>;
 	readonly body: VSBufferReadableStream;
-	/**
-	 * Transport-level disposal: aborts the request and closes its connection
-	 * when the body has not been read to its end; idempotent. Destroying
-	 * {@link body} alone may leave the connection transferring bytes nobody
-	 * reads. {@link discardResponse} calls it.
-	 */
+	/** Aborts the request and closes its connection when the body wasn't read to its end; idempotent. Destroying {@link body} alone may leave the connection transferring. */
 	abort(): void;
 }
 
-/**
- * Narrow HTTP transport for the catalog and downloader, injectable for tests.
- * Implementations must return 3xx responses instead of following them, so the
- * caller re-checks its URL policy on every hop and strips tokens.
- */
+/** Narrow injectable HTTP transport. Implementations return 3xx responses instead of following them, so the caller re-checks its URL policy on every hop. */
 export interface ILocalModelHttpClient {
 	request(request: ILocalModelHttpRequest, signal: AbortSignal): Promise<ILocalModelHttpResponse>;
 }
 
 /**
- * {@link ILocalModelHttpClient} over `IRequestService`, so proxy, certificate
- * and Kerberos settings apply. Passes `followRedirects: 0`, and `logUrl:
- * false`: the request service logs only the host, never a (signed) URL, its
- * headers or an error message. A response's {@link ILocalModelHttpResponse.abort}
- * cancels the request (a fetch-based request service aborts the fetch) and
- * destroys the raw response (Node's `http.IncomingMessage` then closes its
- * socket), because destroying the body stream does neither.
+ * {@link ILocalModelHttpClient} over `IRequestService`, so proxy, certificate and Kerberos settings apply. Uses
+ * `followRedirects: 0` and `logUrl: false`, so no (signed) URL is logged. {@link ILocalModelHttpResponse.abort} cancels
+ * the request and destroys the raw response (closing its socket), because destroying the body stream does neither.
  */
 export class RequestServiceHttpClient implements ILocalModelHttpClient {
 
@@ -135,12 +118,7 @@ function isDestroyable(value: object): value is { destroy(): void } {
 	return typeof (value as { destroy?: unknown }).destroy === 'function';
 }
 
-/**
- * Reads a response body as text, failing once it exceeds `maxBytes`.
- * The `error` and `end` handlers are attached before `data`: attaching `data`
- * starts the flow, which delivers an error or end buffered before then only
- * to the handlers present at that moment.
- */
+/** Reads a response body as text, failing past `maxBytes`. `error` and `end` handlers attach before `data`, which starts the flow and only reaches handlers present then. */
 export function readResponseText(response: ILocalModelHttpResponse, maxBytes: number, signal?: AbortSignal): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
 		const chunks: VSBuffer[] = [];
@@ -174,12 +152,7 @@ export function readResponseText(response: ILocalModelHttpResponse, maxBytes: nu
 	});
 }
 
-/**
- * Discards a response: aborts its request and connection
- * ({@link ILocalModelHttpResponse.abort}) and destroys its body. Callers
- * discard every response they don't read to its end before they retry or
- * give up, so no abandoned connection keeps transferring.
- */
+/** Discards a response: aborts its request and connection and destroys its body. Discard every response not read to its end before retrying or giving up. */
 export function discardResponse(response: ILocalModelHttpResponse): void {
 	try {
 		response.abort();
@@ -207,11 +180,7 @@ function hasHostSuffix(host: string, suffixes: readonly string[]): boolean {
 	return suffixes.some(suffix => lower.endsWith(suffix) && lower.length > suffix.length);
 }
 
-/**
- * Download URL policy: HTTPS on port 443 only, hosts under
- * {@link AZURE_ML_DOWNLOAD_HOST_SUFFIXES}, no userinfo or fragment.
- * Re-checked on every redirect hop. Pure.
- */
+/** Download URL policy: HTTPS on port 443, hosts under {@link AZURE_ML_DOWNLOAD_HOST_SUFFIXES}, no userinfo or fragment; re-checked on every redirect hop. Pure. */
 export function isAllowedDownloadUrl(url: string): boolean {
 	let parsed: URL;
 	try {
@@ -232,12 +201,9 @@ const MODEL_FILE_NAME_MAX_LENGTH = 200;
 const EXTRA_WINDOWS_DEVICE_NAMES = /^(?:conin\$|conout\$|com[\u00b9\u00b2\u00b3]|lpt[\u00b9\u00b2\u00b3])(?:\.|$)/i;
 
 /**
- * The single validator for a model file name from a registry: a bare
- * name, valid on Windows whatever the platform (no `/`, `\`, `:`, `*`, `?`,
- * `"`, `<`, `>`, `|`, no device names such as `CON` or `NUL.gguf`), without
- * control characters, without `..`, without a leading or trailing dot or
- * space, without anything credential-like (it is persisted in manifests and
- * caches), and at most {@link MODEL_FILE_NAME_MAX_LENGTH} characters. Pure.
+ * The single validator for a registry-provided model file name: a bare name valid on Windows on every platform (no
+ * reserved characters or device names), no control characters, `..`, leading or trailing dot or space, nothing
+ * credential-like (it is persisted), at most {@link MODEL_FILE_NAME_MAX_LENGTH} characters. Pure.
  */
 export function isSafeModelFileName(name: string): boolean {
 	return name.length <= MODEL_FILE_NAME_MAX_LENGTH
@@ -249,11 +215,7 @@ export function isSafeModelFileName(name: string): boolean {
 		&& !containsCredential(name);
 }
 
-/**
- * `dir/name` when `name` passes {@link isSafeModelFileName} and resolves
- * directly beneath `dir`; `undefined` otherwise. Every file system use of a
- * registry-provided name goes through it. Pure.
- */
+/** `dir/name` when `name` passes {@link isSafeModelFileName} and resolves directly beneath `dir`; every file system use of a registry name goes through it. Pure. */
 export function resolveModelFilePath(dir: string, name: string): string | undefined {
 	if (!isSafeModelFileName(name)) {
 		return undefined;
@@ -284,11 +246,7 @@ export type LocalModelDownloadErrorCode =
 	| 'urlPolicy';
 
 export class LocalModelDownloadError extends Error {
-	/**
-	 * @param transient A dropped or stalled connection, a timeout or HTTP
-	 * 5xx/408/429: the transfer is retried from the partial file
-	 * ({@link DOWNLOAD_MAX_TRANSFER_ATTEMPTS}).
-	 */
+	/** @param transient A dropped or stalled connection, a timeout or HTTP 5xx/408/429: retried from the partial file. */
 	constructor(readonly code: LocalModelDownloadErrorCode, message?: string, readonly transient = false) {
 		super(message ?? code);
 		this.name = 'LocalModelDownloadError';
@@ -300,11 +258,7 @@ function fsErrorCode(error: unknown): string | undefined {
 	return typeof code === 'string' ? code : undefined;
 }
 
-/**
- * Localized user-facing error for an acquisition failure.
- * `args` fills the placeholders: `diskFull` -> [needed, volume, available];
- * `insufficientMemory` -> [available, needed].
- */
+/** Localized error for an acquisition failure; `args`: `diskFull` -> [needed, volume, available], `insufficientMemory` -> [available, needed]. */
 export function createLocalModelAcquisitionError(code: LocalModelDownloadErrorCode | 'insufficientMemory' | 'catalogUnavailable', displayName: string, args: readonly string[] = []): ILocalModelErrorV1 {
 	const retry: LocalModelErrorAction[] = ['retry'];
 	switch (code) {
@@ -341,10 +295,7 @@ export function classifyFileSystemError(error: unknown): LocalModelDownloadError
 
 // #region Hashing
 
-/**
- * SHA-256 of a file in {@link HASH_CHUNK_BYTES} chunks, checking `signal`
- * between chunks so cancellation is immediate even for 50 GB files.
- */
+/** SHA-256 of a file in {@link HASH_CHUNK_BYTES} chunks, checking `signal` between chunks so cancellation is immediate even for 50 GB files. */
 export async function computeFileSha256(filePath: string, options: { readonly signal?: AbortSignal; readonly onBytes?: (bytes: number) => void } = {}): Promise<string> {
 	const hash = createHash('sha256');
 	const handle = await fs.promises.open(filePath, 'r');
@@ -377,11 +328,8 @@ export async function computeFileSha256(filePath: string, options: { readonly si
 export const DOWNLOAD_LOCK_TYPE = 'lmdl';
 
 /**
- * Takes the per-family download lock, held for the whole download:
- * a live holder, in this process or another, fails with `lockedElsewhere`
- * ("Downloading in another VS Code window"). The OS releases it when its
- * holder dies, except a socket file left behind on macOS: that fails with
- * `staleLock` until Retry clears it ({@link ModelDownloader.clearStaleLock}).
+ * Takes the per-family download lock for the whole download: a live holder fails with `lockedElsewhere`. A socket file
+ * left behind on macOS fails with `staleLock` until Retry clears it ({@link ModelDownloader.clearStaleLock}).
  */
 async function acquireDownloadLock(familyDir: string, options: IProcessLockOptions | undefined): Promise<IProcessLock> {
 	let lock: IProcessLock | 'busy' | 'stale';
@@ -443,11 +391,7 @@ export interface ILocalModelDownloadRequest {
 	/** Family directory whose download lock is held for the whole download. */
 	readonly familyDir: string;
 	readonly files: readonly IDownloadFileSpec[];
-	/**
-	 * Re-resolves SAS URLs after a 401/403 (at most {@link DOWNLOAD_MAX_SAS_RENEWALS}
-	 * times). Throw `LocalModelDownloadError('accessExpired')` when renewal is
-	 * impossible.
-	 */
+	/** Re-resolves SAS URLs after a 401/403 (at most {@link DOWNLOAD_MAX_SAS_RENEWALS} times); throws `accessExpired` when impossible. */
 	readonly renewFiles?: (signal: AbortSignal) => Promise<readonly IDownloadFileSpec[]>;
 	readonly signal: AbortSignal;
 	readonly onProgress?: (progress: ILocalModelDownloadProgress) => void;
@@ -574,14 +518,9 @@ class ProgressReporter {
 }
 
 /**
- * Downloads a model version's files sequentially: `Range` + `If-Match`
- * resume against the identity sidecar, SAS renewal (<= 2) with unchanged file
- * identity, full-file SHA-256 before placement, atomic placement with rename
- * retries, reuse of verified final files, throttled progress, and immediate
- * cancellation in every phase. A dropped, stalled or timed-out transfer (or
- * HTTP 5xx/408/429) is retried from the partial file with backoff
- * ({@link DOWNLOAD_MAX_TRANSFER_ATTEMPTS}). Partial files and sidecars are
- * kept on cancel so the download can resume.
+ * Downloads a model version's files sequentially: `Range` + `If-Match` resume against the identity sidecar, SAS renewal,
+ * full-file SHA-256 before atomic placement, and immediate cancellation in every phase. Transient failures retry from
+ * the partial file with backoff; partial files and sidecars are kept on cancel so the download can resume.
  */
 export class ModelDownloader {
 
@@ -798,7 +737,6 @@ export class ModelDownloader {
 			}
 		}
 
-		// Verify, then place.
 		progress.report('verifying', completedBefore, index, true);
 		const partialSize = (await statOrUndefined(partialPath))?.size ?? -1;
 		const hash = partialSize === spec.sizeBytes
@@ -979,10 +917,7 @@ export class ModelDownloader {
 	}
 }
 
-/**
- * Settles with `request`, or rejects with `cancelled` once `signal` aborts
- * first; a response that arrives after that is discarded.
- */
+/** Settles with `request`, or rejects with `cancelled` once `signal` aborts first; a later response is discarded. */
 function raceAbort(request: Promise<ILocalModelHttpResponse>, signal: AbortSignal): Promise<ILocalModelHttpResponse> {
 	return new Promise<ILocalModelHttpResponse>((resolve, reject) => {
 		const onAbort = () => {
@@ -1036,11 +971,7 @@ async function writeSidecar(sidecarPath: string, sidecar: IPartialSidecar): Prom
 	}
 }
 
-/**
- * Whether the partial download of `spec` in `targetDir` (its identity
- * sidecar matches `modelId`, size, SHA-256 and ETag) can be read: the local
- * path of its bytes, or `undefined`.
- */
+/** The local path of `spec`'s partial download in `targetDir` when its identity sidecar matches, else `undefined`. */
 export async function findResumablePartial(targetDir: string, modelId: string, spec: Pick<IDownloadFileSpec, 'relativePath' | 'sizeBytes' | 'sha256' | 'etag'>): Promise<string | undefined> {
 	const finalPath = resolveModelFilePath(targetDir, spec.relativePath);
 	if (!finalPath) {
@@ -1079,13 +1010,9 @@ type RangeFetch =
 	| { readonly kind: 'unknown'; readonly reason: 'network' | 'http' | 'urlPolicy' };
 
 /**
- * Reads `general.architecture` of a remote GGUF before it is downloaded
- * with `Range` requests under the download URL policy, re-checked on
- * every redirect hop, with the file's ETag as `If-Match`. Reads the first
- * `initialBytes`, then doubles up to `maxBytes`, each request fetching only
- * the bytes not read yet, and stops as soon as the key is found. Logs hosts
- * only. Every failure is an `unknown` result; only cancellation throws
- * (`LocalModelDownloadError('cancelled')`).
+ * Reads `general.architecture` of a remote GGUF before download with `Range` requests under the download URL policy
+ * (`If-Match` on its ETag), doubling from `initialBytes` up to `maxBytes` until the key is found. Logs hosts only;
+ * every failure is an `unknown` result and only cancellation throws.
  */
 export async function readRemoteGgufArchitecture(request: IRemoteGgufArchitectureRequest): Promise<GgufArchitectureRead> {
 	const total = request.file.sizeBytes;
@@ -1270,11 +1197,7 @@ export function reportLocalModelSetup(telemetryService: Pick<ITelemetryService, 
 	telemetryService.publicLog2<ILocalModelSetupEvent, LocalModelSetupClassification>('localModel.setup', event);
 }
 
-/**
- * A model architecture for telemetry: a name from the fixed allowlist of
- * public llama.cpp architectures, `other` for any other name, or empty when
- * it is unknown. Never a free-form string. Pure.
- */
+/** A model architecture for telemetry: a name from the allowlist of public llama.cpp architectures, `other`, or empty when unknown. Pure. */
 export function toTelemetryArchitecture(architecture: string | undefined): string {
 	if (!architecture) {
 		return '';

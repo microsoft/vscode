@@ -6,6 +6,7 @@
 import type { ModelCapabilitiesOverride, NamedProviderConfig, ProviderModelConfig } from '@github/copilot-sdk';
 import * as fs from 'fs';
 import * as os from 'os';
+import { Throttler } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -30,7 +31,7 @@ import { createLocalModelAcquisitionError, findResumablePartial, LocalModelDownl
 import { detectChatTemplateThinking, type LocalModelThinkingSupport } from '../localModelThinking.js';
 import { estimateContextMemory, estimateContextMemoryBytes, hasRecurrentLayers, LLAMA_DEFAULT_BATCH, LLAMA_DEFAULT_UBATCH, readGgufArchitectureFromFile, readGgufModelMetadataFromFile, type GgufArchitectureRead, type IGgufModelMetadata } from './gguf.js';
 import { GpuMemoryProbe, NVIDIA_VENDOR_ID, toLocalModelDeviceVendor, type IGpuAdapter, type IGpuMemoryProbeResult } from './gpuMemoryProbe.js';
-import { createLlamaRuntimeError, createLlamaRuntimeMissingError, getFlagSupport, LlamaCppRuntime, sanitizeLlamaArchitecture, type ILlamaRuntimeResolution, type ILlamaServerCandidate, type LlamaArchitectureSupport } from './llamaCppInstaller.js';
+import { createLlamaRuntimeError, createLlamaRuntimeMissingError, getFlagSupport, getLlamaServerKey, LlamaCppRuntime, sanitizeLlamaArchitecture, type ILlamaRuntimeResolution, type LlamaArchitectureSupport } from './llamaCppRuntime.js';
 import { buildLlamaPresetArgs, parseLlamaConfigJson, parseLlamaPreset, type ILlamaPreset } from './llamaPreset.js';
 import { isSha256Hex, isValidCapiId, isValidFamilyId, LocalModelCatalogError, ModelCatalog, sanitizeDisplayName, sourceKey, toLocalModelOffer, computeCatalogState, type ILocalModelProfile, type IMergedCatalogFamily, type IResolvedModelVersion } from './modelCatalog.js';
 import { NodeLongLivedProcessSpawner, NodeProcessControl, NodeProcessRunner, type IProcessRunner } from './processRunner.js';
@@ -43,12 +44,12 @@ import { checkAdmission, chooseServingProfile, computeFitClass, computeFootprint
 import { AZURE_ML_MODELS_DIR_NAME, LocalModelStore, LocalModelStoreError, type ILocalModelInstalledVersion, toCatalogInstallFact } from './store.js';
 import { TurnLedger } from './turnLedger.js';
 
-/** The status published before the catalog, device probe and runtime detection have run. */
+/** The status published before the catalog, device probe and runtime resolution have run. */
 export function createInitialLocalModelStatus(useInAuto: boolean): ILocalModelStatusV1 {
 	return {
 		schemaVersion: 1,
 		device: { confidence: 'unknown' },
-		runtime: { source: 'none', trust: 'none' },
+		runtime: {},
 		catalog: { state: 'loading', registries: { azureml: 'loading' } },
 		families: [],
 		useInAuto,
@@ -64,12 +65,9 @@ export type IShimCatalog = Pick<ModelCatalog, 'snapshot' | 'onDidChange' | 'isSt
 export type IShimStore = Pick<LocalModelStore, 'familyDir' | 'versionDir' | 'beginVersion' | 'commitVersion' | 'listInstalled' | 'verifyAdoptedVersion' | 'pruneOwnedVersions' | 'removeFamily' | 'checkDiskSpace'>;
 
 /** The runtime surface the provider uses ({@link LlamaCppRuntime}). */
-export type IShimRuntime = Pick<LlamaCppRuntime, 'resolve' | 'approve' | 'listDevices' | 'verifyApproval' | 'checkArchitectureSupport'>;
+export type IShimRuntime = Pick<LlamaCppRuntime, 'resolve' | 'listDevices' | 'checkArchitectureSupport'>;
 
-/**
- * Everything the provider composes, injected so tests can supply fakes and
- * the Agent Host supplies {@link createNodeShimLocalModelProviderHost}.
- */
+/** The provider's dependencies, injected so tests can supply fakes. */
 export interface IShimLocalModelProviderHost {
 	readonly platform: NodeJS.Platform;
 	readonly arch: string;
@@ -103,7 +101,7 @@ export interface IShimLocalModelProviderHost {
 // #region Durable state (AH storage)
 
 const PROVIDER_STATE_KEY = 'localModel.provider';
-/** A {@link IProviderState.speculativeUnsupported} entry: runtime digest and content id. */
+/** A {@link IProviderState.speculativeUnsupported} entry: the llama-server's key ({@link getLlamaServerKey}) and content id. */
 const SPECULATIVE_KEY_PATTERN = /^[0-9a-f]{64}:[0-9a-f]{64}$/;
 const SPECULATIVE_UNSUPPORTED_MAX = 64;
 
@@ -113,16 +111,10 @@ export interface ILocalModelSetupRecord {
 	readonly familyId: string;
 	readonly kind: 'setup' | 'update';
 	readonly target: { readonly source: LocalModelRegistryName; readonly assetName: string; readonly version: string; readonly contentId?: string };
-	/** The scope the client consented to. */
 	readonly consentScope: string;
 	/** The offer facts at consent time (source, build kind, sizes, license); a change asks again. */
 	readonly offerScope: string;
-	/**
-	 * Whether the consent agreed to download the model (it showed its download
-	 * size, source and license), not only to use model files already on this
-	 * device. A setup agreed to only for those files never downloads: when they
-	 * are gone, it asks again.
-	 */
+	/** Whether consent covered downloading the model, not only using model files already on this device. */
 	readonly downloadAgreed: boolean;
 	readonly intent: 'running' | 'pausedByUser';
 	readonly resumeOnStartup: boolean;
@@ -140,7 +132,6 @@ interface IFamilyMeta {
 
 interface IProviderState {
 	readonly schemaVersion: 1;
-	/** The active family. */
 	active?: string;
 	/** Families whose setup completed, with the content that was set up. */
 	setUp: Record<string, string>;
@@ -152,11 +143,7 @@ interface IProviderState {
 	operations: ILocalModelSetupRecord[];
 	/** Families Stage B found insufficient at setup; cleared on a topology change. */
 	hidden: string[];
-	/**
-	 * `<runtime digest>:<content id>` of models whose speculative decoding
-	 * (DFlash) crashed that llama.cpp build on its first completion: later
-	 * starts skip it directly.
-	 */
+	/** `<llama-server key>:<content id>` of models whose speculative decoding (DFlash) crashed that llama.cpp build; later starts skip it. */
 	speculativeUnsupported: string[];
 	/** The context size the user chose per family; absent until they choose one. */
 	contextTokens: Record<string, number>;
@@ -167,7 +154,6 @@ interface IProviderState {
 /** The duration of one successful load, keyed by what makes loads comparable. */
 interface ILoadDurationRecord {
 	readonly contentId: string;
-	/** The llama.cpp device it loaded on. */
 	readonly device: string;
 	/** Total `--ctx-size`. */
 	readonly ctxSize: number;
@@ -201,13 +187,9 @@ function readStringRecord(value: unknown, isValidKey: (key: string) => boolean, 
 }
 
 /**
- * Validating reader for a persisted setup record: the operation id, family id
- * and target identifiers pass {@link isSafeRegistryIdentifier} (the family id
- * is a valid lowercase CAPI id), any content id is a SHA-256, and nothing in
- * the record holds a credential. A failing record is dropped, never repaired,
- * as is a record of a kind this version no longer runs (the former `replace`
- * of Switch to Public Build). The llama.cpp choice of older records is
- * ignored: a setup only downloads the model. Pure.
+ * Validating reader for a persisted setup record: identifiers must pass
+ * {@link isSafeRegistryIdentifier}, content ids must be SHA-256s and nothing may hold a
+ * credential. A failing record, or one of a kind this version no longer runs, is dropped. Pure.
  */
 function readSetupRecord(value: unknown): ILocalModelSetupRecord | undefined {
 	if (!isRecord(value) || containsCredential(value) || !isSafeRegistryIdentifier(value.operationId) || !isValidFamilyId(value.familyId) || !isRecord(value.target)) {
@@ -242,11 +224,8 @@ function readLimits(value: unknown): ILocalModelFamilyLimits | undefined {
 }
 
 /**
- * Validating reader for the provider's durable state. Every family id (as a
- * key or a value) is a valid lowercase CAPI id, a family's `capiId` lowercases
- * to its family id, content ids are SHA-256s, and an entry that holds anything
- * credential-like ({@link containsCredential}) is dropped on its own; `dropped`
- * counts what was left out. Pure.
+ * Validating reader for the provider's durable state: family ids must be valid lowercase CAPI
+ * ids and content ids SHA-256s; a credential-like entry is dropped on its own and counted in `dropped`. Pure.
  */
 function readProviderState(value: unknown): { readonly state: IProviderState; readonly dropped: number } {
 	const state: IProviderState = { schemaVersion: 1, setUp: {}, families: {}, readyOffers: {}, consent: [], measured: {}, operations: [], hidden: [], speculativeUnsupported: [], contextTokens: {}, loadDurations: [] };
@@ -311,11 +290,7 @@ function readProviderState(value: unknown): { readonly state: IProviderState; re
 	return { state, dropped: Math.max(0, total - kept) };
 }
 
-/**
- * A copy of `state` for Agent Host storage without any entry that holds
- * anything credential-like ({@link containsCredential}), and how many entries
- * were left out. The in-memory state is unchanged. Pure.
- */
+/** A copy of `state` for storage without credential-like entries ({@link containsCredential}), and how many were dropped. Pure. */
 function scrubProviderStateForStorage(state: IProviderState): { readonly state: IProviderState; readonly dropped: number } {
 	const setUp = dropCredentialEntries(state.setUp);
 	const readyOffers = dropCredentialEntries(state.readyOffers);
@@ -351,11 +326,7 @@ function scrubProviderStateForStorage(state: IProviderState): { readonly state: 
 
 // #region Pure helpers
 
-/**
- * The offer facts a consent covers (source, build kind, sizes, license), as a
- * consent-scope fingerprint without the runtime part. A paused operation whose
- * offer scope changed asks again. Pure.
- */
+/** The consent-scope fingerprint of the offer facts (source, build kind, sizes, license), without the runtime part. Pure. */
 export function computeLocalModelOfferScope(family: Pick<ILocalModelFamilyV1, 'familyId' | 'offer'>): string {
 	return computeLocalModelConsentScope({ family: { familyId: family.familyId, offer: family.offer } });
 }
@@ -369,11 +340,7 @@ interface ICandidateDevice {
 	readonly unifiedMemory: boolean;
 }
 
-/**
- * Picks the device with the largest total that gives `full` or `near` for
- * `requiredBytes`, honouring each device's own memory kind (a UMA
- * APU next to a smaller discrete GPU). Pure.
- */
+/** Picks the largest device that gives `full` or `near` for `requiredBytes`, honouring each device's own memory kind. Pure. */
 export function selectCandidateDevice<T extends Pick<ICandidateDevice, 'totalBytes' | 'unifiedMemory'>>(devices: readonly T[], requiredBytes: number, systemMemoryBytes: number): { readonly device: T; readonly fit: 'full' | 'near' } | undefined {
 	for (const device of [...devices].sort((a, b) => b.totalBytes - a.totalBytes)) {
 		const fit = computeFitClass({ capacityBytes: device.totalBytes, requiredBytes, systemMemoryBytes, systemMemoryCountedAsGpuBytes: device.unifiedMemory ? device.totalBytes : 0 });
@@ -412,19 +379,15 @@ export interface ILocalModelContextInput {
 	readonly familyLimitTokens: number | undefined;
 	/** The preset's context per slot: an upper bound, not the default. */
 	readonly presetTokens: number;
-	/** The size the user chose, if any. */
 	readonly chosenTokens: number | undefined;
 	/** The estimated GPU memory of the whole model served at `tokens` per slot. */
 	readonly gpuBytesAt: (tokens: number) => number;
 }
 
 /**
- * The selectable context sizes of an installed family: {@link CONTEXT_SIZE_OPTIONS}
- * up to the smallest of its trained context, its limits and its preset (just
- * that bound, rounded down to 256 tokens, when it is below every option),
- * and the selected one: the user's choice while it is still offered, else
- * {@link DEFAULT_CONTEXT_SIZE}, else the largest option below it, else the
- * smallest. Pure.
+ * The selectable context sizes of an installed family ({@link CONTEXT_SIZE_OPTIONS} up to its
+ * smallest bound) and the selected one: the user's choice while still offered, else
+ * {@link DEFAULT_CONTEXT_SIZE}, else the largest option below it, else the smallest. Pure.
  */
 export function computeLocalModelContext(input: ILocalModelContextInput): ILocalModelContextV1 {
 	const cap = Math.min(input.trainedTokens ?? Infinity, input.familyLimitTokens ?? Infinity, input.presetTokens);
@@ -456,11 +419,7 @@ export interface IServingFootprintInput {
 	readonly ubatchTokens: number;
 }
 
-/**
- * The GPU memory of a model served with `ctxSize` total context: its weights,
- * the draft's when used, and the KV, sliding-window, recurrent and compute
- * buffers of both, estimated from their GGUF headers. Pure.
- */
+/** The GPU memory of a model served with `ctxSize` total context (weights, draft and buffers), estimated from GGUF headers. Pure. */
 export function estimateServingFootprint(input: IServingFootprintInput, ctxSize: number): number {
 	const options = { ubatchTokens: input.ubatchTokens, parallel: input.parallel };
 	const draftContext = input.draft?.metadata ? estimateContextMemoryBytes(input.draft.metadata, ctxSize, options) : 0;
@@ -472,11 +431,8 @@ export function estimateServingFootprint(input: IServingFootprintInput, ctxSize:
 }
 
 /**
- * The sentinel provider and one direct row per installed family. The
- * single SDK typing adaptation lives here: the public capability override type
- * lacks `supports.toolCalls`, which the runtime accepts. A row whose chat
- * template has a thinking control declares `supports.reasoningEffort`, so the
- * runtime sends the session's `reasoning_effort` with its requests.
+ * The sentinel provider and one direct row per installed family. The public capability override
+ * type lacks `supports.toolCalls`, which the runtime accepts, so that typing is adapted here.
  */
 export function buildLocalModelSessionConfig(rows: readonly ILocalModelModelRow[]): ILocalModelSessionConfigContribution {
 	if (!rows.length) {
@@ -505,11 +461,7 @@ function formatBytes(bytes: number): string {
 	return ByteSize.formatSize(bytes);
 }
 
-/**
- * The first candidate that is a safe display name ({@link sanitizeDisplayName}):
- * display names reach the UI, logs and status messages, so a value from disk or
- * storage that could carry a URL or credential is skipped. Pure.
- */
+/** The first safe display name ({@link sanitizeDisplayName}); names reach the UI and logs, so values that could carry a URL or credential are skipped. Pure. */
 function firstSafeDisplayName(...candidates: (string | undefined)[]): string | undefined {
 	for (const candidate of candidates) {
 		const safe = candidate !== undefined ? sanitizeDisplayName(candidate) : undefined;
@@ -562,7 +514,7 @@ interface IOperation {
 	record?: ILocalModelSetupRecord;
 	/** The model architecture read before the download (validated), for telemetry and the load after it. */
 	architecture?: string;
-	/** The architecture probe's answer for {@link architecture} (when an approved llama.cpp could be asked), for telemetry and the load after it. */
+	/** The architecture probe's answer for {@link architecture} (when a qualified llama.cpp could be asked), for telemetry and the load after it. */
 	architectureSupport?: LlamaArchitectureSupport;
 	autoResumed: boolean;
 	started: number;
@@ -573,12 +525,7 @@ type StartTrigger = 'install' | 'direct' | 'auto' | 'useInAuto' | 'explicit' | '
 
 class OperationCancelled extends Error { }
 
-/**
- * The request-handler bridge's {@link ILocalModelProvider}.
- *
- * Composes the catalog, store, downloader, llama.cpp runtime, GPU probe,
- * serving profiles, the server supervisor and the request router.
- */
+/** The request-handler bridge's {@link ILocalModelProvider}: composes the catalog, store, downloader, runtime, GPU probe, supervisor and router. */
 export class ShimLocalModelProvider extends Disposable implements ILocalModelProvider {
 
 	private readonly _status = observableValue<ILocalModelStatusV1>(this, createInitialLocalModelStatus(false));
@@ -607,7 +554,9 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	private _initialized = false;
 	private _stageA: IGpuMemoryProbeResult | undefined;
 	private _topologyKey = '';
-	private _runtime: ILlamaRuntimeResolution = { runtime: { source: 'none', trust: 'none' }, approved: false };
+	private _runtime: ILlamaRuntimeResolution = { runtime: {} };
+	/** Serializes runtime resolutions ({@link _refreshRuntime}). */
+	private readonly _runtimeResolution = this._register(new Throttler());
 	/** The current activation: aborted and replaced whenever pending loads are superseded. */
 	private _activation = new AbortController();
 	private _installs: readonly ILocalModelInstalledVersion[] = [];
@@ -710,7 +659,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 
 	private async _initialize(): Promise<void> {
 		await this._step('device probe', () => this._refreshDevice(false));
-		await this._step('runtime detection', () => this._refreshRuntime());
+		await this._step('runtime resolution', () => this._refreshRuntime());
 		await this._step('installs', () => this._refreshInstalls());
 		this._recompute();
 		void this._refreshRouterEnv();
@@ -740,7 +689,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			return;
 		}
 		if (previous.llamaServerPath !== config.llamaServerPath) {
-			await this._step('runtime detection', () => this._refreshRuntime());
+			await this._step('runtime resolution', () => this._refreshRuntime());
 			this._recompute();
 		}
 		if (!previous.enabled) {
@@ -749,7 +698,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			this._recompute();
 		}
 		if (!previous.useInAuto && config.useInAuto) {
-			// Use in Auto was turned on: load the active model in the background.
 			this._backgroundStart('useInAuto');
 		}
 		if ((!previous.accountGate && config.accountGate) || !previous.enabled) {
@@ -760,7 +708,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	private _onDispose(): void {
 		this._catalogTimer?.dispose();
 		this._activation.abort();
-		// Open turns no longer hold anything.
 		this._ledger.dispose();
 		// A quit: running acquisitions keep `resumeOnStartup` and resume on the next start.
 		for (const operation of this._operations.values()) {
@@ -774,10 +721,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		this._swap?.done();
 	}
 
-	/**
-	 * Supersedes any pending load (a swap, stop, removal or disable): a start
-	 * still preparing its launch plan is abandoned before anything is spawned.
-	 */
+	/** Supersedes any pending load: a start still preparing its launch plan is abandoned before anything is spawned. */
 	private _invalidateActivation(): void {
 		this._activation.abort();
 		this._activation = new AbortController();
@@ -812,14 +756,12 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		this._stageA = outcome.result;
 		this._topologyKey = outcome.result.topologyKey;
 		if (changed) {
-			// GPU topology change: cached capability and the selected device are recomputed.
 			this._logService.info('[LocalModel] GPU topology changed; re-probing llama.cpp devices');
 			this._state.hidden = [];
 			this._persist();
 		}
 		if (wasSupported && !this._isSupportedDevice()) {
-			// On-device models are no longer offered here, so nothing may keep running unseen: a pending
-			// load is abandoned and the server stops (loads refuse to start on such a device).
+			// Nothing may keep running unseen on a device on-device models are no longer offered for.
 			this._logService.info('[LocalModel] This device no longer has a GPU on-device models are offered for; stopping the on-device model');
 			this._invalidateActivation();
 			void this._supervisor.stop('system');
@@ -828,8 +770,14 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		return changed;
 	}
 
-	private async _refreshRuntime(): Promise<void> {
-		this._runtime = await this._host.runtime.resolve({ enabled: !!this._liveConfig?.enabled, settingPath: this._liveConfig?.llamaServerPath, topologyKey: this._topologyKey });
+	/**
+	 * Resolves the setting's llama-server. Serialized: an older resolution never overwrites a newer one, and the calls
+	 * made while one runs share a single next one, which reads the configuration current then.
+	 */
+	private _refreshRuntime(): Promise<void> {
+		return this._runtimeResolution.queue(async () => {
+			this._runtime = await this._host.runtime.resolve({ enabled: !!this._liveConfig?.enabled, settingPath: this._liveConfig?.llamaServerPath, topologyKey: this._topologyKey });
+		});
 	}
 
 	private async _refreshInstalls(): Promise<void> {
@@ -894,11 +842,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		}
 	}
 
-	/**
-	 * Orphan recovery: a verified orphan is stopped; another
-	 * live owner, or a server that may still run, is reported on every
-	 * installed family. `stopPrevious` is the user's Stop Previous Server.
-	 */
+	/** Orphan recovery: stops a verified orphan and reports another live owner on every installed family. `stopPrevious` is the user's Stop Previous Server. */
 	private async _checkPreviousServers(stopPrevious = false): Promise<void> {
 		if (!this._installs.length) {
 			return;
@@ -1001,10 +945,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * The warning for an installed family: only when the largest device's
-	 * total GPU memory (a static capacity: never current free memory, so never
-	 * counting what a loaded model of ours holds) is below its footprint at the
-	 * selected context. The catalog (offers, registries) plays no part.
+	 * The warning for an installed family whose footprint exceeds the largest device's total GPU memory.
+	 * Uses static capacity, never free memory, so a loaded model of ours never counts against it.
 	 */
 	private _memoryWarningFor(requiredBytes: number): ILocalModelMemoryWarningV1 | undefined {
 		const capacityBytes = Math.max(0, ...this._candidateDevices().devices.map(device => device.totalBytes));
@@ -1076,7 +1018,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			return true;
 		}
 		const support = getFlagSupport(capability);
-		return support.dflashSupported && support.flags.has('--device-draft') && !this._state.speculativeUnsupported.includes(`${capability.sha256}:${install.contentId}`);
+		return support.dflashSupported && support.flags.has('--device-draft') && !this._state.speculativeUnsupported.includes(`${getLlamaServerKey(capability)}:${install.contentId}`);
 	}
 
 	/** The selectable context sizes of a family and its selection, from the given facts and header. */
@@ -1090,11 +1032,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		});
 	}
 
-	/**
-	 * The family's context sizes with their estimated GPU memory, once its
-	 * header is read; `undefined` before. `withDraft` counts the DFlash draft
-	 * when a load would use it.
-	 */
+	/** The family's context sizes with estimated GPU memory once its header is read; `withDraft` counts the DFlash draft when a load would use it. */
 	private _contextOf(familyId: string, install: ILocalModelInstalledVersion, withDraft = true): ILocalModelContextV1 | undefined {
 		const facts = this._serveFacts.get(familyId);
 		if (!facts || facts.contentId !== install.contentId) {
@@ -1132,7 +1070,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 				fitClass: result.fit,
 				visible: isOfferableFit(result.fit) && !this._state.hidden.includes(family.familyId),
 				target: this._target,
-				runtimeSource: this._runtime.runtime.source,
 				backend: result.device?.backend || 'none',
 				profile,
 				gpuMemoryGiB: toGiB(capacity),
@@ -1191,7 +1128,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			}
 		}
 		const fitRank = (family: ILocalModelFamilyV1) => family.offer?.fit === 'full' ? 0 : family.offer?.fit === 'near' ? 1 : 2;
-		// Listing order: Auto-capable first, then `full` before `near`, then by name.
 		families.sort((a, b) => Number(b.autoCapable) - Number(a.autoCapable) || fitRank(a) - fitRank(b) || a.displayName.localeCompare(b.displayName));
 		const offerable = merged.filter(family => family.offer).length;
 		const active = supported ? this._projectActive() : undefined;
@@ -1206,11 +1142,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		};
 	}
 
-	/**
-	 * Whether on-device models are offered on this device: the GPU the device
-	 * probe selected (Stage A) is NVIDIA's. Unknown or other devices list
-	 * nothing, not even models already installed.
-	 */
+	/** Whether on-device models are offered here: the selected GPU is NVIDIA's. Other or unknown devices list nothing, not even installs. */
 	private _isSupportedDevice(): boolean {
 		return this._stageA?.adapter?.vendorId === NVIDIA_VENDOR_ID;
 	}
@@ -1296,11 +1228,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		};
 	}
 
-	/**
-	 * A swap or update waits for running responses only while there
-	 * are some: once none run, the old server is being unloaded for the new
-	 * load, which is reported as part of loading rather than as waiting.
-	 */
+	/** A swap or update reports waiting only while responses run; once none do, unloading the old server is reported as loading. */
 	private _projectPhase(operation: IOperation): LocalModelOperationPhase | undefined {
 		if (operation.phase !== 'draining' || operation.kind === 'remove') {
 			return operation.phase;
@@ -1350,10 +1278,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		};
 	}
 
-	/**
-	 * The load in progress, with the duration of the last comparable load (same content, device, context size and DFlash use)
-	 * and why it is a retry (a start without DFlash after speculative decoding crashed this llama.cpp build).
-	 */
+	/** The load in progress, with the last comparable load's duration and why it is a retry (without DFlash after it crashed this build). */
 	private _projectLoad(contentId: string, load: IServerLoadProgress): ILocalModelLoadV1 {
 		const key = { contentId, device: load.device, ctxSize: load.config.ctxSize, speculative: load.config.speculative };
 		const expectedMs = this._state.loadDurations.findLast(record => isSameLoad(record, key))?.durationMs;
@@ -1443,7 +1368,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			target,
 			consentScope: consent.scope,
 			offerScope: computeLocalModelOfferScope(family),
-			// What the consent showed: a download, or only the model files already on this device.
 			downloadAgreed: !family.entry?.modelFilesPresent && !!family.offer,
 			intent: 'running',
 			resumeOnStartup: true,
@@ -1451,9 +1375,9 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		void this._runAcquisition(operation);
 	}
 
-	/** Whether a llama.cpp is approved and qualified to serve: without one, a downloaded model isn't loaded on its own. */
+	/** Whether the setting's llama.cpp qualified to serve: without one, a downloaded model isn't loaded on its own. */
 	private _hasUsableRuntime(): boolean {
-		return this._runtime.approved && !!this._runtime.candidate && !!this._runtime.capability;
+		return !!this._runtime.capability;
 	}
 
 	async update(familyId: string, consent: ILocalModelConsent | undefined, _token: CancellationToken): Promise<void> {
@@ -1671,7 +1595,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		operation.pausedReason = 'user';
 		operation.bytesPerSecond = undefined;
 		operation.error = undefined;
-		// An explicit cancel never resumes automatically.
 		this._updateRecord(operation, { intent: 'pausedByUser', resumeOnStartup: false });
 		this._reportSetup({ phase: 'download', outcome: 'paused', pausedReason: 'user', registry: operation.record?.target.source ?? '' });
 		this._recompute();
@@ -1699,12 +1622,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		void this._runAcquisition(operation, true);
 	}
 
-	/**
-	 * Restores durable setup records: a record interrupted by a quit or
-	 * crash resumes once the gates, disk space and resolved content check out;
-	 * changed content or consent scope pauses with `consentChanged`; an explicit
-	 * cancel stays paused.
-	 */
+	/** Restores durable setup records: an interrupted one resumes once its checks pass, a changed scope pauses with `consentChanged`, and an explicit cancel stays paused. */
 	private _restoreOperations(): void {
 		if (!this._initialized || this._store.isDisposed || !this._liveConfig?.enabled) {
 			return;
@@ -1726,8 +1644,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			};
 			this._operations.set(record.familyId, operation);
 			if (operation.pausedReason === 'consentChanged' && this._acquiredTargetContent(operation)) {
-				// Paused for consent although its files were already in place (for example by a consent check
-				// of an earlier format): only its load is left, which downloads nothing. Resume loads it.
+				// Paused for consent although its files are already in place: only its load is left, so Resume loads it.
 				operation.pausedReason = 'user';
 				this._updateRecord(operation, { pausedReason: undefined });
 			}
@@ -1748,7 +1665,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			return;
 		}
 		if (this._downloadsWithoutConsent(operation)) {
-			// Agreed to for the model files on this device, which are gone: a download needs the user's consent.
 			this._logService.info('[LocalModel] The model files the setup was agreed for are gone; asking before downloading');
 			this._pauseFor(operation, 'consentChanged');
 			return;
@@ -1794,11 +1710,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		return operation.kind !== 'setup' || !this._installFor(operation.familyId);
 	}
 
-	/**
-	 * Whether acquiring now would download the model although its consent
-	 * agreed only to use model files already on this device: those files are
-	 * gone, or are other files now. Such a setup never downloads; it asks again.
-	 */
+	/** Whether acquiring now would download although consent covered only model files on this device, which are gone or changed. */
 	private _downloadsWithoutConsent(operation: IOperation): boolean {
 		const record = operation.record;
 		if (!record || operation.kind !== 'setup' || record.downloadAgreed) {
@@ -1808,11 +1720,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		return !onDisk || (!!record.target.contentId && record.target.contentId !== onDisk.contentId);
 	}
 
-	/**
-	 * Whether a setup already acquired exactly the content it targets (downloaded and
-	 * placed, or verified): it keeps its record through its first load, and loading
-	 * downloads nothing, so its consent needs no new check.
-	 */
+	/** Whether a setup already acquired exactly its target content, so loading downloads nothing and its consent needs no new check. */
 	private _acquiredTargetContent(operation: IOperation): boolean {
 		const contentId = operation.record?.target.contentId;
 		return operation.kind === 'setup' && !!contentId
@@ -1821,12 +1729,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Whether a record's retained consent still covers what would be acquired
-	 * now, judged against the current catalog: the offer facts of the build
-	 * (sizes, license; the targeted build must still be offered), and that a
-	 * consent for files already on this device is not used to download. A
-	 * setup whose content is already acquired only loads, so its consent holds.
-	 * The one check behind the automatic resume, Resume and Retry.
+	 * Whether a record's retained consent still covers what would be acquired now, judged against
+	 * the current catalog. The one check behind the automatic resume, Resume and Retry.
 	 */
 	private _checkRetainedConsent(operation: IOperation): 'holds' | 'offerChanged' | 'downloadNotAgreed' {
 		if (this._acquiredTargetContent(operation)) {
@@ -1844,11 +1748,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Resume and Retry: before anything is acquired, the retained
-	 * consent is checked like the automatic resume does, against a catalog that
-	 * was queried again when the registry was unreachable or not yet loaded (a
-	 * restart while offline). A change pauses with `consentChanged`; a registry
-	 * that is still unreachable pauses with `network`.
+	 * Resume and Retry: checks the retained consent, querying the catalog again when the registry was
+	 * unreachable. A change pauses with `consentChanged`; a still-unreachable registry with `network`.
 	 */
 	private async _ensureRetainedConsent(operation: IOperation): Promise<void> {
 		const record = operation.record;
@@ -1875,12 +1776,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		}
 	}
 
-	/**
-	 * {@link _findProfile} for a (re)started acquisition. When the registry was
-	 * unreachable at the last refresh (or is being queried), it is queried again
-	 * first: that stale state would otherwise pause (or misjudge) every Resume
-	 * and Retry until an unrelated refresh.
-	 */
+	/** {@link _findProfile}, querying an unreachable registry again first so stale state doesn't pause every Resume and Retry. */
 	private async _findProfileRefreshing(operation: IOperation, record: ILocalModelSetupRecord): Promise<ILocalModelProfile | undefined> {
 		const profile = this._findProfile(record.target);
 		const state = this._catalog.snapshot.publicState;
@@ -1902,11 +1798,10 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		const abort = operation.abort;
 		try {
 			if (resumed) {
-				// Resume, Retry and the automatic resume carry a consent given earlier: it must still hold.
 				await this._ensureRetainedConsent(operation);
 				this._throwIfCancelled(abort);
 			}
-			// Downloading never needs llama.cpp. With an approved one, Stage B asks it about this device's GPUs first.
+			// Downloading never needs llama.cpp. With a qualified one, Stage B asks it about this device's GPUs first.
 			if (operation.kind === 'setup' && this._hasUsableRuntime() && !await this._checkDevice(operation)) {
 				return;
 			}
@@ -1931,15 +1826,13 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Stage B of the visibility check, when an approved llama.cpp can be asked:
-	 * an insufficient device stops before the model download and hides the
-	 * family. A llama.cpp that changed or can't list devices only skips the
-	 * check: the download doesn't need it, and the load reports it.
+	 * Stage B visibility check with a qualified llama.cpp: an insufficient device stops before the
+	 * download and hides the family. A llama.cpp that can't list devices skips the check.
 	 */
 	private async _checkDevice(operation: IOperation): Promise<boolean> {
 		this._setPhase(operation, 'checkingDevice');
 		const host = this._host;
-		const candidate = this._runtime.candidate!;
+		const capability = this._runtime.capability!;
 		// The requirement of the build being set up. Never judge a device against an unknown one (a registry
 		// that was unreachable at the last refresh): that would hide the model and drop the setup for good.
 		const record = operation.record;
@@ -1950,20 +1843,12 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 				throw this._missingProfilePause();
 			}
 		}
-		// Runs only if the install's fresh runtime digest (executable plus libraries) still carries its approval.
-		const listing = await host.runtime.listDevices(candidate, operation.abort.signal);
+		const devices = await host.runtime.listDevices(capability.realPath, operation.abort.signal);
 		this._throwIfCancelled(operation.abort);
-		if (listing.kind === 'untrusted') {
-			this._logService.warn('[LocalModel] The approved llama-server changed; downloading without asking it about this device');
-			await this._refreshRuntime();
-			this._recompute();
-			return true;
-		}
-		if (listing.kind === 'failed') {
+		if (!devices) {
 			this._logService.warn('[LocalModel] llama.cpp could not list GPU devices; downloading without asking it about this device');
 			return true;
 		}
-		const devices = listing.devices;
 		const required = profile?.recommendedVramBytes ?? this._requiredBytesFor(operation.familyId);
 		const adapters = this._stageA?.adapters ?? [];
 		const selection = selectCandidateDevice(devices.map(device => ({ ...device, unifiedMemory: isUnifiedMemoryDevice(device, adapters) })), required, host.systemMemoryBytes);
@@ -1972,7 +1857,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			fitClass: selection?.fit ?? 'insufficient',
 			visible: !!selection,
 			target: this._target,
-			runtimeSource: this._runtime.runtime.source,
 			backend: selection?.device.backend ?? devices[0]?.backend ?? 'none',
 			profile: selection ? (selection.fit === 'full' ? 'full-gpu' : 'near-fit') : 'none',
 			gpuMemoryGiB: toGiB(selection?.device.totalBytes ?? Math.max(0, ...devices.map(device => device.totalBytes))),
@@ -2048,7 +1932,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			throw new LocalModelCatalogError('invalidContent', 'Unsafe file name');
 		}
 		const modelId = `azureml://registries/${profile.registry}/models/${profile.assetName}/versions/${profile.version}`;
-		// Whether an approved llama.cpp knows the model's architecture decides only whether it loads once downloaded.
+		// Whether a qualified llama.cpp knows the model's architecture decides only whether it loads once downloaded.
 		await this._checkArchitecture(operation, await this._readArchitectureBeforeDownload(operation, resolved, modelId));
 		const versionDir = await host.store.beginVersion(profile.registry, profile.assetName, profile.version, profile.capiId);
 		const totalBytes = resolved.files.reduce((sum, file) => sum + file.sizeBytes, 0);
@@ -2093,11 +1977,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * `general.architecture` of the primary GGUF before the download:
-	 * from the bytes already on this device when there are any (a placed primary
-	 * of the right size, or a partial download whose identity sidecar matches),
-	 * else with bounded `Range` requests to the registry. Local files are only
-	 * ever looked up beneath the version directory.
+	 * `general.architecture` of the primary GGUF before the download: from bytes already on this device
+	 * when possible, else via bounded `Range` requests. Local files are only read beneath the version directory.
 	 */
 	private async _readArchitectureBeforeDownload(operation: IOperation, resolved: IResolvedModelVersion, modelId: string): Promise<GgufArchitectureRead> {
 		const host = this._host;
@@ -2125,30 +2006,22 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Serving compatibility, before the download: records the model's
-	 * architecture and, when an approved llama-server can be asked, whether it
-	 * knows it. Never blocks the download (downloading doesn't need llama.cpp):
-	 * a model this llama.cpp can't run is just downloaded, not loaded, and
-	 * loading it says how to get a llama.cpp that can.
+	 * Records the model's architecture before the download and, with a qualified llama-server, whether it
+	 * supports it. Never blocks the download: a model this llama.cpp can't run is downloaded but not loaded.
 	 */
 	private async _checkArchitecture(operation: IOperation, read: GgufArchitectureRead): Promise<void> {
 		const architecture = read.kind === 'found' ? sanitizeLlamaArchitecture(read.architecture) : undefined;
 		operation.architecture = architecture;
 		operation.architectureSupport = undefined;
-		const candidate = this._runtime.candidate;
-		if (!architecture || !candidate || !this._runtime.approved) {
+		const capability = this._runtime.capability;
+		if (!architecture || !capability) {
 			this._logService.info(architecture
-				? '[LocalModel] No approved llama.cpp; not checking whether it supports the model architecture'
+				? '[LocalModel] No qualified llama.cpp; not checking whether it supports the model architecture'
 				: `[LocalModel] The model architecture is unknown (${read.kind === 'unknown' ? read.reason : 'unexpected name'}); not checking whether llama.cpp supports it`);
 			return;
 		}
-		const support = await this._host.runtime.checkArchitectureSupport(candidate, architecture, operation.abort.signal);
+		const support = await this._host.runtime.checkArchitectureSupport(capability, architecture, operation.abort.signal);
 		this._throwIfCancelled(operation.abort);
-		if (support === 'untrusted') {
-			await this._refreshRuntime();
-			this._recompute();
-			return;
-		}
 		operation.architectureSupport = support;
 		this._logService.info(`[LocalModel] llama.cpp support for the model architecture (${toTelemetryArchitecture(architecture)}) of ${identifierForLog(operation.familyId)}: ${support}`);
 	}
@@ -2184,8 +2057,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			await this._host.store.pruneOwnedVersions(install.registry, install.assetName, [install.version]);
 			await this._refreshInstalls();
 		} else if (!this._hasUsableRuntime() || operation.architectureSupport === 'unsupported') {
-			// Downloaded without a llama.cpp that can run it: it is just downloaded, not loaded or made active.
-			// Loading it says how to get a llama.cpp that can.
 			this._logService.info('[LocalModel] Downloaded; not loading it without a llama.cpp that can run it');
 			this._state.operations = this._state.operations.filter(record => record.operationId !== operation.id);
 			this._persist();
@@ -2332,11 +2203,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		this._beginSwap(familyId, false);
 	}
 
-	/**
-	 * Starts a `swap` operation to `familyId`: drain the serving model
-	 * (user-initiated, no timeout; Stop Now ends it), then load `familyId`.
-	 * A `reload` loads the active family again, for a new context size.
-	 */
+	/** Starts a `swap` to `familyId`: drains the serving model (no timeout; Stop Now ends it), then loads it. `reload` reloads the active family. */
 	private _beginSwap(familyId: string, reload: boolean): void {
 		const operation = this._createOperation(familyId, 'swap', undefined);
 		operation.reload = reload;
@@ -2375,12 +2242,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Reloads the active family when what it serves (or is loading) differs
-	 * from its selected context size: running responses finish first, as for a
-	 * swap. A model that isn't loaded uses the size at its next load. While a
-	 * swap, reload, install or update is loading (its launch plan may already
-	 * hold the previous size), the change is remembered and reconciled once
-	 * that settles ({@link _reconcileContextSizes}).
+	 * Reloads the active family when what it serves differs from its selected context size, after running
+	 * responses finish. During another load the change is remembered and reconciled once it settles.
 	 */
 	private _reloadForContextSize(familyId: string): void {
 		if (this._store.isDisposed) {
@@ -2398,11 +2261,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		return !!this._swap || this._reloading || this._operations.get(familyId)?.state === 'running';
 	}
 
-	/**
-	 * Once a swap, reload, install or update settles: each family whose context
-	 * size changed meanwhile reloads once if it now serves another size. Not
-	 * when the user stopped it or another family became active.
-	 */
+	/** Once a load settles, reloads each family whose context size changed meanwhile, unless stopped or no longer active. */
 	private _reconcileContextSizes(): void {
 		for (const familyId of [...this._pendingContextSizes]) {
 			if (this._store.isDisposed || !this._isContextReloadDeferred(familyId)) {
@@ -2503,10 +2362,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		void this._runSwap(operation);
 	}
 
-	/**
-	 * Ends a swap the user cancelled, at once: its operation goes away and the
-	 * incoming model is no longer named. Its run settles on its own.
-	 */
+	/** Ends a cancelled swap at once: its operation goes away and its run settles on its own. */
 	private _endCancelledSwap(operation: IOperation): void {
 		const phase = operation.phase;
 		this._removeOperation(operation);
@@ -2527,13 +2383,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		}
 	}
 
-	/**
-	 * A start of the active `familyId` succeeded, however it was asked for
-	 * (Retry, Start after approving llama.cpp, selecting the model again, a
-	 * request): an operation of it that failed loading it, a swap or the load
-	 * that ends a setup or update, no longer describes it, so its error goes
-	 * away instead of outranking the ready server.
-	 */
+	/** After the active family starts, clears the error of an operation that failed loading it so it no longer outranks the ready server. */
 	private _retireFailedLoad(familyId: string): void {
 		const operation = this._operations.get(familyId);
 		const state = this._supervisor.state.get();
@@ -2654,36 +2504,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		}
 	}
 
-	async approveRuntime(consent: ILocalModelConsent): Promise<void> {
-		await this._ready();
-		const candidate = this._runtime.candidate;
-		const shown = this._runtime.runtime;
-		if (candidate && shown.trust === 'pendingApproval' && !shown.sha256 && this._runtime.error) {
-			// No runtime digest (unverifiable install): nothing can be approved; say why.
-			throw new Error(this._runtime.error.message);
-		}
-		if (!candidate || shown.trust !== 'pendingApproval' || !shown.sha256) {
-			throw new Error('No llama-server is awaiting approval');
-		}
-		// The scope fingerprints the path, version and runtime digest the dialog showed: a match binds
-		// the consent to exactly that digest, which is the only one approved (never the current files').
-		if (computeLocalModelConsentScope({ runtime: shown }) !== consent.scope) {
-			throw new Error('The approval no longer matches the detected llama-server');
-		}
-		if (!await this._host.runtime.approve(candidate.realPath, shown.sha256)) {
-			// The file changed while the dialog was open: show the new one for approval instead.
-			await this._refreshRuntime();
-			this._recompute();
-			throw new Error('The llama-server changed since it was shown for approval');
-		}
-		// A binary never executed before is qualified only now; its failure is reported.
-		await this._refreshRuntime();
-		this._recompute();
-		if (!this._runtime.approved && this._runtime.error) {
-			throw new Error(this._runtime.error.message);
-		}
-	}
-
 	async refreshCatalog(): Promise<void> {
 		if (!this._liveConfig?.enabled) {
 			return;
@@ -2691,7 +2511,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		await this._initialization;
 		const topologyChanged = await this._refreshDevice(true).catch(() => false);
 		if (topologyChanged) {
-			await this._step('runtime detection', () => this._refreshRuntime());
+			await this._step('runtime resolution', () => this._refreshRuntime());
 		}
 		await this._step('installs', () => this._refreshInstalls());
 		await this._refreshCatalogAndDisk(true);
@@ -2838,10 +2658,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * A stream lease for a request. A request of an open turn makes the turn
-	 * hold the generation until it ends ({@link TurnLedger}); while the turn
-	 * holds it, the turn's requests are admitted during a swap, reload or stop,
-	 * which waits for the turn ({@link ServerSupervisor.responseCount}).
+	 * A stream lease for a request. A request of an open turn makes the turn hold the generation
+	 * ({@link TurnLedger}), so its requests are still admitted while a swap, reload or stop waits for it.
 	 */
 	private _acquireLease(identity: IServingIdentity, sessionId: string | undefined): IServingLease | undefined {
 		const turnHold = this._ledger.getHold(sessionId);
@@ -2912,11 +2730,8 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	}
 
 	/**
-	 * Loads the active model (single-flight per family and activation).
-	 * Preparation is bound to the current activation and to the owning
-	 * operation's `cancellation`: if a swap, stop, removal, disable, reload or
-	 * cancel supersedes it, or the active content changed meanwhile, nothing is
-	 * started. Rejects with a {@link LocalModelServingError}.
+	 * Loads the active model (single-flight per family and activation). Nothing starts if the activation
+	 * or `cancellation` is superseded meanwhile. Rejects with a {@link LocalModelServingError}.
 	 */
 	private _startActive(trigger: StartTrigger, cancellation?: AbortSignal): Promise<void> {
 		const familyId = this._state.active;
@@ -2939,11 +2754,10 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 					// The one boundary every load passes (swaps, Auto, direct requests, Retry): nothing loads where on-device models aren't offered.
 					throw new LocalModelServingError(DEVICE_UNSUPPORTED_CODE, deviceUnsupportedMessage(this._displayNameOf(familyId) ?? familyId), []);
 				}
-				if (!this._hasUsableRuntime()) {
-					// VS Code doesn't install llama.cpp: one the user installed since the last load (Get llama.cpp, then Retry) is found now.
-					await this._step('runtime detection', () => this._refreshRuntime());
-					this._recompute();
-				}
+				// Every load (Retry included) resolves the setting's llama-server again, a cache hit without a probe while it is
+				// unchanged: a link an upgrade retargeted, a build repaired since it failed, or one just set up is used now.
+				await this._step('runtime resolution', () => this._refreshRuntime());
+				this._recompute();
 				plan = await this._buildLaunchPlan(familyId, cancellation ? AbortSignal.any([activation, cancellation]) : activation);
 			} catch (error) {
 				if (superseded()) {
@@ -2977,7 +2791,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 	private readonly _ggufMetadata = new Map<string, IGgufModelMetadata>();
 	private readonly _ggufMetadataReads = new Map<string, Promise<IGgufModelMetadata | undefined>>();
 
-	/** Persists that speculative decoding crashed this runtime digest with this content: later starts skip it. */
+	/** Persists that speculative decoding crashed this llama-server with this content: later starts skip it. */
 	private _recordSpeculativeUnsupported(key: string): void {
 		if (!SPECULATIVE_KEY_PATTERN.test(key) || this._state.speculativeUnsupported.includes(key)) {
 			return;
@@ -2995,21 +2809,16 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			throw notActiveError(displayName);
 		}
 		const runtime = this._runtime;
-		const candidate = runtime.candidate;
-		if (!runtime.approved || !candidate || !runtime.capability) {
+		const capability = runtime.capability;
+		if (!capability) {
 			if (runtime.error) {
-				// Say why this llama-server can't serve (too old, blocked, unverifiable, ...), with its own actions.
 				throw new LocalModelServingError(runtime.error.code, runtime.error.message, runtime.error.actions);
 			}
-			if (candidate && runtime.runtime.trust === 'pendingApproval' && runtime.runtime.sha256) {
-				throw new LocalModelServingError('runtimeApprovalRequired', localize('localModel.runtimeNeedsApproval', "The llama-server at {0} needs your approval before {1} can run on it.", candidate.realPath, displayName));
-			}
-			// VS Code doesn't install llama.cpp: say how to get one and where to point VS Code at it.
 			const missing = createLlamaRuntimeMissingError(displayName);
 			throw new LocalModelServingError(missing.code, missing.message, missing.actions);
 		}
 		const preset = await this._readPreset(install);
-		const support = getFlagSupport(runtime.capability);
+		const support = getFlagSupport(capability);
 		const { primary, draft } = this._modelFilesOf(install, preset.draftModel);
 		if (!primary) {
 			throw new LocalModelServingError('startFailed', localize('localModel.noPrimary', "{0} couldn't start because its model file is missing. Set it up again.", displayName));
@@ -3023,23 +2832,17 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		const parallel = this._parallelOf(install, preset);
 		const facts: IServeFacts = { contentId: install.contentId, ctxSize: this._ctxSizeOf(install, preset), parallel, ubatch: presetUbatchTokens(preset), draftModel: preset.draftModel };
 		// A DFlash configuration that crashed this exact build with this content before is skipped directly.
-		const speculativeKey = `${runtime.capability.sha256}:${install.contentId}`;
+		const speculativeKey = `${getLlamaServerKey(capability)}:${install.contentId}`;
 		const speculative = hasDraft && !this._state.speculativeUnsupported.includes(speculativeKey);
 		const usedDraft = speculative && draft ? { bytes: draft.bytes, metadata: await this._readMetadata(draft.filePath) } : undefined;
 		// The selected context size (per slot); the preset's own size is only its upper bound.
 		const ctxSize = this._computeContext(familyId, facts, primary, metadata, usedDraft).tokens * parallel;
 		const footprintAt = (ctx: number, withDraft = speculative) => estimateServingFootprint({ primaryBytes: primary.bytes, primary: metadata, draft: withDraft ? usedDraft : undefined, parallel, ubatchTokens: facts.ubatch }, ctx);
-		// Never execute a binary on a cached approval: `listDevices` runs only if its fresh runtime digest still carries one.
-		const listing = await host.runtime.listDevices(candidate);
-		if (listing.kind === 'untrusted') {
-			await this._step('runtime detection', () => this._refreshRuntime());
-			this._recompute();
-			throw new LocalModelServingError('runtimeChanged', runtimeChangedMessage(candidate.realPath, displayName));
-		}
-		if (listing.kind === 'failed') {
+		const realPath = capability.realPath;
+		const devices = await host.runtime.listDevices(realPath);
+		if (!devices) {
 			throw new LocalModelServingError('gpuRuntimeMissing', createLlamaRuntimeError({ code: 'gpuRuntimeMissing' }, {}).message);
 		}
-		const devices = listing.devices;
 		const adapters = this._stageA?.adapters ?? [];
 		const candidates = devices.map(device => ({ ...device, unifiedMemory: isUnifiedMemoryDevice(device, adapters) })).sort((a, b) => b.totalBytes - a.totalBytes);
 		let chosen: { readonly device: (typeof candidates)[number]; readonly profile: NonNullable<ReturnType<typeof chooseServingProfile>> } | undefined;
@@ -3076,7 +2879,6 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 				this._logService.info(`[LocalModel] Keeping ${ctxCheckpoints} context checkpoint(s) instead of ${RECURRENT_MODEL_CTX_CHECKPOINTS}: not enough free system memory`);
 			}
 		};
-		const realPath = candidate.realPath;
 		const architecture = sanitizeLlamaArchitecture(metadata.architecture);
 		return {
 			familyId,
@@ -3103,55 +2905,26 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 				...(config.speculative ? {} : { dropSpeculative: true }),
 				...(ctxCheckpoints !== undefined ? { ctxCheckpoints: String(ctxCheckpoints) } : {}),
 			}).args,
-			admit: (config, signal) => this._admit(candidate, displayName, device, profile.profile, footprintAt(config.ctxSize, config.speculative), signal, checkpointBytes ? fitCheckpoints : undefined),
-			verifyBinary: signal => this._verifyLaunchBinary(candidate, signal),
+			admit: (config, signal) => this._admit(realPath, displayName, device, profile.profile, footprintAt(config.ctxSize, config.speculative), signal, checkpointBytes ? fitCheckpoints : undefined),
 			signal: activation,
 		};
 	}
 
 	/**
-	 * The supervisor's check immediately before every spawn (each bind retry,
-	 * downgrade retry and crash restart): the install's runtime digest,
-	 * computed afresh, must still carry its approval. A changed install
-	 * returns to pending approval and nothing is spawned.
+	 * Admission right before each spawn (never cached, crash restarts included): the selected device's
+	 * budget, free system memory and the GGUF footprint. A temporary shortage is `memoryBusy`. Once
+	 * admitted, `onAdmitted` gets the spare system memory for buffers kept outside the GPU.
 	 */
-	private async _verifyLaunchBinary(candidate: ILlamaServerCandidate, signal: AbortSignal): Promise<boolean> {
-		if (await this._host.runtime.verifyApproval(candidate, signal)) {
-			return true;
-		}
-		this._logService.warn('[LocalModel] The approved llama-server changed right before launch; it needs approval again before it runs');
-		await this._step('runtime detection', () => this._refreshRuntime());
-		this._recompute();
-		return false;
-	}
-
-	/**
-	 * Admission right before each spawn, never cached, crash
-	 * restarts included: a fresh `--list-devices` that runs only if the
-	 * install's fresh runtime digest still carries its approval (a changed binary
-	 * returns to pending approval and nothing runs), for the selected
-	 * device's budget (re-selecting after a topology change), free system
-	 * memory, and the footprint from the GGUF header. A temporary shortage is
-	 * `memoryBusy`, not "incapable". Once admitted, `onAdmitted` gets the
-	 * system memory still spare, for buffers kept outside the GPU.
-	 */
-	private async _admit(candidate: ILlamaServerCandidate, displayName: string, selected: ICandidateDevice, profile: IServerLaunchPlan['profile'], footprintBytes: number, signal: AbortSignal, onAdmitted?: (spareSystemBytes: number) => void): Promise<ServerAdmission> {
+	private async _admit(realPath: string, displayName: string, selected: ICandidateDevice, profile: IServerLaunchPlan['profile'], footprintBytes: number, signal: AbortSignal, onAdmitted?: (spareSystemBytes: number) => void): Promise<ServerAdmission> {
 		const host = this._host;
 		if (!this._isSupportedDevice()) {
 			// Also refuses the supervisor's own restarts (after a crash or with a smaller profile).
 			return { admitted: false, error: { code: DEVICE_UNSUPPORTED_CODE, message: deviceUnsupportedMessage(displayName), actions: [] } };
 		}
-		const listing = await host.runtime.listDevices(candidate, signal);
-		if (listing.kind === 'untrusted') {
-			this._logService.warn('[LocalModel] The approved llama-server changed; it needs approval again before it runs');
-			await this._step('runtime detection', () => this._refreshRuntime());
-			this._recompute();
-			return { admitted: false, error: { code: 'runtimeChanged', message: runtimeChangedMessage(candidate.realPath, displayName), actions: [] } };
-		}
-		if (listing.kind === 'failed') {
+		const devices = await host.runtime.listDevices(realPath, signal);
+		if (!devices) {
 			return { admitted: false, error: createLlamaRuntimeError({ code: 'gpuRuntimeMissing' }, {}) };
 		}
-		const devices = listing.devices;
 		const adapters = this._stageA?.adapters ?? [];
 		const device = devices.find(candidate => candidate.name === selected.name && candidate.description === selected.description)
 			?? selectCandidateDevice(devices.map(candidate => ({ ...candidate, unifiedMemory: isUnifiedMemoryDevice(candidate, adapters) })), footprintBytes, host.systemMemoryBytes)?.device;
@@ -3222,10 +2995,6 @@ function deviceUnsupportedMessage(displayName: string): string {
 	return localize('localModel.deviceUnsupported', "{0} can't load: on-device models run only on NVIDIA GPUs.", displayName);
 }
 
-function runtimeChangedMessage(realPath: string, displayName: string): string {
-	return localize('localModel.runtimeChangedBeforeLaunch', "The llama-server at {0} changed since it was approved. Approve it again to use {1}.", realPath, displayName);
-}
-
 type OperationOutcome = { readonly kind: 'paused'; readonly reason: LocalModelPausedReason } | { readonly kind: 'error'; readonly error: ILocalModelErrorV1 };
 
 /** Maps an acquisition, store or serving failure to a pause or a user-facing error. Pure. */
@@ -3279,15 +3048,7 @@ export interface INodeShimLocalModelProviderHostOptions {
 	readonly onDidChangeCapiAccounts: Event<void>;
 	/** VS Code's version, named in the Azure ML catalog search's User-Agent. */
 	readonly productVersion: string;
-	/**
-	 * Workspace roots (file-system paths) known to this host, read on every
-	 * llama.cpp detection pass: `PATH` entries and executables inside them are
-	 * never probed or offered. Defense in depth only: before consent,
-	 * detection runs only approved binaries and `LLAMACPP_SERVER_PATH`.
-	 * Canonicalized by detection, so symlinked roots count.
-	 */
-	readonly workspaceFolders: () => readonly string[];
-	/** Process environment for detection and the server; defaults to `process.env`. */
+	/** Process environment for the probes and the server; defaults to `process.env`. */
 	readonly env?: Readonly<Record<string, string | undefined>>;
 	/** Runs short-lived processes (probes, OS tools); defaults to the Node runner. */
 	readonly runner?: IProcessRunner;
@@ -3340,7 +3101,7 @@ export function createNodeShimLocalModelProviderHost(options: INodeShimLocalMode
 		createCatalog: () => new ModelCatalog({ http, storage, log, telemetry, productVersion: options.productVersion }),
 		store: new LocalModelStore({ copilotHome: options.copilotHome, storage, log }),
 		downloader: new ModelDownloader({ http, log, telemetry }),
-		runtime: new LlamaCppRuntime({ storage, log, runner, platform, env, homeDir: options.homeDir, tempDir: path.join(options.tempDir, 'vscode-local-model-probe'), workspaceFolders: options.workspaceFolders }),
+		runtime: new LlamaCppRuntime({ storage, log, runner, platform, env, tempDir: path.join(options.tempDir, 'vscode-local-model-probe') }),
 		gpuProbe: new GpuMemoryProbe(storage, runner, undefined, undefined, undefined, log),
 		createSupervisor: supervisorLog => new ServerSupervisor({
 			spawner: new NodeLongLivedProcessSpawner(platform),

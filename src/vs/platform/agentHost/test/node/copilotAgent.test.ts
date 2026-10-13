@@ -119,7 +119,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
-import type { LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
+import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { LocalModelCopilotRequestHandler } from '../../node/copilot/localModelBridge/shim/copilotRequestHandler.js';
 import { ShimLocalModelProvider } from '../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
 import { readLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
@@ -2346,10 +2346,9 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('installs the on-device model request handler and WebSocket override only when the setting is on', async () => {
-		const provider = disposables.add(new ShimLocalModelProvider(new NullLogService(), new TestProxyResolver(), createIdleShimLocalModelProviderHost()));
-		const selections: LocalModelProviderSelection[] = [];
-		const localModelSetupService: ILocalModelSetupService = {
+	/** A local Agent Host's setup service that applies `provider` for the `shim` selection, recording every selection. */
+	function createLocalModelSetupService(provider: ILocalModelProvider, selections: LocalModelProviderSelection[] = []): ILocalModelSetupService {
+		return {
 			_serviceBrand: undefined,
 			isLocalAgentHost: true,
 			provider: undefined,
@@ -2358,6 +2357,21 @@ suite('CopilotAgent', () => {
 				return selection === 'shim' ? provider : undefined;
 			},
 		};
+	}
+
+	/** A provider that records account changes. */
+	function createAccountTrackingProvider(): FakeLocalModelProvider {
+		return disposables.add(new class extends FakeLocalModelProvider {
+			override onAccountChanged(): void {
+				this.calls.push('onAccountChanged');
+			}
+		}());
+	}
+
+	test('installs the on-device model request handler and WebSocket override only when the setting is on', async () => {
+		const provider = disposables.add(new ShimLocalModelProvider(new NullLogService(), new TestProxyResolver(), createIdleShimLocalModelProviderHost()));
+		const selections: LocalModelProviderSelection[] = [];
+		const localModelSetupService = createLocalModelSetupService(provider, selections);
 		const startClient = async (rootConfig: Record<string, unknown>) => {
 			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService, rootConfig });
 			try {
@@ -2389,12 +2403,7 @@ suite('CopilotAgent', () => {
 		const maiRow = { ...MAI_ROW, thinking: { kind: 'effort', levels: ['low', 'medium', 'high'], defaultLevel: 'medium' } } as const;
 		const exampleRow = { ...MAI_ROW, id: 'example-coder', name: 'Example Coder', familyId: 'example-coder-local', contentId: 'example-content-1', active: false, maxContextWindow: 131072, maxPromptTokens: 98304, maxOutputTokens: 32768, thinking: { kind: 'toggle' } } as const;
 		const provider = disposables.add(new FakeLocalModelProvider([maiRow, exampleRow]));
-		const localModelSetupService: ILocalModelSetupService = {
-			_serviceBrand: undefined,
-			isLocalAgentHost: true,
-			provider: undefined,
-			applySelection: selection => selection === 'shim' ? provider : undefined,
-		};
+		const localModelSetupService = createLocalModelSetupService(provider);
 		const localRows = (agent: CopilotAgent) => agent.models.get().filter(model => readLocalModelRowMeta(model)).map(model => ({ id: model.id, name: model.name, maxContextWindow: model.maxContextWindow, maxPromptTokens: model.maxPromptTokens, maxOutputTokens: model.maxOutputTokens, thinkingLevel: model.configSchema?.properties.thinkingLevel, _meta: model._meta }));
 		const effortLevel = { type: 'string', title: 'Thinking Level', description: 'Controls how much reasoning effort the model uses.', default: 'medium', enum: ['low', 'medium', 'high'], enumLabels: ['Low', 'Medium', 'High'], enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'] };
 		const notOptedIn = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService });
@@ -2409,6 +2418,7 @@ suite('CopilotAgent', () => {
 			setLiveChatStub(agent, session.sessionId, session);
 			await session.initializeSession();
 
+			const maiInstalled = { id: 'vscode-on-device/mai-code-1.1-flash', name: 'Example Flash 1.0', maxContextWindow: 262144, maxPromptTokens: 180224, maxOutputTokens: 81920, thinkingLevel: effortLevel, _meta: { 'vscode.localModel': { familyId: 'mai-code-1.1-flash-local', contentId: 'mai-content-1', active: true } } };
 			assert.deepStrictEqual({
 				notOptedIn: localRows(notOptedIn.agent),
 				installed,
@@ -2418,13 +2428,11 @@ suite('CopilotAgent', () => {
 			}, {
 				notOptedIn: [],
 				installed: [
-					{ id: 'vscode-on-device/mai-code-1.1-flash', name: 'Example Flash 1.0', maxContextWindow: 262144, maxPromptTokens: 180224, maxOutputTokens: 81920, thinkingLevel: effortLevel, _meta: { 'vscode.localModel': { familyId: 'mai-code-1.1-flash-local', contentId: 'mai-content-1', active: true } } },
+					maiInstalled,
 					// Off / On; `llama-server` thinks unless told otherwise.
 					{ id: 'vscode-on-device/example-coder', name: 'Example Coder', maxContextWindow: 131072, maxPromptTokens: 98304, maxOutputTokens: 32768, thinkingLevel: { type: 'string', title: 'Thinking Level', description: 'Controls whether the model thinks before it answers.', default: 'medium', enum: ['none', 'medium'], enumLabels: ['Off', 'On'], enumDescriptions: ['Answers without thinking first', 'Thinks before it answers'] }, _meta: { 'vscode.localModel': { familyId: 'example-coder-local', contentId: 'example-content-1', active: false } } },
 				],
-				afterRemoval: [
-					{ id: 'vscode-on-device/mai-code-1.1-flash', name: 'Example Flash 1.0', maxContextWindow: 262144, maxPromptTokens: 180224, maxOutputTokens: 81920, thinkingLevel: effortLevel, _meta: { 'vscode.localModel': { familyId: 'mai-code-1.1-flash-local', contentId: 'mai-content-1', active: true } } },
-				],
+				afterRemoval: [maiInstalled],
 				autoSessionConfig: createSentinelContribution([maiRow]),
 				providerCalls: ['onAutoSessionStarted', 'setSessionDirectFamily:test-session-1:-'],
 			});
@@ -2435,19 +2443,9 @@ suite('CopilotAgent', () => {
 	});
 
 	test('tells the on-device model provider when a different GitHub account replaces the signed-in one, not on renewal', async () => {
-		const provider = disposables.add(new class extends FakeLocalModelProvider {
-			override onAccountChanged(): void {
-				this.calls.push('onAccountChanged');
-			}
-		}());
-		const localModelSetupService: ILocalModelSetupService = {
-			_serviceBrand: undefined,
-			isLocalAgentHost: true,
-			provider: undefined,
-			applySelection: selection => selection === 'shim' ? provider : undefined,
-		};
+		const provider = createAccountTrackingProvider();
 		const copilotApiService = new TestCopilotApiService();
-		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService, copilotApiService, rootConfig: { [CopilotCliConfigKey.LocalModelEnabled]: true } });
+		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService: createLocalModelSetupService(provider), copilotApiService, rootConfig: { [CopilotCliConfigKey.LocalModelEnabled]: true } });
 		try {
 			await agent.listChatsToMigrate();
 			const accountChanges = () => provider.calls.filter(call => call === 'onAccountChanged').length;
@@ -2470,23 +2468,10 @@ suite('CopilotAgent', () => {
 	});
 
 	test('compares the first account switch after activation with the account signed in when the provider was applied', async () => {
-		const provider = disposables.add(new class extends FakeLocalModelProvider {
-			override onAccountChanged(): void {
-				this.calls.push('onAccountChanged');
-			}
-		}());
+		const provider = createAccountTrackingProvider();
 		const selections: LocalModelProviderSelection[] = [];
-		const localModelSetupService: ILocalModelSetupService = {
-			_serviceBrand: undefined,
-			isLocalAgentHost: true,
-			provider: undefined,
-			applySelection: selection => {
-				selections.push(selection);
-				return selection === 'shim' ? provider : undefined;
-			},
-		};
 		const copilotApiService = new TestCopilotApiService();
-		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService, copilotApiService });
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService: createLocalModelSetupService(provider, selections), copilotApiService });
 		try {
 			const accountChanges = () => provider.calls.filter(call => call === 'onAccountChanged').length;
 			await agent.listChatsToMigrate();

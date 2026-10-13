@@ -39,12 +39,7 @@ const LOAD_AND_SEND_TIMEOUT_MS = 10 * 60_000;
 const pendingLoads = new Map<string, () => void>();
 CommandsRegistry.registerCommand(LOCAL_MODEL_LOAD_AND_SEND_COMMAND_ID, (_accessor, id: unknown) => typeof id === 'string' ? pendingLoads.get(id)?.() : undefined);
 
-/**
- * Names an on-device model id from the host's status: a family's
- * `capiId` (for example a `-local` id chosen by Auto) and the id of its
- * direct-selection row both map to its display name. No name table is
- * hard-coded.
- */
+/** Names an on-device model id (a family's `capiId` or its direct row's id) from the host's status; no name table is hard-coded. */
 export function getLocalModelDisplayName(status: ILocalModelStatusV1 | undefined, rawModelId: string | undefined, familyId?: string): string | undefined {
 	if (!status) {
 		return undefined;
@@ -55,10 +50,7 @@ export function getLocalModelDisplayName(status: ILocalModelStatusV1 | undefined
 	return family?.displayName;
 }
 
-/**
- * The draft a "Load {0}" gesture sends once the model is ready: exactly the
- * text, attachments and model the input held when the user chose it.
- */
+/** The draft a "Load {0}" gesture sends once the model is ready: exactly what the input held when the user chose it. */
 interface IKeptDraft {
 	readonly text: string;
 	readonly attachmentIds: readonly string[];
@@ -80,21 +72,13 @@ function isSameDraft(widget: IChatWidget, draft: IKeptDraft): boolean {
 type LoadAttemptOutcome = 'pending' | 'ready' | 'ended';
 
 /**
- * Follows the load that a "Load {0}" gesture started: the `swap` operation
- * the host creates for the family after the request, or the one already
- * loading it. The kept draft is sent only if the model becomes ready while
- * that load is under way; once the load is cancelled, fails or ends without
- * the model ready, a later load of the same model, e.g. for Auto or Start,
- * doesn't send it.
+ * Follows the load a "Load {0}" gesture started. The kept draft is sent only if the model becomes ready during that
+ * load; once it is cancelled, fails or ends without the model ready, a later load of the same model doesn't send it.
  */
 class LocalModelLoadAttempt {
 	private _operationId: string | undefined;
 
-	/**
-	 * @param _ignoredOperationId The family's operation when the user chose
-	 * Load, unless it was already loading the family: a failed swap the
-	 * request replaces, which must not end this one.
-	 */
+	/** @param _ignoredOperationId A failed swap of the family that the request replaces, which must not end this attempt. */
 	constructor(
 		private readonly _familyId: string,
 		private readonly _ignoredOperationId: string | undefined,
@@ -156,13 +140,9 @@ export interface ILocalModelTurnPresentationContext {
 }
 
 /**
- * Labels a turn from how it actually executed, in the Copilot CLI and app's
- * style: a turn served on the device names its model with "On-device"
- * (`Auto (<model> · On-device)` for Auto, `<model> · On-device` for a direct
- * selection). A fallback names the cloud model that answered even though the
- * runtime reports the `-local` id Auto chose. `unknown` keeps the existing
- * Auto label (returns `undefined`). Cloud usage is never hidden: only a direct
- * on-device turn is described as having no usage limit.
+ * Labels a turn from how it actually executed, in the Copilot CLI and app's style: "On-device" for a turn served on the
+ * device, the answering cloud model for a fallback, and `undefined` (the existing Auto label) for `unknown`. Cloud usage
+ * is never hidden: only a direct on-device turn is described as having no usage limit.
  */
 export function getLocalModelTurnPresentation(execution: ILocalTurnExecution, context: ILocalModelTurnPresentationContext): ILocalModelTurnPresentation | undefined {
 	const onDeviceName = context.localName !== undefined
@@ -221,12 +201,9 @@ function getUserAttachments(variables: readonly IChatRequestVariableEntry[]): IC
 }
 
 /**
- * The on-device model behavior of one Agent Host session handler: the
- * pre-send guard for chats bound to a model that isn't loaded,
- * attribution of turns that ran on (or fell back from) the device, and the
- * one-time fallback notice. Its notices defer to the on-device status notice
- * of a failure, running operation or pause. Nothing here runs unless the setting is
- * on or a turn reports on-device execution.
+ * The on-device model behavior of one Agent Host session handler: the pre-send guard for chats bound to a model that
+ * isn't loaded, turn attribution and the one-time fallback notice. Nothing runs unless the setting is on or a turn
+ * reports on-device execution.
  */
 export class AgentHostLocalModelSupport extends Disposable {
 
@@ -269,10 +246,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		return this._isEnabled() ? getLocalModelDisplayName(this._getStatus(), rawModelId) : undefined;
 	}
 
-	/**
-	 * The label of a turn that reported on-device execution, or `undefined` to
-	 * keep the existing label.
-	 */
+	/** The label of a turn that reported on-device execution, or `undefined` to keep the existing label. */
 	getTurnPresentation(usage: UsageInfo | undefined, selectedRawModelId: string | undefined, resolveCloudModelName: (rawModelId: string) => string | undefined, hideCloudModelName: boolean | undefined): ILocalModelTurnPresentation | undefined {
 		const execution = readLocalModelTurnExecution(usage);
 		if (!execution || execution.execution === 'unknown') {
@@ -285,10 +259,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		return getLocalModelTurnPresentation(execution, { isAuto, localName, localModelId, resolveCloudModelName, hideCloudModelName });
 	}
 
-	/**
-	 * Shows the one-time fallback notice for a session when a live
-	 * turn fell back from the on-device model to the cloud.
-	 */
+	/** Shows the one-time fallback notice for a session when a live turn fell back from the on-device model to the cloud. */
 	noteCompletedTurn(sessionResource: URI, usage: UsageInfo | undefined): void {
 		const execution = readLocalModelTurnExecution(usage);
 		const key = sessionResource.toString();
@@ -311,12 +282,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		});
 	}
 
-	/**
-	 * The pre-send guard. Resolves `true` when the request may be sent.
-	 * Otherwise the request is withdrawn, its text and attachments go back to
-	 * the chat input, and a notice scoped to the session offers to load the
-	 * model, switch to the loaded one, or use Auto.
-	 */
+	/** The pre-send guard: `true` when the request may be sent; otherwise its draft goes back to the input and a notice offers to load the model, switch, or use Auto. */
 	async checkBeforeSend(request: IChatAgentRequest, rawModelId: string | undefined): Promise<boolean> {
 		if (!rawModelId || !this._isEnabled() || !this._getStatus()) {
 			return true;
@@ -412,12 +378,8 @@ export class AgentHostLocalModelSupport extends Disposable {
 	}
 
 	/**
-	 * Loads the model at once (the notice above the chat input then shows it
-	 * waiting for running responses and loading, with Cancel); then the kept
-	 * draft is sent once the load it started has the model ready. The send is
-	 * bound to the draft as it was when the user chose Load: another send in
-	 * the session, a different model or an edited draft supersedes it, and
-	 * changed input is never submitted on the user's behalf.
+	 * Loads the model at once, then sends the kept draft once that load has the model ready. Another send, a different
+	 * model or an edited draft supersedes it: changed input is never submitted on the user's behalf.
 	 */
 	private _loadAndSend(sessionResource: URI, familyId: string, name: string): void {
 		const id = this._notificationId(sessionResource);
@@ -450,11 +412,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		void this._sendWhenReady(sessionResource, new LocalModelLoadAttempt(familyId, ignoredOperationId), widget, draft).catch(onUnexpectedError);
 	}
 
-	/**
-	 * Sends the kept draft once the load `attempt` follows has the model ready.
-	 * Its notice goes away when that load is cancelled, fails or times out, and
-	 * the draft stays in the input; a later load of the model doesn't send it.
-	 */
+	/** Sends the kept draft once the load `attempt` follows has the model ready; if that load ends otherwise, the notice goes and the draft stays in the input. */
 	private async _sendWhenReady(sessionResource: URI, attempt: LocalModelLoadAttempt, widget: IChatWidget, draft: IKeptDraft): Promise<void> {
 		const id = this._notificationId(sessionResource);
 		const operation = new DisposableStore();

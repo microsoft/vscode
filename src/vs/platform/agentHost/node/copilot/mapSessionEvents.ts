@@ -44,12 +44,8 @@ function tryStringify(value: unknown): string | undefined {
 type AutoModeResolvedData = Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'];
 
 /**
- * The usage `_meta` a restored Auto decision carries. An on-device pick (a
- * CAPI `…-local` id, which CAPI only chooses after the host declared its
- * local model) also carries `vscode.localModel` alongside `autoModeResolved`:
- * `unknown`, because the SDK history does not record whether the local model
- * or the cloud fallback answered. The turn's persisted usage, merged over this
- * stub on restore, carries the actual attribution.
+ * The usage `_meta` a restored Auto decision carries. An on-device pick also carries `vscode.localModel` as `unknown`,
+ * since the SDK history doesn't record whether the local model or the fallback answered; persisted usage overrides it.
  */
 function autoModeResolvedMeta(autoModeResolved: AutoModeResolvedData): Record<string, unknown> {
 	return {

@@ -5,12 +5,7 @@
 
 import { reasoningEffortLevels } from '../../../common/reasoningEffort.js';
 
-/*
- * Thinking control of an on-device model, from its GGUF chat template. The
- * template is only searched for the kwargs it reads; it is never executed.
- * The per-chat thinking level reaches `llama-server` as `chat_template_kwargs`
- * (a top-level `reasoning_effort` is ignored by `llama-server`).
- */
+/* Thinking control of an on-device model from its GGUF chat template (searched, never executed). The level reaches `llama-server` as `chat_template_kwargs`, since it ignores a top-level `reasoning_effort`. */
 
 /** Levels of a `reasoning_effort` template (harmony). */
 export const LOCAL_MODEL_EFFORT_LEVELS: readonly string[] = ['low', 'medium', 'high'];
@@ -74,12 +69,8 @@ function nearestLevel(requested: string, levels: readonly string[]): string | un
 }
 
 /**
- * The `chat_template_kwargs` that apply a requested `reasoning_effort` to a
- * template: `reasoning_effort` set to the nearest supported level, or
- * `enable_thinking` (`false` for `none`, and for `minimal`, which is how an
- * on-device row's Off reaches the handler because the runtime sends no
- * `reasoning_effort` for `none`; `true` otherwise). `undefined` when nothing
- * applies (no request, an unknown value, or no thinking control). Pure.
+ * The `chat_template_kwargs` applying a requested `reasoning_effort`: the nearest supported level, or `enable_thinking`
+ * (`false` for `none` and for `minimal`, which is how an on-device row's Off arrives); `undefined` when nothing applies. Pure.
  */
 export function toChatTemplateKwargs(requested: unknown, support: LocalModelThinkingSupport | undefined): Record<string, string | boolean> | undefined {
 	if (typeof requested !== 'string' || !support) {

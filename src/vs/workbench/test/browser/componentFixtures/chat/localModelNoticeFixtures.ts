@@ -19,7 +19,7 @@ import { IChatInputNotification, IChatInputNotificationService } from '../../../
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { getLocalModelStopNowId, ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatInput } from './renderChatInput.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -57,7 +57,7 @@ function createStatus(families: readonly ILocalModelFamilyV1[], overrides: Parti
 	return {
 		schemaVersion: 1,
 		device: { id: 'Vulkan0', capacityBytes: 64 * GiB, confidence: 'measured' },
-		runtime: { source: 'none', trust: 'none' },
+		runtime: {},
 		catalog: { state: 'ready', registries: { azureml: 'ready' } },
 		families,
 		useInAuto: true,
@@ -76,10 +76,6 @@ const statuses = {
 	// The model was selected, but loading it found no llama.cpp to run it.
 	runtimeMissing: createStatus([installedFamily], {
 		active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 0, server: 'error', error: { code: 'runtimeNotFound', message: 'llama.cpp isn\'t set up on this device. Get llama.cpp, or set chat.copilot.localModel.llamaServerPath.', actions: ['getLlamaCpp', 'openSettings', 'retry'] } },
-	}),
-	runtimeApprovalRequired: createStatus([installedFamily], {
-		runtime: { source: 'path', trust: 'pendingApproval', path: 'C:\\tools\\llama.cpp\\llama-server.exe' },
-		active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 1, server: 'error', error: { code: 'runtimeApprovalRequired', message: 'The llama-server at C:\\tools\\llama.cpp\\llama-server.exe needs your approval before Example Flash 1.0 can run on it.', actions: [] } },
 	}),
 } satisfies Record<string, ILocalModelStatusV1>;
 
@@ -156,6 +152,18 @@ function renderNotice(context: ComponentFixtureContext, status: ILocalModelStatu
 	});
 }
 
+const highContrast: readonly ComponentFixtureAdditionalTheme[] = ['darkHighContrast', 'lightHighContrast'];
+
+/** A notice fixture for a status, or for the status a function returns when the fixture renders (a load's elapsed time). */
+function noticeFixture(status: ILocalModelStatusV1 | (() => ILocalModelStatusV1), options?: INoticeFixtureOptions, additionalThemes = highContrast) {
+	return defineComponentFixture({ additionalThemes, render: context => renderNotice(context, typeof status === 'function' ? status() : status, options) });
+}
+
+/** The status of a load the host started, elapsedMs into it. */
+function createLoadStatus({ elapsedMs, ...load }: Omit<NonNullable<NonNullable<ILocalModelStatusV1['active']>['load']>, 'startedAt'> & { readonly elapsedMs: number }): ILocalModelStatusV1 {
+	return createStatus([installedFamily], { active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 1, server: 'starting', load: { ...load, startedAt: Date.now() - elapsedMs } } });
+}
+
 /**
  * The on-device model notice above a chat input in each state it reports.
  * While an operation runs, it shows the in-progress indicator of an active
@@ -163,89 +171,33 @@ function renderNotice(context: ComponentFixtureContext, status: ILocalModelStatu
  */
 export const localModelNoticeFixtures = defineThemedFixtureGroup({
 	// Determinate progress, with Pause as a secondary button; the text and bar update in place.
-	Downloading: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, statuses.downloading),
-	}),
+	Downloading: noticeFixture(statuses.downloading),
 	// Pause was just selected: the notice and its button say so at once, until the host pauses.
-	Pausing: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, statuses.downloading, { pendingStops: ['op-1'] }),
-	}),
+	Pausing: noticeFixture(statuses.downloading, { pendingStops: ['op-1'] }),
 	// A load the host started, 12 s into one whose last comparable load took 31 s: estimated progress.
-	LoadingWithEstimate: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createStatus([installedFamily], { active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 1, server: 'starting', load: { step: 'loading', startedAt: Date.now() - 12_000, expectedMs: 31_000 } } })),
-	}),
+	LoadingWithEstimate: noticeFixture(() => createLoadStatus({ step: 'loading', elapsedMs: 12_000, expectedMs: 31_000 })),
 	// The first load at this context size has no estimate: an animated indeterminate bar.
-	LoadingFirstTime: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, createStatus([installedFamily], { active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 1, server: 'starting', load: { step: 'warmingUp', startedAt: Date.now() - 4_000 } } })),
-	}),
+	LoadingFirstTime: noticeFixture(() => createLoadStatus({ step: 'warmingUp', elapsedMs: 4_000 }), undefined, ['darkHighContrast']),
 	// This llama.cpp build crashed on the warm-up with speculative decoding: the host loads the model again without it.
-	LoadingRetryWithoutSpeculativeDecoding: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createStatus([installedFamily], { active: { familyId: family.familyId, contentId: 'c1', servingGeneration: 1, server: 'starting', load: { step: 'loading', startedAt: Date.now() - 3_000, retry: 'withoutSpeculativeDecoding' } } })),
-	}),
+	LoadingRetryWithoutSpeculativeDecoding: noticeFixture(() => createLoadStatus({ step: 'loading', elapsedMs: 3_000, retry: 'withoutSpeculativeDecoding' })),
 	// The user selected the model, which loads for the first time: an indeterminate bar, and Cancel as a secondary button.
-	SwapLoadingFirstTime: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createSwapStatus(4_000)),
-	}),
+	SwapLoadingFirstTime: noticeFixture(() => createSwapStatus(4_000)),
 	// The same, estimated from the last comparable load.
-	SwapLoadingWithEstimate: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createSwapStatus(12_000, 31_000)),
-	}),
+	SwapLoadingWithEstimate: noticeFixture(() => createSwapStatus(12_000, 31_000)),
 	// With reduced motion: the in-progress icon instead of the spinner, and an indeterminate bar that moves in coarse steps.
-	SwapLoadingReducedMotion: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createSwapStatus(4_000), { reducedMotion: true }),
-	}),
+	SwapLoadingReducedMotion: noticeFixture(() => createSwapStatus(4_000), { reducedMotion: true }),
 	// A new context size reloads the loaded model; while the old server releases its memory, nothing estimates it.
-	Reloading: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createReloadStatus()),
-	}),
+	Reloading: noticeFixture(() => createReloadStatus()),
 	// The reload loads the model again, estimated from the last comparable load.
-	ReloadingWithEstimate: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, createReloadStatus(12_000, 31_000)),
-	}),
+	ReloadingWithEstimate: noticeFixture(() => createReloadStatus(12_000, 31_000), undefined, ['darkHighContrast']),
 	// Cancel was just selected: the notice says so at once, and its button reads Cancelling and can't be chosen again.
-	Cancelling: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, createSwapStatus(4_000), { pendingStops: ['swap-1'] }),
-	}),
+	Cancelling: noticeFixture(() => createSwapStatus(4_000), { pendingStops: ['swap-1'] }),
 	// Selecting another model waits for the loaded one's running responses: Stop Now ends them, Cancel keeps it.
-	WaitingForResponses: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, statuses.waitingForResponses),
-	}),
-	CancellingWhileWaiting: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, statuses.waitingForResponses, { pendingStops: ['swap-1'] }),
-	}),
-	StoppingResponses: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, statuses.waitingForResponses, { pendingStops: [getLocalModelStopNowId('swap-1')] }),
-	}),
+	WaitingForResponses: noticeFixture(statuses.waitingForResponses),
+	CancellingWhileWaiting: noticeFixture(statuses.waitingForResponses, { pendingStops: ['swap-1'] }, ['darkHighContrast']),
+	StoppingResponses: noticeFixture(statuses.waitingForResponses, { pendingStops: [getLocalModelStopNowId('swap-1')] }, ['darkHighContrast']),
 	// Loading the selected model found no llama.cpp: the error with Get llama.cpp, Open Settings and Retry.
-	RuntimeMissing: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, statuses.runtimeMissing),
-	}),
-	Paused: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, statuses.paused),
-	}),
-	FailedWithRetry: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNotice(context, statuses.failed),
-	}),
-	// The detected llama-server is approved on the model's details page.
-	RuntimeApprovalRequired: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: context => renderNotice(context, statuses.runtimeApprovalRequired),
-	}),
+	RuntimeMissing: noticeFixture(statuses.runtimeMissing),
+	Paused: noticeFixture(statuses.paused, undefined, ['darkHighContrast']),
+	FailedWithRetry: noticeFixture(statuses.failed),
 });

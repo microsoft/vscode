@@ -40,7 +40,7 @@ export function createSentinelContribution(rows: readonly ILocalModelModelRow[])
  */
 export class FakeLocalModelProvider extends Disposable implements ILocalModelProvider {
 
-	readonly status = observableValue<ILocalModelStatusV1>(this, { schemaVersion: 1, device: { confidence: 'unknown' }, runtime: { source: 'none', trust: 'none' }, catalog: { state: 'ready', registries: { azureml: 'ready' } }, families: [], useInAuto: true });
+	readonly status = observableValue<ILocalModelStatusV1>(this, { schemaVersion: 1, device: { confidence: 'unknown' }, runtime: {}, catalog: { state: 'ready', registries: { azureml: 'ready' } }, families: [], useInAuto: true });
 	private readonly _onDidChangeModelRows = this._register(new Emitter<void>());
 	readonly onDidChangeModelRows = this._onDidChangeModelRows.event;
 	private readonly _onDidDirectRequestWait = this._register(new Emitter<ILocalModelDirectRequestWait>());
@@ -114,7 +114,6 @@ export class FakeLocalModelProvider extends Disposable implements ILocalModelPro
 	async start(): Promise<void> { }
 	async stop(): Promise<void> { }
 	async stopPrevious(): Promise<void> { }
-	async approveRuntime(): Promise<void> { }
 	async updateRuntime(): Promise<void> { }
 	async refreshCatalog(): Promise<void> { }
 	contributeProtectedResources(): readonly ProtectedResourceMetadata[] { return []; }
@@ -146,7 +145,6 @@ export function createIdleShimLocalModelProviderHost(): IShimLocalModelProviderH
 			resolveCapiBaseUrls: async () => [],
 			onDidChangeCapiAccounts: Event.None,
 			productVersion: '1.2.3',
-			workspaceFolders: () => [],
 			env: {},
 		}),
 		gpuProbe: { probe: () => new Promise(() => { }) },

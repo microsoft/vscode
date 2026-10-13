@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
-import { disposableTimeout, RunOnceScheduler } from '../../../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
@@ -15,7 +15,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
-import { deriveLocalModelReadiness, ILocalModelConsent, ILocalModelErrorV1, ILocalModelFamilyV1, ILocalModelLoadV1, ILocalModelStatusV1, LOCAL_MODEL_SENTINEL_PROVIDER_NAME, LocalModelEnabledSettingId, LocalModelErrorAction, LocalModelReadiness } from '../../../../../../../platform/agentHost/common/localModel.js';
+import { deriveLocalModelReadiness, ILocalModelConsent, ILocalModelErrorV1, ILocalModelFamilyV1, ILocalModelLoadV1, ILocalModelStatusV1, LOCAL_MODEL_SENTINEL_PROVIDER_NAME, LocalModelEnabledSettingId, LocalModelReadiness } from '../../../../../../../platform/agentHost/common/localModel.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -26,14 +26,13 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { runLocalModelErrorAction } from '../../../agentSessions/agentHost/localModelErrorActions.js';
-import { formatLocalModelBytes, getLocalModelDrainingStreams, getLocalModelLoad, isLocalModelReload, LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE, LOCAL_MODEL_RUNTIME_CHANGED_CODE, LocalModelEntryPath, logLocalModelFlow } from '../../../agentSessions/agentHost/localModelSetupFlow.js';
+import { formatLocalModelBytes, getLocalModelDrainingStreams, getLocalModelLoad, isLocalModelReload, LocalModelEntryPath, logLocalModelFlow } from '../../../agentSessions/agentHost/localModelSetupFlow.js';
 import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 
 /** Prefix of the ids of the "On This Device" rows that don't select a model; the rest is the family id. */
 export const LOCAL_MODEL_PICKER_ITEM_PREFIX = 'localModel:';
 /** Id of the row action that opens a family's detail page. */
 export const LOCAL_MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.localModelDetails';
-/** CSS class of the "On This Device" rows. */
 const LOCAL_MODEL_ROW_CLASS = 'chat-model-picker-local-model';
 /** CSS class of the rows of families that aren't downloaded, which can't be selected. */
 const LOCAL_MODEL_UNAVAILABLE_ROW_CLASS = 'chat-model-picker-local-model-unavailable';
@@ -58,7 +57,6 @@ export type LocalModelPickerAction =
 	| 'stop'
 	| 'stopNow'
 	| 'stopPrevious'
-	| 'approveRuntime'
 	| 'openSettings'
 	| 'getLlamaCpp'
 	| 'toggleAuto'
@@ -76,7 +74,7 @@ export interface ILocalModelPickerActionRequest {
 	readonly value?: boolean;
 	/** The chosen context size, for `setContextSize`: one of the family's context options. */
 	readonly contextTokens?: number;
-	/** What the user agreed to on the detail page, for `setUp` and `approveRuntime`. */
+	/** What the user agreed to on the detail page, for `setUp`. */
 	readonly consent?: ILocalModelConsent;
 	/** The setup entry path the consent covered, for telemetry. */
 	readonly entryPath?: LocalModelEntryPath;
@@ -89,10 +87,7 @@ export interface ILocalModelPickerActions {
 	logConsent?(step: 'consentShown' | 'consentCancelled', entryPath: LocalModelEntryPath): void;
 }
 
-/**
- * The thinking level and context size an installed family runs with: the
- * label of its row's Details button and of the selected model's readout.
- */
+/** The thinking level and context size an installed family runs with, shown on its Details button and the selected model's readout. */
 export interface ILocalModelConfigSummary {
 	/** The thinking level and context size joined by a middle dot, e.g. "Medium" and "128K", or just "128K" without a thinking level. */
 	readonly label: string;
@@ -107,26 +102,19 @@ export interface ILocalModelDirectModelPresentation {
 	readonly active: boolean;
 	/** A short state while the model isn't ready, e.g. "Not loaded". */
 	readonly state: string | undefined;
-	/** Its thinking level and context size, when known. */
 	readonly summary: ILocalModelConfigSummary | undefined;
 	readonly ariaDescription: string;
 	/** The readout beside the selected model's name: its short state while not ready, otherwise its summary; its description says both. */
 	readonly readout: ILocalModelConfigSummary;
 }
 
-/**
- * What the "On This Device" rows need from the picker showing them: the
- * direct-selection models they can select, and the detail pages they open.
- * An installed family whose model is listed here gets a single row that
- * selects it, rather than a management row beside a separate model row.
- */
+/** What the "On This Device" rows need from the picker showing them: the direct models they can select and the detail pages they open. */
 export interface ILocalModelPickerHost {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	/** The chat's model configuration, for the thinking level of a direct model. */
 	readonly configurationAccess?: IModelConfigurationAccess;
 	select(model: ILanguageModelChatMetadataAndIdentifier): void;
-	/** Opens the detail page of the family. */
 	showDetails(familyId: string): void;
 }
 
@@ -180,8 +168,6 @@ export function getLocalModelErrorLabel(error: ILocalModelErrorV1): string {
 		case 'runtimeTooOld': return localize('localModel.error.runtimeTooOld', "llama.cpp is too old");
 		case 'runtimeUnsupportedModel': return localize('localModel.error.runtimeUnsupportedModel', "Needs a newer llama.cpp");
 		case 'runtimeLibraryMissing': return localize('localModel.error.runtimeLibraryMissing', "Missing system library");
-		case LOCAL_MODEL_RUNTIME_CHANGED_CODE: return localize('localModel.error.runtimeChanged', "llama.cpp changed");
-		case LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE: return localize('localModel.error.runtimeApprovalRequired', "llama.cpp needs approval");
 		case 'gpuRuntimeMissing': return localize('localModel.error.gpuRuntimeMissing', "GPU driver needed");
 		case 'insufficientMemory': return localize('localModel.error.insufficientMemory', "Not enough GPU memory");
 		case 'memoryBusy': return localize('localModel.error.memoryBusy', "GPU memory busy");
@@ -220,11 +206,7 @@ export function getLocalModelPausedLabel(family: ILocalModelFamilyV1): string {
 		: localize('localModel.pausedAt', "Paused at {0}%", value);
 }
 
-/**
- * The phase of a running operation, e.g. "Downloading 42%". A drain names the
- * responses it waits for; with none running, the model is being unloaded,
- * which reads as loading (or reloading) for a swap.
- */
+/** The phase of a running operation, e.g. "Downloading 42%"; a drain with no responses left reads as loading. */
 export function getLocalModelPreparingLabel(family: ILocalModelFamilyV1, status: ILocalModelStatusV1): string {
 	const operation = family.operation;
 	switch (operation?.phase) {
@@ -275,38 +257,7 @@ export function getLocalModelFamilyError(family: ILocalModelFamilyV1, status: IL
 	return undefined;
 }
 
-/** Whether `error` is resolved by approving llama.cpp rather than by retrying. */
-export function isLocalModelRuntimeApprovalError(error: ILocalModelErrorV1): boolean {
-	return error.code === LOCAL_MODEL_RUNTIME_CHANGED_CODE || error.code === LOCAL_MODEL_RUNTIME_APPROVAL_REQUIRED_CODE;
-}
-
-/** Whether the family's error is resolved on its detail page by the llama.cpp approval, which replaces Retry. */
-export function isLocalModelErrorResolvedByApproval(family: ILocalModelFamilyV1, { error }: ILocalModelFamilyError, status: ILocalModelStatusV1): boolean {
-	return isLocalModelRuntimeApprovalError(error) && (!family.install || status.runtime.trust === 'pendingApproval');
-}
-
-/**
- * The fixes a family's error offers (labelled and run by the helpers in
- * `localModelErrorActions.ts`). Retrying an old approval only fails again, so
- * a runtime approval error offers no Retry while it is approved on the detail
- * page. Once llama.cpp is approved again, an active model it blocked offers
- * Retry, which starts it, even though the host lists no action for the error.
- */
-export function getLocalModelErrorActions(family: ILocalModelFamilyV1, failure: ILocalModelFamilyError, status: ILocalModelStatusV1): readonly LocalModelErrorAction[] {
-	const { error, operationId } = failure;
-	if (!isLocalModelRuntimeApprovalError(error)) {
-		return error.actions;
-	}
-	if (isLocalModelErrorResolvedByApproval(family, failure, status)) {
-		return error.actions.filter(action => action !== 'retry');
-	}
-	return operationId === undefined && status.runtime.trust === 'userApproved' && !error.actions.includes('retry') ? ['retry', ...error.actions] : error.actions;
-}
-
-/**
- * Whether the family's detail page asks for the download consent: it needs
- * setting up, or its paused download changed since the user agreed.
- */
+/** Whether the family's detail page asks for download consent: it needs setting up, or its paused download changed since the user agreed. */
 export function needsLocalModelSetUpConsent(family: ILocalModelFamilyV1, readiness: LocalModelReadiness): boolean {
 	if (family.install) {
 		return false;
@@ -337,11 +288,8 @@ export function getLocalModelStateLabel(family: ILocalModelFamilyV1, readiness: 
 }
 
 /**
- * How the detail page stops a running operation: Cancel takes back a model
- * change (while it waits for running responses, the active model stays
- * loaded) or stops loading a model, Stop Now ends the running responses an
- * update's drain waits for, and Pause stops a setup or update (the host
- * keeps it to resume).
+ * How the detail page stops a running operation: Cancel takes back a model change or stops a load, Stop Now ends
+ * the responses an update's drain waits for, and Pause stops a setup or update (kept to resume).
  */
 export interface ILocalModelRunningAction {
 	readonly id: string;
@@ -351,12 +299,7 @@ export interface ILocalModelRunningAction {
 	readonly pending: boolean;
 }
 
-/**
- * The action that stops `family`'s running operation, as the detail page
- * offers it ({@link ILocalModelRunningAction}). Removing can't be stopped.
- * Once a stop was sent, among `pendingStops`, it reads as in progress, e.g.
- * "Pausing...", until the status shows it took effect.
- */
+/** The action that stops `family`'s running operation; a stop among `pendingStops` reads as in progress, e.g. "Pausing...". */
 export function getLocalModelRunningAction(family: ILocalModelFamilyV1, status: ILocalModelStatusV1, pendingStops?: ReadonlySet<string>): ILocalModelRunningAction | undefined {
 	const operation = family.operation;
 	if (operation?.state !== 'running' || operation.kind === 'remove') {
@@ -376,11 +319,7 @@ export function getLocalModelRunningAction(family: ILocalModelFamilyV1, status: 
 	return { id: 'localModel.pause', label: pending ? localize('localModel.action.pausing', "Pausing\u2026") : localize('localModel.action.pause', "Pause"), request: { action: 'cancel', operationId: operation.id }, pending };
 }
 
-/**
- * The step of a loading model, e.g. "Loading model..." or "Warming up...",
- * or "Reloading..." while a `reload` loads it again, e.g. for a new context
- * size, or "Retrying..." through both steps of a retry.
- */
+/** The step of a loading model, e.g. "Loading model...", "Warming up...", "Reloading..." or "Retrying...". */
 export function getLocalModelLoadStepLabel(load: ILocalModelLoadV1 | undefined, reload = false): string {
 	if (load?.retry) {
 		return localize('localModel.retrying', "Retrying\u2026");
@@ -393,15 +332,7 @@ export function getLocalModelLoadStepLabel(load: ILocalModelLoadV1 | undefined, 
 		: localize('localModel.loadingModel', "Loading model\u2026");
 }
 
-/**
- * The short state the selected model's readout shows instead of its thinking
- * level and context size, so the chat input toolbar stays narrow, or
- * `undefined` once the model is ready: "Loading..." while it loads, warms up
- * or is swapped in; "Reloading..." while it loads again, e.g. for a new
- * context size; "Stopping..."; "Not loaded"; "Downloading 42%"; "Paused"; or
- * the short label of its error. Other steps of an update, e.g. "Verifying...",
- * read as on its row.
- */
+/** The short state the selected model's readout shows instead of its thinking level and context size, keeping the toolbar narrow; `undefined` once ready. */
 function getLocalModelReadoutState(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1): string | undefined {
 	const loading = localize('localModel.readout.loading', "Loading\u2026");
 	switch (readiness) {
@@ -443,12 +374,7 @@ interface ILocalModelRowState {
 	readonly notes: readonly string[];
 }
 
-/**
- * The short state and notes of one family's row, from its derived readiness.
- * The state only applies while the model isn't ready. A `selectable` row
- * selects the family's direct model, so it also says what using that model
- * costs. What can be done in that state is on the family's detail page.
- */
+/** The short state (only while not ready) and notes of one family's row; a `selectable` row also says what using its model costs. */
 function getFamilyRowState(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, selectable: boolean): ILocalModelRowState {
 	const active = status.active?.familyId === family.familyId ? status.active : undefined;
 	const notes: string[] = [];
@@ -526,11 +452,7 @@ export function isLocalModelLoadedOrLoading(family: ILocalModelFamilyV1, status:
 	return active?.familyId === family.familyId && (active.server === 'ready' || active.server === 'starting');
 }
 
-/**
- * A context size, e.g. "128K", like a cloud model's context label. llama.cpp
- * sizes are binary, so 131,072 tokens read as 128K; decimal sizes, e.g.
- * 128,000 tokens, read as they do for cloud models.
- */
+/** A context size, e.g. "128K". llama.cpp sizes are binary (131,072 tokens read as 128K); decimal sizes read as they do for cloud models. */
 export function formatLocalModelContextTokens(tokens: number): string {
 	const mega = 1024 * 1024;
 	if (tokens % 1000 !== 0) {
@@ -558,23 +480,13 @@ function describeSetting(title: string, value: string): string {
 	return localize('localModel.setting', "{0}: {1}", title, value);
 }
 
-/**
- * The context size the family's loaded model serves with, while it is the
- * active model and its server is ready or starting. It can be smaller than
- * the selected size, e.g. when the device lacks the GPU memory for it, or
- * differ until a pending reload applies a new selection.
- */
+/** The context size the active family's loaded model serves with while ready or starting; it can differ from the selected size. */
 export function getLocalModelServingContextTokens(family: ILocalModelFamilyV1, status: Pick<ILocalModelStatusV1, 'active'>): number | undefined {
 	const active = status.active?.familyId === family.familyId ? status.active : undefined;
 	return active?.server === 'ready' || active?.server === 'starting' ? active.contextTokens : undefined;
 }
 
-/**
- * The thinking level of `model`, the family's direct model, and the family's
- * context size, e.g. "Medium" and "128K": the size its loaded model serves
- * with, otherwise the selected one. `undefined` when neither is known, e.g.
- * for a family that isn't installed.
- */
+/** The thinking level of the family's direct `model` and its context size (serving, else selected); `undefined` when neither is known. */
 export function getLocalModelConfigSummary(family: ILocalModelFamilyV1, status: Pick<ILocalModelStatusV1, 'active'>, model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: IModelConfigurationAccess | undefined): ILocalModelConfigSummary | undefined {
 	if (!family.install) {
 		return undefined;
@@ -601,11 +513,7 @@ function isDirectModelOf(model: ILanguageModelChatMetadataAndIdentifier, family:
 	return model.metadata.targetChatSessionType === SessionType.AgentHostCopilot && matchesLocalModelRowId(family.install?.modelId, model.metadata.id);
 }
 
-/**
- * The action that opens the detail page of the family named `displayName`,
- * shown on its row. Like a cloud model's, it is labelled with the model's
- * `summary`, its thinking level and context size, when known.
- */
+/** The action on a family's row that opens its detail page, labelled with `summary` like a cloud model's. */
 export function createLocalModelDetailsAction(displayName: string, run: () => void, summary?: string): IAction {
 	return toAction({
 		id: LOCAL_MODEL_DETAILS_ACTION_ID,
@@ -627,13 +535,7 @@ export interface ILocalModelDownloadSlot {
 	readonly action?: 'download' | 'setUp';
 }
 
-/**
- * The slot of a family's row while its model isn't downloaded, or `undefined`
- * once it is installed: Download, or Set Up for model files already on this
- * device; while it downloads, its progress ("42%"), or its step, e.g.
- * "Verifying..."; Paused; or the short label of its error. Each opens the
- * family's detail page, which has its license, size and the Download button.
- */
+/** The slot of a family's row while its model isn't downloaded (Download, Set Up, progress, Paused or an error); `undefined` once installed. */
 export function getLocalModelDownloadSlot(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1): ILocalModelDownloadSlot | undefined {
 	if (family.install) {
 		return undefined;
@@ -662,30 +564,17 @@ export function getLocalModelDownloadSlot(family: ILocalModelFamilyV1, readiness
 	}
 }
 
-/**
- * Whether the family's row reads as not downloaded rather than not set up:
- * its model files aren't on this device yet, before or during the download.
- */
+/** Whether the family's row reads as not downloaded (its files aren't on this device yet) rather than not set up. */
 function isLocalModelNotDownloaded(family: ILocalModelFamilyV1): boolean {
 	const phase = family.operation?.phase;
 	return !family.entry?.modelFilesPresent && phase !== 'verifying' && phase !== 'placing' && phase !== 'loading';
 }
 
 /**
- * Builds the single-line row of one family, like a cloud model's: the check
- * when its model is selected, its name, an Active badge while it is loaded or
- * loading, and the Details button, labelled with the model's thinking level
- * and context size once it is installed. Its state isn't shown on the row: it
- * is read with it, and on its detail page and the notice above the chat
- * input, which also have what can be done in that state. An installed family
- * with a direct model in `host` gets a single row that selects that model;
- * any other row opens its detail page, as Right Arrow on any row does.
- *
- * A family that isn't downloaded can't be selected: its name reads as
- * disabled, and the Download button ({@link getLocalModelDownloadSlot}), or
- * the download's progress, always shows where an installed model's thinking
- * level and context size would be. The row stays reachable from the keyboard
- * so that button is too; both open the family's detail page.
+ * Builds the single-line row of one family, like a cloud model's: check, name, Active badge and a Details button
+ * labelled with its thinking level and context size. An installed family with a direct model in `host` selects it;
+ * any other row opens its detail page. A family that isn't downloaded can't be selected but stays keyboard
+ * reachable, showing its Download button or progress in place of the summary.
  */
 function buildFamilyRow(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, host: ILocalModelPickerHost | undefined): IActionListItem<IActionWidgetDropdownAction> {
 	const model = family.install ? host?.models.find(candidate => isDirectModelOf(candidate, family)) : undefined;
@@ -741,13 +630,7 @@ function buildFamilyRow(family: ILocalModelFamilyV1, readiness: LocalModelReadin
 	};
 }
 
-/**
- * Builds the rows of the model picker's "On This Device" tab: one per listed
- * family. An installed family whose direct model is in `host` is listed
- * once, as that model's selectable row. Returns nothing when the status lists
- * no family, so users who haven't opted in, or whose device can't run a
- * model, see no change.
- */
+/** Builds the rows of the "On This Device" tab, one per listed family; none when the status lists no family, so users who haven't opted in see no change. */
 export function buildLocalModelPickerItems(status: ILocalModelStatusV1, host?: ILocalModelPickerHost): IActionListItem<IActionWidgetDropdownAction>[] {
 	const rows: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	for (const family of status.families) {
@@ -759,11 +642,7 @@ export function buildLocalModelPickerItems(status: ILocalModelStatusV1, host?: I
 	return rows;
 }
 
-/**
- * The picker content for `status`, or `undefined` when it has no row to show.
- * Detail page affordances go to `actions`; the stops among `pendingStops`
- * show as in progress there.
- */
+/** The picker content for `status`, or `undefined` when it has no row to show; detail page affordances go to `actions`. */
 export function createLocalModelPickerPresentation(status: ILocalModelStatusV1, actions: ILocalModelPickerActions, pendingStops?: ReadonlySet<string>): IModelPickerLocalModels | undefined {
 	if (!status.families.some(family => deriveLocalModelReadiness(family, status))) {
 		return undefined;
@@ -779,29 +658,19 @@ export function createLocalModelPickerPresentation(status: ILocalModelStatusV1, 
 	};
 }
 
-/**
- * The installed family whose direct-selection row is `model`: the agent-host
- * row of the local Copilot host whose id is the install's model id.
- */
+/** The installed family whose direct-selection row is `model`: the local Copilot host row whose id is the install's model id. */
 export function findLocalModelFamilyForModel(model: ILanguageModelChatMetadataAndIdentifier, status: ILocalModelStatusV1 | undefined): ILocalModelFamilyV1 | undefined {
 	return status?.families.find(family => isDirectModelOf(model, family));
 }
 
 const LOCAL_MODEL_ROW_ID_PREFIX = `${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`;
 
-/**
- * Whether `model` is an on-device direct-selection row of the local Copilot
- * host, known from its id alone, so the picker can keep it out of the cloud
- * tabs even before (or after) on-device status is available.
- */
+/** Whether `model` is an on-device direct row, known from its id alone so it stays out of the cloud tabs even without status. */
 export function isLocalModelDirectRow(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.targetChatSessionType === SessionType.AgentHostCopilot && model.metadata.id.startsWith(LOCAL_MODEL_ROW_ID_PREFIX);
 }
 
-/**
- * An on-device model's name where it is selected or answered, e.g.
- * "MAI Code 1.1 Flash · On-device": the label the Copilot CLI and app use.
- */
+/** An on-device model's name where it is selected or answered, e.g. "MAI Code 1.1 Flash · On-device", as the Copilot CLI and app show it. */
 export function formatLocalModelOnDeviceName(name: string): string {
 	return localize({ key: 'localModel.onDeviceName', comment: ['{0} is the name of a model that runs on this device'] }, "{0} \u00b7 On-device", name);
 }
@@ -810,26 +679,14 @@ function withoutRowIdPrefix(id: string): string {
 	return id.startsWith(LOCAL_MODEL_ROW_ID_PREFIX) ? id.slice(LOCAL_MODEL_ROW_ID_PREFIX.length) : id;
 }
 
-/**
- * Whether `modelId` names the direct-selection row whose id is `installModelId`.
- * Rows are published as `vscode-on-device/<alias>`; the runtime may
- * report the bare alias, so the sentinel provider prefix is optional on
- * either side.
- */
+/** Whether `modelId` names the row whose id is `installModelId`; the runtime may report the bare alias, so the sentinel prefix is optional on either side. */
 export function matchesLocalModelRowId(installModelId: string | undefined, modelId: string | undefined): boolean {
 	return !!installModelId && !!modelId && (installModelId === modelId || withoutRowIdPrefix(installModelId) === withoutRowIdPrefix(modelId));
 }
 
 /**
- * The description of a direct-selection row listed on its own, e.g. as a
- * search result named after the "On This Device" tab, and the readout of the
- * selected one. The readout shows either the family's short state while it
- * isn't ready ({@link getLocalModelReadoutState}) or, once it is, its thinking
- * level, from `configurationAccess`, and context size, like a cloud model's
- * readout; never both, so the chat input toolbar stays narrow. Its
- * description, read by assistive technology and shown on hover, says all of
- * them. Without a thinking level or context size, a ready model's readout is
- * "Ready".
+ * The presentation of a direct-selection row listed on its own (e.g. a search result) and the readout of the
+ * selected one: its short state while not ready, else its summary, never both, keeping the toolbar narrow.
  */
 export function getLocalModelDirectModelPresentation(model: ILanguageModelChatMetadataAndIdentifier, status: ILocalModelStatusV1 | undefined, configurationAccess?: IModelConfigurationAccess): ILocalModelDirectModelPresentation | undefined {
 	const family = findLocalModelFamilyForModel(model, status);
@@ -847,10 +704,7 @@ export function getLocalModelDirectModelPresentation(model: ILanguageModelChatMe
 	return { familyId: family.familyId, active: status.active?.familyId === family.familyId, state, summary, ariaDescription: description, readout };
 }
 
-/**
- * Everything rows and detail pages show except progress, so progress-only
- * changes leave it unchanged.
- */
+/** Everything rows and detail pages show except progress, so progress-only changes leave it unchanged. */
 function getStateSignature(status: ILocalModelStatusV1 | undefined, pendingStops: ReadonlySet<string>): string {
 	if (!status) {
 		return '';
@@ -866,11 +720,6 @@ function getStateSignature(status: ILocalModelStatusV1 | undefined, pendingStops
 	});
 }
 
-/** A start of the active model promised by its detail page, once the llama.cpp approved there is trusted. */
-interface IPendingStart {
-	readonly familyId: string;
-}
-
 /** An action invoked from a detail page of the picker, or the load a selection started, reported as `localModel.pickerAction`. */
 export interface ILocalModelPickerActionEvent {
 	readonly action: LocalModelPickerAction;
@@ -881,14 +730,8 @@ export interface ILocalModelPickerActionEvent {
 }
 
 /**
- * Binds the "On This Device" rows and detail pages of one model picker to the
- * Agent Host connection its chat runs on: reads that connection's status,
- * hides the rows unless the setting is on, chat is enabled and there is
- * something to list, runs affordances through {@link ILocalModelService},
- * loads a direct row's model as it is selected,
- * starts the active model once its approved llama.cpp is trusted, and signals
- * when an open picker should refresh: on state transitions immediately, on
- * progress at most once a second.
+ * Binds the "On This Device" rows and detail pages of one model picker to its chat's Agent Host connection, and
+ * signals refreshes: on state transitions at once, on progress at most once a second.
  */
 export class ModelPickerLocalModels extends Disposable {
 
@@ -900,14 +743,8 @@ export class ModelPickerLocalModels extends Disposable {
 	private readonly _status: IObservable<ILocalModelStatusV1 | undefined>;
 	private readonly _pendingStops: IObservable<ReadonlySet<string>>;
 	private readonly _progressRefresh = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), PROGRESS_REFRESH_INTERVAL_MS));
-	private readonly _deferredStart = this._register(new MutableDisposable());
-	/** The active model to start once the llama.cpp approved for it on its detail page is trusted. */
-	private _pendingStart: IPendingStart | undefined;
 
-	/**
-	 * @param connection The chat's Agent Host connection; the local Agent Host when omitted.
-	 * @param _logAction Reports a detail page action or swap outcome to telemetry.
-	 */
+	/** @param connection The chat's Agent Host connection; the local Agent Host when omitted. */
 	constructor(
 		connection: IAgentConnection | undefined,
 		private readonly _logAction: (event: ILocalModelPickerActionEvent) => void,
@@ -928,7 +765,6 @@ export class ModelPickerLocalModels extends Disposable {
 		let lastStatus: ILocalModelStatusV1 | undefined;
 		this._register(autorun(reader => {
 			const status = this._status.read(reader);
-			this._startIfTrusted(status);
 			// A stop that was just sent shows at once, as one that took effect does.
 			const next = getStateSignature(status, this._pendingStops.read(reader));
 			if (signature === undefined) {
@@ -980,13 +816,8 @@ export class ModelPickerLocalModels extends Disposable {
 	}
 
 	/**
-	 * Loads the model of the direct row `model` is, as selecting it does, at
-	 * once and without asking: an installed family that isn't active becomes
-	 * active (the host unloads the active one once its running responses
-	 * finish), and the active one starts when it isn't loaded. The notice
-	 * above the chat input shows the wait and the load, with Cancel. Returns
-	 * whether a load was requested; nothing for other models, or one that is
-	 * loaded, loading or already being swapped in.
+	 * Loads the model of the direct row `model` as selecting it does, without asking: an inactive installed family
+	 * becomes active and an unloaded active one starts. Returns whether a load was requested.
 	 */
 	loadOnSelect(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		const status = this._getVisibleStatus();
@@ -1020,29 +851,6 @@ export class ModelPickerLocalModels extends Disposable {
 		});
 	}
 
-	/**
-	 * Starts the active model once the llama.cpp approved for it is trusted, as
-	 * its detail page promised: once. Gives up when another model becomes
-	 * active.
-	 */
-	private _startIfTrusted(status: ILocalModelStatusV1 | undefined): void {
-		const pending = this._pendingStart;
-		if (!pending || !status) {
-			return;
-		}
-		if (status.active?.familyId !== pending.familyId) {
-			this._pendingStart = undefined;
-			return;
-		}
-		if (status.runtime.trust === 'userApproved') {
-			this._pendingStart = undefined;
-			if (status.active.server === 'error' || status.active.server === 'stopped') {
-				// Not from inside this status update: sending changes the status being read.
-				this._deferredStart.value = disposableTimeout(() => this._localModelService.start(this._connection), 0);
-			}
-		}
-	}
-
 	private _run(request: ILocalModelPickerActionRequest): void {
 		const connection = this._connection;
 		const service = this._localModelService;
@@ -1063,12 +871,6 @@ export class ModelPickerLocalModels extends Disposable {
 			case 'start': service.start(connection); break;
 			case 'stop': service.stop(connection); break;
 			case 'stopNow': void service.stopNow(connection); break;
-			case 'approveRuntime': {
-				if (consent && service.approveRuntime(connection, consent) && status?.active?.familyId === request.familyId && status.active.server === 'error') {
-					this._pendingStart = { familyId: request.familyId };
-				}
-				break;
-			}
 			// An error's fixes run the same wherever the error shows.
 			case 'retry':
 			case 'stopPrevious':

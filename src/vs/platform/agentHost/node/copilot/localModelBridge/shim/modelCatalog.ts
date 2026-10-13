@@ -17,11 +17,7 @@ import { discardResponse, hostForLog, isAllowedDownloadUrl, isSafeModelFileName,
 import type { GgufArchitectureRead } from './gguf.js';
 import { parseLlamaConfigJson, parseLlamaPreset, type ILlamaPreset } from './llamaPreset.js';
 
-/*
- * Azure ML tag-driven catalog. This first part holds the pure
- * functions: tag validation, identities, request/response shapes, file
- * selection and the registry merge. The `ModelCatalog` class (IO) follows.
- */
+/* Azure ML tag-driven catalog: pure validation, identity, request and merge functions, then the `ModelCatalog` class (IO). */
 
 // #region Profiles and identities
 
@@ -56,12 +52,8 @@ export type LocalModelTagValidation =
 	| { readonly ok: false; readonly reason: string };
 
 /**
- * The CAPI id an on-device model is routed as, from its Azure ML asset name
- * only (no tag or provider-supplied identity), the rule the Copilot app and
- * CLI share: lowercased; a trailing `-on-device` becomes `-local` (the bare
- * name `on-device` becomes `local`); a trailing `-local` is kept; anything
- * else gets `-local` appended. `MAI-Code-1.1-Flash-On-Device` and
- * `MAI-Code-1.1-Flash` are both `mai-code-1.1-flash-local`. Pure.
+ * The CAPI id an on-device model is routed as, from its Azure ML asset name only (the rule the Copilot app and CLI
+ * share): lowercased; a trailing `-on-device` becomes `-local`, a trailing `-local` is kept, else `-local` is appended. Pure.
  */
 export function deriveCapiId(assetName: string): string {
 	const lower = assetName.toLowerCase();
@@ -79,12 +71,7 @@ export function isAutoCapable(capiId: string): boolean {
 	return KNOWN_AUTO_LOCAL_IDS.includes(capiId.toLowerCase());
 }
 
-/**
- * Whether `capiId` is well formed: a {@link isSafeRegistryIdentifier} that
- * ends with `-local`. Used for ids derived from asset names and for ids read
- * from foreign or persisted records, which reach the status, the UI and
- * logs. Pure.
- */
+/** Whether `capiId` is a {@link isSafeRegistryIdentifier} ending with `-local`; such ids reach the status, the UI and logs. Pure. */
 export function isValidCapiId(capiId: string): boolean {
 	return isSafeRegistryIdentifier(capiId) && capiId.toLowerCase().endsWith(LOCAL_CAPI_ID_SUFFIX);
 }
@@ -105,12 +92,9 @@ export function isSafeLicenseUrl(url: string): boolean {
 }
 
 /**
- * Sanitizes a `displayName` tag: removes control and format characters
- * (including bidi overrides), collapses whitespace and trims. Returns
- * `undefined` when empty, longer than {@link DISPLAY_NAME_MAX_LENGTH}, or when
- * it holds a URL or a signed-URL parameter: a display name is shown in the UI
- * and interpolated into logs and status messages, so it must never carry a
- * credential. Pure.
+ * Sanitizes a `displayName` tag: strips control and format characters (including bidi overrides) and collapses
+ * whitespace. `undefined` when empty, too long, or holding a URL or signed-URL parameter: display names reach the UI
+ * and logs, so they must never carry a credential. Pure.
  */
 export function sanitizeDisplayName(value: string): string | undefined {
 	const cleaned = value.replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}]/gu, '').replace(/\s+/g, ' ').trim();
@@ -150,12 +134,8 @@ function positiveInteger(value: unknown): number | undefined {
 }
 
 /**
- * The primary GGUF's file name from a `modelUri` tag: the URI's last path
- * segment, without query or fragment. `undefined` (the tag is rejected) when
- * the URI carries a credential (a signed-URL parameter, also percent-encoded,
- * or userinfo) or the segment is not a safe model file name
- * ({@link isSafeModelFileName}). Only this validated name is kept, never the
- * URI itself. Pure.
+ * The primary GGUF's file name from a `modelUri` tag (its last path segment), or `undefined` when the URI carries a
+ * credential or the name isn't safe ({@link isSafeModelFileName}). Only this name is kept, never the URI. Pure.
  */
 export function modelFileNameFromUri(modelUri: string): string | undefined {
 	if (hasSignedUrlParameter(modelUri) || hasUrlUserinfo(modelUri)) {
@@ -175,11 +155,8 @@ function safeCreatedTime(value: string | undefined): string | undefined {
 const REQUIREMENTS_TAG_MAX_LENGTH = 1024;
 
 /**
- * Whether a model is in the local-coding scope: the registry's canonical
- * metadata says Microsoft, GGUF and the `Coding` keyword (the Copilot CLI's
- * scope), or its tags opt it in the way the Copilot app reads them
- * (`githubCopilotLocal=true`, `model_flavor=GGUF`) or an earlier tag contract
- * did (`localCoding=true`, `modelFormat=gguf`). Pure.
+ * Whether a model is in the local-coding scope: canonical metadata says Microsoft, GGUF and `Coding` (the Copilot CLI's
+ * scope), or its tags opt it in as the Copilot app reads them or as an earlier tag contract did. Pure.
  */
 export function isLocalCodingModel(tags: unknown, metadata: unknown): boolean {
 	const m = asRecord(metadata);
@@ -237,15 +214,9 @@ function licenseUrlFromDescription(description: string | undefined): string | un
 }
 
 /**
- * Validates a model version from its canonical metadata (search rows'
- * `systemCatalogData`, lookups' `systemMetadata`) and its tags, metadata
- * first ({@link LOCAL_MODEL_METADATA}, then the tags of
- * {@link LOCAL_MODEL_TAGS}, then earlier tag names). The model must
- * be in scope ({@link isLocalCodingModel}) and support tool calls.
- * Requirements come from `githubCopilotLocalRequirements`, else the earlier
- * size and GPU memory tags, else, for the production MAI version only, the
- * Copilot CLI's temporary values ({@link UNPUBLISHED_REQUIREMENTS_FALLBACK}).
- * A model that fails validation is skipped, never shown partially. Pure.
+ * Validates a model version from its canonical metadata and tags (metadata first, then {@link LOCAL_MODEL_TAGS}, then
+ * earlier tag names). It must be in scope and support tool calls; requirements fall back to earlier tags, then, for the
+ * production MAI version only, to {@link UNPUBLISHED_REQUIREMENTS_FALLBACK}. A failing model is skipped. Pure.
  */
 export function validateLocalModelTags(tags: unknown, source: { readonly registry: LocalModelRegistryName; readonly assetName: string; readonly version: string; readonly createdTime?: string; readonly metadata?: unknown }): LocalModelTagValidation {
 	const metadata = asRecord(source.metadata);
@@ -362,11 +333,8 @@ export function validateLocalModelTags(tags: unknown, source: { readonly registr
 }
 
 /**
- * Serving compatibility: offered only when (a) the `capiId` is in
- * `KNOWN_AUTO_LOCAL_IDS` (verified families), or (b) it carries
- * `minLlamaCppBuild` and the resolved llama.cpp build is known and at least
- * that. (The preset allowlist is enforced again when the version is
- * resolved for setup.) Pure.
+ * Serving compatibility: offered only when the `capiId` is in `KNOWN_AUTO_LOCAL_IDS`, or its `minLlamaCppBuild` is at
+ * most the resolved llama.cpp build. The preset allowlist is enforced again at setup. Pure.
  */
 export function isServingCompatible(profile: Pick<ILocalModelProfile, 'capiId' | 'minLlamaCppBuild'>, resolvedLlamaCppBuild: number | undefined): boolean {
 	if (isAutoCapable(profile.capiId)) {
@@ -382,10 +350,7 @@ export interface IContentFile {
 	readonly sha256: string;
 }
 
-/**
- * `contentId`: SHA-256 over the sorted `(relative path, size, sha256)` of
- * every file in a version, independent of the source registry. Pure.
- */
+/** `contentId`: SHA-256 over the sorted `(relative path, size, sha256)` of every file in a version, independent of the registry. Pure. */
 export function computeContentId(files: readonly IContentFile[]): string {
 	const lines = [...files]
 		.map(file => `${file.path}\n${file.sizeBytes}\n${file.sha256.toLowerCase()}\n`)
@@ -424,11 +389,7 @@ export function formatAssetId(registry: LocalModelRegistryName, assetName: strin
 	return `azureml://registries/${registry}/models/${assetName}/versions/${version}`;
 }
 
-/**
- * Builds the `crossRegion` search body: the latest versions in the Microsoft
- * GGUF coding scope of the canonical catalog metadata, the Copilot CLI's
- * filter. Pure.
- */
+/** Builds the `crossRegion` search body: the latest versions in the Microsoft GGUF coding scope (the Copilot CLI's filter). Pure. */
 export function buildTagSearchBody(registry: LocalModelRegistryName, continuationToken: string | undefined, pageSize = 50): string {
 	const filter = (field: string, value: string) => ({ field, operator: 'eq', values: [value] });
 	const scoped = [
@@ -456,10 +417,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
-/**
- * Parses a `crossRegion` response into hits (archived hits flagged) and the
- * continuation token. Returns `undefined` for an unrecognizable body. Pure.
- */
+/** Parses a `crossRegion` response into hits (archived ones flagged) and the continuation token; `undefined` for an unrecognizable body. Pure. */
 export function parseTagSearchResponse(body: unknown): { readonly hits: IRegistrySearchHit[]; readonly continuationToken: string | undefined } | undefined {
 	const page = asRecord(asRecord(body)?.indexEntitiesResponse);
 	if (!page || !Array.isArray(page.value)) {
@@ -548,11 +506,7 @@ function decodeXmlText(value: string): string {
 	});
 }
 
-/**
- * Parses an Azure Blob `List Blobs` XML response (capped at
- * {@link CONTAINER_LIST_MAX_BLOBS}). Returns `undefined` when over the cap or
- * when the listing continues (`NextMarker`), which this resolver rejects. Pure.
- */
+/** Parses an Azure Blob `List Blobs` XML response; `undefined` when over {@link CONTAINER_LIST_MAX_BLOBS} or continued (`NextMarker`). Pure. */
 export function parseBlobListXml(xml: string): IListedBlob[] | undefined {
 	const blobs: IListedBlob[] = [];
 	const blobPattern = /<Blob>([\s\S]*?)<\/Blob>/g;
@@ -615,12 +569,9 @@ function baseName(name: string): string {
 }
 
 /**
- * Picks the required files among blobs directly under `prefix`:
- * exactly one runtime config, `llama-config.json` (current registry contract)
- * or else `llama-default.ini` (snapshot contract); the primary GGUF named by
- * the `modelUri` tag (`modelFileName`, its validated last segment), or the
- * largest non-shard `.gguf` (a JSON config names its own primary, checked
- * after it is read). Sharded GGUFs are rejected. Pure.
+ * Picks the required files among blobs directly under `prefix`: exactly one runtime config (`llama-config.json`, else
+ * `llama-default.ini`) and the primary GGUF named by `modelFileName`, else the largest non-shard `.gguf`. Sharded
+ * GGUFs are rejected. Pure.
  */
 export function selectModelFiles(blobs: readonly IListedBlob[], prefix: string, modelFileName: string | undefined): ModelFileSelection {
 	const normalized = prefix ? `${prefix.replace(/\/+$/, '')}/` : '';
@@ -655,14 +606,8 @@ export type ModelFolderUnwrap =
 	| { readonly ok: false; readonly reason: string };
 
 /**
- * A version whose files all sit in one packaging folder (published as
- * `5/llama-config.json`, `5/<model>.gguf`, ...) is read from that folder, as
- * the Copilot CLI and app do: `folder` is appended to the listing prefix, so the
- * config's model names resolve beside it. Only an unambiguous wrapper is
- * accepted: no file directly under `prefix`, exactly one runtime config
- * (`llama-config.json`, else `llama-default.ini`), and every file inside that
- * config's folder, whose segments are safe identifiers. A listing with a file
- * directly under `prefix` is left as is (`folder` undefined). Pure.
+ * Reads a version whose files all sit in one packaging folder (e.g. `5/llama-config.json`) from that folder, as the
+ * Copilot CLI and app do. Only an unambiguous wrapper is accepted; otherwise `folder` is undefined. Pure.
  */
 export function unwrapModelFolder(blobs: readonly IListedBlob[], prefix: string): ModelFolderUnwrap {
 	const normalized = prefix ? `${prefix.replace(/\/+$/, '')}/` : '';
@@ -736,12 +681,7 @@ export interface IMergeInput {
 	readonly resolvedLlamaCppBuild: number | undefined;
 }
 
-/**
- * One row per family: the registry's serving-compatible build is offered;
- * for an installed family, another version of it (whose content is not known
- * to be the installed one) is its update. Installed families are always
- * listed. Pure.
- */
+/** One row per family: the serving-compatible build is offered, and another version of an installed family is its update. Installed families are always listed. Pure. */
 export function mergeCatalogFamilies(input: IMergeInput): IMergedCatalogFamily[] {
 	const offers = new Map<string, ILocalModelProfile>();
 	for (const profile of [...input.profiles].sort((a, b) => a.assetName.localeCompare(b.assetName))) {
@@ -865,11 +805,7 @@ interface ICatalogCacheV2 {
 }
 
 const CATALOG_CACHE_KEY = 'localModel.catalog';
-/**
- * 2: the production catalog contract (canonical metadata scope, the
- * `-on-device` CAPI id rule, wrapper folders). A cache written under an
- * earlier contract (for example an `empty` production registry) is discarded.
- */
+/** Bumped when the catalog contract changes: a cache written under an earlier contract is discarded. */
 const CATALOG_CACHE_SCHEMA_VERSION = 2;
 const SEARCH_MAX_PAGES = 20;
 const JSON_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
@@ -881,13 +817,9 @@ function isPositiveSafeInteger(value: unknown): value is number {
 }
 
 /**
- * Validating reader for one cached profile: every identifier passes
- * {@link isSafeRegistryIdentifier}, `familyId === capiId.toLowerCase()`, the
- * display and license texts are safe, and nothing in the record holds a
- * credential ({@link containsCredential}). The profile is rebuilt from known
- * fields only; a `modelUri` field in the record goes through
- * {@link modelFileNameFromUri} and is never kept. A record that fails any
- * check is dropped as a whole, never repaired. Pure.
+ * Validating reader for one cached profile: identifiers must be safe, `familyId === capiId.toLowerCase()`, texts safe
+ * and nothing credential-like. It is rebuilt from known fields only (a `modelUri` is reduced to its file name); a
+ * failing record is dropped whole. Pure.
  */
 export function readCachedProfile(value: unknown): ILocalModelProfile | undefined {
 	const record = asRecord(value);
@@ -949,12 +881,7 @@ function isCachedSourceKey(key: string): boolean {
 		&& isSafeRegistryIdentifier(assetName) && assetName === assetName.toLowerCase() && isSafeRegistryIdentifier(version);
 }
 
-/**
- * Validating reader for one cached content-facts entry: the key is a
- * {@link sourceKey}, every file name is a safe model file name with a size and
- * a SHA-256, the content id matches the files, and nothing holds a credential.
- * A failing entry is dropped. Pure.
- */
+/** Validating reader for one cached content-facts entry: key, hashes and content id must check out and nothing may hold a credential. Pure. */
 function readCachedContentFacts(key: string, value: unknown): ICachedContentFacts | undefined {
 	const record = asRecord(value);
 	if (!isCachedSourceKey(key) || !record || containsCredential(record) || !isSha256Hex(record.contentId) || !Array.isArray(record.files) || record.files.length === 0) {
@@ -972,11 +899,7 @@ function readCachedContentFacts(key: string, value: unknown): ICachedContentFact
 	return computeContentId(files) === record.contentId ? { contentId: record.contentId, files } : undefined;
 }
 
-/**
- * The Azure ML catalog: anonymous `crossRegion` search with lazy
- * `nonazureaccount` resolution; the registry's state; a 24 h cache in Agent
- * Host storage without SAS URLs; at most two concurrent resolutions.
- */
+/** The Azure ML catalog: anonymous `crossRegion` search, lazy resolution, a 24 h cache without SAS URLs, at most two concurrent resolutions. */
 export class ModelCatalog extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -1043,10 +966,7 @@ export class ModelCatalog extends Disposable {
 		return this.snapshot;
 	}
 
-	/**
-	 * Resolves a version for setup: SAS, container listing, preset,
-	 * `HEAD` facts and `contentId`. Throws {@link LocalModelCatalogError}.
-	 */
+	/** Resolves a version for setup (SAS, listing, preset, `HEAD` facts, `contentId`). Throws {@link LocalModelCatalogError}. */
 	async resolveForSetup(profile: ILocalModelProfile, signal: AbortSignal): Promise<IResolvedModelVersion> {
 		return this._withRetries(() => this._resolve(profile, signal), signal);
 	}
@@ -1058,12 +978,7 @@ export class ModelCatalog extends Disposable {
 		return resolved.files.map(file => ({ ...file, url: buildBlobUrl(sas, normalized + file.relativePath) }));
 	}
 
-	/**
-	 * `general.architecture` of the version's primary GGUF, read before the
-	 * download with bounded `Range` requests under the download URL
-	 * policy; an expired SAS is renewed once. Never logs URLs. Throws only when
-	 * cancelled.
-	 */
+	/** `general.architecture` of the primary GGUF via bounded `Range` requests before the download; an expired SAS is renewed once. Never logs URLs. */
 	async readPrimaryArchitecture(resolved: IResolvedModelVersion, signal: AbortSignal): Promise<GgufArchitectureRead> {
 		const primary = resolved.files.find(file => file.relativePath === resolved.primaryFile);
 		if (!primary) {

@@ -53,16 +53,9 @@ export type LocalModelFetch = (input: Request, init?: RequestInit) => Promise<Re
 
 /** Where the handler sends traffic. Injected so tests never touch the network. */
 export interface ILocalModelRequestHandlerTransport {
-	/**
-	 * Proxy-aware fetch (`IAgentHostProxyResolver.fetch`): PAC, system
-	 * certificates and Kerberos. Used for every non-loopback origin.
-	 */
+	/** Proxy-aware fetch (PAC, system certificates, Kerberos), used for every non-loopback origin. */
 	readonly proxyFetch: LocalModelFetch;
-	/**
-	 * Direct fetch for loopback origins (`127.0.0.1`, `localhost`, `[::1]`),
-	 * such as the BYOK bridge, whose nonce bearer must reach it unchanged, and
-	 * the local `llama-server`. Never goes through a proxy.
-	 */
+	/** Direct fetch for loopback origins: the BYOK bridge, whose nonce bearer must reach it unchanged, and the local `llama-server`. Never proxied. */
 	readonly loopbackFetch: LocalModelFetch;
 }
 
@@ -150,10 +143,7 @@ function toTelemetryIdentifier(value: string | undefined): string {
 
 // #endregion
 
-/**
- * An on-device request waiting for its first output; lets the host show "Loading…",
- * "{n} in queue" (direct requests) and "Reading the conversation…" (streaming requests).
- */
+/** An on-device request waiting for its first output, so the host can show it loading, queued (direct requests) or reading the conversation. */
 export interface ILocalModelDirectWaitEvent {
 	readonly sessionId: string | undefined;
 	readonly familyId: string;
@@ -165,13 +155,9 @@ export interface ILocalModelDirectWaitEvent {
 }
 
 /**
- * What one on-device request reports while it waits for its first output: its
- * load or queue position (direct requests), then, for a streaming request,
- * reading the prompt. A wait that was shown turns into reading the prompt
- * when the request is sent to `llama-server`; otherwise it is only shown once
- * `llama-server` reports enough uncached work ({@link PROMPT_PROGRESS_MIN_TOKENS}),
- * so a cached prompt never flashes. `done` is reported once, and only after
- * something was shown.
+ * Reports what one on-device request waits for before its first output: its load or queue position, then reading the
+ * prompt. Prompt reading shows only once `llama-server` reports enough uncached work ({@link PROMPT_PROGRESS_MIN_TOKENS}),
+ * so a cached prompt never flashes; `done` is reported once, only after something was shown.
  */
 class LocalRequestWaitReporter {
 
@@ -237,10 +223,7 @@ class LocalRequestWaitReporter {
 	}
 }
 
-/**
- * Everything the router needs, injected so the serving side and tests can
- * provide their own implementations.
- */
+/** Everything the router needs, injected so the serving side and tests can provide their own implementations. */
 export interface ILocalModelRoutingDependencies {
 	readonly serving: IServingAccess;
 	readonly routeTable: RouteTable;
@@ -293,10 +276,8 @@ async function readBoundedJson(response: Response, signal: AbortSignal): Promise
 }
 
 /**
- * The context-limit error the runtime recognizes, for a prompt that does not
- * fit the on-device model's context: HTTP 413 (a 400 reads as an ordinary
- * query error) with the OpenAI `context_length_exceeded` body. The runtime
- * then compacts the conversation and retries against the row's limits.
+ * The context-limit error the runtime recognizes: HTTP 413 (a 400 reads as an ordinary query error) with the OpenAI
+ * `context_length_exceeded` body, so the runtime compacts the conversation and retries.
  */
 function contextLengthExceededResponse(overflow: ILocalContextOverflow): Response {
 	return new Response(JSON.stringify(buildContextLengthExceededBody(overflow)), { status: 413, headers: { 'content-type': 'application/json' } });
@@ -309,11 +290,7 @@ interface ILocalDispatch {
 	readonly body: LocalModelJsonBody;
 	readonly accept: string;
 	readonly mode: 'auto' | 'direct';
-	/**
-	 * The runtime asked for a non-streaming response: `llama-server` is still
-	 * asked to stream (so the commit point is the first token), and one
-	 * `chat.completion` is assembled once the stream ends.
-	 */
+	/** The runtime asked for a non-streaming response: `llama-server` still streams (the commit point is the first token) and one `chat.completion` is assembled. */
 	readonly assemble: boolean;
 	readonly firstOutputTimeoutMs: number | undefined;
 	/** Released when the local body reaches EOF, is cancelled, or errors (or before a fallback). */
@@ -372,23 +349,17 @@ function throwAborted(signal: AbortSignal): never {
 }
 
 /**
- * The bridge's `CopilotRequestHandler`. The runtime relays every model-layer
- * HTTP request through {@link sendRequest} once the handler is installed on the
- * `CopilotClient`. Bodies are read once ({@link bufferRequest}) so every branch
- * can replay them.
+ * The bridge's `CopilotRequestHandler`: the runtime relays every model-layer HTTP request through {@link sendRequest}.
  *
  * Routes:
  * - `capiAuto` (fail open): declares the active model to `/auto` and patches a local pick;
- * - `localAuto` (fail closed): serves a CAPI `-local` request on `llama-server`, with
- *   cloud fallback before the first output;
+ * - `localAuto` (fail closed): serves a CAPI `-local` request on `llama-server`, with cloud fallback before the first output;
  * - `localDirect` (fail closed): serves the direct row on `llama-server`, no fallback;
  * - `passThrough`: byte-for-byte; loopback directly, everything else through the proxy-aware fetch.
  *
- * A `-local` id or the sentinel host never leaves for anything but the
- * loopback `llama-server`, which only ever receives `content-type`, `accept`
- * and its own `authorization` header. WebSocket handling is left to the SDK
- * default; the runtime prefers HTTP Responses while this handler is installed
- * (`COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`).
+ * A `-local` id or the sentinel host never leaves for anything but the loopback `llama-server`, which only receives
+ * `content-type`, `accept` and its own `authorization` header. The runtime prefers HTTP Responses over WebSockets while
+ * this handler is installed (`COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`).
  */
 export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 
@@ -447,10 +418,7 @@ export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 		}
 	}
 
-	/**
-	 * Sends a CAPI request the router built (injected `/auto`, cloud fallback).
-	 * Enforces the isolation boundary: never the sentinel host, never a `-local` model id.
-	 */
+	/** Sends a CAPI request the router built, enforcing the isolation boundary: never the sentinel host, never a `-local` model id. */
 	private _sendToCapi(request: ILocalModelBufferedRequest, ctx: CopilotRequestContext): Promise<Response> {
 		const model = parseJsonObject(request.body)?.model;
 		if (request.url.origin === SENTINEL_ORIGIN || (typeof model === 'string' && isLocalCapiModelId(model))) {
@@ -548,11 +516,7 @@ export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 		}
 	}
 
-	/**
-	 * Settles CAPI's answer to an `/auto` request that declared the on-device
-	 * model. Every answer is logged with {@link describeAutoDecision}: what CAPI
-	 * decided and its request id, so a decision can be looked up server-side.
-	 */
+	/** Settles CAPI's answer to an `/auto` request that declared the on-device model, logging each decision with {@link describeAutoDecision}. */
 	private async _completeCapiAuto(routing: ILocalModelRoutingDependencies, request: ILocalModelBufferedRequest, body: LocalModelJsonBody, ctx: CopilotRequestContext, response: Response, serving: IServingSnapshot, accountGeneration: number, tier: string | undefined): Promise<Response> {
 		const bytes = new Uint8Array(await response.arrayBuffer());
 		if (!response.ok) {
@@ -916,16 +880,9 @@ export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 	}
 
 	/**
-	 * Sends the adapted request to `llama-server` and reads up to the commit
-	 * point: the first non-empty SSE `data:` event other than prompt progress
-	 * (or, if the server answers with JSON anyway, the complete body). Until
-	 * then nothing has been returned to the runtime, so the caller can still
-	 * fall back; prompt progress is reported to `waits` meanwhile, and the
-	 * adapter removes it from the stream. The first-output timer is separate
-	 * from the user's signal and is cleared at the commit point; afterwards the
-	 * generation runs for as long as it needs.
-	 * Non-streaming runtime requests are streamed from `llama-server` too and
-	 * assembled into one `chat.completion` ({@link _assembleCompletion}).
+	 * Sends the adapted request to `llama-server` and reads up to the commit point: the first non-empty SSE `data:` event
+	 * other than prompt progress (or a complete JSON body). Until then nothing has reached the runtime, so the caller can
+	 * still fall back. The first-output timer is separate from the user's signal and cleared at the commit point.
 	 */
 	private async _dispatchLocal(routing: ILocalModelRoutingDependencies, ctx: CopilotRequestContext, requested: ILocalDispatch): Promise<LocalDispatchResult> {
 		const dispatch: ILocalDispatch = requested.assemble
@@ -1025,11 +982,8 @@ export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 	}
 
 	/**
-	 * After the commit point of a non-streaming runtime request: reads the rest
-	 * of the local stream with no overall timeout and returns one
-	 * `chat.completion`. There is no fallback and no replay from here: a
-	 * failure becomes an error response, and user cancellation aborts. The slot
-	 * and leases are released when assembly finishes, is cancelled, or fails.
+	 * After the commit point of a non-streaming request: reads the rest of the stream with no overall timeout and returns
+	 * one `chat.completion`. No fallback or replay from here; the slot and leases are released when assembly ends.
 	 */
 	private async _assembleCompletion(ctx: CopilotRequestContext, dispatch: ILocalDispatch, reader: ReadableStreamDefaultReader<Uint8Array>, prefix: readonly Uint8Array[], status: number, firstOutputMs: number): Promise<LocalDispatchResult> {
 		const assembler = new LocalChatCompletionAssembler(dispatch.mode, dispatch.identity.capiId);
@@ -1115,12 +1069,9 @@ function concatBytes(chunks: readonly Uint8Array[]): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * The response body after the commit point: the already-read prefix, then the
- * rest of the local stream, through the response adapter. `onDone` (slot,
- * leases, telemetry) runs exactly once, when the local body reaches EOF, is
- * cancelled (by the consumer or the user's signal), or errors; never merely
- * because `sendRequest` returned. A local EOF before the stream terminated
- * properly errors the body with `truncatedMessage`.
+ * The response body after the commit point: the read prefix, then the rest of the local stream through the adapter.
+ * `onDone` runs exactly once, when the local body reaches EOF, is cancelled or errors (never merely because
+ * `sendRequest` returned); an EOF before proper termination errors the body with `truncatedMessage`.
  */
 function createReleasingStream(prefix: readonly Uint8Array[], reader: ReadableStreamDefaultReader<Uint8Array>, adapter: LocalSseResponseAdapter, userSignal: AbortSignal, truncatedMessage: string, onDone: (outcome: 'eof' | 'cancel' | 'error') => void): ReadableStream<Uint8Array> {
 	const pending = [...prefix];

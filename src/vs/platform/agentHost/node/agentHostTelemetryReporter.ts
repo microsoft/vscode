@@ -323,18 +323,10 @@ export interface IAgentHostClientConnectionReport {
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
-/**
- * How a turn's model was selected. `onDeviceDirect` is the direct row of an
- * on-device model; `autoOnDevice` is Auto while an on-device model is active,
- * which Auto may route turns to.
- */
+/** How a turn's model was selected; `onDeviceDirect` is an on-device direct row, `autoOnDevice` is Auto while an on-device model is active. */
 export type AgentHostModelSelectionKind = 'default' | 'auto' | 'autoOnDevice' | 'hydrafusion' | 'hydrafusionMax' | 'explicit' | 'onDeviceDirect';
 
-/**
- * Refines a model selection kind with on-device models. Direct rows are
- * classified explicitly from their `_meta["vscode.localModel"]`, never
- * as an unknown explicit model.
- */
+/** Refines a selection kind with on-device models: direct rows are classified from their `_meta["vscode.localModel"]`, never as unknown explicit models. */
 export function refineModelSelectionKindForLocalModels(kind: AgentHostModelSelectionKind, selectedModel: IAgentMetadataSource | undefined, models: readonly IAgentMetadataSource[]): AgentHostModelSelectionKind {
 	if (kind === 'explicit' && readLocalModelRowMeta(selectedModel)) {
 		return 'onDeviceDirect';

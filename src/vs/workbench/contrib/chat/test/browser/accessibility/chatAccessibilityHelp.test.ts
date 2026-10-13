@@ -82,8 +82,7 @@ suite('Chat Accessibility Help', () => {
 			rows: help.includes('Each model has a single row, like a cloud model\'s') && help.includes('for a model that isn\'t downloaded, Download (Set Up for model files already on this device), the download\'s progress, such as 42%, or Paused; it opens the model\'s detail page; Right Arrow on the row opens it too') && help.includes('Actions such as Retry, Pause, Resume, Download and Set Up are on the detail page, and those for a running, paused or failed step also in the notice above the chat input') && !help.includes('at most one action for its state')
 				&& help.includes('Enter on an installed model selects it and starts loading it right away, without asking') && help.includes('Cancel takes back a model change, keeping the loaded model') && !help.includes('asks before loading it'),
 			consent: help.includes('choosing Download, or Set Up for model files already on this device, agrees to exactly what the page shows') && !/winget|Homebrew|\bapt\b|Open Terminal|Update llama\.cpp/.test(help),
-			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one'),
-			approval: help.includes('choose Use This llama.cpp to approve it'),
+			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one') && !/LLAMACPP_SERVER_PATH|Use This llama\.cpp/.test(help),
 			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.includes('Manage') && !help.includes('Make Active, Start'),
 			thinking: help.includes('a Thinking choice when the model supports it, which sets its thinking level for this chat'),
 			context: help.includes('Changing the context size of a loaded model reloads it right away without asking, once its running responses finish'),
@@ -101,8 +100,8 @@ suite('Chat Accessibility Help', () => {
 			off: describe(getAccessibilityHelpText('panelChat', keybindings, true)),
 			on: describe(getAccessibilityHelpText('panelChat', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, true)),
 		}, {
-			off: { rows: false, consent: false, llamaCpp: false, approval: false, manage: false, thinking: false, context: false, activeBadge: false, load: false, pendingStop: false, memoryWarning: false, readout: false, notice: false, pause: false, commands: false, auto: false },
-			on: { rows: true, consent: true, llamaCpp: true, approval: true, manage: true, thinking: true, context: true, activeBadge: true, load: true, pendingStop: true, memoryWarning: true, readout: true, notice: true, pause: true, commands: true, auto: true },
+			off: { rows: false, consent: false, llamaCpp: false, manage: false, thinking: false, context: false, activeBadge: false, load: false, pendingStop: false, memoryWarning: false, readout: false, notice: false, pause: false, commands: false, auto: false },
+			on: { rows: true, consent: true, llamaCpp: true, manage: true, thinking: true, context: true, activeBadge: true, load: true, pendingStop: true, memoryWarning: true, readout: true, notice: true, pause: true, commands: true, auto: true },
 		});
 	});
 

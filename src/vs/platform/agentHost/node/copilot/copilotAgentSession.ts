@@ -165,12 +165,7 @@ function getCommittedAutoTier(model: string | undefined, autoTier: unknown): Aut
 	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
 }
 
-/**
- * How the runtime settled an Auto resolution, for the info log: the routing
- * method, whether a sticky (multi-turn) choice overrode the router, the
- * chosen model's shortfall and whether the router fell back. Identifiers,
- * flags and numbers only; `''` when the runtime reported none of them.
- */
+/** How the runtime settled an Auto resolution, for the info log: identifiers, flags and numbers only; `''` when none were reported. */
 function formatAutoModeRoutingForLog(data: { readonly routingMethod?: string; readonly predictedLabel?: string; readonly stickyOverride?: boolean; readonly chosenShortfall?: number; readonly fallback?: boolean }): string {
 	const identifier = (value: string | undefined) => value === undefined ? undefined : /^[A-Za-z0-9._:-]{1,64}$/.test(value) ? value : 'other';
 	const fields = [
@@ -1817,12 +1812,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.localModelProvider?.endTurn(this.sessionId, open.generation);
 	}
 
-	/**
-	 * Closes the attribution turn `turnId` and, when it involved the on-device
-	 * model, reports how it ran as `_meta['vscode.localModel']` on the turn's
-	 * usage. Must run before the turn's terminal action: the reducer drops
-	 * usage for a turn that is no longer active.
-	 */
+	/** Closes the attribution turn and reports how an on-device turn ran as `_meta['vscode.localModel']` on its usage; must run before the turn's terminal action, after which the reducer drops usage. */
 	private _attributeLocalModelTurn(turnId: string, trustedRootTurn = false): void {
 		const execution = this._endLocalModelTurn(turnId);
 		if (!execution) {
@@ -1858,12 +1848,7 @@ export class CopilotAgentSession extends Disposable {
 		provider.setSessionDirectFamily(this.sessionId, undefined);
 	}
 
-	/**
-	 * Shows an on-device request of this session that waits for its model to
-	 * load, for a slot or for `llama-server` to read its prompt as the chat's
-	 * activity, and clears it when the wait is `done`. Waits outside a turn are
-	 * not shown.
-	 */
+	/** Shows this session's on-device request waiting for its model, a slot or prompt reading as the chat's activity, until `done`; waits outside a turn aren't shown. */
 	private _showLocalModelDirectRequestWait(event: ILocalModelDirectRequestWait): void {
 		if (event.sessionId !== this.sessionId) {
 			return;

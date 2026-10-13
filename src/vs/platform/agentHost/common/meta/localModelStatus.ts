@@ -10,12 +10,7 @@ import { readLocalModelRowMeta as readVSCodeLocalModelRowMeta, readLocalModelSta
 
 export { createLocalModelRowMeta, readLocalModelStatus } from './vscode/localModelStatus.js';
 
-/**
- * Reads the local-model status a host published as the root transient value
- * `vscode.localModel.status`. A host that does not implement on-device models
- * (remote hosts, other implementations) publishes nothing, which reads as
- * `undefined`: show no local-model UI for that connection.
- */
+/** Reads the local-model status a host published as `vscode.localModel.status`; `undefined` (show no local-model UI) for hosts that don't implement it. */
 export function readLocalModelStatusFromRootState(state: RootState | Error | undefined): ILocalModelStatusV1 | undefined {
 	if (!state || state instanceof Error) {
 		return undefined;

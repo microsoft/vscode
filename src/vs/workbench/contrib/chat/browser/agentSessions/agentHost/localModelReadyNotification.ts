@@ -40,18 +40,10 @@ export const LOCAL_MODEL_READY_OFFER_LOAD_COMMAND_ID = '_workbench.action.chat.l
 /** The agent-host vendor of the local Copilot host: its model identifiers are `${vendor}:${id}`. */
 const LOCAL_COPILOT_VENDOR = SessionType.AgentHostCopilot;
 
-/**
- * `ready`: the active model reached ready. `secondInstall`: an install finished
- * while another model is active, so using it unloads that one (once its
- * running responses finish).
- */
+/** `ready`: the active model reached ready. `secondInstall`: an install finished while another model is active. */
 export type LocalModelReadyOfferFlavor = 'ready' | 'secondInstall';
 
-/**
- * Which ready offer `family` warrants. A new offer needs the active model to be
- * ready (or another model to be active); an offer already registered stays
- * while the install is unchanged, even after an idle unload.
- */
+/** Which ready offer `family` warrants; a registered offer stays while the install is unchanged, even after an idle unload. */
 export function getLocalModelReadyOfferFlavor(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, registered: boolean): LocalModelReadyOfferFlavor | undefined {
 	if (!family.readyOfferId || !family.install || family.operation) {
 		return undefined;
@@ -95,11 +87,7 @@ export interface ILocalModelReadyOfferInput {
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 }
 
-/**
- * The ready offer's description and actions for one chat input, by its
- * current model, `useInAuto`, `autoCapable` and the Auto gate.
- * The primary action is always last.
- */
+/** The ready offer's description and actions for one chat input; the primary action is always last. */
 export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInput): IChatInputNotificationBody {
 	const { status, family } = input;
 	const name = family.displayName;
@@ -192,14 +180,9 @@ interface IRegisteredOffer {
 }
 
 /**
- * Offers to switch to a family once it is ready on this device: a
- * `localModel.ready.<readyOfferId>` chat input notification for
- * local Copilot agent-host chats. It defers to the on-device status notice
- * (a failure, a running operation or a pause), and waits for such a chat when
- * none is open. Each `readyOfferId` is offered until it is
- * acknowledged; acknowledgements are kept in application storage so every
- * window honors them. The chat input notification service announces the offer
- * when it renders, so nothing else is announced here.
+ * Offers to switch to a family once it is ready on this device, as a chat input notification for local Copilot
+ * agent-host chats. It defers to the on-device status notice, and each `readyOfferId` is offered until acknowledged
+ * (kept in application storage so every window honors it).
  */
 export class LocalModelReadyNotificationContribution extends Disposable {
 
@@ -332,10 +315,7 @@ function readCurrentModelKind(value: unknown): LocalModelCurrentModelKind | unde
 	return value === 'auto' || value === 'server' || value === 'other' ? value : undefined;
 }
 
-/**
- * The ready offer's command actions. Switch actions are `SwitchToModel` and
- * reported by the chat input notification telemetry (`telemetryActionId`).
- */
+/** The ready offer's command actions; switch actions are reported by the chat input notification telemetry. */
 export function registerLocalModelReadyOfferCommands(): void {
 	CommandsRegistry.registerCommand(LOCAL_MODEL_READY_OFFER_NOT_NOW_COMMAND_ID, (accessor: ServicesAccessor, readyOfferId: unknown, currentModelKind: unknown) => {
 		if (typeof readyOfferId === 'string' && readyOfferId) {

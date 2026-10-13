@@ -9,16 +9,9 @@ import { toChatTemplateKwargs, type LocalModelThinkingSupport } from '../localMo
 import { CHAT_TEMPLATE_RESERVE_TOKENS, DEFAULT_CAPI_ORIGIN, KNOWN_AUTO_LOCAL_IDS, LOCAL_CAPI_ID_SUFFIX, SENTINEL_ORIGIN } from './constants.js';
 import type { ILocalModelFamilyLimits, ILocalModelLiveGates, ILocalModelServerProps, IServingSnapshot } from './servingAccess.js';
 
-/*
- * Pure routing logic for the request-handler bridge:
- * classification, `/auto` injection and patching, request/response adapters
- * and the cloud fallback request. No I/O; everything here is unit-testable.
- */
+/* Pure routing logic for the request-handler bridge (classification, `/auto` handling, adapters, cloud fallback); no I/O. */
 
-/**
- * A model-layer request with its body read once, so every routing branch can
- * replay it.
- */
+/** A model-layer request with its body read once, so every routing branch can replay it. */
 export interface ILocalModelBufferedRequest {
 	readonly url: URL;
 	readonly method: string;
@@ -68,11 +61,7 @@ export function isLocalCapiModelId(model: string): boolean {
 
 /** What classification needs to know about the host. */
 export interface ILocalModelRouterEnv {
-	/**
-	 * Normalized CAPI base URLs (`origin` + base path, no trailing slash) of the
-	 * signed-in accounts plus the default `api.githubcopilot.com` family. The
-	 * origins form `capiOrigins`; the base paths locate `<api base path>/auto`.
-	 */
+	/** Normalized CAPI base URLs (`origin` + base path, no trailing slash) of the signed-in accounts plus the default family. */
 	readonly capiBaseUrls: readonly string[];
 	/** `http://on-device.vscode.invalid`. */
 	readonly sentinelOrigin: string;
@@ -118,11 +107,8 @@ export function createLocalModelRouterEnv(capiBaseUrls: readonly (string | undef
 }
 
 /**
- * Resolves the CAPI endpoints of the signed-in accounts
- * (`ICopilotApiService.resolveApiEndpoint`, which also covers Enterprise and
- * proxies) plus an optional override (`VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE`).
- * Failed resolutions are skipped; the default family is always added by
- * {@link createLocalModelRouterEnv}. Call it again on sign-in changes.
+ * Resolves the CAPI endpoints of the signed-in accounts (covering Enterprise and proxies) plus an optional
+ * `VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE`; failed resolutions are skipped. Call it again on sign-in changes.
  */
 export async function resolveLocalModelCapiBaseUrls(copilotApiService: Pick<ICopilotApiService, 'resolveApiEndpoint'>, githubTokens: readonly string[], capiUrlOverride?: string): Promise<string[]> {
 	const resolved = await Promise.all(githubTokens.map(async token => {
@@ -252,12 +238,7 @@ export type LocalModelFallbackReason =
 	| 'localError'
 	| 'contextExceeded';
 
-/**
- * Whether `ctx.interactionType` is ancillary work (compaction, sampling,
- * background, summaries, judges, ...) that stays in the cloud so the local
- * slot serves user-visible turns. A missing value is treated as a
- * conversation turn: the runtime does not tag every request.
- */
+/** Whether `ctx.interactionType` is ancillary work that stays in the cloud so the local slot serves user-visible turns; a missing value counts as a turn. */
 export function isAncillaryInteraction(interactionType: string | undefined): boolean {
 	return !!interactionType && !CONVERSATION_INTERACTION_TYPES.has(interactionType);
 }
@@ -419,12 +400,7 @@ export function readFallbackModel(value: unknown): ILocalModelFallbackModel | un
 	};
 }
 
-/**
- * The patched `selected_model`. `reasoningEfforts` (the fallback's, when the
- * local model has a thinking control) are declared so the runtime sends the
- * session's `reasoning_effort`, which then reaches the local chat template and
- * stays valid for the fallback.
- */
+/** The patched `selected_model`; the fallback's `reasoningEfforts` are declared so the session's `reasoning_effort` reaches the local chat template and stays valid for the fallback. */
 export function patchSelectedModel(selected: LocalModelJsonBody, limits: ILocalModelAutoLimits, displayName: string, reasoningEfforts?: readonly string[]): LocalModelJsonBody {
 	const capabilities = isObject(selected.capabilities) ? selected.capabilities : {};
 	return {
@@ -444,11 +420,7 @@ export function patchSelectedModel(selected: LocalModelJsonBody, limits: ILocalM
 	};
 }
 
-/**
- * Why a local pick is answered with the cloud-only re-issue instead of a patch:
- * no `F`, `F` not chat-capable (or invalid), no session token, unusable
- * limits, or CAPI picked a different `-local` model than the one declared.
- */
+/** Why a local pick is answered with the cloud-only re-issue instead of a patch. */
 export type AutoReissueReason = 'noFallback' | 'fallbackNotChat' | 'noSessionToken' | 'limits' | 'otherLocalModel';
 
 export type AutoResponseOutcome =
@@ -482,11 +454,8 @@ function logIdentifier(value: unknown): string | undefined {
 }
 
 /**
- * One log line of what CAPI said about an `/auto` decision we declared an
- * on-device model to, and the routing state the request carried: the selected
- * and cloud fallback models, the multi-turn mode and its decision, and CAPI's
- * request id. Only identifiers, enum values, counts and flags; never the
- * prompt, previous messages, session or state tokens. Pure.
+ * One log line of CAPI's `/auto` decision for a declared on-device model and the routing state the request carried.
+ * Only identifiers, enum values, counts and flags; never the prompt, previous messages, session or state tokens. Pure.
  */
 export function describeAutoDecision(request: LocalModelJsonBody, response: LocalModelJsonBody | undefined, headers: Headers): string {
 	const fields: [string, string | number | boolean | undefined][] = [];
@@ -583,17 +552,9 @@ export interface ILocalRequestAdapterOptions {
 }
 
 /**
- * Builds the body sent to `llama-server`:
- * - `model := alias`; `reasoning_effort`, `copilot_*`, `prompt_cache_key`, `intent` and `n` are dropped;
- * - a `reasoning_effort` the chat template understands is passed as `chat_template_kwargs`
- *   (`reasoning_effort` at the nearest supported level, or `enable_thinking`), merged
- *   into any `chat_template_kwargs` already present;
- * - only `type: "function"` tools are kept (`tool_choice` is dropped with the last tool);
- * - `max_tokens` is clamped to `maxOutputTokens`;
- * - a streaming request asks for `return_progress` (prompt processing progress, which the
- *   handler reports and strips from the stream; a build without it ignores the field);
- * - Auto only: assistant `reasoning_text` → `reasoning_content`, `reasoning_opaque`/`encrypted_content` dropped,
- *   and `stream_options.include_usage` set when streaming.
+ * Builds the body sent to `llama-server`: `model := alias`, CAPI-only keys dropped, `reasoning_effort` passed as
+ * `chat_template_kwargs` when the chat template understands it, only function tools kept, `max_tokens` clamped and
+ * `return_progress` requested when streaming. Auto also maps assistant reasoning fields and requests usage.
  */
 export function adaptLocalRequestBody(body: LocalModelJsonBody, options: ILocalRequestAdapterOptions): LocalModelJsonBody {
 	const result: LocalModelJsonBody = {};
@@ -664,10 +625,8 @@ export function mapReasoningEffort(requested: string, allowed: readonly string[]
 }
 
 /**
- * The cloud fallback request: the original buffered CAPI request
- * with `content-length` dropped, `model := F.id`, `reasoning_effort` mapped
- * or dropped, `max_tokens` clamped to F, and `Copilot-Session-Token` set to
- * the route's token. Every other header is kept.
+ * The cloud fallback request: the original CAPI request with `model := F.id`, `reasoning_effort` mapped or dropped,
+ * `max_tokens` clamped to F and the route's `Copilot-Session-Token`; every other header is kept.
  */
 export function buildFallbackChatRequest(original: ILocalModelBufferedRequest, body: LocalModelJsonBody, fallback: ILocalModelFallbackModel, sessionToken: string): ILocalModelBufferedRequest {
 	const next: LocalModelJsonBody = { ...body, model: fallback.id };
@@ -703,11 +662,7 @@ function renameReasoning(value: unknown): unknown {
 	return rest;
 }
 
-/**
- * Rewrites one Auto chat payload (SSE chunk or complete JSON): `model` →
- * `capiId` (attribution from the lease), `reasoning_content` →
- * `reasoning_text` in `choices[].delta` and `choices[].message`.
- */
+/** Rewrites one Auto chat payload (SSE chunk or complete JSON): `model` → `capiId` and `reasoning_content` → `reasoning_text`. */
 export function rewriteAutoResponsePayload(payload: LocalModelJsonBody, capiId: string): LocalModelJsonBody {
 	const result: LocalModelJsonBody = { ...payload, model: capiId };
 	if (Array.isArray(payload.choices)) {
@@ -771,20 +726,14 @@ function hasLocalOutput(payload: LocalModelJsonBody): boolean {
 		&& ((choice.finish_reason !== undefined && choice.finish_reason !== null) || choice.message !== undefined || hasDeltaOutput(choice.delta)));
 }
 
-/**
- * A payload that only reports prompt processing progress: `llama-server` sends
- * each in a chunk of its own, with an empty assistant delta. It is never the
- * first output and never reaches the runtime. Pure.
- */
+/** A payload that only reports prompt processing progress (`llama-server` sends each in its own chunk); never output, never forwarded. Pure. */
 export function isPromptProgressOnly(payload: LocalModelJsonBody): boolean {
 	return payload.prompt_progress !== undefined && !hasLocalOutput(payload);
 }
 
 /**
- * Whether a local chat stream ended properly: every choice
- * seen reported a real `finish_reason`, or `[DONE]` arrived after at least one
- * choice finished. An EOF before that is a truncated response, which must
- * surface as an error rather than a complete answer.
+ * Whether a local chat stream ended properly: every choice reported a real `finish_reason`, or `[DONE]` arrived
+ * after one finished. An earlier EOF is a truncated response and must surface as an error.
  */
 class LocalStreamTermination {
 
@@ -821,13 +770,9 @@ class LocalStreamTermination {
 }
 
 /**
- * Line-buffered SSE adapter for local responses. Tolerates frames split
- * across chunks (including inside multi-byte characters). In `auto` mode each
- * `data:` JSON payload is rewritten with {@link rewriteAutoResponsePayload};
- * other lines (comments, `event:`, `[DONE]`, blank separators) pass through.
- * In `direct` mode lines pass through unchanged. In both modes prompt progress
- * events ({@link isPromptProgressOnly}) are removed with their separator, and
- * usage and whether the stream {@link terminated} properly are observed.
+ * Line-buffered SSE adapter for local responses; tolerates frames split across chunks, even inside multi-byte
+ * characters. `auto` mode rewrites each `data:` payload ({@link rewriteAutoResponsePayload}); both modes drop
+ * prompt progress events and observe usage and whether the stream {@link terminated} properly.
  */
 export class LocalSseResponseAdapter {
 
@@ -945,11 +890,7 @@ export interface ILocalContextOverflow {
 /** `llama-server`'s `request (N tokens) exceeds the available context size (M tokens)`. */
 const LLAMA_CONTEXT_OVERFLOW_MESSAGE = /exceeds the available context size/i;
 
-/**
- * Reads `llama-server`'s context-overflow error (`type: exceed_context_size_error`,
- * with `n_prompt_tokens` and `n_ctx`, or its message), or `undefined` for any
- * other payload. Pure.
- */
+/** Reads `llama-server`'s context-overflow error (`exceed_context_size_error` or its message), else `undefined`. Pure. */
 export function readLocalContextOverflow(payload: LocalModelJsonBody | undefined): ILocalContextOverflow | undefined {
 	const error = isObject(payload?.error) ? payload.error : undefined;
 	if (!error || (error.type !== 'exceed_context_size_error' && !(typeof error.message === 'string' && LLAMA_CONTEXT_OVERFLOW_MESSAGE.test(error.message)))) {
@@ -962,10 +903,8 @@ export function readLocalContextOverflow(payload: LocalModelJsonBody | undefined
 }
 
 /**
- * The OpenAI-shaped `context_length_exceeded` error body the handler returns
- * (with HTTP 413, which the runtime treats as a context limit: it compacts and
- * retries) instead of an unavailable model. The message is protocol text, not
- * UI. Pure.
+ * The OpenAI-shaped `context_length_exceeded` body returned with HTTP 413, which the runtime treats as a context
+ * limit (it compacts and retries). The message is protocol text, not UI. Pure.
  */
 export function buildContextLengthExceededBody(overflow: ILocalContextOverflow): LocalModelJsonBody {
 	const limit = overflow.contextTokens !== undefined ? ` is ${overflow.contextTokens} tokens` : ' was exceeded';
@@ -981,10 +920,8 @@ export function buildContextLengthExceededBody(overflow: ILocalContextOverflow):
 }
 
 /**
- * The body sent to `llama-server` when the runtime asked for a non-streaming
- * response: the local request always streams, so the first-output timer
- * bounds only the time to the first token, and the response
- * is assembled with {@link LocalChatCompletionAssembler}.
+ * The local body for a non-streaming runtime request: it always streams, so the first-output timer bounds only the
+ * time to the first token; {@link LocalChatCompletionAssembler} assembles the response.
  */
 export function toStreamingLocalRequestBody(body: LocalModelJsonBody): LocalModelJsonBody {
 	return { ...body, stream: true, stream_options: { ...(isObject(body.stream_options) ? body.stream_options : {}), include_usage: true } };
@@ -1007,17 +944,9 @@ interface IAssembledChoice {
 }
 
 /**
- * Builds one `chat.completion` from a local SSE stream, for runtime requests
- * that asked for a non-streaming response. Line-buffered like
- * {@link LocalSseResponseAdapter}. Per choice: `content` and
- * `reasoning_content` are concatenated (the latter emitted as `reasoning_text`
- * for Auto, kept as `reasoning_content` for direct); `tool_calls` are merged by
- * `index` (first `id`/`type`/`function.name`, concatenated
- * `function.arguments`); the last `finish_reason` wins and is never invented.
- * `usage` comes from the usage chunk; `id` and `created` from the stream;
- * `model` is the serving `capiId` for Auto and the server's model for direct.
- * Callers must not return the completion unless {@link terminated} (and not
- * {@link failed}): an EOF before that is a truncated answer.
+ * Builds one `chat.completion` from a local SSE stream, for runtime requests that asked for a non-streaming response:
+ * content and reasoning are concatenated per choice, `tool_calls` merged by `index`, and the last `finish_reason`
+ * wins (never invented). Callers must not return it unless {@link terminated} and not {@link failed}.
  */
 export class LocalChatCompletionAssembler {
 

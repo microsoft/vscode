@@ -25,22 +25,12 @@ function statusShape(status: ILocalModelStatusV1): string {
 }
 
 /**
- * The Agent Host side of the local-model protocol. Provider-neutral:
- * it knows only {@link ILocalModelProvider}.
- *
- * - **Status.** Publishes the provider's status as the root transient value
- *   `vscode.localModel.status` whenever it changes. Changes that only move byte
- *   counters are coalesced to one publication per
- *   {@link LOCAL_MODEL_STATUS_PROGRESS_PUBLISH_INTERVAL_MS}, because every
- *   root config change fans out to every agent. Disposing withdraws the value.
- * - **Requests.** Claims a request's nonce synchronously and clears the key
- *   before acting, so a repeated gesture still lands and a nonce is never
- *   handled twice. A request present before the channel existed was addressed
- *   to no-one and is discarded.
- * - **Ordering.** `cancel` and `pause` run immediately, outside any queue.
- *   Mutually exclusive transitions go through a {@link Sequencer}; the
- *   provider resolves them once admitted, so the queue never waits for a
- *   download or a drain.
+ * The Agent Host side of the local-model protocol; provider-neutral. Publishes the provider's status as
+ * `vscode.localModel.status`, coalescing changes that only move byte counters to one per
+ * {@link LOCAL_MODEL_STATUS_PROGRESS_PUBLISH_INTERVAL_MS}, because every root config change fans out to every agent.
+ * Claims a request's nonce synchronously and clears the key before acting, so a nonce is never handled twice; a
+ * request present before the channel existed is discarded. `cancel` and `pause` run immediately; other transitions
+ * go through a {@link Sequencer} that never waits for a download or a drain.
  */
 export class LocalModelSetupChannel extends Disposable {
 
@@ -191,11 +181,6 @@ export class LocalModelSetupChannel extends Disposable {
 				return;
 			case 'stopPrevious':
 				this._queue(request, () => this._provider.stopPrevious());
-				return;
-			case 'approveRuntime':
-				if (consent) {
-					this._queue(request, () => this._provider.approveRuntime(consent));
-				}
 				return;
 		}
 	}
