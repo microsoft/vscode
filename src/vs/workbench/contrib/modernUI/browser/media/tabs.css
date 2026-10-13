@@ -112,8 +112,9 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tabs-bar-add-tab {
-	position: static;
+	position: relative;
 	inset-inline-end: auto;
+	isolation: isolate;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab .tabs-container > .tab.last-tab {

@@ -201,7 +201,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, wrapping: result.wrapTabs, actions: [2, 2], visibleActions: [2, 2], overlaps: false, tabsClear: true,
 			inBounds: result.wrapTabs ? true : undefined,
-			addPosition: result.style !== 'legacy' && !result.wrapTabs ? 'sticky' : 'static',
+			addPosition: result.style === 'legacy' ? 'static' : result.wrapTabs ? 'relative' : 'sticky',
 		})));
 	});
 
@@ -236,11 +236,44 @@ suite('Sessions - Editor tabs trailing layout', () => {
 			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: 'static', tabsClear: true,
+			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: 'relative', tabsClear: true,
 			separatorVisible: result.contextual && result.trailing,
 			reservedWidth: result.wrapperWidth,
 			finalTabReservation: (result.add ? 0 : result.wrapperWidth) + 7,
 			addMarker: result.add,
+		})));
+	});
+
+	test('wrapped Connected Add backing follows its button in a local stacking context', async () => {
+		const results = [];
+		for (const direction of ['ltr', 'rtl']) {
+			root.dir = direction;
+			for (const tabHeight of ['default', 'compact'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabHeight };
+				control.updateOptions(oldOptions, partOptions);
+				for (const width of [300, 180]) {
+					await layout(width);
+					const add = title.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+					const button = add.querySelector<HTMLElement>('.action-label')!;
+					const bounds = add.getBoundingClientRect();
+					const buttonBounds = button.getBoundingClientRect();
+					const backing = mainWindow.getComputedStyle(add, '::before');
+					results.push({
+						direction, tabHeight, width,
+						position: mainWindow.getComputedStyle(add).position,
+						stacking: mainWindow.getComputedStyle(add).isolation,
+						backingWidth: Number.parseFloat(backing.width),
+						buttonWidth: buttonBounds.width,
+						backingCenter: bounds.left + Number.parseFloat(backing.left) + Number.parseFloat(backing.width) / 2,
+						buttonCenter: buttonBounds.left + buttonBounds.width / 2,
+						backingZIndex: backing.zIndex,
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, position: 'relative', stacking: 'isolate', backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
 		})));
 	});
 
@@ -308,7 +341,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'static', addOnlyLastRow: true, rowMarkers: true, noPhantomCap: true, lastRowHeight: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'relative', addOnlyLastRow: true, rowMarkers: true, noPhantomCap: true, lastRowHeight: true })));
 	});
 
 	test('oversized fit labels wrap and ellipsize in Modern UI while legacy tabs retain scrolling', async () => {
@@ -376,6 +409,6 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, pinnedActionsWidth: 0, pinnedReservation: 0, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, addPosition: 'static', tabsClear: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, pinnedActionsWidth: 0, pinnedReservation: 0, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, addPosition: 'relative', tabsClear: true })));
 	});
 });
