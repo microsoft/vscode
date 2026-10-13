@@ -2464,8 +2464,8 @@ export class CommandCenter {
 		opts.signCommit = undefined;
 
 		if (config.get<boolean>('enableCommitSigning') === true) {
-			const commitGpgSign = await repository.getConfig('commit.gpgsign');
-			opts.signCommit = /^(false|no|off|0)$/i.test(commitGpgSign) ? undefined : true;
+			const commitGpgSign = await repository.getConfig('commit.gpgsign', 'bool');
+			opts.signCommit = commitGpgSign === 'false' ? undefined : true;
 		}
 
 		if (config.get<boolean>('alwaysSignOff')) {
