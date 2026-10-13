@@ -935,8 +935,8 @@ suite('CustomizationMigrationService', () => {
 				]],
 				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
-				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
-				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['unset', [['MCP_MISSING', '']], ['Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.']],
+				['structured', [['MCP_OPTIONS', '']], ['Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.']],
 				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 			],
 			exclusions: [
@@ -946,7 +946,7 @@ suite('CustomizationMigrationService', () => {
 			source: ['changed', 'collision'],
 			target: {
 				mcpServers: {
-					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '${MCP_PORT}', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
+					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '8080', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
 					unset: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
 					structured: { type: 'local', command: 'node', args: ['${MCP_OPTIONS}'], env: { MCP_OPTIONS: '' }, tools: ['*'] },

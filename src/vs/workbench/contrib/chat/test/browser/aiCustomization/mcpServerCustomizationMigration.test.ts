@@ -1501,8 +1501,9 @@ suite('McpServerCustomizationMigration', () => {
 						type: 'local',
 						command: '${MCP_COMMAND}',
 						args: ['--port=${MCP_PORT}', '${MCP_COMMAND}', '--token=${MCP_GITHUB_TOKEN}', '${TOOLS}', `--root=${root.fsPath}`, '--secret=${USER_SECRET}'],
-						// `MCP_PORT` only referred to its setting, so it is replaced with the value.
-						env: { HOST: '${MCP_HOST}', MCP_PORT: '8080', LEVEL: '3', MCP_COMMAND: 'npx', MCP_GITHUB_TOKEN: 'abc', USER_SECRET: '', MCP_HOST: 'localhost' },
+						// `env` values are expanded from the host's environment, so a setting there is replaced with its value.
+						// `MCP_PORT` already holds the value that `args` reads.
+						env: { HOST: 'localhost', MCP_PORT: '8080', LEVEL: '3', MCP_COMMAND: 'npx', MCP_GITHUB_TOKEN: 'abc', USER_SECRET: '' },
 						tools: ['*'],
 					},
 					remote: {
@@ -1515,7 +1516,7 @@ suite('McpServerCustomizationMigration', () => {
 						type: 'local',
 						command: 'node',
 						args: ['--region=${REGION}', '--port=${MCP_PORT}'],
-						env: { RATIO: '${MCP_RATIO}', REGION: 'eu', MCP_PORT: '8080', MCP_RATIO: '0.5' },
+						env: { RATIO: '0.5', REGION: 'eu', MCP_PORT: '8080' },
 						tools: ['*'],
 					},
 					mixedRemote: {
@@ -1576,7 +1577,7 @@ suite('McpServerCustomizationMigration', () => {
 			source: { servers: {} },
 			target: {
 				mcpServers: {
-					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--port=${MCP_PORT}', '${TOOLS}'], env: { HOST: '${MCP_HOST}', MCP_COMMAND: 'npx', MCP_PORT: '8080', MCP_HOST: 'localhost' }, tools: ['*'] },
+					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--port=${MCP_PORT}', '${TOOLS}'], env: { HOST: 'localhost', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp?port=${MCP_PORT:-8080}', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
 				},
 			},
@@ -1593,6 +1594,8 @@ suite('McpServerCustomizationMigration', () => {
 			// VS Code resolves these to text, but only strings and numbers are carried over, and a value with a
 			// variable would be resolved by VS Code but not by the destination.
 			resolvedLocal: { command: 'node', args: ['${config:mcp.flag}', '${config:mcp.array}', '${config:mcp.variable}', '${config:mcp.reference}'] },
+			// VS Code can't resolve the `${input:}` in the value without interaction, so it forwards it as text.
+			nestedInput: { command: 'node', args: ['${config:mcp.nested}'] },
 			resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${config:mcp.flag}', headers: { 'X-Variable': '${config:mcp.variable}', 'X-Brace': '${config:mcp.brace}' } },
 		};
 		const fileService = createFileService();
@@ -1604,6 +1607,7 @@ suite('McpServerCustomizationMigration', () => {
 			'mcp.variable': '${env:HOME}/bin',
 			'mcp.reference': '$HOME/bin',
 			'mcp.brace': 'a}b',
+			'mcp.nested': '${input:token}',
 		});
 		const asWritten = (name: keyof typeof servers, projectedConfiguration: IMcpServerConfiguration) => support(root, name, {
 			delivery: AgentHostMcpServerDelivery.NotDelivered,
@@ -1617,6 +1621,7 @@ suite('McpServerCustomizationMigration', () => {
 				asWritten('unresolvedLocal', { type: McpServerType.LOCAL, ...servers.unresolvedLocal }),
 				asWritten('unresolvedRemote', { type: McpServerType.REMOTE, url: servers.unresolvedRemote.url, headers: servers.unresolvedRemote.headers }),
 				support(root, 'resolvedLocal', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['true', 'a', '/home/user/bin', '$HOME/bin'] } }),
+				support(root, 'nestedInput', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] } }),
 				support(root, 'resolvedRemote', { projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?flag=true', headers: { 'X-Variable': '/home/user/bin', 'X-Brace': 'a}b' } } }),
 			],
 			discoveryComplete: true,
@@ -1635,18 +1640,21 @@ suite('McpServerCustomizationMigration', () => {
 				['unresolvedLocal', [['MCP_UNSET', ''], ['MCP_CONFIG', ''], ['MCP_OBJECT', '']]],
 				['unresolvedRemote', [['MCP_UNSET', '']]],
 				['resolvedLocal', [['MCP_FLAG', ''], ['MCP_ARRAY', ''], ['MCP_VARIABLE', ''], ['MCP_REFERENCE', '']]],
+				['nestedInput', [['MCP_NESTED', '']]],
 				['resolvedRemote', [['MCP_FLAG', ''], ['MCP_VARIABLE', ''], ['MCP_BRACE', 'a}b']]],
 			],
 			exclusions: [],
-			result: { migratedCount: 4, failures: [] },
+			result: { migratedCount: 5, failures: [] },
 			source: { servers: {} },
 			target: {
 				mcpServers: {
 					// A reference without a setting name migrates to an empty `MCP_CONFIG`.
-					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '${MCP_OBJECT}', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '', MCP_OBJECT: '' }, tools: ['*'] },
+					// In `env` values, a setting is replaced with its value, since they are expanded from the host's environment.
+					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '' }, tools: ['*'] },
 					// Like an input without a default, an empty value is not written as a default.
 					unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${MCP_UNSET}' }, tools: ['*'] },
 					resolvedLocal: { type: 'local', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
+					nestedInput: { type: 'local', command: 'node', args: ['${MCP_NESTED}'], env: { MCP_NESTED: '' }, tools: ['*'] },
 					// A value with a `}` is written as is, even though it ends the default early.
 					resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${MCP_FLAG}', headers: { 'X-Variable': '${MCP_VARIABLE}', 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
 				},

@@ -181,7 +181,7 @@ export class McpServerCustomizationMigrator {
 			}
 			if (!isConfigurationRepresentable(server.projectedConfiguration)
 				|| !isConfigurationRepresentable(analysis.migration)
-				|| Iterable.some(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved(), replacement => !isForwardedUnresolved(replacement, storage, !!analysis.projectedAsWritten))
+				|| Iterable.some(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved(), replacement => !isForwardedUnresolved(replacement, storage, !!analysis.projectedAsWritten) && !analysis.settingValueVariables?.has(replacement.id))
 				|| !equals(analysis.projection, canonicalizeConfiguration(server.projectedConfiguration))) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
@@ -811,6 +811,11 @@ interface IMcpServerSourceAnalysis {
 	readonly settingVariables?: readonly IMcpServerCustomizationMigrationSettingVariable[];
 	/** Whether the client projects the server as written, with none of its variables resolved. */
 	readonly projectedAsWritten?: boolean;
+	/**
+	 * Variables in the values of the server's settings that the client keeps as text when it resolves them,
+	 * such as `${input:}`, so they remain in its projection.
+	 */
+	readonly settingValueVariables?: ReadonlySet<string>;
 }
 
 /**
@@ -879,7 +884,10 @@ async function analyzeSourceConfiguration(
 	if (hasEnvironmentVariables && await hasVariablesInEnvironmentValues(configuration, folder, configurationResolverService)) {
 		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 	}
-	const settingVariables = settings.variables.length > 0 ? { settingVariables: settings.variables } : {};
+	const settingVariables = {
+		...(settings.variables.length > 0 ? { settingVariables: settings.variables } : {}),
+		...(settings.valueVariables.size > 0 ? { settingValueVariables: settings.valueVariables } : {}),
+	};
 	// The client never resolves user servers, so a setting it can't resolve only matters for `.vscode/mcp.json` servers.
 	if (variables.length > 0 || (!settings.resolvable && storage === PromptsStorage.local)) {
 		// The client stops at the first input, or fails on a setting it can't resolve, and projects the server as written.
@@ -901,7 +909,8 @@ async function analyzeSourceConfiguration(
  * destination would not. A workspace server only keeps a value that is already in the workspace's own
  * settings, since its destination is usually committed: a value from the user's settings, a policy or
  * memory would otherwise be written into the repository. `resolvable` is whether VS Code can resolve
- * every setting, which it can't when one is unset, unnamed or structured.
+ * every setting, which it can't when one is unset, unnamed or structured. `valueVariables` are the
+ * variables that resolving the values leaves as text, such as an `${input:}` in a value.
  */
 async function getSettingVariables(
 	settingKeys: ReadonlySet<string>,
@@ -909,16 +918,24 @@ async function getSettingVariables(
 	folder: IWorkspaceFolderData | undefined,
 	storage: PromptsStorage.local | PromptsStorage.user,
 	services: IMcpServerVariableServices,
-): Promise<{ readonly variables: IMcpServerCustomizationMigrationSettingVariable[]; readonly resolvable: boolean } | McpServerCustomizationMigrationFailureReason> {
+): Promise<{ readonly variables: IMcpServerCustomizationMigrationSettingVariable[]; readonly resolvable: boolean; readonly valueVariables: ReadonlySet<string> } | McpServerCustomizationMigrationFailureReason> {
 	const names = getMigratedSettingNames(settingKeys, sourceFile);
 	if (typeof names === 'string') {
 		return names;
 	}
 	const variables: IMcpServerCustomizationMigrationSettingVariable[] = [];
+	const valueVariables = new Set<string>();
 	let resolvable = true;
 	for (const { key, name } of names) {
+		// Like the client, which fails on a variable it leaves unresolved. A variable it can't resolve without
+		// interaction, such as an `${input:}` in the value, is replaced with its own text instead.
+		const expression = ConfigurationResolverExpression.parse(`\${config:${key}}`);
 		try {
-			await services.configurationResolverService.resolveAsync(folder, `\${config:${key}}`);
+			await services.configurationResolverService.resolveAsync(folder, expression);
+			resolvable &&= Iterable.isEmpty(expression.unresolved());
+			for (const variable of getConfigurationVariables(expression.toObject())) {
+				valueVariables.add(variable.id);
+			}
 		} catch {
 			resolvable = false;
 		}
@@ -928,7 +945,7 @@ async function getSettingVariables(
 		const value = typeof rawValue === 'string' || typeof rawValue === 'number' ? String(rawValue) : '';
 		variables.push({ key, name, value: hasConfigurationVariable(value) || hasEnvVarReferences(value) ? '' : value });
 	}
-	return { variables, resolvable };
+	return { variables, resolvable, valueVariables };
 }
 
 /**
@@ -1037,8 +1054,10 @@ async function resolvePortableVariables(
 /**
  * Rewrites `${env:NAME}` to `${NAME}`, and `${input:id}` and `${config:key}` to `${NAME}`, or
  * `${NAME:-value}` for a remote server, in the fields that both the Copilot runtime and the local harness
- * expand: stdio `command`, `args` and `env` values, and the remote URL and header values. Every other
- * variable must already be resolved.
+ * expand: stdio `command`, `args` and `env` values, and the remote URL and header values. In a stdio
+ * server's `env` values, a setting is replaced with its value instead, since those are expanded from the
+ * host's environment rather than from the other `env` entries. Every other variable must already be
+ * resolved.
  */
 function rewriteEnvironmentVariables(
 	configuration: IMcpServerConfiguration,
@@ -1056,7 +1075,8 @@ function rewriteEnvironmentVariables(
 	const inputs = new Map(variables.map(variable => [variable.id, variable]));
 	const settings = new Map(settingVariables.map(setting => [setting.key, setting]));
 	const failures: McpServerCustomizationMigrationFailureReason[] = [];
-	const rewrite = (value: string): string => {
+	const referencedSettings = new Set<string>();
+	const rewrite = (value: string, isEnvironmentValue = false): string => {
 		let rewritten = false;
 		const defaults: { readonly offset: number; readonly reference: string; readonly name: string; readonly defaultValue: string; readonly failure: McpServerCustomizationMigrationFailureReason }[] = [];
 		const withDefault = (offset: number, name: string, defaultValue: string, failure: McpServerCustomizationMigrationFailureReason) => {
@@ -1084,6 +1104,10 @@ function rewriteEnvironmentVariables(
 					return variable.id;
 				}
 				rewritten = true;
+				if (isEnvironmentValue) {
+					return setting.value;
+				}
+				referencedSettings.add(setting.key);
 				// Unlike an input's default, a setting's value is written as is: a value that doesn't read back
 				// exactly, such as one with a `}`, is rare enough not to keep the server from migrating.
 				return declaresVariables || setting.value === ''
@@ -1116,18 +1140,21 @@ function rewriteEnvironmentVariables(
 		if (configuration.cwd !== undefined && hasMigratedVariableReference(configuration.cwd)) {
 			return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 		}
-		const env = configuration.env ? Object.fromEntries(Object.entries(configuration.env).map(([name, value]) => [name, typeof value === 'string' ? rewrite(value) : value])) : {};
+		const command = rewrite(configuration.command);
+		const args = configuration.args?.map(arg => rewrite(arg));
+		const env = configuration.env ? Object.fromEntries(Object.entries(configuration.env).map(([name, value]) => [name, typeof value === 'string' ? rewrite(value, true) : value])) : {};
+		// Only settings that `command` or `args` read from the environment are declared.
 		const declared = declareEnvironmentVariables(env, [
 			...variables.map(input => ({ name: input.name, value: input.declaration.default ?? '', invalidValue: McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault })),
-			...settingVariables.map(setting => ({ name: setting.name, value: setting.value, invalidValue: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration })),
+			...settingVariables.filter(setting => referencedSettings.has(setting.key)).map(setting => ({ name: setting.name, value: setting.value, invalidValue: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration })),
 		]);
 		if (typeof declared === 'string') {
 			failures.push(declared);
 		}
 		migration = {
 			...configuration,
-			command: rewrite(configuration.command),
-			...(configuration.args ? { args: configuration.args.map(rewrite) } : {}),
+			command,
+			...(args ? { args } : {}),
 			...(typeof declared !== 'string' && Object.keys(declared).length > 0 ? { env: declared } : {}),
 		};
 	} else {
@@ -1148,8 +1175,8 @@ function rewriteEnvironmentVariables(
 /**
  * Adds each migrated input or setting to a stdio server's `env`, set to the input's default, or empty if it
  * has none, or to the setting's value, so that it can be filled in there. An entry that only referred to the
- * input or setting is replaced. Since `env` values are expanded too, a value that contains a variable
- * reference can't be written literally.
+ * input or setting, or already holds the setting's value, is replaced. Since `env` values are expanded too,
+ * a value that contains a variable reference can't be written literally.
  */
 function declareEnvironmentVariables(
 	env: Record<string, string | number | null>,
@@ -1162,7 +1189,7 @@ function declareEnvironmentVariables(
 		}
 		// Windows names are case-insensitive.
 		const existing = Object.keys(result).find(key => key.toUpperCase() === name.toUpperCase());
-		if (existing !== undefined && (existing !== name || result[existing] !== `\${${name}}`)) {
+		if (existing !== undefined && (existing !== name || (result[existing] !== `\${${name}}` && result[existing] !== value))) {
 			return McpServerCustomizationMigrationFailureReason.VariableNameCollision;
 		}
 		result[name] = value;

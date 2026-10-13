@@ -454,9 +454,16 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 	const inputWarnings = server.environmentVariables?.length
 		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
 		: [];
-	const settingWarnings = server.settingVariables?.length
-		? [localize('mcpMigrationSettingsToEnvironmentVariables', "Configs will become environment variables set to their current values. Later changes to the configs won't apply.")]
-		: [];
+	const settingWarnings = [
+		...server.settingVariables?.some(setting => setting.value !== '')
+			? [localize('mcpMigrationSettingsToEnvironmentVariables', "Configs will become environment variables set to their current values. Later changes to the configs won't apply.")]
+			: [],
+		...server.settingVariables?.some(setting => setting.value === '')
+			? [server.storage === PromptsStorage.local
+				? localize('mcpMigrationWorkspaceSettingsWithoutValue', "Configs without a string or number value in the workspace settings will become empty environment variables, so values from your user settings are not copied. Configure them in the MCP server details after migrating.")
+				: localize('mcpMigrationSettingsWithoutValue', "Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.")]
+			: [],
+	];
 	return [...inputWarnings, ...settingWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
 		.flatMap(property => {
