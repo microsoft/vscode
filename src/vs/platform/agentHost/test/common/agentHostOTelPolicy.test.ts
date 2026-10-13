@@ -130,7 +130,7 @@ suite('Agent Host OTel managed policy registration', () => {
 		});
 	});
 
-	test('selects file export for an invalid managed empty file path', () => {
+	test('selects file export for a directly supplied empty managed file path', () => {
 		assert.deepStrictEqual(observableEnv({ 'telemetry.filePath': '' }), {
 			enabled: 'true',
 			exporterType: 'file',

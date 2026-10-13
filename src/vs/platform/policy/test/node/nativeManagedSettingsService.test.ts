@@ -69,9 +69,9 @@ suite('NativeManagedSettingsService', () => {
 		});
 	});
 
-	test('retains an invalid managed telemetry file path until the watcher removes it', async () => {
+	test('applies native telemetry file path updates and removals without watcher metadata', async () => {
 		const filePath = 'telemetry.filePath';
-		let onDidChange: ((update: Record<string, PolicyValue | undefined>, metadata?: { invalidPolicies: readonly string[] }) => void) | undefined;
+		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
 			onDidChange = callback;
 			callback({});
@@ -85,12 +85,15 @@ suite('NativeManagedSettingsService', () => {
 				managedSettings: { [filePath]: { type: 'string' } },
 			},
 		});
-		onDidChange?.({ [filePath]: undefined }, { invalidPolicies: [filePath] });
-		const invalid = service.managedSettings;
-		onDidChange?.({ [filePath]: undefined }, { invalidPolicies: [] });
+		onDidChange?.({ [filePath]: '/managed/copilot.jsonl' });
+		const updated = service.managedSettings;
+		(onDidChange as ((update: Record<string, PolicyValue | undefined>, ignored?: unknown) => void) | undefined)?.(
+			{ [filePath]: undefined },
+			{ invalidPolicies: [filePath] },
+		);
 
-		assert.deepStrictEqual({ invalid, removed: service.managedSettings }, {
-			invalid: { [filePath]: '' },
+		assert.deepStrictEqual({ updated, removed: service.managedSettings }, {
+			updated: { [filePath]: '/managed/copilot.jsonl' },
 			removed: {},
 		});
 	});

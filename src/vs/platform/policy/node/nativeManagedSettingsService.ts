@@ -18,14 +18,10 @@ export interface INativePolicyWatcherOptions {
 	readonly registryPath?: string;
 }
 
-interface INativePolicyWatcherChangeMetadata {
-	readonly invalidPolicies?: readonly string[];
-}
-
 export type NativePolicyWatcherFactory = (
 	productName: string,
 	policies: Record<string, { type: 'string' | 'number' | 'boolean' }>,
-	onDidChange: (update: Record<string, PolicyValue | undefined>, metadata?: INativePolicyWatcherChangeMetadata) => void,
+	onDidChange: (update: Record<string, PolicyValue | undefined>) => void,
 	options?: INativePolicyWatcherOptions,
 ) => Watcher;
 
@@ -128,8 +124,8 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
 				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
-				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, (update: Record<string, PolicyValue | undefined>, metadata?: INativePolicyWatcherChangeMetadata) => {
-					this._onDidManagedSettingsChange(update, metadata);
+				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, (update: Record<string, PolicyValue | undefined>) => {
+					this._onDidManagedSettingsChange(update);
 					c();
 				}, this.watcherOptions);
 			} catch (err) {
@@ -154,7 +150,7 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 		return definitions;
 	}
 
-	private _onDidManagedSettingsChange(update: Record<string, PolicyValue | undefined>, metadata?: INativePolicyWatcherChangeMetadata): void {
+	private _onDidManagedSettingsChange(update: Record<string, PolicyValue | undefined>): void {
 		this.logService.trace(`NativeManagedSettingsService#_onDidManagedSettingsChange - Updated managed-settings values: ${JSON.stringify(update)}`);
 
 		let changed = false;
@@ -167,16 +163,6 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 					changed = true;
 				}
 			}
-		}
-		const invalidPolicies: unknown = metadata?.invalidPolicies;
-		if (Array.isArray(invalidPolicies)
-			&& invalidPolicies.every(policy => typeof policy === 'string')
-			&& invalidPolicies.includes('telemetry.filePath')) {
-			if (this.managedSettingsValues.get('telemetry.filePath') !== '') {
-				this.managedSettingsValues.set('telemetry.filePath', '');
-				changed = true;
-			}
-			this.logService.error('NativeManagedSettingsService#_onDidManagedSettingsChange - Invalid native managed setting telemetry.filePath');
 		}
 		if (changed) {
 			this._onDidChangeManagedSettings.fire(this.managedSettings);

@@ -120,7 +120,7 @@ suite('Copilot managed settings projection', () => {
 		});
 	});
 
-	test('normalizes and projects managed telemetry file paths without losing sibling controls', () => {
+	test('uses ordinary flattening and projection for managed telemetry file paths without losing sibling controls', () => {
 		const filePath = 'telemetry.filePath';
 		const declarations = {
 			[filePath]: { type: 'string' as const },
@@ -136,15 +136,18 @@ suite('Copilot managed settings projection', () => {
 				resourceAttributes: { 'service.namespace': 'acme' },
 			},
 		});
+		const project = (value: unknown, warnings: string[] = []) => projectManagedSettings(normalize(value), declarations, warning => warnings.push(warning));
+		const numberWarnings: string[] = [];
 
 		assert.deepStrictEqual({
-			string: projectManagedSettings(normalize('/var/log/copilot.jsonl'), declarations),
-			null: projectManagedSettings(normalize(null), declarations),
-			object: projectManagedSettings(normalize({ path: '/var/log/copilot.jsonl' }), declarations),
-			array: projectManagedSettings(normalize(['/var/log/copilot.jsonl']), declarations),
-			number: projectManagedSettings(normalize(1), declarations),
-			boolean: projectManagedSettings(normalize(true), declarations),
+			string: project('/var/log/copilot.jsonl'),
+			null: project(null),
+			object: normalize({ path: '/var/log/copilot.jsonl' }),
+			objectProjected: project({ path: '/var/log/copilot.jsonl' }),
+			array: project(['/var/log/copilot.jsonl']),
+			number: project(1, numberWarnings),
 			missing: projectManagedSettings(normalizeManagedSettings({ telemetry: { enabled: false } }), declarations),
+			numberWarnings,
 		}, {
 			string: {
 				[filePath]: '/var/log/copilot.jsonl',
@@ -153,36 +156,32 @@ suite('Copilot managed settings projection', () => {
 				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 			},
 			null: {
-				[filePath]: '',
+				'telemetry.enabled': false, 'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			object: {
+				'telemetry.filePath.path': '/var/log/copilot.jsonl',
 				'telemetry.enabled': false,
 				'telemetry.capture.identity': false,
 				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 			},
-			object: {
-				[filePath]: '',
+			objectProjected: {
 				'telemetry.enabled': false,
 				'telemetry.capture.identity': false,
 				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 			},
 			array: {
-				[filePath]: '',
 				'telemetry.enabled': false,
 				'telemetry.capture.identity': false,
 				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 			},
 			number: {
-				[filePath]: '',
-				'telemetry.enabled': false,
-				'telemetry.capture.identity': false,
-				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
-			},
-			boolean: {
-				[filePath]: '',
 				'telemetry.enabled': false,
 				'telemetry.capture.identity': false,
 				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 			},
 			missing: { 'telemetry.enabled': false },
+			numberWarnings: ['Ignoring managed setting "telemetry.filePath": expected string, got number'],
 		});
 	});
 
@@ -443,14 +442,13 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 		});
 	});
 
-	test('a winning malformed file path suppresses lower collector telemetry', () => {
+	test('an omitted malformed file path leaves the existing higher telemetry controls authoritative', () => {
 		const pick = pickManagedSettings(
 			undefined,
 			normalizeManagedSettings({ telemetry: { filePath: null, enabled: false } }),
 			normalizeManagedSettings({ telemetry: { endpoint: 'https://collector.example', enabled: true } }),
 		);
 		assert.deepStrictEqual(pick.values, {
-			'telemetry.filePath': '',
 			'telemetry.enabled': false,
 		});
 	});

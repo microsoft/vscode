@@ -598,20 +598,30 @@ Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_D
 
 ## Enterprise-managed file export
 
-Enterprise policy can supply `telemetry.filePath`. This is a managed-only
-expansion, not a new user setting: it resolves to the existing
+Enterprise policy can supply `telemetry.filePath`. Canonical managed-policy
+validation treats an empty, null, or wrongly typed value as an error. This is a
+managed-only expansion, not a new user setting: it resolves to the existing
 `chat.agentHost.otel.exporterType: "file"` and
 `chat.agentHost.otel.outfile` configuration. A supplied file path enables OTel
 unless the managed `telemetry.enabled` value is explicitly `false`. Explicit
 managed `false` disables both file export and the SQLite DB exporter.
 
+The VS Code managed-settings normalizer does not synthesize an empty file path
+for malformed input. Its generic flattening silently omits nulls and arrays,
+flattens object children, and leaves type-mismatched scalar projection to the
+existing warning-and-omission path. An omitted file path can therefore leave a
+collector effective under ordinary policy precedence; malformed values do not
+have a universal no-fallback guarantee. This generic omission is distinct from
+a projected literal `telemetry.filePath: ""`: that existing value still selects
+file export and clears the collector environment. It is not synthesized by
+normalization.
+
 When a managed file path is present, it takes precedence over a managed
-collector endpoint or protocol, even if the path is invalid. An absent managed
-file path restores the ordinary managed collector/personal-setting resolution.
-Personal settings prompt for a full application restart; reloading a window
-alone can retain the shared host. Settled administrator changes automatically
-replace the local Agent Host. Remote and standalone hosts are not newly proven
-to support this flow.
+collector endpoint or protocol. An absent managed file path restores the
+ordinary managed collector/personal-setting resolution. Personal settings prompt
+for a full application restart; reloading a window alone can retain the shared
+host. Settled administrator changes automatically replace the local Agent Host.
+Remote and standalone hosts are not newly proven to support this flow.
 
 `buildAgentHostOTelEnv()` records managed-path provenance with the private
 `VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED` environment variable. It is an
@@ -621,12 +631,13 @@ Only managed paths receive the additional validation and expansion:
 - `~/...` is expanded from `HOME` on Unix and `USERPROFILE` on Windows;
   `~\...` is also accepted. Normal platform path semantics apply, including
   resolving relative paths from the host process working directory.
-- An empty path, NUL, unsupported home prefix, environment-variable reference,
-  directory path, filesystem root, or missing required home variable is logged
-  and skipped. It does not fall back to OTLP. The separately configured
-  SQLite DB exporter is preserved unless managed telemetry is explicitly false.
-- An invalid managed path creates no native file exporter for that provider;
-  recovery requires valid configuration and provider re-resolution or
+- After a file path has been selected, an empty path, NUL, unsupported home
+  prefix, environment-variable reference, directory path, filesystem root, or
+  missing required home variable is logged and skipped. It does not fall back
+  to OTLP. The separately configured SQLite DB exporter is preserved unless
+  managed telemetry is explicitly false.
+- An accepted but invalid managed path creates no native file exporter for that
+  provider; recovery requires valid configuration and provider re-resolution or
   replacement. A valid path that later proves unwritable is different: its
   existing lazy writer reports the failed write and can retry later writes after
   repair, without falling back to a collector or SQLite.
@@ -647,7 +658,7 @@ remain unchanged.
 > |---|---|---|
 > | Managed endpoint and protocol | Direct to the administrator's collector | Existing Agent Host-owned records only |
 > | Managed `filePath` | Direct to the administrator's file | Existing Agent Host-owned records only |
-> | Invalid managed `filePath` | Log and create no file exporter for that provider; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
+> | Accepted but invalid managed `filePath` | Log and create no file exporter for that provider; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
 > | Valid but unwritable managed `filePath` | Log failed writes; the lazy exporter can retry later writes after repair; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
 >
 > Host-owned records also retain their existing host file/collector writer
@@ -657,10 +668,10 @@ remain unchanged.
 > SQLite. No observer, SDK trace-subscription API, bridge, or native SQLite
 > ingestion exists or is implied here.
 >
-> This is not ready or shipped: matching SDK/runtime support, policy-watcher
-> artifacts, and Settings Engine/CSE delivery and deployment prerequisites are
-> still required. Existing host synthetic-DB tests establish host-owned records,
-> not provider-native trace mirroring.
+> This is not ready or shipped: matching runtime SDK support, generated
+> artifacts, Settings Engine/CSE delivery, and end-to-end/deployment
+> prerequisites are still required. Existing host synthetic-DB tests establish
+> host-owned records, not provider-native trace mirroring.
 
 ## Local SQLite Span Store
 

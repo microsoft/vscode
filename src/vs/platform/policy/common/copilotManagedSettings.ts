@@ -785,16 +785,8 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
-	const rawFilePath = Object.hasOwn(parsed, COPILOT_OTEL_FILE_PATH_KEY)
-		? parsed[COPILOT_OTEL_FILE_PATH_KEY]
-		: readNestedManagedKey(parsed, COPILOT_OTEL_FILE_PATH_KEY);
-	scalarRest = withNestedManagedKeyDeleted(scalarRest, COPILOT_OTEL_FILE_PATH_KEY);
-	delete scalarRest[COPILOT_OTEL_FILE_PATH_KEY];
 
 	const result: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(scalarRest) };
-	if (rawFilePath !== undefined) {
-		result[COPILOT_OTEL_FILE_PATH_KEY] = isString(rawFilePath) ? rawFilePath : '';
-	}
 
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		const encoded = setting.encode(readNestedManagedKey(parsed, setting.key), onWarn);

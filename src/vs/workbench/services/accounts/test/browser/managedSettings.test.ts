@@ -179,21 +179,23 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('retains managed telemetry file path authority across valid and malformed server values', () => {
-		const response = JSON.parse('{"telemetry":{"filePath":null,"enabled":false,"capture":{"identity":false},"resourceAttributes":{"service.namespace":"acme"}}}') as IManagedSettingsResponse;
+	test('adapts managed telemetry file paths through ordinary normalization', () => {
+		const nullPath = JSON.parse('{"telemetry":{"filePath":null,"enabled":false,"capture":{"identity":false},"resourceAttributes":{"service.namespace":"acme"}}}') as IManagedSettingsResponse;
+		const numberPath = JSON.parse('{"telemetry":{"filePath":1,"enabled":false}}') as IManagedSettingsResponse;
 		assert.deepStrictEqual({
 			valid: adaptManagedSettings(JSON.parse('{"telemetry":{"filePath":"/managed/copilot.jsonl"}}') as IManagedSettingsResponse),
-			invalid: adaptManagedSettings(response),
+			nullPath: adaptManagedSettings(nullPath),
+			numberPath: adaptManagedSettings(numberPath),
 		}, {
 			valid: { managedSettings: { 'telemetry.filePath': '/managed/copilot.jsonl' } },
-			invalid: {
+			nullPath: {
 				managedSettings: {
-					'telemetry.filePath': '',
 					'telemetry.enabled': false,
 					'telemetry.capture.identity': false,
 					'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
 				},
 			},
+			numberPath: { managedSettings: { 'telemetry.filePath': 1, 'telemetry.enabled': false } },
 		});
 	});
 
