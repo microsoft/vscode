@@ -2308,7 +2308,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		if (!configuration) {
 			return true;
 		}
-		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri?.scheme === GITHUB_REMOTE_FILE_SCHEME
+		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri && (this.cloudMode?.get() || item.item.folderUri.scheme === GITHUB_REMOTE_FILE_SCHEME)
 			? [waitForState(configuration.getWorkspaceTarget(item.item.folderUri), target => !target.pending, undefined, token)]
 			: []));
 		return !token.isCancellationRequested && configuration === this.cloudConfiguration.get();
@@ -2340,12 +2340,19 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				description: localize('automation.form.privateRepository', "Private GitHub repository"),
 				group: { title: '', icon: Codicon.lock },
 			}));
-			return repositories.length ? repositories : [{
+			const items: IActionListItem<IWorkspacePickerItem>[] = repositories.length ? repositories : [{
 				kind: ActionListItemKind.Action,
 				label: localize('automation.form.noPrivateRepositories', "No known private GitHub repositories"),
 				disabled: true,
 				item: { id: 'automation.noPrivateRepositories' },
 			}];
+			items.push({ kind: ActionListItemKind.Separator, label: '' }, {
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.addRepository', "Add repository"),
+				group: { title: '', icon: Codicon.github },
+				item: { id: 'automation.addRepository' },
+			});
+			return items;
 		}
 		const items = super._buildItems().map(item => {
 			if (item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
@@ -2407,7 +2414,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
 				}
 			}
-			if (item.id === 'automation.workInGitHub') {
+			if (item.id === 'automation.workInGitHub' || item.id === 'automation.addRepository') {
 				if (!configuration) {
 					throw new Error(localize('automation.form.cloudUnavailable', "Cloud automations are unavailable."));
 				}

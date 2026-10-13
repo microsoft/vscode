@@ -4542,6 +4542,58 @@ suite('AutomationsWorkspacePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('cloud mode filters recent folders and always offers Add repository, but local mode does not', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider, createMockProvider('github')]);
+		const folder = URI.file('/local/private');
+		const publicFolder = URI.file('/local/public');
+		const plainFolder = URI.file('/local/notes');
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [folder, publicFolder, plainFolder].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const cloudMode = observableValue('cloudMode', true);
+		const privateTarget = observableValue<IAutomationWorkspaceTarget>('privateTarget', { pending: true });
+		let pickCount = 0;
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => { pickCount++; return repository; },
+			getWorkspaceTarget: uri => extUri.isEqual(uri, folder) || extUri.isEqual(uri, repository)
+				? privateTarget
+				: constObservable({ disabledReason: 'Private GitHub repository required.', isPublicRepository: extUri.isEqual(uri, publicFolder) }),
+		}));
+		picker.setCloudMode(cloudMode);
+		const rows = () => picker.getItems().filter(row => row.kind === ActionListItemKind.Action)
+			.map(row => ({ label: row.label, icon: row.group?.icon?.id }));
+		const empty = rows();
+		let targetsReady = false;
+		const ready = picker.waitForTargets(CancellationToken.None).then(() => { targetsReady = true; });
+		await timeout(0);
+		const waitedForLocalFolder = !targetsReady;
+		privateTarget.set({ workspace: repository }, undefined);
+		await ready;
+		const populated = rows();
+		await picker.select('Add repository');
+		const selected = picker.selectedFolderUri?.toString();
+		cloudMode.set(false, undefined);
+		assert.deepStrictEqual({
+			empty, waitedForLocalFolder, populated, pickCount, selected,
+			localFolders: picker.getItems().flatMap(row => row.item?.folderUri?.scheme === Schemas.file ? [row.item.folderUri.toString()] : []).sort(),
+			localOffersGitHub: rows().some(row => row.label === 'Add repository' || row.label === 'Work in GitHub'),
+		}, {
+			empty: [{ label: 'No known private GitHub repositories', icon: undefined }, { label: 'Add repository', icon: 'github' }],
+			waitedForLocalFolder: true,
+			populated: [{ label: 'local/private', icon: 'lock' }, { label: 'Add repository', icon: 'github' }],
+			pickCount: 1, selected: repository.toString(),
+			localFolders: [folder, publicFolder, plainFolder].map(uri => uri.toString()).sort(),
+			localOffersGitHub: false,
+		});
+	});
+
 	for (const mobile of [false, true]) {
 		test(`immutable workspace is disabled for pointer, keyboard and programmatic opening (${mobile ? 'mobile' : 'desktop'})`, async () => {
 			const providersService = disposables.add(new MockSessionsProvidersService());
