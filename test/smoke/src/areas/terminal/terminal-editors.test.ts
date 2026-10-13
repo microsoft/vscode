@@ -75,6 +75,8 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.createTerminal('editor');
 			await terminal.assertEditorGroupCount(1);
 			await terminal.assertTerminalViewHidden();
+			await app.code.driver.hoverSelector('.tabs-container .tab.active .tab-actions .action-label');
+			await app.code.waitForElement('.monaco-hover');
 			await app.workbench.settingsEditor.clearUserSettings();
 		});
 	});

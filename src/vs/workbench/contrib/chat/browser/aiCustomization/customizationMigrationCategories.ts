@@ -454,6 +454,9 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 	const inputWarnings = server.environmentVariables?.length
 		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
 		: [];
+	const settingWarnings = server.settingVariables?.length
+		? [localize('mcpMigrationSettingsToEnvironmentVariables', "Configs will become environment variables. Later changes won't apply.")]
+		: [];
 	const oauthWarnings = server.oauth
 		? [localize('mcpMigrationOAuthSignIn', "You may need to sign in again after migration.")]
 		: [];
@@ -461,7 +464,7 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 	const trustWarnings = server.storage === PromptsStorage.user
 		? [localize('mcpMigrationTrustAgain', "VS Code will ask you to trust this server again after migration.")]
 		: [];
-	return [...inputWarnings, ...oauthWarnings, ...trustWarnings, ...mcpServerCustomizationMigrationRemovableProperties
+	return [...inputWarnings, ...settingWarnings, ...oauthWarnings, ...trustWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
 		.flatMap(property => {
 			switch (property) {

@@ -404,6 +404,30 @@ export type IAgentCustomizationInstallationReview = {
 export interface IAgentPluginInstallRequest {
 	readonly source: string;
 }
+
+export interface IAgentPluginMarketplace {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface IAgentPluginMarketplaceItem {
+	readonly name: string;
+	readonly description?: string;
+}
+
+export interface IAgentPluginMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface IAgentPluginMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -1463,7 +1487,7 @@ export interface IAgent {
 	refreshConnectorSessions?(): Promise<void>;
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
-	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
@@ -1472,7 +1496,22 @@ export interface IAgent {
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
-	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;
+	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+
+	/** List plugin marketplaces through the provider that owns marketplace state. */
+	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+
+	/** Add a plugin marketplace through the provider that owns marketplace state. */
+	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+
+	/** Browse one plugin marketplace through the provider that owns marketplace state. */
+	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+
+	/** Remove a plugin marketplace through the provider that owns marketplace state. */
+	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
+
+	/** Refresh one or all plugin marketplaces through the provider that owns marketplace state. */
+	refreshPluginMarketplaces?(session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
 
 	/** Search the provider-native customization catalog for an exact session. */
 	searchCustomizationMarketplace?(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;

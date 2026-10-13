@@ -104,11 +104,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
 	}
 
-	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void> {
+	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.uninstallPlugin) {
 			throw new Error('Agent Host plugin uninstall is unavailable');
 		}
-		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
+		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
 	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
@@ -125,11 +125,46 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
 	}
 
-	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.installPlugin) {
 			throw new Error('Agent Host plugin install is unavailable');
 		}
-		return this._runMutation(() => this._agentService.installPlugin!(provider, request));
+		return this._runMutation(() => this._agentService.installPlugin!(provider, request, session, chat));
+	}
+
+	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
+		if (!this._agentService.listPluginMarketplaces) {
+			throw new Error('Agent Host plugin marketplace inventory is unavailable');
+		}
+		return this._agentService.listPluginMarketplaces(provider, session, chat);
+	}
+
+	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI) {
+		if (!this._agentService.addPluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace registration is unavailable');
+		}
+		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, session, source, chat));
+	}
+
+	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI) {
+		if (!this._agentService.browsePluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace browse is unavailable');
+		}
+		return this._agentService.browsePluginMarketplace(provider, session, name, chat);
+	}
+
+	removePluginMarketplace(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI) {
+		if (!this._agentService.removePluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace removal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.removePluginMarketplace!(provider, session, name, force, chat));
+	}
+
+	refreshPluginMarketplaces(provider: AgentProvider, session: URI, name?: string, chat?: URI) {
+		if (!this._agentService.refreshPluginMarketplaces) {
+			throw new Error('Agent Host plugin marketplace refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshPluginMarketplaces!(provider, session, name, chat));
 	}
 
 	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {

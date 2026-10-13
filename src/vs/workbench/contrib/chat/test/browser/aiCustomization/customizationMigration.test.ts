@@ -301,6 +301,8 @@ suite('customizationMigration', () => {
 			galleryDisabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false, version: '1.0.0' } }, 'Copilot'),
 			versionOnly: category.getCandidateWarnings?.({ ...server, removedProperties: { version: '1.0.0' } }, 'Copilot'),
 			inputsAndGallery: category.getCandidateWarnings?.({ ...server, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }] }, 'Copilot'),
+			settings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+			inputsAndSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }], settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
 			oauthClient: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, oauth: { clientId: 'client' } }, 'Copilot'),
 			userOAuthClient: category.getCandidateWarnings?.({ ...server, storage: PromptsStorage.user, sourceUri: URI.file('/profile/mcp.json'), targetUri: URI.file('/home/.copilot/mcp-config.json'), oauth: { clientId: 'client' } }, 'Copilot'),
 		}, {
@@ -310,6 +312,8 @@ suite('customizationMigration', () => {
 			galleryDisabledWithVersion: [],
 			versionOnly: [],
 			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
+			settings: ['Configs will become environment variables. Later changes won\'t apply.'],
+			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables. Later changes won\'t apply.'],
 			oauthClient: ['You may need to sign in again after migration.'],
 			userOAuthClient: [
 				'You may need to sign in again after migration.',
