@@ -31,7 +31,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -553,6 +553,89 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.85, status: 'complete' });
 	});
 
+	test('aggregate-only billing preserves its maximum across stale snapshots and serialization', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		const exported = model.toJSON();
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel, { value: JSON.parse(JSON.stringify(exported)) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		assert.deepStrictEqual({
+			live: model.sessionCostInfo,
+			persisted: exported.sessionCostInfo,
+			restored: restored.sessionCostInfo,
+		}, {
+			live: { credits: 1, status: 'partial' },
+			persisted: { credits: 1, status: 'partial' },
+			restored: { credits: 1, status: 'partial' },
+		});
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 1, status: 'complete' });
+	});
+
+	for (const reason of [ChatRequestRemovalReason.Removal, ChatRequestRemovalReason.Resend, ChatRequestRemovalReason.Adoption]) {
+		test(`aggregate billing starts a new history scope after request removal (${reason})`, () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const retained = model.addRequest({ text: 'retained', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(retained, { kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.25, sessionCopilotCredits: 0.25 });
+			const removed = model.addRequest({ text: 'removed', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(removed, { kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.75, sessionCopilotCredits: 1 });
+			model.setSessionCost({ credits: 1, status: 'complete' });
+			if (reason === ChatRequestRemovalReason.Adoption) {
+				const destination = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				destination.adoptRequest(removed);
+			} else {
+				model.removeRequest(removed.id, reason);
+			}
+			model.setSessionCost({ credits: 0.25, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.25, status: 'complete' });
+			model.setSessionCost({ credits: 0.1, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.25, status: 'partial' });
+			model.removeRequest(retained.id);
+			model.setSessionCost({ credits: 0, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0, status: 'complete' });
+		});
+	}
+
+	test('aggregate billing does not reset for absent requests or checkpoint previews', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'preview', parts: [] }, { variables: [] }, 0);
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		model.setCheckpoint(request.id);
+		model.resetCheckpoint();
+		model.removeRequest('not-in-history');
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 1, status: 'partial' });
+	});
+
+	test('response-only billing reconciles complete and unavailable snapshots with the per-turn floor', () => {
+		const cases = [
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0.6, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0.6, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: undefined },
+		] as const;
+		assert.deepStrictEqual(cases.map(usage => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 4, ...usage });
+			return { credits: model.sessionCost, status: model.sessionCostStatus };
+		}), [
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'complete' },
+			{ credits: 0, status: 'complete' },
+			{ credits: 0, status: 'unavailable' },
+			{ credits: 0.6, status: undefined },
+		]);
+	});
+
 	test('aggregate billing validates totals and preserves unknown and explicit zero statuses', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		assert.strictEqual(model.sessionCostInfo, undefined);
@@ -569,27 +652,56 @@ suite('ChatModel', () => {
 	});
 
 	test('image consumption totals do not become chat context tokens on restore', () => {
+		for (const completionTokens of [0, 4]) {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'image';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'usage', promptTokens: 10, completionTokens,
+				modelTotals: [
+					{ model: 'chat-model', inputTokens: 10, outputTokens: 4, cachedTokens: 0 },
+					{ model: 'image-model', inputTokens: 21, outputTokens: 196, cachedTokens: 0 },
+				],
+			});
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel,
+				{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+			));
+			assert.deepStrictEqual([request, restored.getRequests()[0]].map(item => ({
+				contextOutput: item.response?.usage?.completionTokens,
+				consumptionOutput: item.response?.completionTokenCount,
+			})), [
+				{ contextOutput: completionTokens, consumptionOutput: 200 },
+				{ contextOutput: completionTokens, consumptionOutput: 200 },
+			]);
+		}
+	});
+
+	test('legacy model totals do not become the last model call on restore', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-		const text = 'image';
-		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
-		model.acceptResponseProgress(request, {
-			kind: 'usage', promptTokens: 10, completionTokens: 4,
-			modelTotals: [
+		const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 200 });
+		const exported = model.toJSON();
+		const totals = [
+			undefined,
+			[],
+			[
 				{ model: 'chat-model', inputTokens: 10, outputTokens: 4, cachedTokens: 0 },
 				{ model: 'image-model', inputTokens: 21, outputTokens: 196, cachedTokens: 0 },
 			],
-		});
-		const restored = testDisposables.add(instantiationService.createInstance(
-			ChatModel,
-			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
-			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
-		));
-		assert.deepStrictEqual([request, restored.getRequests()[0]].map(item => ({
-			contextOutput: item.response?.usage?.completionTokens,
-			consumptionOutput: item.response?.completionTokenCount,
-		})), [
-			{ contextOutput: 4, consumptionOutput: 200 },
-			{ contextOutput: 4, consumptionOutput: 200 },
+		];
+		assert.deepStrictEqual(totals.map(modelTotals => {
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel, { value: { ...exported, requests: [{ ...exported.requests[0], modelTotals }] }, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+			));
+			const response = restored.getRequests()[0].response;
+			return { contextOutput: response?.usage?.completionTokens, consumptionOutput: response?.completionTokenCount };
+		}), [
+			{ contextOutput: 200, consumptionOutput: 200 },
+			{ contextOutput: 0, consumptionOutput: 0 },
+			{ contextOutput: 0, consumptionOutput: 200 },
 		]);
 	});
 

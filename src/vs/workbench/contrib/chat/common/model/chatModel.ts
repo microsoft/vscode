@@ -2939,11 +2939,18 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 		const previous = this.sessionCostInfo;
 		const status = cost.status === 'complete' || cost.status === 'partial' || cost.status === 'unavailable' ? cost.status : undefined;
-		this._sessionCostInfo = { credits: cost.credits, status };
+		const credits = Math.max(cost.credits, this._sessionCostInfo?.credits ?? 0);
+		this._sessionCostInfo = { credits, status: status === 'complete' && cost.credits < credits ? 'partial' : status };
 		this._sessionCostResponseStatus = this._lastReportedSessionUsage()?.sessionCopilotCreditsStatus;
 		if (previous?.credits !== this.sessionCost || previous?.status !== this.sessionCostStatus) {
 			this._onDidChange.fire({ kind: 'setSessionCost' });
 		}
+	}
+
+	private _resetSessionCost(): void {
+		// History removal can truncate the provider's ledger, invalidating the aggregate high-water mark.
+		this._sessionCostInfo = undefined;
+		this._sessionCostResponseStatus = undefined;
 	}
 
 	get sessionCost(): number {
@@ -2979,10 +2986,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	get sessionCostStatus(): IChatUsage['sessionCopilotCreditsStatus'] {
 		const usage = this._lastReportedSessionUsage();
 		const aggregate = this._sessionCostInfo;
-		if (!aggregate) {
-			return usage?.sessionCopilotCreditsStatus;
-		}
 		const cost = this.sessionCost;
+		if (!aggregate) {
+			const status = usage?.sessionCopilotCreditsStatus;
+			if (status === 'unavailable' && cost > 0 || status === 'complete' && (usage?.sessionCopilotCredits ?? -1) < cost) {
+				return 'partial';
+			}
+			return status;
+		}
 		// A response can report newer billing while the aggregate RPC is still in flight.
 		if (usage?.sessionCopilotCreditsStatus !== this._sessionCostResponseStatus) {
 			if (usage?.sessionCopilotCreditsStatus === 'partial' || usage?.sessionCopilotCreditsStatus === 'unavailable') {
@@ -3343,7 +3354,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				request.response.setUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.lastCallCompletionTokens ?? raw.completionTokens ?? 0,
+					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					latestModelCall: raw.latestModelCall,
@@ -3590,6 +3601,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		oldOwner._requests.splice(index, 1);
+		oldOwner._resetSessionCost();
 
 		request.adoptTo(this);
 		request.response?.adoptTo(this);
@@ -3638,6 +3650,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (index !== -1) {
 			this._requests.splice(index, 1);
+			this._resetSessionCost();
 			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
-import { readChatUsage, readUsageInfoMeta, withChatUsage, type IAgentChatUsage } from '../common/meta/agentUsageMeta.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -282,8 +282,6 @@ export class AgentSideEffects extends Disposable {
 	 *
 	 */
 	private readonly _pendingSubagentSignals = this._register(new DisposableMap<string, PendingSubagentSignals>());
-	/** Resume can report billing before the orchestrator restores the chat catalog. */
-	private readonly _pendingChatUsage = new Map<string, IAgentChatUsage>();
 	private readonly _failedSubagentRoutes = new LRUCache<string, ProtocolURI>(MAX_FAILED_SUBAGENT_ROUTES);
 	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	/**
@@ -322,13 +320,6 @@ export class AgentSideEffects extends Disposable {
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
-		this._register(this._stateManager.onDidRemoveSession(session => {
-			for (const chat of this._pendingChatUsage.keys()) {
-				if (parseRequiredSessionUriFromChatUri(chat) === session) {
-					this._pendingChatUsage.delete(chat);
-				}
-			}
-		}));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			sendTurnMessage: options => void this._sendTurnMessage(options),
@@ -380,17 +371,6 @@ export class AgentSideEffects extends Disposable {
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			const action = envelope.action;
-			if (action.type === ActionType.SessionReady || action.type === ActionType.SessionChatAdded) {
-				for (const chat of this._stateManager.getSessionState(envelope.channel)?.chats ?? []) {
-					this._publishChatUsage(chat.resource);
-				}
-			} else if (action.type === ActionType.SessionChatRemoved) {
-				this._pendingChatUsage.delete(action.chat);
-				const state = this._stateManager.getSessionState(envelope.channel);
-				if (state && readChatUsage(state, action.chat)) {
-					this._stateManager.setSessionMeta(envelope.channel, withChatUsage(state, action.chat, undefined));
-				}
-			}
 			if (action.type === ActionType.SessionCustomizationToggled) {
 				const sessionState = this._stateManager.getSessionState(envelope.channel);
 				const mcpServerOwners = this._options.getAgent(envelope.channel)?.getMcpServerOwners?.(URI.parse(envelope.channel));
@@ -685,22 +665,6 @@ export class AgentSideEffects extends Disposable {
 		return disposables;
 	}
 
-	private _publishChatUsage(chat: string): void {
-		const usage = this._pendingChatUsage.get(chat);
-		if (!usage) {
-			return;
-		}
-		const session = parseRequiredSessionUriFromChatUri(chat);
-		const state = this._stateManager.getSessionState(session);
-		if (!state?.chats.some(summary => summary.resource === chat)) {
-			return;
-		}
-		this._pendingChatUsage.delete(chat);
-		if (!equals(readChatUsage(state, chat), usage)) {
-			this._stateManager.setSessionMeta(session, withChatUsage(state, chat, usage));
-		}
-	}
-
 	/**
 	 * Routes a single signal from `agent` to the correct session.
 	 *
@@ -712,8 +676,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
 		if (signal.kind === 'chat_usage') {
-			this._pendingChatUsage.set(signal.chat.toString(), signal.usage);
-			this._publishChatUsage(signal.chat.toString());
+			this._chatContributions.chatUsage(signal);
 			return;
 		}
 		if (signal.kind === 'canvas') {
@@ -2336,7 +2299,6 @@ export class AgentSideEffects extends Disposable {
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
 		this._inputRequestTracker.clear();
-		this._pendingChatUsage.clear();
 		super.dispose();
 	}
 }

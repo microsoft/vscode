@@ -138,20 +138,20 @@ suite('Image generation tool metadata', () => {
 			invalidCatalog: undefined,
 			models: [{ id: image.id, name: image.name, supportedOperations: ['edit'], isDefault: false }],
 		});
+	});
 
-		test('unavailable defaults survive the metadata round trip without fabricated operations or pricing', () => {
-			const image: IImageToolModel = {
-				id: 'runtime:default', name: 'Runtime Default', isDefault: true, availability: 'unavailable', supportedOperations: [],
-			};
-			assert.deepStrictEqual(readAgentImageModels({ _meta: withAgentImageModels(undefined, [image]) }), [image]);
-			assert.deepStrictEqual(readCopilotImageModels({
-				imageModels: [
-					{ ...image, availability: 'future-value' },
-					{ ...image, availability: 'available' },
-					image,
-				]
-			}), [image]);
-		});
+	test('unavailable defaults survive the metadata round trip without fabricated operations or pricing', () => {
+		const image: IImageToolModel = {
+			id: 'runtime:default', name: 'Runtime Default', isDefault: true, availability: 'unavailable', supportedOperations: [],
+		};
+		assert.deepStrictEqual(readAgentImageModels({ _meta: withAgentImageModels(undefined, [image]) }), [image]);
+		assert.deepStrictEqual(readCopilotImageModels({
+			imageModels: [
+				{ ...image, availability: 'future-value' },
+				{ ...image, availability: 'available' },
+				image,
+			]
+		}), [image]);
 	});
 
 	test('invalid or missing image pricing is never replaced with a free image quote', () => {
