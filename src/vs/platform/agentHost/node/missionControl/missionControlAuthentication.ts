@@ -270,6 +270,7 @@ export class MissionControlAuthentication extends Disposable {
 
 	beginHandshake(): void {
 		this._generation++;
+		this._authorizationGeneration++;
 		this._authenticated = false;
 		this._expiresAt = undefined;
 		this._expiryTimer.cancel();
@@ -428,7 +429,7 @@ export class MissionControlAuthentication extends Disposable {
 			if ((expiresAt !== undefined && expiresAt <= Date.now()) || (localExpiresAt !== undefined && localExpiresAt <= Date.now())) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub credential has expired');
 			}
-			this._authorizationGeneration++;
+			this._checkExpiration();
 			this._expiresAt = expiresAt;
 			this._expiryTimer.cancel();
 			this._authenticated = true;

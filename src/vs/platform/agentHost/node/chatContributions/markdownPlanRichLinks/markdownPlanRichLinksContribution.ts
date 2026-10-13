@@ -6,11 +6,12 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
-import { buildOpenSessionLinkForChatResource } from '../../../common/openSessionLink.js';
+import { buildOpenSessionLinkForChat } from '../../../common/openSessionLink.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
-function createMarkdownPlanRichLinksInstruction(chat: IOutgoingTurn['chat']): string {
-	const currentChatLink = buildOpenSessionLinkForChatResource(chat);
+function createMarkdownPlanRichLinksInstruction(turn: IOutgoingTurn, defaultChat: string | undefined): string {
+	const currentChatLink = buildOpenSessionLinkForChat(turn.session, turn.chat, defaultChat);
 	return [
 		'<rich_plan_markdown>',
 		'When creating or editing a Markdown plan document, use these formats when the exact target is known:',
@@ -34,13 +35,14 @@ export class MarkdownPlanRichLinksContribution extends Disposable implements IAg
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
-			? { instructions: [createMarkdownPlanRichLinksInstruction(turn.chat)] }
+			? { instructions: [createMarkdownPlanRichLinksInstruction(turn, this._chatOwnership.getDefaultChat(turn.session))] }
 			: undefined;
 	}
 }

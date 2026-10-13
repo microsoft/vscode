@@ -179,6 +179,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo
 	echo "### node.js integration tests"
 	echo
+	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
 		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
 			echo "Skipping Agent Host E2E tests because no relevant files changed."

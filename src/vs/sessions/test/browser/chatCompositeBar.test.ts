@@ -394,6 +394,20 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	}
 
+	test('keeps session actions six pixels from the tab bar edge', () => {
+		const harness = createHarness(disposables, { terminalControls: true });
+		const root = attachConnectedBar(harness);
+		const actions = harness.bar.element.querySelector<HTMLElement>('.session-chat-tabs-actions')!;
+		const lastAction = actions.querySelector<HTMLElement>('.action-item:last-child .action-label')!;
+		const readInset = () => Math.round(harness.bar.element.getBoundingClientRect().right - lastAction.getBoundingClientRect().right);
+
+		const connectedInset = readInset();
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		const pillInset = readInset();
+
+		assert.deepStrictEqual({ connectedInset, pillInset }, { connectedInset: 6, pillInset: 6 });
+	});
+
 	test('uses the side-panel border color fallback for the chat cap, shoulders, and separator', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);
@@ -418,7 +432,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('connected chat tabs and their card share one inset frame at fractional zoom', () => {
+	test('chat tabs and their card share one inset frame at fractional zoom', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);
 		root.classList.add('noeditorpane');
@@ -498,8 +512,13 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.classList.remove('phone-layout', 'modern-ui-connected-editor-tabs');
 		assert.deepStrictEqual({
 			frame: mainWindow.getComputedStyle(harness.container, '::after').content,
+			frameColor: mainWindow.getComputedStyle(harness.container, '::after').borderTopColor,
 			outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
-		}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
+		}, {
+			frame: '""',
+			frameColor: 'rgb(171, 205, 239)',
+			outerBorder: 'rgba(0, 0, 0, 0)',
+		});
 	});
 
 	test('connected chat tabs retain clipped outlines and reveal the full terminal shoulder', () => {
@@ -652,6 +671,7 @@ suite('Sessions - ChatCompositeBar', () => {
 					actionClickable: !!hitTarget && (hitTarget === action || action.contains(hitTarget)),
 					beforeControls: bounds.right <= controls.getBoundingClientRect().left,
 					controls: controls.querySelectorAll('.action-label').length,
+					controlsPaddingRight: mainWindow.getComputedStyle(controls).paddingRight,
 					nowrap: mainWindow.getComputedStyle(tabs).flexWrap,
 				};
 				const removed = chats.at(-1)!;
@@ -680,7 +700,7 @@ suite('Sessions - ChatCompositeBar', () => {
 					noOverflowPaint: mainWindow.getComputedStyle(overflow).display === 'none',
 					noWrongActivation: harness.sessionsService.openedChats.length === 0,
 				});
-				expected.push({ theme, tabHeight, before: { overflowing: true, scrolledFullyRight: true, actionVisible: true, actionClickable: true, beforeControls: true, controls: 2, nowrap: 'nowrap' }, commandTargetsLastChat: true, removedLastTab: true, activeTerminal: true, scrollClamped: true, shoulderVisible: true, noRightClipping: true, noOverflowPaint: true, noWrongActivation: true });
+				expected.push({ theme, tabHeight, before: { overflowing: true, scrolledFullyRight: true, actionVisible: true, actionClickable: true, beforeControls: true, controls: 2, controlsPaddingRight: '6px', nowrap: 'nowrap' }, commandTargetsLastChat: true, removedLastTab: true, activeTerminal: true, scrollClamped: true, shoulderVisible: true, noRightClipping: true, noOverflowPaint: true, noWrongActivation: true });
 				harness.store.dispose();
 				root.remove();
 			}

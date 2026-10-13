@@ -662,7 +662,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const header = this.header = DOM.append(content, $('.customization-discovery-header'));
 		const titleRow = DOM.append(header, $('.customization-discovery-title-row'));
 		const title = DOM.append(titleRow, $('h2.customization-discovery-title'));
-		title.textContent = localize('customizationDiscovery.title', "Discover customizations");
+		title.textContent = localize('customizationDiscovery.title', "Browse customizations");
 		this.createAddButton(titleRow);
 		this.titleDescription = DOM.append(header, $('p.customization-discovery-description'));
 		this.updateDescription();
@@ -2076,7 +2076,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
 		});
 		return [
-			localize('customizationDiscovery.title', "Discover customizations"),
+			localize('customizationDiscovery.title', "Browse customizations"),
 			this.query.isEmpty()
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),

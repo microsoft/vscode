@@ -13,13 +13,15 @@ import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrate
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
@@ -98,6 +100,8 @@ interface ITitlePromptContext {
 	readonly gitHubReferenceSource?: string;
 	/** The title in place already, offered to the model as the incumbent. */
 	readonly currentTitle?: string;
+	/** The session and chat whose selected model determines the utility model. */
+	readonly modelContext: IAgentHostUtilityModelContext;
 }
 
 export interface IAgentHostSessionTitleControllerOptions {
@@ -106,12 +110,11 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
-	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
 	readonly gitHubService?: IAgentHostGitHubService;
-	readonly copilotApiService?: ICopilotApiService;
+	readonly utilityModelService?: IAgentHostUtilityModelService;
 	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
 
@@ -122,12 +125,13 @@ export interface IAgentHostSessionTitleController {
 	readonly _serviceBrand: undefined;
 	getAutomaticTitleGenerationStrategy(channel?: ProtocolURI): AutomaticTitleGenerationStrategy;
 	restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void>;
-	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void;
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI, model?: ModelSelection): void;
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI, successful?: boolean): void;
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
 	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
 	cancelTitleGeneration(session: ProtocolURI): void;
+	/** Drops title state of a session and of `chatChannels`, which must list every chat of the session, its default chat included. */
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
@@ -170,11 +174,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
 
-	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI, model?: ModelSelection): void {
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
@@ -208,7 +213,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		this._generateTitleSoon(
 			key,
-			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt, modelContext: { session: channel, chat: chatChannel, model } },
 			fallbackTitle,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => this._currentSeedTitle(channel, independentChat) === this._lastAppliedTitle.get(key),
@@ -271,7 +276,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (!chatChannel || !isAhpChatChannel(chatChannel)) {
 			return undefined;
 		}
-		return !isDefaultChatUri(chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
+		return !this._chatOwnership.isDefaultChat(channel, chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
 			? chatChannel
 			: undefined;
 	}
@@ -369,9 +374,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (strategy === 'activeAgent') {
 			return;
 		}
-		let independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+		let independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 		// Adding the first peer snapshots the session-backed title onto its now-independent default chat.
-		if (independentChat && isDefaultChatUri(independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
 			const seed = this._lastAppliedTitle.get(channel);
 			if (seed !== undefined && this._stateManager.getChatState(independentChat)?.title === seed) {
 				this._lastAppliedTitle.set(independentChat, seed);
@@ -409,11 +414,11 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		this._generateTitleSoon(
 			key,
-			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
+			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied, modelContext: { session: channel, chat: chatChannel } },
 			lastApplied,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => {
-				independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+				independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 				const currentKey = independentChat ?? channel;
 				if (deferred) {
 					this._deferredRefinementStarted.add(currentKey);
@@ -445,7 +450,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !this._chatOwnership.isDefaultChat(channel, chatChannel);
 		if (isAdditionalChat) {
 			const key = chatChannel;
 			this._lastAppliedTitle.set(key, fallbackTitle);
@@ -453,7 +458,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
 			this._generateTitleSoon(
 				key,
-				{ content: context, isConversation: true },
+				{ content: context, isConversation: true, modelContext: { session: channel, chat: chatChannel } },
 				fallbackTitle,
 				apply,
 				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
@@ -470,7 +475,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}));
 		this._generateTitleSoon(
 			channel,
-			{ content: context, isConversation: true },
+			{ content: context, isConversation: true, modelContext: { session: channel, chat: chatChannel } },
 			fallbackTitle,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -499,7 +504,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		await this._startTitleGeneration(
 			session,
-			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt, modelContext: { session } },
 			'',
 			title => this._applyExternalSessionTitle(session, title),
 			() => true,
@@ -522,7 +527,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void {
-		for (const key of [session, buildDefaultChatUri(session), ...chatChannels]) {
+		for (const key of [session, ...chatChannels]) {
 			this._cancelTitleGeneration(key);
 			this._lastAppliedTitle.delete(key);
 			this._provisionalTitles.delete(key);
@@ -615,7 +620,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return false;
 		}
 		// A refinement started before a peer made the default chat independent is still keyed by the session.
-		if (independentChat && isDefaultChatUri(independentChat) && this._titleGenerationCancellationSources.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && this._titleGenerationCancellationSources.has(channel)) {
 			return false;
 		}
 		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
@@ -631,11 +636,11 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * keep the per-chat cap across the transition.
 	 */
 	private _syncDefaultChatTitleReviewReminderCount(channel: ProtocolURI, key: ProtocolURI): void {
-		if (key !== channel && !isDefaultChatUri(key)) {
+		if (key !== channel && !this._chatOwnership.isDefaultChat(channel, key)) {
 			return;
 		}
-		const defaultChat = key === channel ? buildDefaultChatUri(channel) : key;
-		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, this._titleReviewReminderCounts.get(defaultChat) ?? 0);
+		const defaultChat = key === channel ? this._chatOwnership.getDefaultChat(channel) : key;
+		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, defaultChat === undefined ? 0 : this._titleReviewReminderCounts.get(defaultChat) ?? 0);
 		if (count > 0) {
 			this._titleReviewReminderCounts.set(key, count);
 		}
@@ -705,9 +710,8 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
-		const githubToken = this._options.getGitHubCopilotToken?.();
-		const copilotApiService = this._options.copilotApiService;
-		if (!githubToken || !copilotApiService) {
+		const utilityModelService = this._options.utilityModelService;
+		if (!utilityModelService) {
 			return undefined;
 		}
 
@@ -720,7 +724,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
-			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
+			const rawTitle = await utilityModelService.chatCompletion(prompt.modelContext, {
 				messages: this._buildTitlePrompt(titlePromptContent, prompt),
 				maxTokens: MAX_TITLE_TOKENS,
 			}, {
@@ -729,6 +733,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			if (err instanceof AgentHostUtilityModelUnavailableError) {
+				this._logService.trace(`[AgentHostSessionTitleController] Skipping title generation: ${err.message}`);
 				return undefined;
 			}
 			this._logService.warn('[AgentHostSessionTitleController] Failed to generate session title', err);
@@ -1051,7 +1059,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 
 	private _clearDeferredTitleSeed(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
 		this._persistSessionFlag(channel, this._deferredTitleSeedMetadataKey(independentChat), '');
-		if (independentChat && isDefaultChatUri(independentChat)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat)) {
 			this._persistSessionFlag(channel, DEFERRED_TITLE_SEED_KEY, '');
 		}
 	}
@@ -1067,7 +1075,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			try {
 				let independentChat: ProtocolURI | undefined = chatChannel;
 				let raw = await ref.object.getMetadata(this._deferredTitleSeedMetadataKey(independentChat));
-				if (raw === undefined && isDefaultChatUri(chatChannel)) {
+				if (raw === undefined && this._chatOwnership.isDefaultChat(channel, chatChannel)) {
 					independentChat = undefined;
 					raw = await ref.object.getMetadata(DEFERRED_TITLE_SEED_KEY);
 				}

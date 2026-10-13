@@ -50,7 +50,7 @@ suite('Connector presentation', () => {
 			{ statusLabel: 'Connection status not checked', statusIcon: 'info', action: 'check', actionLabel: 'Check Connection' },
 			{ statusLabel: 'Connected', statusIcon: 'connected', action: 'more' },
 			{ statusLabel: 'Not connected', action: 'connect', actionLabel: 'Connect' },
-			{ statusLabel: 'Connection pending', statusIcon: 'pending' },
+			{ statusLabel: 'Connection pending', statusIcon: 'pending', action: 'retry', actionLabel: 'Try Again' },
 			{ statusLabel: 'Sign in required', statusIcon: 'attention', action: 'sign_in', actionLabel: 'Sign in' },
 			{ statusLabel: 'Review required', statusIcon: 'attention', action: 'review', actionLabel: 'Review' },
 			{ statusLabel: 'Connection failed', statusIcon: 'error', action: 'retry', actionLabel: 'Try Again' },
@@ -67,9 +67,15 @@ suite('Connector presentation', () => {
 		const detail = disposables.add(new EmbeddedConnectorDetail(
 			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
 		));
-		const states = ['sign_in_required', 'review_required', 'retryable_error', 'unavailable'] as const;
+		const states = [
+			connector('pending'),
+			connector('error', 'sign_in_required'),
+			connector('error', 'review_required'),
+			connector('error', 'retryable_error'),
+			connector('error', 'unavailable'),
+		];
 		const presentations = states.map(state => {
-			detail.setInput(connector('error', state));
+			detail.setInput(state);
 			return {
 				status: container.querySelector('.connector-detail-facts .embedded-detail-fact-value')?.textContent,
 				action: container.querySelector('.embedded-detail-title-actions .monaco-button')?.textContent,
@@ -77,6 +83,7 @@ suite('Connector presentation', () => {
 		});
 
 		assert.deepStrictEqual(presentations, [
+			{ status: 'Connection pending', action: 'Try Again' },
 			{ status: 'Sign in required', action: 'Sign in' },
 			{ status: 'Review required', action: 'Review' },
 			{ status: 'Connection failed', action: 'Try Again' },
@@ -108,15 +115,13 @@ suite('Connector presentation', () => {
 		assert.deepStrictEqual({ started: actionToken !== undefined, cancelled: actionToken?.isCancellationRequested }, { started: true, cancelled: true });
 	});
 
-	test('an earlier refresh cannot replace a newly selected connector', async () => {
+	test('an earlier retry cannot replace a newly selected connector', async () => {
 		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
 		disposables.add(toDisposable(() => container.remove()));
 		const result = new DeferredPromise<readonly ICopilotConnector[]>();
 		const service = new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = Event.None;
-			override async refresh(): Promise<readonly ICopilotConnector[]> {
-				return [];
-			}
+			override async connect(): Promise<void> { }
 			override getConnectors(): Promise<readonly ICopilotConnector[]> {
 				return result.p;
 			}

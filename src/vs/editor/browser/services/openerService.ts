@@ -15,7 +15,7 @@ import { normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditorService } from './codeEditorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { EditorOpenSource } from '../../../platform/editor/common/editor.js';
+import { EditorOpenSource, ViewColumn } from '../../../platform/editor/common/editor.js';
 import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
 
 interface IExternalUriOpenTarget {
@@ -276,6 +276,7 @@ export class OpenerService implements IOpenerService {
 			const didOpen = await opener.openExternal(target.href, {
 				sourceUri: target.sourceUri,
 				preferredOpenerId,
+				viewColumn: options?.openToSide ? ViewColumn.Beside : undefined,
 			}, CancellationToken.None);
 			if (didOpen) {
 				return true;

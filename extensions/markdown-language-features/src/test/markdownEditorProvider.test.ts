@@ -235,11 +235,17 @@ suite('Markdown editor diff', () => {
 suite('Markdown editor initial state', () => {
 	test('safely round-trips document content', () => {
 		const state = {
+			taskProgressLabels: {
+				title: 'Task Progress',
+				summary: '{0} of {1} tasks completed <script>',
+				language: 'en',
+			},
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
 			documentVersion: 17,
 			editEpoch: 3,
 			readonly: true,
 			richLinksEnabled: true,
+			highlightActiveBlock: false,
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);

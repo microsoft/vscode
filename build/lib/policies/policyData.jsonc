@@ -804,6 +804,24 @@
             }
         },
         {
+            "key": "chat.temporaryDefaultToLocalHarness",
+            "name": "ChatTemporaryDefaultToLocalHarness",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.142",
+            "localization": {
+                "description": {
+                    "key": "chat.temporaryDefaultToLocalHarness.policy",
+                    "value": "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.tools.eligibleForAutoApproval",
             "name": "ChatToolsEligibleForAutoApproval",
             "category": "InteractiveSession",

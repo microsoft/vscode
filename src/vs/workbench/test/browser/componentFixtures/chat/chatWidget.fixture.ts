@@ -20,7 +20,7 @@ import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -28,7 +28,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -2632,6 +2632,27 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Review the current changes',
+			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
+			responseComplete: false,
+		}],
+		onRendered: ({ model, listWidget }) => {
+			const pendingRequest = new ChatRequestModel({
+				session: model,
+				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			});
+			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			listWidget.refresh();
+			listWidget.scrollToEnd();
+		},
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ToolIconExamples: defineThemedFixtureGroup({
 		Standalone: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolIconExamples(context, false) }),
@@ -2661,6 +2682,23 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	PendingMessages: defineThemedFixtureGroup({
+		Queued: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Queued),
+		}),
+		Steering: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Steering" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering),
+		}),
+		SystemNotification: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A system-initiated pending message appears below a sentence-case "System notification" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, true),
+		}),
+	}),
 	PersistentProgress: defineThemedFixtureGroup({ path: 'persistentProgress/' }, {
 		ToolChains: defineToolChainScenarios(),
 		ToolFailures: defineThemedFixtureGroup({

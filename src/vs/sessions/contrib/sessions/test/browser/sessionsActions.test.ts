@@ -45,7 +45,7 @@ import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -251,6 +251,7 @@ suite('Sessions - Actions', () => {
 			'sessionsViewPane.openToTheSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			MARK_SESSION_UNREAD_COMMAND_ID,
+			'sessionsViewPane.markAllNestedRead',
 			'sessionsViewPane.markAllRead',
 		]);
 		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
@@ -268,6 +269,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
+			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions' },
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
 			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
 		]);
@@ -300,6 +302,53 @@ suite('Sessions - Actions', () => {
 			markedRead: sessions.map(session => session.mainChat.get().resource.toString()),
 			markedUnread: sessions.map(session => session.mainChat.get().resource.toString()),
 		});
+	});
+
+	test('parent session action marks unread nested sessions as read', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const firstTestSession = createTestSession('First');
+		const secondTestSession = createTestSession('Second');
+		const unsupportedTestSession = createTestSession('Unsupported');
+		for (const testSession of [firstTestSession, secondTestSession]) {
+			testSession.capabilities.set({ ...testSession.capabilities.get(), supportsIndependentChatReadState: true }, undefined);
+		}
+		const first = firstTestSession.session;
+		const second = secondTestSession.session;
+		const unsupported = unsupportedTestSession.session;
+		const createChat = (session: ISession, id: string, isRead: boolean, interactivity = ChatInteractivity.Full): IChat => upcastPartial<IChat>({
+			resource: session.resource.with({ fragment: id }),
+			isArchived: constObservable(false),
+			isRead: constObservable(isRead),
+			interactivity: constObservable(interactivity),
+		});
+		const firstUnread = createChat(first, 'first-unread', false);
+		const firstRead = createChat(first, 'first-read', true);
+		const secondUnread = createChat(second, 'second-unread', false);
+		const hiddenUnread = createChat(second, 'hidden-unread', false, ChatInteractivity.Hidden);
+		const unsupportedUnread = createChat(unsupported, 'unsupported-unread', false);
+		const sessions: ISession[] = [{
+			...first,
+			chats: constObservable([first.mainChat.get(), firstUnread, firstRead]),
+		}, {
+			...second,
+			chats: constObservable([second.mainChat.get(), secondUnread, hiddenUnread]),
+		}, {
+			...unsupported,
+			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
+		}];
+		const markedRead: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async markChatRead(_session: ISession, chat: IChat): Promise<void> {
+				markedRead.push(chat.resource.toString());
+			}
+		});
+
+		await CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
+
+		assert.deepStrictEqual(markedRead, [
+			firstUnread.resource.toString(),
+			secondUnread.resource.toString(),
+		]);
 	});
 
 	test('the main session context menu opens its main chat to the side', async () => {
@@ -698,7 +747,7 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('uses compact close icons for headers and a small close icon for tabs', () => {
+	test('uses the small close icon for headers and tabs', () => {
 		const chatTabClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
@@ -719,9 +768,9 @@ suite('Sessions - Actions', () => {
 			editorClass: editorClose.class,
 		}, {
 			chatTabIcon: Codicon.closeSmall,
-			chatHeaderIcon: Codicon.closeCompact,
+			chatHeaderIcon: Codicon.closeSmall,
 			chatHeaderTooltip: 'Close Chat Group',
-			sessionHeaderIcon: Codicon.closeCompact,
+			sessionHeaderIcon: Codicon.closeSmall,
 			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});

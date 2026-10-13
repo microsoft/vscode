@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { randomBytes } from 'crypto';
 import { mkdtemp, mkdir, readdir, rm, truncate, utimes, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -21,6 +22,8 @@ import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -89,6 +92,54 @@ suite('AgentHostDebugLogsCollector', () => {
 			events: 'event',
 			agentHost: 'agent host',
 		});
+	});
+
+	test('cancels collection before compression and cleans provider staging', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+		const collection = collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, target) => {
+				started.complete();
+				await finish.p;
+				await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
+				return true;
+			},
+		}], undefined, 'archive', undefined, 'cancel-me');
+		await started.p;
+		collector.cancel('cancel-me');
+		finish.complete();
+		await assert.rejects(collection, isCancellationError);
+		assert.deepStrictEqual(await readdir(outputRoot), []);
+	});
+
+	test('reports compression progress through the complete uncompressed byte count', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+		const progress: { bytes: number; total: number; message: string }[] = [];
+		const artifact = await collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, target) => {
+				await writeFile(join(target.fsPath, 'events.jsonl'), 'event\n'.repeat(100));
+				return true;
+			},
+		}], undefined, 'archive', undefined, 'progress', (bytes, total, message) => progress.push({ bytes, total, message }));
+		assert.deepStrictEqual({
+			lastBytes: progress.at(-1)?.bytes,
+			lastTotal: progress.at(-1)?.total,
+			uncompressedSize: artifact.uncompressedSize,
+			compressionReported: progress.at(-1)?.message.startsWith('Compressing'),
+		}, { lastBytes: 600, lastTotal: 600, uncompressedSize: 600, compressionReported: true });
 	});
 
 	test('collects a directory artifact larger than the previous 256 MiB limit', async () => {
@@ -510,6 +561,33 @@ suite('AgentHostDebugLogsCollector', () => {
 		await waitForEmptyDirectory(outputRoot);
 	});
 
+	test('renews an artifact lease on each read and expires after inactivity', async () => {
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(outputRoot);
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(join(testRoot, 'logs')),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService(), 1000));
+		const clock = sinon.useFakeTimers();
+		try {
+			const artifact = await collector.collect([{
+				id: 'test',
+				collectDebugLogs: async (_session, target) => {
+					await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
+					return true;
+				},
+			}], undefined, 'directory');
+			const source = joinPath(artifact.resource, 'events.jsonl');
+			clock.tick(600);
+			await collector.readArtifactChunk(source, 0);
+			clock.tick(600);
+			assert.strictEqual((await collector.readArtifactChunk(source, 0)).data.toString(), 'events');
+			clock.tick(1100);
+			await assert.rejects(collector.readArtifactChunk(source, 0), /Unknown or expired/);
+		} finally {
+			clock.restore();
+		}
+	});
 	test('removes retained artifacts when disposed', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');

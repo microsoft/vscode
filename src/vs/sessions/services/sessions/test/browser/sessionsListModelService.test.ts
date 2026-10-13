@@ -86,12 +86,12 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('uses the report icon when a session needs attention', () => {
+	test('uses the report-question icon when a session needs attention', () => {
 		const icon = service.getStatusIcon(SessionStatus.NeedsInput, true, false);
 
 		assert.deepStrictEqual(
 			{ id: icon.id, color: icon.color?.id },
-			{ id: Codicon.report.id, color: 'list.warningForeground' },
+			{ id: Codicon.reportQuestion.id, color: 'list.warningForeground' },
 		);
 	});
 

@@ -52,6 +52,7 @@ suite('Markdown editor bridge', () => {
 				restoreNavigationState: () => { },
 				command: () => { },
 				highlightThemeChanged: () => { },
+				configurationChanged: () => { },
 				richLinkPresentations: () => { },
 			});
 			const host = renderer.get(markdownEditorHost);

@@ -8,6 +8,7 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
+const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
 	editEpoch: offset,
@@ -118,6 +119,7 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
+	configurationChanged: notificationType(editorConfiguration),
 	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),
 	codeBlockEditorProviders: notificationType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) })),
@@ -146,6 +148,7 @@ export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.ren
 
 export type MarkdownEditorHost = InterfaceClient<typeof markdownEditorHost>;
 export type MarkdownEditorRenderer = InterfaceClient<typeof markdownEditorRenderer>;
+export type MarkdownEditorConfiguration = z.infer<typeof editorConfiguration>;
 export type CodeBlockEditorProviderDefinition = z.infer<typeof codeBlockEditorProvider>;
 export type ResolvedCodeBlockEditor = z.infer<typeof resolvedCodeBlockEditor>;
 export type HighlightResult = z.infer<typeof highlightResult>;
