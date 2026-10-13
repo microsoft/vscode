@@ -5,23 +5,34 @@
 
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
+import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
+import { IGitService } from '../../../../git/common/gitService.js';
 
 /**
  * Action view item for delegating to a remote session (Background or Cloud).
@@ -29,13 +40,12 @@ import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPi
  */
 export class DelegationSessionPickerActionItem extends SessionTypePickerActionItem {
 
-	private readonly _isSessionsWindow: boolean;
-
 	constructor(
 		action: MenuItemAction,
 		chatSessionPosition: 'sidebar' | 'editor',
 		delegate: ISessionTypePickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
+		inputUri: URI,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -43,12 +53,25 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
+		@ICodexAccountService codexAccountService: ICodexAccountService,
+		@IChatHarnessSwitchFeedbackSurveyService harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
+		@IGitService private readonly gitService: IGitService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService);
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService, harnessSwitchFeedbackSurveyService, managedSettingsService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
+		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
+		this._promptForCopilotToLocalSwitch(previousTarget, sessionTypeItem.type);
 		if (this.delegate.setPendingDelegationTarget) {
 			this.delegate.setPendingDelegationTarget(sessionTypeItem.type);
 		}
@@ -57,7 +80,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		}
 	}
 
-	protected override _getSelectedSessionType(): AgentSessionProviders | undefined {
+	protected override _getSelectedSessionType(): AgentSessionTarget | undefined {
 		const delegationTarget = this.delegate.getPendingDelegationTarget ? this.delegate.getPendingDelegationTarget() : undefined;
 		if (delegationTarget) {
 			return delegationTarget;
@@ -65,17 +88,28 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
-	protected override _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
-		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
+	protected override getTooltip(): string {
+		const activeProvider = this.delegate.getActiveSessionProvider();
+		if (activeProvider !== undefined && isAgentHostTarget(activeProvider)) {
+			return '';
+		}
+		return super.getTooltip();
+	}
 
-		// In core VS Code, only allow delegation from local sessions.
-		// In the sessions window, only allow delegation from background sessions (not cloud).
+	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
+		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type || contribution.type === type);
+
 		const activeProvider = this.delegate.getActiveSessionProvider();
 		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
 		}
 		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
+			return false;
+		}
+
+		// In the sessions window, cloud delegation requires a git repository
+		if (this._isSessionsWindow && type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
 			return false;
 		}
 
@@ -86,14 +120,30 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
 	}
 
-	protected override _isVisible(type: AgentSessionProviders): boolean {
-		// In the sessions window, only show Background and Cloud targets
+	private _hasGitRepository(): boolean {
+		if (this.delegate.hasGitRepository) {
+			return this.delegate.hasGitRepository();
+		}
+		return !Iterable.isEmpty(this.gitService.repositories);
+	}
+
+	protected override _isVisible(type: AgentSessionTarget): boolean {
+		// In the sessions window, never offer the plain Local (in-place) target;
+		// agent host and remote targets remain available via getAgentCanContinueIn.
 		if (this._isSessionsWindow && type === AgentSessionProviders.Local) {
 			return false;
 		}
 
 		if (this.delegate.getActiveSessionProvider() === type) {
 			return true; // Always show active session type
+		}
+		if (this._isSessionsWindow && type === AgentSessionProviders.Background && this.chatSessionsService.getChatSessionContribution(AgentSessionProviders.AgentHostCopilot)) {
+			return false;
+		}
+
+		// Apply the same visibility guards as the new-session picker.
+		if (!super._isVisible(type)) {
+			return false;
 		}
 
 		return getAgentCanContinueIn(type);
@@ -106,8 +156,12 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
 	}
 
+	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
+		return undefined;
+	}
+
 	protected override _getLearnMore(): IAction {
-		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		const learnMoreUrl = 'https://aka.ms/vscode-agent-handoff';
 		return {
 			id: 'workbench.action.chat.agentOverview.learnMoreHandOff',
 			label: localize('chat.learnMoreAgentHandOff', "Learn about agent handoff..."),
@@ -129,7 +183,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			class: undefined,
 			label: localize('chat.newChatSession', "New Chat Session"),
 			tooltip: '',
-			hover: { content: '', position: this.pickerOptions.hoverPosition },
+			hover: { content: '' },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,

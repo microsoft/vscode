@@ -30,6 +30,15 @@ interface CurrentChord {
 
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
+/**
+ * Whether the keystroke belongs to an in-flight IME composition. `StandardKeyboardEvent` normalizes
+ * every composing keystroke to {@link KeyCode.KEY_IN_COMPOSITION}, including the platform/IME
+ * combinations that would otherwise report the real key code for keys the IME owns.
+ */
+function isKeyInComposition(e: IKeyboardEvent): boolean {
+	return e.keyCode === KeyCode.KEY_IN_COMPOSITION;
+}
+
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 
 	public _serviceBrand: undefined;
@@ -80,9 +89,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._logging = false;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	protected abstract _getResolver(): KeybindingResolver;
 	protected abstract _documentHasFocus(): boolean;
@@ -142,6 +148,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	// TODO@ulugbekna: this fn doesn't seem to take into account single-modifier keybindings, eg `shift shift`
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult {
 		this._log(`/ Soft dispatching keyboard event`);
+		if (isKeyInComposition(e)) {
+			// Must agree with `_dispatch`: callers use this to decide whether the workbench will
+			// claim the key, and a "yes" here followed by a "no" there would drop the keystroke on
+			// the floor - stopping the widget (e.g. the terminal) from passing it to the IME.
+			this._log(`\\ Keyboard event is part of an IME composition`);
+			return NoMatchingKb;
+		}
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.hasMultipleChords()) {
 			console.warn('keyboard event should not be mapped to multiple chords');
@@ -222,10 +235,21 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		if (isKeyInComposition(e)) {
+			// The keystroke belongs to the IME, which owns Enter (commit), Space and the arrows
+			// (candidate selection) and Escape (cancel) for the duration of the composition.
+			// Dispatching would run commands the user never invoked - e.g. accepting a picker or
+			// submitting a form while they are still choosing characters.
+			this._log(`+ Ignoring keybinding dispatch because an IME composition is in progress.`);
+			return false;
+		}
 		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
 	}
 
 	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		if (isKeyInComposition(e)) {
+			return false;
+		}
 		const keybinding = this.resolveKeyboardEvent(e);
 		const [singleModifier,] = keybinding.getSingleModifierDispatchChords();
 

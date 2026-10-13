@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.onboarding-target-pulse {
+	animation: onboarding-target-pulse 1.4s ease-out infinite;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-target-pulse {
+		animation: none;
+	}
+}
+
+@keyframes onboarding-target-pulse {
+	0% {
+		box-shadow: 0 0 0 0 var(--vscode-focusBorder);
+	}
+	70% {
+		box-shadow: 0 0 0 6px transparent;
+	}
+	100% {
+		box-shadow: 0 0 0 0 transparent;
+	}
+}

@@ -579,14 +579,15 @@ export interface IConfigurationProperties {
 	hide?: boolean;
 
 	/**
-	 * Show this task in the Agent Sessions run action dropdown
+	 * Show this task in the Agents run action dropdown
 	 */
-	inSessions?: boolean;
+	inAgents?: boolean;
 }
 
 export enum RunOnOptions {
 	default = 1,
-	folderOpen = 2
+	folderOpen = 2,
+	worktreeCreated = 3
 }
 
 export const enum InstancePolicy {

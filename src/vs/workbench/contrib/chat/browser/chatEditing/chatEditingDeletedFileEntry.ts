@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -22,6 +23,7 @@ import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -82,6 +84,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(
 			resource,
@@ -94,6 +97,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 			undoRedoService,
 			instantiationService,
 			aiEditTelemetryService,
+			agentHostConnectionsService,
 		);
 
 		this._originalContent = originalContent;
@@ -164,7 +168,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
 		return !!snapshot &&
-			this.modifiedURI.toString() === snapshot.resource.toString() &&
+			isEqual(this.modifiedURI, snapshot.resource) &&
 			this._languageId === snapshot.languageId &&
 			this._originalContent === snapshot.original &&
 			snapshot.current === '' &&
@@ -196,6 +200,10 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 	async resetToInitialContent(): Promise<void> {
 		// Restore the file with original content
 		await this._fileService.writeFile(this.modifiedURI, VSBuffer.fromString(this._originalContent));
+	}
+
+	resetEditTrackerToInitialContent(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

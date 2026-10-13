@@ -168,6 +168,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 		remoteAuthority: null,
 		label: 'Test Collection',
 		configTarget: ConfigurationTarget.USER,
+		order: 0,
 		serverDefinitions: observableValue(this, [{
 			id: 'test-server',
 			label: 'Test Server',
@@ -181,6 +182,9 @@ export class TestMcpRegistry implements IMcpRegistry {
 		priority: 0,
 		canStart: () => true,
 		substituteVariables(serverDefinition, launch) {
+			return Promise.resolve(launch);
+		},
+		expandEnvironmentVariables(serverDefinition, launch) {
 			return Promise.resolve(launch);
 		},
 		start: () => {

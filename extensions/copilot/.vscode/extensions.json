@@ -1,0 +1,14 @@
+{
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"connor4312.esbuild-problem-matchers",
+		"ms-vscode.extension-test-runner",
+		"ms-vscode.debug-value-editor",
+		"ms-vscode.web-editors",
+		"ms-vscode.visualization-runner",
+		"vitest.explorer",
+		"ms-vscode.ts-file-path-support",
+		"charliermarsh.ruff"
+	]
+}

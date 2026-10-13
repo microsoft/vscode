@@ -105,6 +105,20 @@ export const CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED = new RawContextKey<boolean>(
 export const CONTEXT_DISASSEMBLY_VIEW_FOCUS = new RawContextKey<boolean>('disassemblyViewFocus', false, { type: 'boolean', description: nls.localize('disassemblyViewFocus', "True when the Disassembly View is focused.") });
 export const CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST = new RawContextKey<boolean>('languageSupportsDisassembleRequest', false, { type: 'boolean', description: nls.localize('languageSupportsDisassembleRequest', "True when the language in the current editor supports disassemble request.") });
 export const CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE = new RawContextKey<boolean>('focusedStackFrameHasInstructionReference', false, { type: 'boolean', description: nls.localize('focusedStackFrameHasInstructionReference', "True when the focused stack frame has instruction pointer reference.") });
+export const CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES = new RawContextKey<boolean>('threadHasMultipleStackFrames', false, { type: 'boolean', description: nls.localize('threadHasMultipleStackFrames', "True when the target thread has more than one stack frame.") });
+
+/**
+ * Returns whether the thread has a caller frame, treating an incomplete stack with unknown depth as potentially having one.
+ */
+export function hasMultipleStackFrames(thread: IThread | undefined): boolean {
+	if (!thread) {
+		return false;
+	}
+
+	const loadedFrameCount = thread.getCallStack().length;
+	const totalFrameCount = thread.stoppedDetails?.totalFrames;
+	return loadedFrameCount > 1 || (typeof totalFrameCount === 'number' ? totalFrameCount > 1 : !thread.reachedEndOfCallStack);
+}
 
 export const debuggerDisabledMessage = (debugType: string) => nls.localize('debuggerDisabled', "Configured debug type '{0}' is installed but not supported in this environment.", debugType);
 
@@ -538,6 +552,11 @@ export interface IThread extends ITreeElement {
 	 */
 	readonly stopped: boolean;
 
+	/**
+	 * Indicates whether the end of the call stack has been reached.
+	 */
+	readonly reachedEndOfCallStack: boolean;
+
 	next(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
@@ -834,6 +853,12 @@ export interface IGlobalConfig {
 	configurations: IConfig[];
 }
 
+export interface IConfigPresentation {
+	hidden?: boolean;
+	group?: string;
+	order?: number;
+}
+
 interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preRestartTask?: string | ITaskIdentifier;
@@ -843,12 +868,7 @@ interface IEnvConfig {
 	debugServer?: number;
 	noDebug?: boolean;
 	suppressMultipleSessionWarning?: boolean;
-}
-
-export interface IConfigPresentation {
-	hidden?: boolean;
-	group?: string;
-	order?: number;
+	presentation?: IConfigPresentation;
 }
 
 export interface IConfig extends IEnvConfig {
@@ -877,6 +897,10 @@ export interface ICompound {
 	preLaunchTask?: string | ITaskIdentifier;
 	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
+}
+
+export function isDebugConfig(thing: IConfig | ICompound): thing is IConfig {
+	return 'type' in thing && 'request' in thing;
 }
 
 export interface IDebugAdapter extends IDisposable {
@@ -1250,11 +1274,17 @@ export interface IDebugService {
 	addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void>;
 
 	/**
-	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
-	 * The address should be the address string supplied by the debugger from the "Disassemble" request.
-	 * Notifies debug adapter of breakpoint changes.
+	 * Removes all instruction breakpoints. If `address` is passed, only the
+	 * instruction breakpoint with the matching resolved memory address is
+	 * removed; this is preferred because the debug adapter is allowed to
+	 * return different `instructionReference` strings for the same memory
+	 * location on subsequent disassemble requests. If `address` is not
+	 * provided, falls back to matching on `instructionReference` (and
+	 * `offset` when specified). When no arguments are provided, all
+	 * instruction breakpoints are removed. Notifies the debug adapter of
+	 * breakpoint changes.
 	 */
-	removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void>;
+	removeInstructionBreakpoints(instructionReference?: string, offset?: number, address?: bigint): Promise<void>;
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 

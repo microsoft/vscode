@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -11,6 +12,7 @@ import * as os from 'os';
 import { type RawSourceMap, SourceMapConsumer } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
 import { adjustSourceMap } from '../private-to-property.ts';
+import { getBundleOptions } from '../bundle.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
 const NLS_STUB = [
@@ -56,27 +58,12 @@ async function bundleWithNLS(
 	const collector = createNLSCollector();
 
 	const result = await esbuild.build({
+		...getBundleOptions(opts?.minify ?? false, 'neutral'),
 		entryPoints: [path.join(srcDir, entryPoint)],
 		outfile: path.join(outDir, entryPoint.replace(/\.ts$/, '.js')),
-		bundle: true,
-		format: 'esm',
-		platform: 'neutral',
-		target: ['es2024'],
-		packages: 'external',
-		sourcemap: 'linked',
-		sourcesContent: true,
-		minify: opts?.minify ?? false,
-		write: false,
 		plugins: [
 			nlsPlugin({ baseDir: srcDir, collector }),
 		],
-		tsconfigRaw: JSON.stringify({
-			compilerOptions: {
-				experimentalDecorators: true,
-				useDefineForClassFields: false
-			}
-		}),
-		logLevel: 'warning',
 	});
 
 	let jsContent = '';
@@ -215,6 +202,28 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should NOT contain NLS placeholder.\nActual:\n' + greetingContent);
 			assert.ok(greetingContent.includes('localize("myKey", "Hello World")'),
 				'sourcesContent should contain the exact original localize call.\nActual:\n' + greetingContent);
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('NLS-affected nested file keeps a non-duplicated source path', async () => {
+		const source = [
+			'import { localize } from "../../vs/nls";',
+			'export const msg = localize("myKey", "Hello World");',
+		].join('\n');
+
+		const { mapJson, cleanup } = await bundleWithNLS(
+			{ 'nested/deep/file.ts': source },
+			'nested/deep/file.ts',
+		);
+
+		try {
+			const sources: string[] = mapJson.sources ?? [];
+			const nestedSource = sources.find((s: string) => s.endsWith('/nested/deep/file.ts'));
+			assert.ok(nestedSource, 'Should find nested/deep/file.ts in sources');
+			assert.ok(!nestedSource.includes('/nested/deep/nested/deep/file.ts'),
+				`Source path should not duplicate directory segments. Actual: ${nestedSource}`);
 		} finally {
 			cleanup();
 		}

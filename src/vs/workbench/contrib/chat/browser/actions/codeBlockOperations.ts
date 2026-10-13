@@ -29,13 +29,17 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
-import { reviewEdits, reviewNotebookEdits } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits, reviewNotebookEdits } from './reviewEdits.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/editing/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
@@ -49,23 +53,26 @@ export class InsertCodeBlockOperation {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 	}
 
 	public async run(context: ICodeBlockActionContext) {
+		let inserted = false;
 		const activeEditorControl = getEditableActiveCodeEditor(this.editorService);
 		if (activeEditorControl) {
-			await this.handleTextEditor(activeEditorControl, context);
+			inserted = await this.handleTextEditor(activeEditorControl, context);
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
-				await this.handleNotebookEditor(activeNotebookEditor, context);
+				inserted = await this.handleNotebookEditor(activeNotebookEditor, context);
 			} else {
 				this.notify(localize('insertCodeBlock.noActiveEditor', "To insert the code block, open a code editor or notebook editor and set the cursor at the location where to insert the code block."));
 			}
 		}
 
-		if (isResponseVM(context.element)) {
+		if (inserted && isResponseVM(context.element)) {
 			const requestId = context.element.requestId;
 			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 			notifyUserAction(this.chatService, context, {
@@ -85,11 +92,15 @@ export class InsertCodeBlockOperation {
 				editDeltaInfo: EditDeltaInfo.fromText(context.code),
 				feature: 'sideBarChat',
 				languageId: context.languageId,
-				modeId: context.element.model.request?.modeInfo?.modeId,
+				modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: requestId,
+				...getChatSessionTelemetryIds(context.element.sessionResource, this.agentHostConnectionsService),
+				isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+				provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), this.chatSessionsService),
 			});
 		}
 	}
@@ -101,8 +112,7 @@ export class InsertCodeBlockOperation {
 		}
 		const focusRange = notebookEditor.getFocus();
 		const next = Math.max(focusRange.end - 1, 0);
-		insertCell(this.languageService, notebookEditor, next, CellKind.Code, 'below', codeBlockContext.code, true);
-		return true;
+		return insertCell(this.languageService, notebookEditor, next, CellKind.Code, 'below', codeBlockContext.code, true) !== null;
 	}
 
 	private async handleTextEditor(codeEditor: IActiveCodeEditor, codeBlockContext: ICodeBlockActionContext): Promise<boolean> {
@@ -116,9 +126,9 @@ export class InsertCodeBlockOperation {
 		const text = reindent(codeBlockContext.code, activeModel, range.startLineNumber);
 
 		const edits = [new ResourceTextEdit(activeModel.uri, { range, text })];
-		await this.bulkEditService.apply(edits);
-		this.codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
-		return true;
+		const result = await this.bulkEditService.apply(edits);
+		this.codeEditorService.listCodeEditors().find(editor => isEqual(editor.getModel()?.uri, activeModel.uri))?.focus();
+		return result.isApplied;
 	}
 
 	private notify(message: string) {

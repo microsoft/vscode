@@ -9,7 +9,7 @@ import { ITextDocument } from '../types/textDocument';
 
 export class InMemoryDocument implements ITextDocument {
 
-	private readonly _doc: TextDocument;
+	readonly #doc: TextDocument;
 
 	public readonly uri: vscode.Uri;
 	public readonly version: number;
@@ -21,15 +21,15 @@ export class InMemoryDocument implements ITextDocument {
 	) {
 		this.uri = uri;
 		this.version = version;
-		this._doc = TextDocument.create(this.uri.toString(), 'markdown', 0, contents);
+		this.#doc = TextDocument.create(this.uri.toString(), 'markdown', 0, contents);
 	}
 
 	getText(range?: vscode.Range): string {
-		return this._doc.getText(range);
+		return this.#doc.getText(range);
 	}
 
 	positionAt(offset: number): vscode.Position {
-		const pos = this._doc.positionAt(offset);
+		const pos = this.#doc.positionAt(offset);
 		return new vscode.Position(pos.line, pos.character);
 	}
 }

@@ -1,0 +1,162 @@
+[
+	{
+		"name": "notebookEdits (modification - text) [panel] [julia] - new julia code cells in empty notebook",
+		"requests": []
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - cell refactoring, plot refactoring",
+		"requests": [
+			"07c03c05adb9c6e347a1bd27bf3ff78eff60170bc9bfe9365cddd93cf8e871d5",
+			"24395f15e58bbb2b7c6bdeadb3274f3e9db4ce0838459545ff8a51c1c68d5f2d",
+			"62c53ec8655ae1c170a72de7eec3adb5b2a4721e5105caeae17af69ad9d78dd9",
+			"72bad88e787e9aeda0a4976e4ee4c264f0c17b7bfceae4bf994d0dec4891194c",
+			"9eb4204b41def3f283b78b1139c2a0eb06ab5709575d2fc3637867c3751e55fb",
+			"a7824938943b83cb9a858c9abbe571faf6cc6b224fa5c1e3520aebaf0ce088fd",
+			"a9ab5e4678993172d76b62b3aefb7c408982015496dec7da657ee5f5b691af43"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell insertion",
+		"requests": [
+			"256d9971c6771c4315d3a8f08c6bf364c4353ed9319156b5d2a76e54c150d5d9",
+			"268876eb877726a15a6537dc16a0ee0283b6392f6d8506ea78c2111df1346d07",
+			"29ad8507071f390f03635050c423d6f54e408bc1a3cc310fb851f1a53e702116",
+			"e3784577a4de09b0ac34f9f341385fc4a532709c883853be225f75b16ad07994",
+			"ff29e2a346dffd51c32f229f614c44c99bb141802d925043cc7c81a5e07b8ca9"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification",
+		"requests": [
+			"8762ff709f6b93135cdb7f502a1969c1ae2bade29b58da1a7f2c0f044e95b389",
+			"88664b817ec1603f396ace8043e135381c50f5891c4d19d214e4c057b1b8e0a4",
+			"950352865e0a733d8711ca8991d23cf87e06b612e3bc1e0c84787fbe493f70c3",
+			"a57a86d067c4bebd3c2f751faa340978d5f1ae554c5264c31dc4e38e1b2a8338",
+			"b7b821b2511cd5bc18e56976aed115e57c69f803df635129ef57706301bcabc6"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification & deletion",
+		"requests": [
+			"2436f5b3fc7c8c13c7ec03d62eb77da4f84d15c252d152798f9d440d4fe3208b",
+			"7df74e7c6cfa557839805df4b26d3094c153614abf523f326fa49a1a9dd1cc30",
+			"8462669262e0cf5f87b2acb1fc6ead4921030efbdf3a4654ead20f39970608a0",
+			"86507b3fd0a3d9cd8a31dc9d484efec87b36eeb44ec672fce4a6e61a43903886",
+			"a9187e0c72c4a93553e67088a5414cb0683915562872a3eb29d841ed91d31d11"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification & insertion",
+		"requests": [
+			"009da0d75c3d9577d290729a639a423500f41226a5fbced7199e1eab1c1a9d96",
+			"7254a45cee0bacbecb540304373108b8ee28745e4f9ef9ca526a7cdeaa8a2204",
+			"8446c9cbd06424aae5fe34846132fa9271cba0dd09d25f45d1c59449d030ead3",
+			"94a044c2a9375fbfda7b5f2e17cf8baa4c74194a487bc25410e8b15e73dbe08f",
+			"9c393e80d872ea8fa12097242b1438b41e7b0abeeb74137dbbbf7b36b1cbc503",
+			"c2f19574e735d8b1167f251ae83071258a97863c782666fd492049ae0d47c898",
+			"c5700e6db87e51e9afcbb1b5d2c013e59f70dd048d29b06c6e494425b5124638",
+			"ef78aec68c4a8b29469322ba18d04f4ad6488e76fd44c99db313608b479c6306"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification with removal of unused imports",
+		"requests": [
+			"2873c374373a89770f905f4e82e931f48983de854e5026e51c410021e0948b37",
+			"47502ae38caf3041feadf3fcca40a6115c49e63319e49339c1bee5f8cfb3e4e8",
+			"659cc3cc7253d2b44eb0d29ac5ec973ff35ba9d192bb529fe6c733a6d8a40f6e",
+			"7fc90aeb24cceea9b85a095d78500e1afb49b1f3f36c478740901ebc34b63f28",
+			"b84d872b83fdcc9f66a89302349bd0902ae329a42038b23210c1915098c56024",
+			"e596d04917494b6098695d7881a2e4aefce0dd7345e0845ecd854bf5f05452fb"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification, convert Point2D code to Point3D",
+		"requests": [
+			"1fb595dd3bcd363b11db995cd0657e5f381665a886dff0449f4acb21ae969725",
+			"24e6e76737df4c77c594a27b0bc7ced4a520a60263bebce6b75bc9c4bf814f96",
+			"6a2f80978d355f898a2a6fa4b23db3989bda7074634c90c6087a6a97779630d7",
+			"732e45e8fcdab068d26166035578756f30420d12b699e9a29c4537288ee5d3b7",
+			"9c3e8309c562a992d6847f85e9fb1ffb33a291171ca140e15c4e7a16a7200600",
+			"c0be77e182c36fb3db0b29049288963ea80a27734c5a6eb6afe265034b81c91b",
+			"cf3e3c140ab054854137ffb4b0819e2a3a1d2d546400aea5d4c5137bd9cf94fc",
+			"e06e4399a1a2560ea608b0b03fbe659090ffa6bac3ee8f57c4d1e4edcf37b94a",
+			"f6029f1966aa0e90cda7e7397285f7a5904c06affff74cdb05ff5020a4e7530e"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell modification, plotting",
+		"requests": [
+			"a6068902e5397ebf5a079b025a903efd21e53d6e77993e50483739d136b7a3c3",
+			"ab19a70e67afaa7c106ff2a6c2d90dac69743264e6880ab3ad023ef64257c497",
+			"b2a9fa2d0bb4c1d1851c4d92b4c44cbfe77834977acfb425f741d6f9d4723ea3"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell re-ordering",
+		"requests": [
+			"5c4d4cb3bdf4c2e74c11f0dcfa2e16012055f73f24d2ddde5f8e6cd67dc7f672",
+			"80e6995bdd4b89dc1b48f243ea41bd4148be126dc507a175f2e35aa848620814",
+			"cea481d9bff8916b61e938802034fc8a088ae5a0607ae02f2f70eb66c7ecef02",
+			"ee0c701a878b1f1ca892992ae2a329beb136f5d55874ba75b94cb21a0cdba8e2"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - code cell refactoring, modification, insertion & delection of cells",
+		"requests": [
+			"0132a2fd2bb9295fc952b750bca9644d5bdc27fd7d129ff67c61825fdf172692",
+			"16d1e5c115c94d70440b288bc0fc8c88eb8197c3b06b39ae5f74438e468d6955",
+			"3e0be63292c876ed5e09c83d241d31ae225cedadea9fd6b1ed44141033b89df3",
+			"5916f884e40617a7db8fb07ac405276f24eb6292a4780b3fea910313afd4d5a2",
+			"5f29623ef998c0f384abfd5f56168277023a2f16a541b5c70e215cad71357ad4",
+			"8d937dd474ccc3014a5e4901a0bd36a326669cdc35a1c88aa28aa1e74d2d3c65",
+			"9faefdad31ad9d270c403e3cf658e9a5d3ed923a051855916f3d39ca60ce82a6",
+			"abf1c481c9e1cf255c9b8f58c8f66c3cb2f2d312b4290a3f0fca890dcb4b1773",
+			"bb9936c4126e3f1ddefd01e0ee89de61bb3bc2a3b2832d9e13adc2eb932f0d8f",
+			"c994623eb537bfde9a558a8aac7672019042c7cefd6342736461acb1690f01a8",
+			"f57daeebbc015b01877a8f762230110e28a728627eaa7537428917652ae242c4"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - Insert markdown cells explaining code",
+		"requests": [
+			"10d975d6927063c2e2fc912063e8d1921491eba04006af2612ab02043b9792f3",
+			"1a1012b8c47c8049c3597f351147396e2533694db0013b2bf311a8bb76f3bbc0",
+			"2ebad64957eb085c7c7d553ab5942b789cf2f05482c1ffa4457ced88a1c4642d",
+			"705618aaddc1acb074beeb3cab76a81468d806c98759b561e0c41f9c1ff406d1",
+			"930d6f95f2f6e87b874c2f29e856d7b178e86985f0e14eac69a2d81c08c6eb95",
+			"9ed3cf5cb72ffad51e151af43f7c7066032fba4ea0d3b025f0644d90c6972b90",
+			"a7c85616b118f831c35c79093a1f916d68cb19c6a7689fb822c69504f59e6dd4",
+			"b8574948b44da3027c580da130f0569b6a2dc6ef9a33222dbec4465f9430af47",
+			"c421aff52a56f62e286d61325beb0f6da031b623d0bb5a6788cbffe2f2625d33",
+			"e02a40e4b09a6141d39ef3badfa9a7a0c6381059fb6899a129be55e03106e3fd",
+			"f225ef71a36bef985f877be4916c499a4b74ee37232a81a562eaa6b32a781d81"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - new code cells in empty notebook",
+		"requests": []
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - notebook code cell deletion",
+		"requests": [
+			"7d4d8a86ac8a440076f2eb02b359ffcd9fccafec7baa6802d120dad9a5681f9e",
+			"9234ca7b44c056ae6840caa7d6989ba160552514168784704b9b13db2d39fcbb",
+			"9ad8b1e1968ac6858894421175b5fa816992eb6444fca0559acfd0d3b52a0cd1",
+			"b975a71f77c14e09e821cf38c3846ae33b78b1d95fc05fb50625c76b67e91f26"
+		]
+	},
+	{
+		"name": "notebookEdits (modification - text) [panel] [python] - re-organize python imports to top of the notebook",
+		"requests": [
+			"1360077d66c68f53ec72e2b9dd4dec0be729863668d3a3215fc3bfd316a6f6cb",
+			"298cccf064107e2f558549241f8d3c489e97741ad4d44252500644037d7dd5a3",
+			"31256e83e8a246bccb546a2e39c724d63eea6714878207d0a63bfece84441374",
+			"368543436630cf17571b0e651f2679ed69c4f47874d196ad72eb6b020d074394",
+			"5183e32f9d31f660a457491d9e91185aa3a357b55545c2bed09a3f0639c4aaa8",
+			"6fde4d1e7cf45957116b3b8b4b3741bf6569bdb8542888fe90dbb0bf5d6d1400",
+			"7bf4c59ec773d9e3d52f82af2faa762a7fd46b9f6a87b8edb0ee7c963a5cb174",
+			"80dda5bf82b845700e8961849065dd9551692a65ac7bbbd1c83a11a1d02ba37e",
+			"86f2cdff54d5eaa5bdb2619b6bd52dc75646eb7b176d490cb50cd89fb7bc8728"
+		]
+	}
+]

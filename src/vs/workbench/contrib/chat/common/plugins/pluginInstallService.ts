@@ -3,11 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarketplaceReference } from './marketplaceReference.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IPluginInstallService = createDecorator<IPluginInstallService>('pluginInstallService');
+
+export interface IUpdateAllPluginsOptions {
+	/**
+	 * When `true`, also re-installs npm/pip packages that have no pinned
+	 * version. Defaults to `false` to avoid interactive terminal prompts
+	 * during background updates.
+	 */
+	readonly force?: boolean;
+
+	/**
+	 * When `true`, suppresses the progress notification. An info
+	 * notification is still shown listing any plugins that were
+	 * updated, and error notifications are shown on failure.
+	 */
+	readonly silent?: boolean;
+
+	/** Restricts updates to plugins installed from these canonical marketplace IDs. */
+	readonly marketplaceIds?: ReadonlySet<string>;
+
+	/** Rechecks marketplace automatic-update policy before updating. */
+	readonly automatic?: boolean;
+}
+
+export interface IUpdateAllPluginsResult {
+	/** Names of plugins/marketplaces that were updated successfully. */
+	readonly updatedNames: readonly string[];
+	/** Names of plugins/marketplaces that failed to update. */
+	readonly failedNames: readonly string[];
+}
+
+export interface IInstallPluginFromSourceOptions {
+	/** Install the exact standalone or marketplace-declared plugin at this repository-relative directory. */
+	readonly path?: string;
+	/**
+	 * When set, targets a specific plugin by name within the marketplace
+	 * instead of installing all or prompting the user. The matched plugin
+	 * is installed and returned in the result.
+	 */
+	readonly plugin?: string;
+}
+
+export interface IInstallPluginFromSourceResult {
+	readonly success: boolean;
+	readonly message?: string;
+	/** Contains the installed plugin when a name or repository subdirectory was targeted. */
+	readonly matchedPlugin?: IMarketplacePlugin;
+}
 
 export interface IPluginInstallService {
 	readonly _serviceBrand: undefined;
@@ -16,13 +65,53 @@ export interface IPluginInstallService {
 	 * Clones the marketplace repository (if not already cached) and registers
 	 * the plugin in the marketplace service's installed plugins storage.
 	 */
-	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
+	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
+	/** Validates policy and obtains user trust for a marketplace before installing from it. */
+	ensureMarketplaceTrusted(reference: IMarketplaceReference, token?: CancellationToken): Promise<boolean>;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Removes the exact installed plugin entry and performs best-effort source cleanup.
+	 * Returns `false` when no installed entry matches the URI.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<void>;
+	uninstallPlugin(pluginUri: URI): Promise<boolean>;
+
+	/**
+	 * Installs a plugin directly from a source location string. Accepts
+	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
+	 * folder path (`file://` URI, absolute path, or `~`-prefixed path).
+	 * For git sources, clones the repository, reads marketplace metadata to
+	 * discover plugins, and registers the selected plugin. For local folders,
+	 * detects whether the folder is a marketplace or a standalone plugin and
+	 * registers it under the appropriate configuration.
+	 * An explicit `path` installs only the standalone or marketplace-declared plugin in that repository subdirectory.
+	 *
+	 * Returns a result with an optional error message (e.g. invalid source or
+	 * no plugins found); callers are responsible for surfacing it. When
+	 * {@link IInstallPluginFromSourceOptions.plugin} is set, targets a specific
+	 * plugin, installs it, and returns it in
+	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
+	 */
+	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
+
+	/**
+	 * Synchronously validates the format of a plugin source string.
+	 * Returns an error message if the format is invalid, or undefined if valid.
+	 */
+	validatePluginSource(source: string): string | undefined;
+
+	/**
+	 * Updates an installed plugin and replaces its installed URI when the source location changes.
+	 */
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token?: CancellationToken): Promise<boolean>;
+
+	/**
+	 * Updates all installed plugins. First pulls each unique marketplace
+	 * repository, then updates non-relative-path plugins individually
+	 * (git pull, npm install, pip install, etc.). Git sources are refreshed
+	 * even when their source descriptors have not changed.
+	 */
+	updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult>;
 
 	/**
 	 * Returns the URI where a marketplace plugin would be installed on disk.

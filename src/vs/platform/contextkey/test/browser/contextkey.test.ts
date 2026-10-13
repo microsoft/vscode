@@ -298,4 +298,27 @@ suite('ContextKeyService', () => {
 
 		assert.strictEqual(eventFired, true, 'Should fire event when setting different number');
 	});
+
+	test('disposeContext forwards through disposed scoped service', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const scoped = root.createScoped(document.createElement('div'));
+		const child = scoped.createScoped(document.createElement('div'));
+
+		// Set a value on the child so we can observe it
+		child.createKey('testKey', 'value');
+		assert.strictEqual(child.getContextKeyValue('testKey'), 'value');
+
+		// Dispose the intermediate scoped service first
+		scoped.dispose();
+
+		// Now dispose the child — this should still forward to root
+		// and clean up the child's context entry. Before the fix,
+		// ScopedContextKeyService.disposeContext bailed out when
+		// _isDisposed was true, leaking Context objects.
+		child.dispose();
+
+		// The child's context should no longer be accessible through root
+		assert.strictEqual(root.getContextKeyValue('testKey'), undefined,
+			'Child context should be cleaned up even when parent scoped service was disposed first');
+	});
 });

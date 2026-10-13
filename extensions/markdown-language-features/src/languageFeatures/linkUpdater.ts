@@ -33,46 +33,48 @@ interface RenameAction {
 
 class UpdateLinksOnFileRenameHandler extends Disposable {
 
-	private readonly _delayer = new Delayer(50);
-	private readonly _pendingRenames = new Set<RenameAction>();
+	readonly #delayer = new Delayer(50);
+	readonly #pendingRenames = new Set<RenameAction>();
+	readonly #client: MdLanguageClient;
 
 	public constructor(
-		private readonly _client: MdLanguageClient,
+		client: MdLanguageClient,
 	) {
 		super();
+		this.#client = client;
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			await Promise.all(e.files.map(async (rename) => {
-				if (await this._shouldParticipateInLinkUpdate(rename.newUri)) {
-					this._pendingRenames.add(rename);
+				if (await this.#shouldParticipateInLinkUpdate(rename.newUri)) {
+					this.#pendingRenames.add(rename);
 				}
 			}));
 
-			if (this._pendingRenames.size) {
-				this._delayer.trigger(() => {
+			if (this.#pendingRenames.size) {
+				this.#delayer.trigger(() => {
 					vscode.window.withProgress({
 						location: vscode.ProgressLocation.Window,
 						title: vscode.l10n.t("Checking for Markdown links to update")
-					}, () => this._flushRenames());
+					}, () => this.#flushRenames());
 				});
 			}
 		}));
 	}
 
-	private async _flushRenames(): Promise<void> {
-		const renames = Array.from(this._pendingRenames);
-		this._pendingRenames.clear();
+	async #flushRenames(): Promise<void> {
+		const renames = Array.from(this.#pendingRenames);
+		this.#pendingRenames.clear();
 
-		const result = await this._getEditsForFileRename(renames, noopToken);
+		const result = await this.#getEditsForFileRename(renames, noopToken);
 
 		if (result?.edit.size) {
-			if (await this._confirmActionWithUser(result.resourcesBeingRenamed)) {
+			if (await this.#confirmActionWithUser(result.resourcesBeingRenamed)) {
 				await vscode.workspace.applyEdit(result.edit);
 			}
 		}
 	}
 
-	private async _confirmActionWithUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
+	async #confirmActionWithUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
 		if (!newResources.length) {
 			return false;
 		}
@@ -81,7 +83,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		const setting = config.get<UpdateLinksOnFileMoveSetting>(settingNames.enabled);
 		switch (setting) {
 			case UpdateLinksOnFileMoveSetting.Prompt:
-				return this._promptUser(newResources);
+				return this.#promptUser(newResources);
 			case UpdateLinksOnFileMoveSetting.Always:
 				return true;
 			case UpdateLinksOnFileMoveSetting.Never:
@@ -89,7 +91,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 				return false;
 		}
 	}
-	private async _shouldParticipateInLinkUpdate(newUri: vscode.Uri): Promise<boolean> {
+	async #shouldParticipateInLinkUpdate(newUri: vscode.Uri): Promise<boolean> {
 		const config = vscode.workspace.getConfiguration('markdown', newUri);
 		const setting = config.get<UpdateLinksOnFileMoveSetting>(settingNames.enabled);
 		if (setting === UpdateLinksOnFileMoveSetting.Never) {
@@ -113,7 +115,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		return false;
 	}
 
-	private async _promptUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
+	async #promptUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
 		if (!newResources.length) {
 			return false;
 		}
@@ -138,7 +140,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
 				? vscode.l10n.t("Update Markdown links for '{0}'?", Utils.basename(newResources[0]))
-				: this._getConfirmMessage(vscode.l10n.t("Update Markdown links for the following {0} files?", newResources.length), newResources), {
+				: this.#getConfirmMessage(vscode.l10n.t("Update Markdown links for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
@@ -154,7 +156,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 				config.update(
 					settingNames.enabled,
 					UpdateLinksOnFileMoveSetting.Always,
-					this._getConfigTargetScope(config, settingNames.enabled));
+					this.#getConfigTargetScope(config, settingNames.enabled));
 				return true;
 			}
 			case neverItem: {
@@ -162,7 +164,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 				config.update(
 					settingNames.enabled,
 					UpdateLinksOnFileMoveSetting.Never,
-					this._getConfigTargetScope(config, settingNames.enabled));
+					this.#getConfigTargetScope(config, settingNames.enabled));
 				return false;
 			}
 			default: {
@@ -171,8 +173,8 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		}
 	}
 
-	private async _getEditsForFileRename(renames: readonly RenameAction[], token: vscode.CancellationToken): Promise<{ edit: vscode.WorkspaceEdit; resourcesBeingRenamed: vscode.Uri[] } | undefined> {
-		const result = await this._client.getEditForFileRenames(renames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() })), token);
+	async #getEditsForFileRename(renames: readonly RenameAction[], token: vscode.CancellationToken): Promise<{ edit: vscode.WorkspaceEdit; resourcesBeingRenamed: vscode.Uri[] } | undefined> {
+		const result = await this.#client.getEditForFileRenames(renames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() })), token);
 		if (!result?.edit.documentChanges?.length) {
 			return undefined;
 		}
@@ -192,7 +194,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		};
 	}
 
-	private _getConfirmMessage(start: string, resourcesToConfirm: readonly vscode.Uri[]): string {
+	#getConfirmMessage(start: string, resourcesToConfirm: readonly vscode.Uri[]): string {
 		const MAX_CONFIRM_FILES = 10;
 
 		const paths = [start];
@@ -211,7 +213,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		return paths.join('\n');
 	}
 
-	private _getConfigTargetScope(config: vscode.WorkspaceConfiguration, settingsName: string): vscode.ConfigurationTarget {
+	#getConfigTargetScope(config: vscode.WorkspaceConfiguration, settingsName: string): vscode.ConfigurationTarget {
 		const inspected = config.inspect(settingsName);
 		if (inspected?.workspaceFolderValue) {
 			return vscode.ConfigurationTarget.WorkspaceFolder;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
@@ -105,7 +106,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const resumeProgressOptionsTitle = `[${localize('resuming working changes window', 'Resuming working changes...')}](command:${showOutputChannelCommand.id})`;
+const resumeProgressOptionsTitle = NotificationText.link(localize('resuming working changes window', 'Resuming working changes...'), `command:${showOutputChannelCommand.id}`);
 const resumeProgressOptions = {
 	location: ProgressLocation.Window,
 	type: 'syncing',
@@ -644,6 +645,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			for (const change of folder.workingChanges) {
 				const uri = joinPath(folderRoot.uri, change.relativeFilePath);
+				if (!this.uriIdentityService.extUri.isEqualOrParent(uri, folderRoot.uri) || this.uriIdentityService.extUri.isEqual(uri, folderRoot.uri)) {
+					this.logService.warn(`Skipping change outside workspace folder: ${change.relativeFilePath}`);
+					continue;
+				}
 
 				changes.push({ uri, type: change.type, contents: change.contents });
 				if (await this.willChangeLocalContents(localChanges, uri, change)) {

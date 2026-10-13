@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusHandle, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from '../../common/notification.js';
+import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusHandle, IStatusMessageOptions, NoOpNotification, NotificationMessage, NotificationsFilter, Severity } from '../../common/notification.js';
 
 export class TestNotificationService implements INotificationService {
 
@@ -14,15 +14,15 @@ export class TestNotificationService implements INotificationService {
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
-	info(message: string): INotificationHandle {
+	info(message: NotificationMessage): INotificationHandle {
 		return this.notify({ severity: Severity.Info, message });
 	}
 
-	warn(message: string): INotificationHandle {
+	warn(message: NotificationMessage): INotificationHandle {
 		return this.notify({ severity: Severity.Warning, message });
 	}
 
-	error(error: string | Error): INotificationHandle {
+	error(error: NotificationMessage): INotificationHandle {
 		return this.notify({ severity: Severity.Error, message: error });
 	}
 
@@ -30,11 +30,11 @@ export class TestNotificationService implements INotificationService {
 		return TestNotificationService.NO_OP;
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+	prompt(severity: Severity, message: NotificationMessage, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return TestNotificationService.NO_OP;
 	}
 
-	status(message: string | Error, options?: IStatusMessageOptions): IStatusHandle {
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
 		return {
 			close: () => { }
 		};

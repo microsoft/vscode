@@ -30,6 +30,9 @@ export const enum TerminalSettingId {
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
+	AgentHostProfileLinux = 'terminal.integrated.agentHostProfile.linux',
+	AgentHostProfileMacOs = 'terminal.integrated.agentHostProfile.osx',
+	AgentHostProfileWindows = 'terminal.integrated.agentHostProfile.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
@@ -46,6 +49,7 @@ export const enum TerminalSettingId {
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
+	TabsAllowAgentCliTitle = 'terminal.integrated.tabs.allowAgentCliTitle',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
@@ -53,6 +57,7 @@ export const enum TerminalSettingId {
 	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
+	FontRendering = 'terminal.integrated.fontRendering',
 	FontSize = 'terminal.integrated.fontSize',
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
@@ -122,7 +127,6 @@ export const enum TerminalSettingId {
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
 	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
-	ExperimentalAiProfileGrouping = 'terminal.integrated.experimental.aiProfileGrouping',
 	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
 
 	// Developer/debug settings
@@ -151,6 +155,11 @@ export const enum WindowsShellType {
 }
 
 export const enum GeneralShellType {
+	Claude = 'claude',
+	Codex = 'codex',
+	CommandCode = 'commandcode',
+	Copilot = 'copilot',
+	Gemini = 'gemini',
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
@@ -484,6 +493,7 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+export const remoteResolverTerminal = Symbol('remoteResolverTerminal');
 
 export interface IShellLaunchConfig {
 	/**
@@ -619,6 +629,9 @@ export interface IShellLaunchConfig {
 	 */
 	isExtensionOwnedTerminal?: boolean;
 
+	/** Whether this terminal is used to bootstrap a remote authority resolver. */
+	[remoteResolverTerminal]?: true;
+
 	/**
 	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
@@ -720,6 +733,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
 	titleTemplate?: string;
@@ -1059,6 +1073,10 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 * For zsh, we failed to create a temp directory for the shell integration script.
 	 */
 	FailedToCreateTmpDir = 'failedToCreateTmpDir',
+}
+
+export const enum ShellIntegrationTimeoutOverride {
+	DisableForTests = -2
 }
 
 export enum TerminalExitReason {

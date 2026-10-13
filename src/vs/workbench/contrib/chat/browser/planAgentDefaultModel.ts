@@ -31,4 +31,4 @@ export class PlanAgentDefaultModel extends DefaultModelContribution {
 	}
 }
 
-registerWorkbenchContribution2(PlanAgentDefaultModel.ID, PlanAgentDefaultModel, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(PlanAgentDefaultModel.ID, PlanAgentDefaultModel, WorkbenchPhase.AfterRestored);

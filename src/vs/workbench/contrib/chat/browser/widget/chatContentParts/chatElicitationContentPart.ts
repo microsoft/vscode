@@ -12,10 +12,13 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../../common/chatService/chatService.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatAccessibilityService } from '../../chat.js';
 import { AcceptElicitationRequestActionId } from '../../actions/chatElicitationActions.js';
+import { IChatToolRiskAssessmentService } from '../../tools/chatToolRiskAssessmentService.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { createToolRiskBadge } from './toolInvocationParts/toolRiskBadgeHelper.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
@@ -38,6 +41,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super();
 
@@ -79,12 +84,13 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			subtitle: elicitation.subtitle,
 			buttons,
 			message: this.getMessageToRender(elicitation),
+			footerBanner: this._createRiskBadge(elicitation),
 			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation },
 		}));
 		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.kind === 'elicitation2' && elicitation.state.get() === ElicitationState.Pending);
 
-		this._register(confirmationWidget.onDidClick(async e => {
+		this._register(confirmationWidget.onDidClick(async ({ button: e }) => {
 			if (elicitation.kind !== 'elicitation2') {
 				return;
 			}
@@ -121,6 +127,14 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		const messageMd = isMarkdownString(elicitation.message) ? MarkdownString.lift(elicitation.message) : new MarkdownString(elicitation.message);
 		messageMd.appendCodeblock('json', JSON.stringify(elicitation.acceptedResult, null, 2));
 		return messageMd;
+	}
+
+	private _createRiskBadge(elicitation: IChatElicitationRequest | IChatElicitationRequestSerialized): HTMLElement | undefined {
+		if (elicitation.kind !== 'elicitation2' || !elicitation.riskAssessment) {
+			return undefined;
+		}
+		const { toolId, parameters } = elicitation.riskAssessment;
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, toolId, parameters)?.domNode;
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {

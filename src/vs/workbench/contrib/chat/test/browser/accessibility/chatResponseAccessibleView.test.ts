@@ -6,19 +6,268 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { Response, type IResponse } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMcpToolInvocation(): ChatToolInvocation {
+		return new ChatToolInvocation({
+			invocationMessage: 'Read issue',
+			originMessage: 'GitHub (MCP Server)',
+		}, {
+			id: 'io-github-github-github-mcp-server-issue_read',
+			displayName: 'Read issue',
+			modelDescription: 'Read an issue',
+			source: ToolDataSource.Internal,
+		}, 'tc-mcp', undefined, undefined);
+	}
+
+	test('includes MCP tool titles and server origins in live and restored content', () => {
+		const invocation = createMcpToolInvocation();
+		invocation.didExecuteTool(undefined);
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{ partIndex: 0, text: 'Read issue. GitHub (MCP Server)' },
+			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
+		]);
+	});
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool', 'view']) {
+		test(`keeps preconfirmation image tools out of accessible and response text (${toolId})`, async () => {
+			const invocation = ChatToolInvocation.createStreaming({
+				toolId, toolCallId: 'pending-tool',
+				toolData: { id: toolId, displayName: 'Proposed tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			});
+			if (toolId === 'custom_image_tool') {
+				invocation.toolSpecificData = { kind: 'input', rawInput: {}, imageGeneration: { requestedModel: { id: 'image-model' } } };
+			}
+			const response = store.add(new Response([]));
+			response.updateContent(invocation);
+			const item = upcastPartial<IChatResponseViewModel>({ response });
+			const snapshot = () => ({
+				plaintext: getChatResponsePlaintextParts(item, true).map(part => part.text),
+				response: response.toString(),
+			});
+			const snapshots = [snapshot()];
+			invocation.requestConfirmation({
+				invocationMessage: 'Run tool',
+				confirmationMessages: { title: 'Allow Tool?', message: new MarkdownString('Inspect the proposed operation.') },
+			});
+			snapshots.push(snapshot());
+			const confirmation = invocation.state.get();
+			assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			confirmation.confirm({ type: ToolConfirmKind.UserAction });
+			snapshots.push(snapshot());
+			await invocation.didExecuteTool({ content: [], toolResultMessage: 'Done' });
+			snapshots.push(snapshot());
+			const restored = store.add(new Response([invocation.toJSON()]));
+			assert.deepStrictEqual({
+				snapshots,
+				restored: { plaintext: getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({ response: restored }), true).map(part => part.text), response: restored.toString() },
+			}, {
+				snapshots: [
+					toolId === 'view' ? { plaintext: ['Proposed tool'], response: 'Proposed tool' } : { plaintext: [], response: '' },
+					{ plaintext: ['Allow Tool?\nInspect the proposed operation.'], response: 'Run tool' },
+					{ plaintext: ['Run tool'], response: 'Run tool' },
+					{ plaintext: ['Done'], response: 'Done' },
+				],
+				restored: { plaintext: ['Done'], response: 'Done' },
+			});
+		});
+	}
+
+	for (const error of [true, 'Connection refused'] as const) {
+		test(`describes failures without output details in live and restored content (${error})`, async () => {
+			const invocation = createMcpToolInvocation();
+			await invocation.didExecuteTool({ content: [], toolResultError: error });
+			const item = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+			});
+			const message = error === true ? 'Tool execution failed' : `Tool execution failed: ${error}`;
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: `${message}. Read issue. GitHub (MCP Server)` },
+				{ partIndex: 1, text: `${message}. Read issue. GitHub (MCP Server)` },
+			]);
+		});
+	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`describes terminal outcomes in live and restored content (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const item = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+			});
+			const message = exitCode === 2 ? 'Tool execution failed with exit code 2. Run tests. npm test' : 'Run tests. npm test';
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: message },
+				{ partIndex: 1, text: message },
+			]);
+		});
+	}
+
+	test('includes the canonical MCP title and origin while waiting for authentication', () => {
+		const invocation = createMcpToolInvocation();
+		invocation.invocationMessage = new MarkdownString('**Read issue**');
+		invocation.originMessage = new MarkdownString('**GitHub** (MCP Server)');
+		invocation.setAuthenticationRequired({ id: 'github', name: 'GitHub account', resource: 'https://api.github.com/mcp' });
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0,
+			text: 'MCP authentication required for GitHub account to continue Read issue.\nGitHub (MCP Server)',
+		}]);
+	});
+
+	test('includes standalone MCP authentication prompts while they are pending', () => {
+		const servers = observableValue('servers', [{ id: 'github', name: 'GitHub', resource: 'https://api.github.com/mcp' }]);
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers,
+			isUsed: false,
+		};
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [authentication] }),
+		});
+		const plaintext = () => getChatResponsePlaintextParts(item, true);
+		const pending = plaintext();
+		authentication.isUsed = true;
+		const used = plaintext();
+		authentication.isUsed = false;
+		servers.set([], undefined);
+
+		assert.deepStrictEqual({
+			pending,
+			used,
+			empty: plaintext(),
+		}, {
+			pending: [{
+				partIndex: 0,
+				text: 'The MCP server GitHub requires authentication. Use the Authenticate button in the chat response to continue.',
+			}],
+			used: [],
+			empty: [],
+		});
+	});
+
+	test('includes the canonical MCP title and origin while waiting for result approval', async () => {
+		const invocation = createMcpToolInvocation();
+		invocation.confirmationMessages = { confirmResults: true };
+		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Issue details' }] });
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0,
+			text: 'Approve results of Read issue? Result: Issue details\nGitHub (MCP Server)',
+		}]);
+	});
+
+	test('omits the hidden workspace-continuation request text while preserving transition and provider response text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'systemNotification',
+						content: new MarkdownString('Now working in vscode'),
+						presentation: 'workspaceTransition',
+						accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Provider continued work') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+			},
+			{
+				partIndex: 1,
+				text: 'Provider continued work',
+			},
+		]);
+	});
+
+	test('includes warnings and their link text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'warning',
+						content: new MarkdownString('The model only supports 128 tools, 114 tools were not provided to the model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)', { isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] } }),
+						keepVisibleWhenCollapsed: true,
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Final answer') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Warning: The model only supports 128 tools, 114 tools were not provided to the model. Configure Tools',
+			},
+			{
+				partIndex: 1,
+				text: 'Final answer',
+			},
+		]);
+	});
+
+	test('reads an Auto routing row as its selection reason when the router supplies one', () => {
+		const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+		const item = upcastPartial<IChatResponseViewModel>({
+			isComplete: true,
+			response: upcastPartial<IResponse>({
+				value: [
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{ partIndex: 0, text: reason },
+			{ partIndex: 1, text: 'Auto routed task to GPT-5.5' },
+		]);
+	});
 
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
@@ -65,14 +314,13 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns description for subagent data', () => {
 			const subagentData: IChatSubagentToolInvocationData = {
 				kind: 'subagent',
-				agentName: 'TestAgent',
+				agentDisplayName: 'Test Agent',
+				agentName: 'test-agent',
 				description: 'Running analysis',
 				prompt: 'Analyze the code'
 			};
 			const result = getToolSpecificDataDescription(subagentData);
-			assert.ok(result.includes('TestAgent'));
-			assert.ok(result.includes('Running analysis'));
-			assert.ok(result.includes('Analyze the code'));
+			assert.strictEqual(result, 'Agent: Test Agent. Running analysis. Task: Analyze the code');
 		});
 
 		test('handles subagent with only description', () => {
@@ -208,6 +456,36 @@ suite('ChatResponseAccessibleView', () => {
 				values: []
 			};
 			assert.strictEqual(getToolSpecificDataDescription(resourcesData), '');
+		});
+
+		test('describes configured automation results', () => {
+			assert.deepStrictEqual([
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				}),
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'updated',
+				}),
+			], [
+				'Created an automation: Morning review',
+				'Edited an automation: Morning review',
+			]);
+		});
+
+		test('describes a created session using its full title when available', () => {
+			const sessionData: IChatSessionCreatedData = {
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://local/session',
+				label: 'Implement issue',
+				fullTitle: 'Implement issue and validate the fix',
+			};
+			assert.strictEqual(getToolSpecificDataDescription(sessionData), 'Implement issue and validate the fix');
 		});
 	});
 
@@ -485,6 +763,165 @@ suite('ChatResponseAccessibleView', () => {
 			const content = provider.provideContent();
 			assert.ok(content.includes('Response content'));
 			assert.ok(content.includes('Thinking: Reasoning'));
+		});
+
+		test('includes file path for URI inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/path/to/index.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('See file ') },
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri, name: 'index.ts' },
+						{ kind: 'markdownContent', content: new MarkdownString(' for details') }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('index.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
+			assert.ok(content.includes('See file'));
+			assert.ok(content.includes('for details'));
+		});
+
+		test('includes file path and line number for Location inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const fileLocation: Location = {
+				uri: URI.file('/src/app/main.ts'),
+				range: new Range(42, 1, 42, 20)
+			};
+
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('Error at ') },
+						{ kind: 'inlineReference', inlineReference: fileLocation, name: 'main.ts' }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('main.ts'));
+			assert.ok(content.includes(`${fileLocation.uri.path}:42`));
+		});
+
+		test('uses basename as name for URI inline references without explicit name', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/workspace/src/utils.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('utils.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
 		});
 	});
 });

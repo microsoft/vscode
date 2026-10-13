@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from './agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IPluginSourceDescriptor, PluginSourceKind } from './pluginMarketplaceService.js';
@@ -33,8 +34,9 @@ export interface IPluginSource {
 
 	/**
 	 * Update an already-installed plugin source (git pull, npm update, etc.).
+	 * Returns `true` if the update brought in new changes.
 	 */
-	update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void>;
+	update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean>;
 
 	/**
 	 * Returns the on-disk directory to delete when this plugin is
@@ -59,5 +61,5 @@ export interface IPluginSource {
 	 *
 	 * Not implemented by non-package-manager sources.
 	 */
-	runInstall?(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin): Promise<{ pluginDir: URI } | undefined>;
+	runInstall?(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin, options?: { silent?: boolean; token?: CancellationToken }): Promise<{ pluginDir: URI } | undefined>;
 }

@@ -7,6 +7,7 @@ import type { MaybePromise } from '../../../../../../../base/common/async.js';
 import type { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import type { URI } from '../../../../../../../base/common/uri.js';
+import type { ITerminalSandboxPrecheckInputs } from '../../../common/terminalSandboxService.js';
 
 export interface ICommandLineRewriter extends IDisposable {
 	rewrite(options: ICommandLineRewriterOptions): MaybePromise<ICommandLineRewriterResult | undefined>;
@@ -17,6 +18,10 @@ export interface ICommandLineRewriterOptions {
 	cwd: URI | undefined;
 	shell: string;
 	os: OperatingSystem;
+	isBackground?: boolean;
+	requestUnsandboxedExecution?: boolean;
+	sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
+	requestAllowNetwork?: boolean;
 }
 
 export interface ICommandLineRewriterResult {
@@ -24,4 +29,9 @@ export interface ICommandLineRewriterResult {
 	reasoning: string;
 	//for scenarios where we want to show a different command in the chat UI than what is actually run in the terminal
 	forDisplay?: string;
+	isSandboxWrapped?: boolean;
+	requiresUnsandboxConfirmation?: boolean;
+	requiresAllowNetworkConfirmation?: boolean;
+	blockedDomains?: string[];
+	deniedDomains?: string[];
 }

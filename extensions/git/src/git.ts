@@ -10,7 +10,7 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
@@ -20,6 +20,12 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
+
+function assertValidObjectId(sha: string, allowZero = false): void {
+	if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha) || (!allowZero && /^0+$/.test(sha))) {
+		throw new Error(allowZero ? 'Expected a full Git object ID' : 'Expected a full, non-zero Git object ID');
+	}
+}
 
 export interface IGit {
 	path: string;
@@ -973,13 +979,18 @@ const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
 
 export function parseCoAuthors(message: string): CoAuthor[] {
 	const coAuthors: CoAuthor[] = [];
+	const emails = new Set<string>();
 	let match;
 
 	coAuthorRegex.lastIndex = 0;
 	while ((match = coAuthorRegex.exec(message)) !== null) {
 		const name = match[1].trim();
 		const email = match[2].trim();
-		if (name && email) {
+
+		// Squash merge commit messages repeat the trailers of each squashed commit
+		const emailKey = email.toLowerCase();
+		if (name && email && !emails.has(emailKey)) {
+			emails.add(emailKey);
 			coAuthors.push({ name, email });
 		}
 	}
@@ -1443,7 +1454,11 @@ export class Repository {
 
 	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const spawnOptions: SpawnOptions = { cancellationToken };
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		// Depending on the user's Git settings (i18n.commitEncoding, i18n.logOutputEncoding),
+		// commit messages may appear garbled,
+		// so the output encoding for commit messages is forced to UTF-8.
+		// This setting was applied not only here, but also in other places where commit messages are retrieved.
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
@@ -1510,7 +1525,7 @@ export class Repository {
 	}
 
 	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
 			args.push(`-n${options.maxEntries}`);
@@ -1691,7 +1706,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -2206,6 +2221,18 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		const branch = ref.slice('refs/heads/'.length);
+		if (!ref.startsWith('refs/heads/') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a local branch ref');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(oldSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.exec(['update-ref', '--no-deref', ref, newSha, oldSha]);
+	}
+
 	async merge(ref: string): Promise<void> {
 		const args = ['merge', ref];
 
@@ -2245,11 +2272,15 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+	async addWorktree(options: { path: string; commitish: string; branch?: string; noTrack?: boolean }): Promise<void> {
 		const args = ['worktree', 'add'];
 
 		if (options.branch) {
 			args.push('-b', options.branch);
+		}
+
+		if (options.noTrack) {
+			args.push('--no-track');
 		}
 
 		args.push(options.path, options.commitish);
@@ -2315,6 +2346,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async resetKeep(ref: string): Promise<void> {
+		if (!ref || ref.startsWith('-')) {
+			throw new Error('Expected a commit reference');
+		}
+
+		await this.exec(['reset', '--keep', ref]);
+	}
+
 	async revert(treeish: string, paths: string[]): Promise<void> {
 		const result = await this.exec(['branch']);
 		let args: string[];
@@ -2342,6 +2381,26 @@ export class Repository {
 			}
 
 			throw err;
+		}
+	}
+
+	async restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length > 0) {
+			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+				await this.exec([...args, '--', ...chunk]);
+			}
+		} else {
+			await this.exec([...args, '--', '.']);
 		}
 	}
 
@@ -2424,7 +2483,7 @@ export class Repository {
 		await this.exec(args, spawnOptions);
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
 		const args = ['pull'];
 
 		if (options.tags) {
@@ -2450,10 +2509,11 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, {
+			const result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
+			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2476,13 +2536,21 @@ export class Repository {
 		}
 	}
 
-	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
+	async rebase(branch: string, options: { onto?: string; rebaseMerges?: boolean } = {}): Promise<void> {
 		const args = ['rebase'];
+
+		if (options.rebaseMerges) {
+			args.push('--rebase-merges');
+		}
+
+		if (options.onto !== undefined) {
+			args.push('--onto', options.onto);
+		}
 
 		args.push(branch);
 
 		try {
-			await this.exec(args, options);
+			await this.exec(args);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2494,11 +2562,11 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false, lease?: { branch: string; expectedSha: string }): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
-			args.push('--force-with-lease');
+			args.push(lease ? `--force-with-lease=refs/heads/${lease.branch}:${lease.expectedSha}` : '--force-with-lease');
 			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30') !== -1) {
 				args.push('--force-if-includes');
 			}
@@ -2512,6 +2580,8 @@ export class Repository {
 
 		if (followTags) {
 			args.push('--follow-tags');
+		} else if (lease) {
+			args.push('--no-follow-tags');
 		}
 
 		if (tags) {
@@ -2547,6 +2617,17 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		if (!remote || remote.startsWith('-') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a remote and a branch name');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(expectedSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.push(remote, `${newSha}:refs/heads/${branch}`, false, false, ForcePushMode.ForceWithLease, false, { branch, expectedSha });
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
@@ -2587,7 +2668,7 @@ export class Repository {
 
 	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
-			const args = ['blame', '--root', '--incremental'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'blame', '--root', '--incremental'];
 
 			if (ignoreWhitespace) {
 				args.push('-w');
@@ -2974,9 +3055,9 @@ export class Repository {
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
-			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+			if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/heads\/([^ ]+)$/.exec(line)) {
+				return { name: match[2], commit: match[1], type: RefType.Head };
+			} else if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/tags\/([^ ]+)$/.exec(line)) {
 				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
 
@@ -3278,7 +3359,7 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--']);
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--']);
 		const commits = parseGitCommits(result.stdout);
 		if (commits.length === 0) {
 			return Promise.reject<Commit>('bad commit format');
@@ -3288,7 +3369,7 @@ export class Repository {
 
 	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', '-n1', ref, '--']);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
@@ -3301,7 +3382,7 @@ export class Repository {
 
 	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
 		try {
-			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', `${ref1}..${ref2}`, '--'];
 			if (path) {
 				args.push(this.sanitizeRelativePath(path));
 			}

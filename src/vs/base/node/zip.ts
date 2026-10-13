@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createWriteStream, WriteStream, promises } from 'fs';
-import { Readable } from 'stream';
+import type { FileHandle } from 'fs/promises';
+import { Readable, Transform } from 'stream';
 import { createCancelablePromise, Sequencer } from '../common/async.js';
 import { CancellationToken } from '../common/cancellation.js';
+import { CancellationError } from '../common/errors.js';
 import * as path from '../common/path.js';
 import { assertReturnsDefined } from '../common/types.js';
 import { Promises } from './pfs.js';
@@ -81,12 +83,13 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	let istream: WriteStream;
 
-	token.onCancellationRequested(() => {
+	const listener = token.onCancellationRequested(() => {
 		istream?.destroy();
 	});
 
 	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
+			c();
 			return;
 		}
 
@@ -99,7 +102,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		} catch (error) {
 			e(error);
 		}
-	}));
+	})).finally(() => listener.dispose());
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
@@ -187,34 +190,200 @@ function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
 }
 
 export interface IFile {
+	compress?: boolean;
 	path: string;
 	contents?: Buffer | string;
 	localPath?: string;
+	/**
+	 * When set (and `contents` is not provided), stream at most this many bytes
+	 * from the start of {@link localPath} instead of adding the whole file. The
+	 * prefix is clamped to the file's current size so a rotated or truncated file
+	 * still produces a valid entry.
+	 */
+	localPathSize?: number;
+	/**
+	 * Skip the entry when its local source cannot be opened or inspected.
+	 */
+	skipSourceErrors?: boolean;
 }
 
-export async function zip(zipPath: string, files: IFile[]): Promise<string> {
-	const { ZipFile } = await import('yazl');
+export interface IZipValidationOptions {
+	readonly maxEntries: number;
+	readonly maxUncompressedSize?: number;
+}
 
-	return new Promise<string>((c, e) => {
-		const zip = new ZipFile();
-		files.forEach(f => {
-			if (f.contents) {
-				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);
-			} else if (f.localPath) {
-				zip.addFile(f.localPath, f.path);
+export async function validateZip(zipPath: string, options: IZipValidationOptions): Promise<void> {
+	const zipfile = await openZip(zipPath, true);
+	return new Promise<void>((resolve, reject) => {
+		let entries = 0;
+		let uncompressedSize = 0;
+		let settled = false;
+		const fail = (error: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			zipfile.close();
+			reject(error);
+		};
+		zipfile.once('error', error => fail(toExtractError(error)));
+		zipfile.once('end', () => {
+			if (!settled) {
+				settled = true;
+				resolve();
 			}
 		});
-		zip.end();
+		zipfile.on('entry', (entry: Entry) => {
+			entries++;
+			uncompressedSize += entry.uncompressedSize;
+			if (entries > options.maxEntries) {
+				fail(new Error(`ZIP contains too many entries (${entries}; limit ${options.maxEntries})`));
+				return;
+			}
+			if (options.maxUncompressedSize !== undefined && uncompressedSize > options.maxUncompressedSize) {
+				fail(new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${options.maxUncompressedSize} bytes)`));
+				return;
+			}
+			zipfile.readEntry();
+		});
+		zipfile.readEntry();
+	});
+}
 
-		const zipStream = createWriteStream(zipPath);
-		zip.outputStream.pipe(zipStream);
+export interface IZipOptions {
+	readonly token?: CancellationToken;
+	readonly onProgress?: (bytes: number, path: string) => void;
+}
 
+export async function zip(zipPath: string, files: IFile[], options?: IZipOptions): Promise<string> {
+	const token = options?.token ?? CancellationToken.None;
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	const { ZipFile } = await import('yazl');
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+
+	const zip = new ZipFile();
+	const zipStream = createWriteStream(zipPath);
+	const outputClosed = new Promise<void>(resolve => zipStream.once('close', resolve));
+	const sourceStreams = new Set<Readable>();
+	let bytes = 0;
+	let fail: (error: Error) => void = () => { };
+
+	// Attach error/finish handling before adding entries so a read stream that
+	// errors while a later entry is still awaiting I/O has a listener.
+	const result = new Promise<string>((c, e) => {
+		fail = e;
 		zip.outputStream.once('error', e);
 		zipStream.once('error', e);
 		zipStream.once('finish', () => c(zipPath));
 	});
-}
+	// Entry setup can await I/O while an earlier stream fails.
+	void result.catch(() => { });
+	const cancellation = token.onCancellationRequested(() => {
+		fail(new CancellationError());
+		for (const stream of sourceStreams) {
+			stream.destroy();
+		}
+		zipStream.destroy();
+	});
+	zip.outputStream.pipe(zipStream);
 
+	try {
+		for (const f of files) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (f.contents !== undefined) {
+				const contents = typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents;
+				zip.addBuffer(contents, f.path, { compress: f.compress });
+				bytes += contents.byteLength;
+				options?.onProgress?.(bytes, f.path);
+			} else if (f.localPath) {
+				if (f.localPathSize === undefined && !f.skipSourceErrors && !options?.onProgress && !options?.token) {
+					zip.addFile(f.localPath, f.path, { compress: f.compress });
+				} else {
+					// yazl aborts the archive unless the streamed byte count matches the
+					// declared size. Derive both from a single handle so the counts match
+					// even if the path is rotated or truncated concurrently; skip a
+					// vanished file rather than failing the whole archive.
+					let handle: FileHandle;
+					try {
+						handle = await promises.open(f.localPath, 'r');
+					} catch (error) {
+						if (f.skipSourceErrors) {
+							continue;
+						}
+						throw error;
+					}
+					let streamOwnsHandle = false;
+					try {
+						let size: number;
+						try {
+							const currentSize = (await handle.stat()).size;
+							size = f.localPathSize === undefined ? currentSize : Math.min(f.localPathSize, currentSize);
+						} catch (error) {
+							if (f.skipSourceErrors) {
+								continue;
+							}
+							throw error;
+						}
+						if (size === 0) {
+							zip.addBuffer(Buffer.alloc(0), f.path);
+						} else {
+							const readStream = handle.createReadStream({ start: 0, end: size - 1 });
+							const sourceClosed = new Promise<void>(resolve => readStream.once('close', resolve));
+							readStream.once('error', error => zip.outputStream.emit('error', error));
+							sourceStreams.add(readStream);
+							readStream.once('close', () => sourceStreams.delete(readStream));
+							if (options?.onProgress) {
+								const progressStream = new Transform({
+									transform(chunk: Buffer, _encoding, callback) {
+										bytes += chunk.byteLength;
+										options.onProgress?.(bytes, f.path);
+										callback(null, chunk);
+									}
+								});
+								sourceStreams.add(progressStream);
+								progressStream.once('close', () => sourceStreams.delete(progressStream));
+								zip.addReadStream(readStream.pipe(progressStream), f.path, { size, compress: f.compress });
+							} else {
+								zip.addReadStream(readStream, f.path, { size, compress: f.compress });
+							}
+							streamOwnsHandle = true;
+							if (options?.onProgress || options?.token) {
+								await Promise.race([sourceClosed, result]);
+							}
+						}
+					} finally {
+						// The read stream closes the handle when it finishes.
+						if (!streamOwnsHandle) {
+							await handle.close();
+						}
+					}
+				}
+			}
+		}
+		zip.end();
+
+		return await result;
+	} finally {
+		cancellation.dispose();
+		const sourcesClosed = [...sourceStreams].map(stream => stream.closed
+			? Promise.resolve()
+			: new Promise<void>(resolve => stream.once('close', resolve)));
+		for (const stream of sourceStreams) {
+			stream.destroy();
+		}
+		if (zip.outputStream instanceof Readable) {
+			zip.outputStream.destroy();
+		}
+		zipStream.destroy();
+		await Promise.all([...sourcesClosed, outputClosed]);
+	}
+}
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, token: CancellationToken): Promise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
@@ -230,6 +399,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 function read(zipPath: string, filePath: string): Promise<Readable> {
 	return openZip(zipPath).then(zipfile => {
 		return new Promise<Readable>((c, e) => {
+			zipfile.once('error', err => e(toExtractError(err)));
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
 					openZipStream(zipfile, entry).then(stream => c(stream), err => e(err));

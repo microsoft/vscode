@@ -4,26 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
-import { IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
+import { TargetPlatform } from '../../../extensions/common/extensions.js';
+import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
+import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -32,6 +39,102 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 		this.serviceMachineIdResource = serviceMachineIdResource;
 		this.isBuilt = true;
 	}
+}
+
+const latestVersionUri = 'https://marketplace.test/_apis/public/gallery/publishers/{publisher}/extensions/{name}/latest';
+const queryServiceUri = 'https://marketplace.test/_apis/public/gallery/extensionquery';
+
+class RecordingRequestService implements IRequestService {
+	readonly _serviceBrand: undefined;
+	readonly onDidCompleteRequest = Event.None;
+	readonly requests: { readonly type: string | undefined; readonly url: string | undefined }[] = [];
+
+	constructor(private readonly response: (options: IRequestOptions) => IRequestContext) { }
+
+	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
+		this.requests.push({ type: options.type, url: options.url });
+		return this.response(options);
+	}
+
+	async resolveProxy(_url: string): Promise<string | undefined> { return undefined; }
+	async lookupAuthorization(_authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
+	async lookupKerberosAuthorization(_url: string): Promise<string | undefined> { return undefined; }
+	async loadCertificates(): Promise<string[]> { return []; }
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
+function requestContext(statusCode: number, body: object): IRequestContext {
+	return {
+		res: { statusCode, headers: {} },
+		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
+	};
+}
+
+function galleryQueryResponse(extensions: object[]): object {
+	return {
+		results: [{
+			extensions,
+			resultMetadata: [{
+				metadataType: 'ResultCount',
+				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
+			}]
+		}]
+	};
+}
+
+function rawLatestExtension() {
+	const date = '2026-01-01T00:00:00Z';
+	return {
+		extensionId: 'extension-uuid',
+		extensionName: 'extension',
+		displayName: 'Extension',
+		shortDescription: 'Extension',
+		publisher: {
+			displayName: 'Publisher',
+			publisherId: 'publisher-id',
+			publisherName: 'publisher'
+		},
+		versions: [{
+			version: '1.0.0',
+			lastUpdated: date,
+			assetUri: 'https://marketplace.test/assets/publisher/extension/1.0.0',
+			fallbackAssetUri: 'https://marketplace.test/fallback/publisher/extension/1.0.0',
+			files: [],
+			properties: []
+		}],
+		statistics: [],
+		tags: [],
+		releaseDate: date,
+		publishedDate: date,
+		lastUpdated: date,
+		categories: [],
+		flags: ''
+	};
+}
+
+function createExtensionGalleryManifestService(): IExtensionGalleryManifestService {
+	const extensionGalleryManifest: IExtensionGalleryManifest = {
+		version: '1.0.0',
+		resources: [
+			{ id: latestVersionUri, type: ExtensionGalleryResourceType.ExtensionLatestVersionUri },
+			{ id: queryServiceUri, type: ExtensionGalleryResourceType.ExtensionQueryService }
+		],
+		capabilities: { extensionQuery: {} }
+	};
+	return {
+		_serviceBrand: undefined,
+		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
+		onDidChangeExtensionGalleryManifestStatus: Event.None,
+		onDidChangeExtensionGalleryManifest: Event.None,
+		getExtensionGalleryManifest: async () => extensionGalleryManifest
+	};
 }
 
 suite('Extension Gallery Service', () => {
@@ -50,12 +153,73 @@ suite('Extension Gallery Service', () => {
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
+	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService()): ExtensionGalleryServiceWithNoStorageService {
+		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
+		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, createExtensionGalleryManifestService());
+	}
+
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.ok(headers['X-Market-User-Id']);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
+	});
+
+	test('getExtensions uses query API for extension info without uuid', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'ms-vscode.visualization-runner' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => extension.identifier.id)
+		}, {
+			requests: [{ type: 'POST', url: queryServiceUri }],
+			extensions: []
+		});
+	});
+
+	test('getExtensions uses latest resource API for extension info with uuid', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawLatestExtension()) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => ({ id: extension.identifier.id, uuid: extension.identifier.uuid, version: extension.version }))
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }]
+		});
+	});
+
+	test('getExtensions falls back to query API when latest resource response omits files', async () => {
+		const rawExtension = rawLatestExtension();
+		const invalidLatestExtension = {
+			...rawExtension,
+			versions: rawExtension.versions.map(version => ({ ...version, files: undefined }))
+		};
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, invalidLatestExtension) : requestContext(200, galleryQueryResponse([rawExtension])));
+		const logService = new TestLogService();
+		const galleryService = createExtensionGalleryService(requestService, logService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => ({ id: extension.identifier.id, uuid: extension.identifier.uuid, version: extension.version })),
+			errors: logService.errors
+		}, {
+			requests: [
+				{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' },
+				{ type: 'POST', url: queryServiceUri }
+			],
+			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }],
+			errors: []
+		});
 	});
 
 	test('sorting single extension version without target platform', async () => {

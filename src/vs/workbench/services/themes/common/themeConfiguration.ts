@@ -17,6 +17,7 @@ import { IConfigurationService, ConfigurationTarget } from '../../../../platform
 import { isWeb } from '../../../../base/common/platform.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IHostColorSchemeService } from './hostColorSchemeService.js';
+import { IColorScheme } from '../../../../platform/window/common/window.js';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -85,6 +86,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
+	...(isWeb ? { agentsWindow: { default: true } } : {}),
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
 
@@ -336,14 +338,29 @@ export class ThemeConfiguration {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (this.isDetectingColorScheme()) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
 	}
 
+	public isDetectingHighContrast(): boolean {
+		return this.configurationService.getValue(ThemeSettings.DETECT_HC);
+	}
+
 	public isDetectingColorScheme(): boolean {
 		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
+	}
+
+	public isPreferredColorSchemeChange(previous: IColorScheme): boolean {
+		const darkChanged = previous.dark !== this.hostColorService.dark;
+		if (this.isDetectingColorScheme() && darkChanged) {
+			return true;
+		}
+		if (this.isDetectingHighContrast()) {
+			return previous.highContrast !== this.hostColorService.highContrast || (this.hostColorService.highContrast && darkChanged);
+		}
+		return false;
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {
@@ -377,7 +394,7 @@ export class ThemeConfiguration {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		} else if (!types.isUndefined(settings.workspaceValue)) {
 			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemote)) {
+		} else if (!types.isUndefined(settings.userRemoteValue)) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER;

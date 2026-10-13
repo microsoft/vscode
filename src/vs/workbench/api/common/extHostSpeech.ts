@@ -63,18 +63,17 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
-		const disposables = new DisposableStore();
-
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
 		const textToSpeech = await provider.provideTextToSpeechSession(cts.token, language ? { language } : undefined);
-		if (!textToSpeech) {
+		if (!textToSpeech || cts.token.isCancellationRequested) {
 			return;
 		}
 
 		this.synthesizers.set(session, textToSpeech);
 
+		const disposables = new DisposableStore();
 		disposables.add(textToSpeech.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

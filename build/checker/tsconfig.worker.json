@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"lib": [
 			"ES2024",
+			"ESNext.Disposable",
 			"WebWorker",
 			"Webworker.Iterable",
 			"WebWorker.AsyncIterable"
@@ -23,6 +24,7 @@
 	],
 	"exclude": [
 		"../../src/**/test/**",
-		"../../src/**/fixtures/**"
+		"../../src/**/fixtures/**",
+		"../../src/typings/editContext.d.ts"
 	]
 }

@@ -6,7 +6,7 @@
 import * as i18n from '../lib/i18n.ts';
 import fs from 'fs';
 import path from 'path';
-import gulp from 'gulp';
+import { gulp } from '../lib/gulp/facade.ts';
 import vfs from 'vinyl-fs';
 import rimraf from 'rimraf';
 import minimist from 'minimist';
@@ -120,7 +120,7 @@ function update(options: Options) {
 			});
 	});
 }
-if (path.basename(process.argv[1]) === 'update-localization-extension.js') {
+if (path.basename(process.argv[1]) === 'update-localization-extension.ts') {
 	const options = minimist(process.argv.slice(2), {
 		string: ['location', 'externalExtensionsLocation']
 	}) as Options;

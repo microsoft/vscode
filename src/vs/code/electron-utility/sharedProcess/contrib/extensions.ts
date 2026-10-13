@@ -24,9 +24,9 @@ export class ExtensionsContributions extends Disposable {
 	) {
 		super();
 
-		extensionManagementService.cleanUp();
+		extensionManagementService.cleanUp().catch(error => logService.error('Error while cleaning up extensions', error));
 
-		this.migrateUnsupportedExtensions();
+		this.migrateUnsupportedExtensions().catch(error => logService.error('Error while migrating unsupported extensions', error));
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 	}
 

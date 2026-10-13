@@ -45,11 +45,15 @@ export interface IExplorerService {
 	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
+
+	/** The explorer view id for this application, available before the view is instantiated. */
+	getViewId(): string;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 export interface IExplorerView {
+	readonly id: string;
 	autoReveal: boolean | 'force' | 'focusNoScroll';
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing?: boolean): Promise<void>;

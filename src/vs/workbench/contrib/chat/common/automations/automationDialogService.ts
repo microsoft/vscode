@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AutomationTarget, IAutomationDescriptor } from './automation.js';
+import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
+
+export type AutomationDialogCreateInitialValues = Omit<ICreateAutomationOptions, 'target'> & { readonly target?: AutomationTarget };
+
+export type IShowAutomationDialogOptions = (
+	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
+	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues }
+) & {
+	/**
+	 * Persists the result while the dialog stays open and shows progress. A rejection
+	 * is shown in the dialog so the user can retry or cancel; the dialog resolves
+	 * only after `commit` succeeds.
+	 */
+	readonly commit?: (result: IAutomationDialogResult) => Promise<void>;
+};
+
+export type IAutomationDialogResult =
+	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }
+	| { readonly kind: 'update'; readonly id: string; readonly value: IUpdateAutomationOptions };
+
+export const IAutomationDialogService = createDecorator<IAutomationDialogService>('automationDialogService');
+
+/**
+ * Bridges the workbench Automations UI (list widget) to the Sessions-layer
+ * dialog implementation without a cross-layer import: the widget depends only
+ * on this interface, while {@link AutomationDialogService} (sessions) provides it.
+ */
+export interface IAutomationDialogService {
+	readonly _serviceBrand: undefined;
+	showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined>;
+}

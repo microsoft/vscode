@@ -22,6 +22,9 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 import { TerminalToolId } from '../toolIds.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 
 interface ICreateAndRunTaskToolInput {
 	workspaceFolder: string;
@@ -44,7 +47,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -54,7 +59,22 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `No invocation context` }], toolResultMessage: `No invocation context` };
 		}
 
-		const tasksJsonUri = URI.file(args.workspaceFolder).with({ path: `${args.workspaceFolder}/.vscode/tasks.json` });
+		const workspaceFolder = this._resolveWorkspaceFolder(args.workspaceFolder, invocation.context.workingDirectory);
+		if (!workspaceFolder) {
+			return this._invalidWorkspaceFolderResult(args.workspaceFolder);
+		}
+
+		const existingTask = (await this._tasksService.tasks())?.find(task => task._label === args.task.label);
+		if (existingTask) {
+			return this._taskAlreadyExistsResult(args.task.label);
+		}
+
+		const activeTask = (await this._tasksService.getActiveTasks()).find(task => task._label === args.task.label);
+		if (activeTask) {
+			return this._taskAlreadyRunningResult(args.task.label);
+		}
+
+		const tasksJsonUri = URI.joinPath(workspaceFolder, '.vscode', 'tasks.json');
 		const exists = await this._fileService.exists(tasksJsonUri);
 
 		const newTask: IConfiguredTask = {
@@ -87,7 +107,11 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		let task: Task | undefined;
 		const start = Date.now();
 		while (Date.now() - start < 5000 && !token.isCancellationRequested) {
-			task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
+			task = (await this._tasksService.tasks())?.find(task =>
+				task._label === args.task.label
+				&& !!task.getWorkspaceFolder()
+				&& this._uriIdentityService.extUri.isEqual(task.getWorkspaceFolder()!.uri, workspaceFolder)
+			);
 			if (task) {
 				break;
 			}
@@ -97,30 +121,50 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
 		}
 
-		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
-		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
-		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
+		const preRunMarkersStore = new DisposableStore();
+		let result: ITaskSummary | undefined;
+		let terminalResults: Awaited<ReturnType<typeof collectTerminalResults>> = [];
+		try {
+			const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+			const startMarkersByTerminalInstanceId = new Map<number, ReturnType<ITerminalInstance['registerMarker']>>();
+			for (const terminal of this._terminalService.instances) {
+				const marker = terminal.registerMarker();
+				startMarkersByTerminalInstanceId.set(terminal.instanceId, marker);
+				if (marker) {
+					preRunMarkersStore.add(marker);
+				}
+			}
 
-		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
-		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
-		if (!terminals || terminals.length === 0) {
-			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
+			_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
+			const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
+			result = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
+
+			const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
+			const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
+			if (!terminals || terminals.length === 0) {
+				return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
+			}
+			const store = new DisposableStore();
+			try {
+				terminalResults = await collectTerminalResults(
+					terminals,
+					task,
+					this._instantiationService,
+					invocation.context!,
+					_progress,
+					token,
+					store,
+					(terminalTask) => this._isTaskActive(terminalTask),
+					dependencyTasks,
+					this._tasksService,
+					startMarkersByTerminalInstanceId
+				);
+			} finally {
+				store.dispose();
+			}
+		} finally {
+			preRunMarkersStore.dispose();
 		}
-		const store = new DisposableStore();
-		const terminalResults = await collectTerminalResults(
-			terminals,
-			task,
-			this._instantiationService,
-			invocation.context!,
-			_progress,
-			token,
-			store,
-			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks,
-			this._tasksService
-		);
-		store.dispose();
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
 				taskId: args.task.label,
@@ -151,15 +195,50 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 
+	private _resolveWorkspaceFolder(requestedWorkspaceFolder: string, workingDirectory: URI | undefined): URI | undefined {
+		const requestedFileUri = URI.file(requestedWorkspaceFolder);
+		const candidates = workingDirectory
+			? [workingDirectory]
+			: this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
+
+		return candidates.find(candidate => candidate.scheme === Schemas.file
+			? this._uriIdentityService.extUri.isEqual(candidate, requestedFileUri)
+			: candidate.path === requestedFileUri.path);
+	}
+
+	private _invalidWorkspaceFolderResult(workspaceFolder: string): IToolResult {
+		const message = localize('invalidWorkspaceFolder', "Cannot create a task outside the current workspace folder: {0}", workspaceFolder);
+		return { content: [{ kind: 'text', value: message }], toolResultMessage: message };
+	}
+
+	private _taskAlreadyExistsResult(taskLabel: string): IToolResult {
+		const message = localize('taskExists', "Task '{0}' already exists. Use the run task tool to run it.", taskLabel);
+		return { content: [{ kind: 'text', value: message }], toolResultMessage: message };
+	}
+
+	private _taskAlreadyRunningResult(taskLabel: string): IToolResult {
+		const message = localize('alreadyRunning', "Task '{0}' is already running.", taskLabel);
+		return { content: [{ kind: 'text', value: message }], toolResultMessage: message };
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ICreateAndRunTaskToolInput;
 		const task = args.task;
 
+		const workspaceFolder = this._resolveWorkspaceFolder(args.workspaceFolder, context.workingDirectory);
+		if (!workspaceFolder) {
+			const message = localize('invalidWorkspaceFolder', "Cannot create a task outside the current workspace folder: {0}", args.workspaceFolder);
+			return {
+				invocationMessage: message,
+				pastTenseMessage: message
+			};
+		}
+
 		const allTasks = await this._tasksService.tasks();
 		if (allTasks?.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('taskExists', 'Task \`{0}\` already exists.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task \`{0}\` already exists.', task.label)),
+				invocationMessage: this._taskAlreadyExistsResult(task.label).toolResultMessage,
+				pastTenseMessage: this._taskAlreadyExistsResult(task.label).toolResultMessage,
 				confirmationMessages: undefined
 			};
 		}
@@ -167,26 +246,23 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
+				invocationMessage: this._taskAlreadyRunningResult(task.label).toolResultMessage,
+				pastTenseMessage: this._taskAlreadyRunningResult(task.label).toolResultMessage,
 				confirmationMessages: undefined
 			};
 		}
+
+		const confirmationMessage = new MarkdownString()
+			.appendText(localize('createTask', "Task '{0}' will be created in '{1}' and run with this command:", task.label, workspaceFolder.fsPath))
+			.appendCodeblock('shell', [task.command, ...(task.args ?? [])].join(' '));
 
 		return {
 			invocationMessage: new MarkdownString(localize('createdTask', 'Created task \`{0}\`', task.label)),
 			pastTenseMessage: new MarkdownString(localize('createdTaskPast', 'Created task \`{0}\`', task.label)),
 			confirmationMessages: {
 				title: localize('allowTaskCreationExecution', 'Allow task creation and execution?'),
-				message: new MarkdownString(
-					localize(
-						'createTask',
-						'A task \`{0}\` with command \`{1}\`{2} will be created.',
-						task.label,
-						task.command,
-						task.args?.length ? ` and args \`${task.args.join(' ')}\`` : ''
-					)
-				)
+				message: confirmationMessage,
+				allowAutoConfirm: false
 			}
 		};
 	}

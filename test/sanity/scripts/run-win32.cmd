@@ -16,6 +16,15 @@ if errorlevel 1 (
     echo Checking if Ubuntu is available on WSL
     powershell -NoProfile -Command "if ((wsl -l -q) -contains 'Ubuntu') { exit 0 } else { exit 1 }"
     if errorlevel 1 call :install_ubuntu
+
+    echo Ensuring Ubuntu runs with WSL2
+    wsl --set-version Ubuntu 2 >nul 2>nul
+    if errorlevel 1 (
+        echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
+    )
+
+    echo WSL distributions:
+    wsl --list --verbose
 )
 
 set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
@@ -31,6 +40,12 @@ REM ============================================================================
 :install_ubuntu
 
 echo Ubuntu image is not present in WSL
+
+echo Setting default WSL version to 2
+wsl --set-default-version 2 >nul 2>nul
+if errorlevel 1 (
+    echo WARNING: Failed to set default WSL version to 2. Import may default to WSL1.
+)
 
 if "%ARCH%"=="12" (
     set "ROOTFS_URL=https://cloud-images.ubuntu.com/wsl/jammy/current/ubuntu-jammy-wsl-arm64-ubuntu22.04lts.rootfs.tar.gz"

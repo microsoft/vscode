@@ -6,5 +6,5 @@
 import { localize2 } from '../../nls.js';
 
 export const SessionsCategories = Object.freeze({
-	Sessions: localize2('sessions', "Sessions"),
+	Sessions: localize2('agents', "Agents"),
 });

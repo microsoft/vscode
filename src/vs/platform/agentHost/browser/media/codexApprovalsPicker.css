@@ -1,0 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.action-widget .actionList.codex-approvals-picker .monaco-list .monaco-list-row.action .detail {
+	white-space: normal;
+	text-overflow: clip;
+	overflow: hidden;
+}

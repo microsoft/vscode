@@ -400,6 +400,12 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 		this.lastTimeChecked = Date.now();
 	}
+
+	override dispose(): void {
+		clearTimeout(this.checkCallbacksTimeout);
+		this.stopListening();
+		super.dispose();
+	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
@@ -596,6 +602,10 @@ function readCookie(name: string): string | undefined {
 }
 
 (function () {
+
+	// This script running at all means the page scripts were not blocked or rewritten.
+	// eslint-disable-next-line no-restricted-syntax
+	mainWindow.document.getElementById('vscode-startup-fallback')?.remove();
 
 	// Find config by checking for DOM
 	// eslint-disable-next-line no-restricted-syntax

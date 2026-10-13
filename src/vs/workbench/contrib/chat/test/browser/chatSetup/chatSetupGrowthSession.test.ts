@@ -129,7 +129,10 @@ suite('GrowthSessionOpenerParticipant', () => {
 			timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
 			isArchived: () => false,
 			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
 			isRead: () => true,
+			isMarkedUnread: () => false,
 			setRead: () => { },
 		};
 

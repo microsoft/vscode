@@ -73,7 +73,7 @@ suite('ProfileStorageService', () => {
 		const actual = await testObject.readStorageData(profile);
 
 		assert.strictEqual(actual.size, 1);
-		assert.deepStrictEqual(actual.get('foo'), { 'value': 'bar', 'target': StorageTarget.USER });
+		assert.deepStrictEqual(actual.get('foo'), { 'value': 'bar', 'target': StorageTarget.USER, 'scope': 0 });
 	}));
 
 	test('write in empty storage', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

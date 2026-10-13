@@ -5,9 +5,12 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST, CHAT_DEBUG_HAS_ACTIVE_SESSION, ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
@@ -15,16 +18,59 @@ suite('ChatDebugServiceImpl', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: ChatDebugServiceImpl;
+	let contextKeyService: MockContextKeyService;
 
 	const session1 = URI.parse('vscode-chat-session://local/session-1');
 	const session2 = URI.parse('vscode-chat-session://local/session-2');
 	const sessionA = LocalChatSessionUri.forSession('a');
 	const sessionB = LocalChatSessionUri.forSession('b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
-	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
+	const nonLocalSession = URI.parse('some-other-scheme://authority/session-1');
+	const copilotCliSession = URI.parse('copilotcli:/test-session-id');
+	const agentHostSession = URI.parse('agent-host-copilotcli:/test-session-id');
 
 	setup(() => {
-		service = disposables.add(new ChatDebugServiceImpl());
+		contextKeyService = disposables.add(new MockContextKeyService());
+		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService));
+	});
+
+	test('updates the active session context key', () => {
+		const states = [[
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]];
+		service.activeSessionResource = session1;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+		service.activeSessionResource = agentHostSession;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+		service.activeSessionResource = undefined;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+
+		assert.deepStrictEqual(states, [
+			[false, false],
+			[true, false],
+			[true, true],
+			[false, false],
+		]);
+	});
+
+	test('resets the active session context keys on dispose', () => {
+		service.activeSessionResource = agentHostSession;
+		service.dispose();
+
+		assert.deepStrictEqual([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		], [false, false]);
 	});
 
 	suite('addEvent and getEvents', () => {
@@ -102,6 +148,7 @@ suite('ChatDebugServiceImpl', () => {
 				inputTokens: 100,
 				outputTokens: 50,
 				totalTokens: 150,
+				copilotUsageNanoAiu: 5_000_000_000,
 				durationInMillis: 1200,
 			};
 
@@ -112,6 +159,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(events.length, 2);
 			assert.strictEqual(events[0].kind, 'toolCall');
 			assert.strictEqual(events[1].kind, 'modelTurn');
+			assert.strictEqual((events[1] as IChatDebugModelTurnEvent).copilotUsageNanoAiu, 5_000_000_000);
 		});
 	});
 
@@ -148,7 +196,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(event.parentEventId, 'parent-1');
 		});
 
-		test('should not log events for non-local sessions', () => {
+		test('should not log events for ineligible session schemes', () => {
 			const firedEvents: IChatDebugEvent[] = [];
 			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
 
@@ -157,6 +205,17 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(firedEvents.length, 0);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
 		});
+
+		test('should log events for copilotcli sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(copilotCliSession, 'cli-event', 'details');
+
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(copilotCliSession).length, 1);
+		});
+
 	});
 
 	suite('getSessionResources', () => {
@@ -185,20 +244,60 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('MAX_EVENTS cap', () => {
-		test('should evict oldest events when exceeding cap', () => {
-			// The max is 10_000. Add more than that and verify trimming.
-			// We'll test with a smaller count by adding events and checking boundary behavior.
+	suite('MAX_EVENTS_PER_SESSION cap', () => {
+		test('should evict oldest events when exceeding per-session cap', () => {
+			// The max per session is 10_000. Add more than that to a single session.
 			for (let i = 0; i < 10_001; i++) {
 				service.addEvent({ kind: 'generic', sessionResource: sessionGeneric, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
 			}
 
 			const events = service.getEvents();
-			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS');
+			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS_PER_SESSION');
 			// The first event should have been evicted
 			assert.ok(!(events as IChatDebugGenericEvent[]).find(e => e.name === 'event-0'), 'Event-0 should have been evicted');
 			// The last event should be present
 			assert.ok((events as IChatDebugGenericEvent[]).find(e => e.name === 'event-10000'), 'Last event should be present');
+		});
+
+		test('should evict oldest session when exceeding MAX_SESSIONS', () => {
+			// MAX_SESSIONS is 5 — add events to 6 different sessions
+			const sessions: URI[] = [];
+			for (let i = 0; i < 6; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5, 'Should not exceed MAX_SESSIONS');
+			// The first session should have been evicted
+			assert.ok(!resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should have been evicted');
+			assert.strictEqual(service.getEvents(sessions[0]).length, 0, 'Events from evicted session should be gone');
+			// The last session should be present
+			assert.ok(resources.some(r => r.toString() === sessions[5].toString()), 'Session-5 should be present');
+		});
+
+		test('should use LRU eviction — recently-used sessions are kept', () => {
+			// Fill to MAX_SESSIONS (5)
+			const sessions: URI[] = [];
+			for (let i = 0; i < 5; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru2-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `init-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			// Touch session-0 so it moves to the back of the LRU order
+			service.addEvent({ kind: 'generic', sessionResource: sessions[0], created: new Date(), name: 'touch', level: ChatDebugLogLevel.Info });
+
+			// Add a 6th session — session-1 (the true LRU) should be evicted, not session-0
+			const session6 = URI.parse('vscode-chat-session://local/session-lru2-5');
+			service.addEvent({ kind: 'generic', sessionResource: session6, created: new Date(), name: 'new', level: ChatDebugLogLevel.Info });
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5);
+			assert.ok(resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should be kept (recently used)');
+			assert.ok(!resources.some(r => r.toString() === sessions[1].toString()), 'Session-1 should be evicted (LRU)');
+			assert.ok(resources.some(r => r.toString() === session6.toString()), 'Session-5 should be present');
 		});
 	});
 
@@ -211,44 +310,6 @@ suite('ChatDebugServiceImpl', () => {
 			service.activeSessionResource = session1;
 
 			assert.strictEqual(service.activeSessionResource, session1);
-		});
-	});
-
-	suite('markDebugDataAttached', () => {
-		test('should track attached debug data per session', () => {
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-
-			const fired: URI[] = [];
-			disposables.add(service.onDidAttachDebugData(uri => fired.push(uri)));
-
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-			assert.strictEqual(fired.length, 1);
-			assert.strictEqual(fired[0].toString(), sessionGeneric.toString());
-
-			// Idempotent — second call should not fire again
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(fired.length, 1);
-
-			// Other sessions remain unaffected
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-		});
-
-		test('should clear attached debug data on endSession', () => {
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-
-			service.endSession(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-		});
-
-		test('should clear attached debug data on clear', () => {
-			service.markDebugDataAttached(sessionA);
-			service.markDebugDataAttached(sessionB);
-
-			service.clear();
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-			assert.strictEqual(service.hasAttachedDebugData(sessionB), false);
 		});
 	});
 
@@ -293,13 +354,45 @@ suite('ChatDebugServiceImpl', () => {
 			};
 
 			disposables.add(service.registerProvider(provider));
-			// Should not throw
-			await service.invokeProviders(errorSession);
+			// Suppress the expected onUnexpectedError from _invokeProvider
+			const origHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(() => { });
+			try {
+				await service.invokeProviders(errorSession);
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(origHandler);
+			}
 			assert.strictEqual(service.getEvents(errorSession).length, 0);
 		});
 	});
 
 	suite('invokeProviders', () => {
+		test('re-invocation that returns undefined should preserve previously loaded events', async () => {
+			// A provider that succeeds once and then transiently fails (e.g. an
+			// Agent Host session's events.jsonl is mid-rewrite by the external
+			// CLI) must not wipe the events currently shown.
+			let succeed = true;
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => succeed ? [{
+					kind: 'generic',
+					sessionResource: sessionGeneric,
+					created: new Date(),
+					name: 'provider-event',
+					level: ChatDebugLogLevel.Info,
+				}] : undefined,
+			};
+
+			disposables.add(service.registerProvider(provider));
+
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+
+			// Second invocation fails (returns undefined) — events are kept.
+			succeed = false;
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+		});
+
 		test('should invoke multiple providers and merge events', async () => {
 			const providerA: IChatDebugLogProvider = {
 				provideChatDebugLog: async () => [{
@@ -395,7 +488,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(tokenA.isCancellationRequested, false, 'session-a token should not be cancelled');
 		});
 
-		test('should not invoke providers for non-local sessions', async () => {
+		test('should not invoke providers for ineligible session schemes', async () => {
 			let providerCalled = false;
 
 			const provider: IChatDebugLogProvider = {
@@ -416,6 +509,29 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(providerCalled, false);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+		});
+
+		test('should invoke providers for copilotcli sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: copilotCliSession,
+						created: new Date(),
+						name: 'cli-provider-event',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(copilotCliSession);
+
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(copilotCliSession).length > 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {
@@ -580,6 +696,103 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.ok(capturedToken);
 			assert.strictEqual(capturedToken.isCancellationRequested, true);
+		});
+	});
+
+	suite('event deduplication', () => {
+		test('should deduplicate events with the same ID, keeping the richer kind', () => {
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				message: 'hello',
+				sections: [],
+			};
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				agentName: 'Explore',
+			};
+			service.addEvent(userMsg);
+			service.addEvent(subagent);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should keep richer event when it arrives first', () => {
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should not fire onDidAddEvent for skipped duplicates', () => {
+			const firedKinds: string[] = [];
+			disposables.add(service.onDidAddEvent(e => firedKinds.push(e.kind)));
+
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg); // should be skipped
+
+			assert.deepStrictEqual(firedKinds, ['subagentInvocation']);
+		});
+
+		test('should allow events without IDs to coexist', () => {
+			const event1: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				name: 'a',
+				level: ChatDebugLogLevel.Info,
+			};
+			const event2: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				name: 'b',
+				level: ChatDebugLogLevel.Info,
+			};
+			service.addEvent(event1);
+			service.addEvent(event2);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 2);
 		});
 	});
 });

@@ -118,7 +118,18 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	},
 	[PromptHeaderAttributes.model]: {
 		type: 'scalar | sequence',
-		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
+		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.'),
+	},
+	[PromptHeaderAttributes.reasoningEffort]: {
+		type: 'scalar',
+		description: localize('promptHeader.agent.reasoningEffort', 'Specify the reasoning effort used by this custom agent.'),
+		enums: [
+			{ name: 'low' },
+			{ name: 'medium' },
+			{ name: 'high' },
+			{ name: 'xhigh' },
+			{ name: 'max' },
+		],
 	},
 	[PromptHeaderAttributes.tools]: {
 		type: 'scalar | sequence',
@@ -147,11 +158,6 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	[PromptHeaderAttributes.userInvocable]: {
 		type: 'scalar',
 		description: localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.'),
-		enums: booleanAttributeEnumValues,
-	},
-	[PromptHeaderAttributes.userInvokable]: {
-		type: 'scalar',
-		description: localize('promptHeader.agent.userInvokable', 'Deprecated. Use user-invocable instead.'),
 		enums: booleanAttributeEnumValues,
 	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
@@ -192,11 +198,6 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('promptHeader.skill.userInvocable', 'Set to false to hide from the / menu. Use for background knowledge users should not invoke directly. Default: true.'),
 		enums: booleanAttributeEnumValues,
 	},
-	[PromptHeaderAttributes.userInvokable]: {
-		type: 'scalar',
-		description: localize('promptHeader.skill.userInvokable', 'Deprecated. Use user-invocable instead.'),
-		enums: booleanAttributeEnumValues,
-	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
 		type: 'scalar',
 		description: localize('promptHeader.skill.disableModelInvocation', 'Set to true to prevent the agent from automatically loading this skill. Use for workflows you want to trigger manually with /name. Default: false.'),
@@ -214,6 +215,11 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 		type: 'map',
 		description: localize('promptHeader.skill.metadata', 'Additional metadata for the skill.'),
 	},
+	[PromptHeaderAttributes.context]: {
+		type: 'scalar',
+		description: localize('promptHeader.skill.context', 'Controls how the skill is loaded. Set to \'fork\' to spawn a subagent with the skill instructions instead of returning them inline.'),
+		enums: [{ name: 'fork', description: localize('promptHeader.skill.context.fork', 'Spawn a subagent with the skill instructions injected as system context.') }],
+	},
 };
 
 const allAttributeNames: Record<PromptsType, string[]> = {
@@ -223,7 +229,7 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.skill]: Object.keys(skillAttributes),
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
+const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
 const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
@@ -247,7 +253,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer || attributeName === PromptHeaderAttributes.userInvokable;
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer;
 }
 
 export function getAttributeDefinition(attributeName: string, promptType: PromptsType, target: Target): IAttributeDefinition | undefined {

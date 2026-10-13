@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { SideBySideEditor as SideBySideEditorPane } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions, IEditorGroupsContainer } from '../common/editorGroupsService.js';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from '../common/editorService.js';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult, IVisibleEditorsChangeEvent } from '../common/editorService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, IDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
@@ -45,7 +45,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidActiveEditorChange = this._register(new Emitter<void>());
 	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
 
-	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
+	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<IVisibleEditorsChangeEvent>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
 	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
@@ -66,6 +66,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#endregion
 
 	private readonly editorGroupsContainer: IEditorGroupsContainer;
+	private readonly isScoped: boolean;
 
 	constructor(
 		editorGroupsContainer: IEditorGroupsContainer | undefined,
@@ -83,6 +84,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		super();
 
 		this.editorGroupsContainer = editorGroupsContainer ?? editorGroupService;
+		this.isScoped = editorGroupsContainer !== undefined;
 		this.editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver, this.editorGroupsContainer));
 
 		this.onConfigurationUpdated();
@@ -109,13 +111,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Out of workspace file watchers
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
 
-		// File changes & operations
-		// Note: there is some duplication with the two file event handlers- Since we cannot always rely on the disk events
-		// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
-		// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
-		// that the event ordering is random as well as might not carry all information needed.
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// File operation events are global; scoped services would process each operation again.
+		if (!this.isScoped) {
+			// Note: there is some duplication with the two file event handlers- Since we cannot always rely on the disk events
+			// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
+			// In any case there is no guarantee if the local event is fired first or the disk one. Thus, code must handle the case
+			// that the event ordering is random as well as might not carry all information needed.
+			this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
+			this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		}
 
 		// Configuration
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
@@ -135,7 +139,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Fire initial set of editor events if there is an active editor
 		if (this.activeEditor) {
 			this.doHandleActiveEditorChangeEvent();
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: false });
 		}
 	}
 
@@ -168,9 +172,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this._onDidEditorsChange.fire({ groupId: group.id, event: e });
 		}));
 
-		groupDisposables.add(group.onDidActiveEditorChange(() => {
+		groupDisposables.add(group.onDidActiveEditorChange(e => {
 			this.handleActiveEditorChange(group);
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: e.isExplicit !== false /* treat undefined as explicit */ });
 		}));
 
 		groupDisposables.add(group.onWillOpenEditor(e => {
@@ -257,7 +261,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
 
 			for (const editor of group.editors) {
-				const resource = editor.resource;
+				const resource = EditorResourceAccessor.getOriginalUri(editor) ?? editor.resource;
 				if (!resource || !this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 					continue; // not matching our resource
 				}
@@ -334,7 +338,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private handleDeletedFile(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
 		for (const editor of this.getAllNonDirtyEditors({ includeUntitled: false, supportSideBySide: true })) {
 			(async () => {
-				const resource = editor.resource;
+				const resource = EditorResourceAccessor.getOriginalUri(editor) ?? editor.resource;
 				if (!resource) {
 					return;
 				}

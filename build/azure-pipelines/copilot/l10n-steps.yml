@@ -1,0 +1,41 @@
+steps:
+  # Check out the private microsoft/vscode-extensions-loc repository using the
+  # agent's GitHub App (Monaco) credentials instead of cloning it with a PAT.
+  # The repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: vscode_loc
+    path: s/.build/vscode-extensions-loc
+    fetchDepth: 1
+    sparseCheckoutDirectories: out/GitHub.copilot-chat
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-extensions-loc
+
+  - script: |
+      set -e
+
+      EXTENSION_ID="GitHub.copilot-chat"
+      L10N_DIR="$(Build.SourcesDirectory)/.build/vscode-extensions-loc"
+      TRANSLATED_DIR="$L10N_DIR/out/$EXTENSION_ID"
+
+      if [ ! -d "$TRANSLATED_DIR" ] || [ -z "$(ls -A "$TRANSLATED_DIR" 2>/dev/null)" ]; then
+        echo "No translated strings found for $EXTENSION_ID, skipping l10n import."
+        exit 0
+      fi
+
+      echo "Importing translated XLF files..."
+      cd $(Build.SourcesDirectory)/extensions/copilot
+
+      L10N_ROOT=$(node -e "const p=require('./package.json'); console.log(p.l10n || '.')")
+
+      npx @vscode/l10n-dev import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
+
+      # Move package.nls.*.json files from l10n root to extension root if needed
+      if [ "$L10N_ROOT" != "." ]; then
+        for f in "$L10N_ROOT"/package.nls.*.json; do
+          [ -f "$f" ] && mv "$f" .
+        done
+      fi
+
+      echo "Localized files:"
+      ls -la package.nls.*.json 2>/dev/null || echo "  (no package.nls.*.json)"
+      ls -la "$L10N_ROOT"/bundle.l10n.*.json 2>/dev/null || echo "  (no bundle.l10n.*.json)"
+    displayName: Import localized strings

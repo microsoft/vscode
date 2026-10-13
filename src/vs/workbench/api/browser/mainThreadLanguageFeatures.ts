@@ -1131,7 +1131,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 							};
 						}),
 						dispose: () => {
-							this._proxy.$releasePasteEdits(this._handle, request.id);
+							const cacheId = edits[0]?._cacheId?.[0];
+							if (typeof cacheId === 'number') {
+								this._proxy.$releasePasteEdits(this._handle, cacheId);
+							}
 						},
 					};
 				} finally {
@@ -1212,7 +1215,10 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 					};
 				}),
 				dispose: () => {
-					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+					const cacheId = edits[0]?._cacheId?.[0];
+					if (typeof cacheId === 'number') {
+						this._proxy.$releaseDocumentOnDropEdits(this._handle, cacheId);
+					}
 				},
 			};
 		} finally {
@@ -1251,10 +1257,11 @@ export class MainThreadDocumentSemanticTokensProvider implements languages.Docum
 		if (!encodedDto) {
 			return null;
 		}
+		const dto = decodeSemanticTokensDto(encodedDto);
 		if (token.isCancellationRequested) {
+			this._proxy.$releaseDocumentSemanticTokens(this._handle, dto.id);
 			return null;
 		}
-		const dto = decodeSemanticTokensDto(encodedDto);
 		if (dto.type === 'full') {
 			return {
 				resultId: String(dto.id),
@@ -1388,6 +1395,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 				modeId: undefined,
 				modelId: undefined,
 				presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+				sourceRequestId: undefined,
 			});
 		}
 
@@ -1414,7 +1422,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 
 		if (this._supportsHandleEvents) {
-			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: i.pid, idx: i.idx })));
 		}
 
 		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
@@ -1435,6 +1443,28 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
 					acceptanceMethod: 'accept',
 					applyCodeBlockSuggestionId: undefined,
+					sourceRequestId: undefined,
+				});
+			}
+		} else if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Rejected) {
+			if (item.suggestionId !== undefined) {
+				this._aiEditTelemetryService.handleCodeRejected({
+					suggestionId: item.suggestionId,
+					feature: 'inlineSuggestion',
+					source: this.providerId,
+					languageId: completions.languageId,
+					editDeltaInfo: EditDeltaInfo.tryCreate(
+						lifetimeSummary.lineCountModified,
+						lifetimeSummary.lineCountOriginal,
+						lifetimeSummary.characterCountModified,
+						lifetimeSummary.characterCountOriginal,
+					),
+					modeId: undefined,
+					modelId: undefined,
+					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+					rejectionMethod: 'reject',
+					applyCodeBlockSuggestionId: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}
@@ -1490,6 +1520,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			editKind: lifetimeSummary.editKind,
 			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
 			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
+			isForAnotherDocument: lifetimeSummary.isForAnotherDocument,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 

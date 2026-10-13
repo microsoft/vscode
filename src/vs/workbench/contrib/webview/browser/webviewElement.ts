@@ -9,12 +9,13 @@ import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
-import { streamToBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -24,13 +25,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
@@ -97,7 +96,20 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	protected get platform(): string { return 'browser'; }
 
-	private readonly _expectedServiceWorkerVersion = 4; // Keep this in sync with the version in service-worker.js
+	private static readonly _supportsTransferableStreams = new Lazy<boolean>(() => {
+		try {
+			const stream = new ReadableStream();
+			const mc = new MessageChannel();
+			mc.port1.postMessage(stream, [stream]);
+			mc.port1.close();
+			mc.port2.close();
+			return true;
+		} catch {
+			return false;
+		}
+	});
+
+	private readonly _expectedServiceWorkerVersion = 6; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
@@ -126,7 +138,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
-	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
+	private readonly _resourceLoadingDisposables = this._register(new DisposableStore());
 
 	private _contextKeyService: IContextKeyService | undefined;
 
@@ -138,6 +150,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	private _messagePort?: MessagePort;
+	private _keyEventToken: string | undefined;
+	private _mountId: string | undefined;
+	private readonly _readyListener = this._register(new MutableDisposable());
 	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
 
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
@@ -158,13 +173,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -194,6 +207,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-click-link', ({ uri }) => {
+			if (!this.isActiveElement()) {
+				return;
+			}
 			this._onDidClickLink.fire(uri);
 		}));
 
@@ -231,14 +247,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			const message = this.extension
+				? localize('fatalErrorMessageWithExtension', "Error loading webview provided by '{0}': {1}", this.extension.id.value, e.message)
+				: localize('fatalErrorMessage', "Error loading webview: {0}", e.message);
+			notificationService.error(message);
 			this._onFatalError.fire({ message: e.message });
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
 			this.handleKeyEvent('keydown', data);
 		}));
 
@@ -281,7 +297,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					path: decodeURIComponent(entry.path), // This gets re-encoded
 					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
 				});
-				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+				this.loadResource(entry.id, uri, { ifNoneMatch: entry.ifNoneMatch, range: entry.range });
 			} catch (e) {
 				this._send('did-load-resource', {
 					id: entry.id,
@@ -322,7 +338,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		if (initInfo.options.enableFindWidget) {
-			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+			this._webviewFindWidget = this._register(this._instantiationService.createInstance(WebviewFindWidget, this));
 		}
 	}
 
@@ -332,7 +348,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element?.remove();
 		this._element = undefined;
 
-		this._messagePort = undefined;
+		this.resetHostChannel();
+		this._mountId = undefined;
+		this._readyListener.clear();
 
 		if (this._state.type === WebviewState.Type.Initializing) {
 			for (const message of this._state.pendingMessages) {
@@ -343,7 +361,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._onDidDispose.fire();
 
-		this._resourceLoadingCts.dispose(true);
+		this._resourceLoadingDisposables.dispose();
 
 		super.dispose();
 	}
@@ -432,6 +450,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
+			mountId: this._mountId ?? '',
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -461,6 +480,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._windowId = targetWindow.vscodeWindowId;
+		this._mountId = generateUuid();
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
@@ -491,8 +511,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.appendChild(this.element);
 	}
 
+	private resetHostChannel(): void {
+		if (this._messagePort) {
+			this._messagePort.onmessage = null;
+			this._messagePort.close();
+		}
+		this._messagePort = undefined;
+		this._keyEventToken = undefined;
+	}
+
 	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		const subscription = addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -507,8 +536,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					return;
 				}
 
+				// The mount id rejects stale handshakes; the shell token authenticates subsequent key events.
+				const keyEventToken = e.data?.data?.keyEventToken;
+				if (!this._mountId || e.data?.data?.mountId !== this._mountId
+					|| typeof keyEventToken !== 'string' || keyEventToken.length === 0
+					|| !this.element?.contentWindow || e.source !== this.element.contentWindow
+					|| !e.ports[0]) {
+					return;
+				}
+
 				this.perfMark('webview-ready');
 				this._logService.trace(`Webview(${this.id}): webview ready`);
+
+				this._keyEventToken = keyEventToken;
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -527,9 +567,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				}
 				this._state = WebviewState.Ready;
 
-				subscription.dispose();
+				this._readyListener.clear();
 			}
-		}));
+		});
+		this._readyListener.value = subscription;
 	}
 
 	private perfMark(name: string) {
@@ -611,7 +652,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	public reinitializeAfterDismount(): void {
 		this._state = new WebviewState.Initializing([]);
-		this._messagePort = undefined;
+		this.resetHostChannel();
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));
 		this.style();
@@ -697,7 +738,26 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		// Serialized isTrusted is meaningful only for events authenticated by the shell.
+		if (!this._keyEventToken || event.keyEventToken !== this._keyEventToken) {
+			return false;
+		}
+		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
+	}
+
+	private isActiveElement(): boolean {
+		return !!this.element && this.window?.document.activeElement === this.element;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
+		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
+			return;
+		}
+
+		// Electron: workaround for https://github.com/electron/electron/issues/14258
+		// We have to detect keyboard events in the <webview> and dispatch them to our
+		// keybinding service because these events do not bubble to the parent window anymore.
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target
@@ -760,25 +820,132 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }) {
+		if (this._disposed) {
+			return;
+		}
+
+		const { promise: streamDone, resolve: resolveStreamDone } = promiseWithResolvers<void>();
+		let closeStream: (() => void) | undefined;
+		const cts = new CancellationTokenSource();
+		const request = this._resourceLoadingDisposables.add(toDisposable(() => {
+			closeStream?.();
+			cts.dispose(true);
+			resolveStreamDone();
+		}));
+		const token = cts.token;
+
 		try {
-			const result = await loadLocalResource(uri, {
-				ifNoneMatch,
+			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
+				ifNoneMatch: options.ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
-			}, this._uriIdentityService, this._fileService, this._logService, this._resourceLoadingCts.token);
+				range: options.range,
+			}, token);
+
+			if (this._disposed) {
+				if (result.type === WebviewResourceResponse.Type.Success) {
+					result.stream.resume();
+				}
+				return;
+			}
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {
-					const buffer = await this.streamToBuffer(result.stream);
-					return this._send('did-load-resource', {
-						id,
-						status: 200,
-						path: uri.path,
-						mime: result.mimeType,
-						data: buffer,
-						etag: result.etag,
-						mtime: result.mtime
-					}, [buffer]);
+					const range = options.range;
+					const requestedRangeEnd = range?.end !== undefined ? range.end : result.size - 1;
+					const rangeEnd = Math.min(requestedRangeEnd, result.size - 1);
+					const rangeHeader = range
+						? `bytes ${range.start}-${rangeEnd}/${result.size}`
+						: undefined;
+					if (WebviewElement._supportsTransferableStreams.value) {
+						let controller: ReadableStreamDefaultController<Uint8Array<ArrayBuffer>> | undefined;
+						let closed = false;
+						const close = () => {
+							if (!closed) {
+								closed = true;
+								if (controller) {
+									try { controller.close(); } catch { /* already closed */ }
+								}
+								resolveStreamDone();
+							}
+						};
+						closeStream = close;
+						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
+							start: (newController) => {
+								controller = newController;
+
+								listenStream(result.stream, {
+									onData: (chunk) => {
+										if (!closed) {
+											try {
+												controller?.enqueue(new Uint8Array(chunk.buffer));
+											} catch {
+												close();
+											}
+										}
+									},
+									onError: (err) => {
+										if (!closed) {
+											closed = true;
+											const currentController = controller;
+											if (currentController) {
+												try { currentController.error(err); } catch { /* already closed */ }
+											}
+											resolveStreamDone();
+										}
+									},
+									onEnd: () => close()
+								}, token);
+							},
+							cancel: this.platform === 'electron' ? () => {
+								// Let the file stream finish cancellation so its end/error listeners can clean up.
+								cts.cancel();
+								close();
+							} : undefined,
+						});
+						this._send('did-load-resource', {
+							id,
+							status: range ? 206 : 200,
+							path: uri.path,
+							mime: result.mimeType,
+							etag: result.etag,
+							mtime: result.mtime,
+							range: rangeHeader,
+							stream,
+						}, [stream]);
+					} else {
+						// Safari: transferable streams not supported, fall back to chunk messages
+						this._send('did-load-resource', {
+							id,
+							status: range ? 206 : 200,
+							path: uri.path,
+							mime: result.mimeType,
+							etag: result.etag,
+							mtime: result.mtime,
+							range: rangeHeader,
+						});
+						listenStream(result.stream, {
+							onData: (chunk) => {
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = new Uint8Array(chunk.buffer);
+								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
+							},
+							onError: () => {
+								this._send('did-load-resource-end', { id, error: true });
+								resolveStreamDone();
+							},
+							onEnd: () => {
+								this._send('did-load-resource-end', { id });
+								resolveStreamDone();
+							}
+						}, token);
+					}
+					await streamDone;
+					return;
 				}
 				case WebviewResourceResponse.Type.NotModified: {
 					return this._send('did-load-resource', {
@@ -799,6 +966,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 		} catch {
 			// noop
+		} finally {
+			this._resourceLoadingDisposables.delete(request);
 		}
 
 		return this._send('did-load-resource', {
@@ -806,11 +975,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			status: 404,
 			path: uri.path,
 		});
-	}
-
-	protected async streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
-		const vsBuffer = await streamToBuffer(stream);
-		return vsBuffer.buffer.buffer;
 	}
 
 	private async localLocalhost(id: string, origin: string) {

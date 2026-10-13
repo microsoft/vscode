@@ -14,7 +14,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessions/agentSessionsOpener.js';
@@ -36,8 +36,8 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 
 	private static readonly SESSION_URI = URI.from({ scheme: AgentSessionProviders.Growth, path: '/growth-welcome' });
 
-	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
-	readonly onDidChangeChatSessionItems: Event<void> = this._onDidChangeChatSessionItems.event;
+	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
+	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	private readonly _onDidDismiss = this._register(new Emitter<void>());
 	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
@@ -103,7 +103,9 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 		this.storageService.store(GrowthSessionController.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		// Fire change event first so that listeners (like the model) see empty items
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			removed: [GrowthSessionController.SESSION_URI],
+		});
 		// Then fire dismiss event which triggers unregistration of the controller.
 		this._onDidDismiss.fire();
 	}

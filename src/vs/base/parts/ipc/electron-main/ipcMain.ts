@@ -25,7 +25,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		// Remember the wrapped listener so that later we can
 		// properly implement `removeListener`.
-		const wrappedListener = (event: electron.IpcMainEvent, ...args: any[]) => {
+		const wrappedListener = (event: electron.IpcMainEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -43,7 +43,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * only the next time a message is sent to `channel`, after which it is removed.
 	 */
 	once(channel: string, listener: ipcMainListener): this {
-		electron.ipcMain.once(channel, (event: electron.IpcMainEvent, ...args: any[]) => {
+		electron.ipcMain.once(channel, (event: electron.IpcMainEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -69,7 +69,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * provided to the renderer process. Please refer to #24427 for details.
 	 */
 	handle(channel: string, listener: (event: electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown>): this {
-		electron.ipcMain.handle(channel, (event: electron.IpcMainInvokeEvent, ...args: any[]) => {
+		electron.ipcMain.handle(channel, (event: electron.IpcMainInvokeEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				return listener(event, ...args);
 			}

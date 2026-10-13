@@ -122,6 +122,24 @@ suite('LanguageModelsConfiguration', () => {
 		assert.strictEqual(result[0].vendor, 'vendor');
 	});
 
+	test('parseLanguageModelsConfiguration - __proto__ is an own data property', () => {
+		const model = testDisposables.add(createTextModel('[{ "name": "group", "__proto__": { "vendor": "polluted" } }]'));
+		const result = parseLanguageModelsProviderGroups(model);
+		const group = result[0] as typeof result[0] & { __proto__: { vendor: string } };
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(group),
+			hasOwnProto: Object.hasOwn(group, '__proto__'),
+			protoVendor: group.__proto__.vendor,
+			vendor: group.vendor,
+		}, {
+			prototype: Object.prototype,
+			hasOwnProto: true,
+			protoVendor: 'polluted',
+			vendor: undefined,
+		});
+	});
+
 	test('parseLanguageModelsConfiguration - ranges', () => {
 		const content = `[
 	{
@@ -147,5 +165,45 @@ suite('LanguageModelsConfiguration', () => {
 		assert.strictEqual(g1.range.endLineNumber, 6);
 		assert.strictEqual(g2.range.startLineNumber, 7);
 		assert.strictEqual(g2.range.endLineNumber, 11);
+	});
+
+	test('parseLanguageModelsConfiguration - models range', () => {
+		const content = `[
+	{
+		"vendor": "vendor",
+		"name": "group",
+		"models": [
+			{ "id": "one" },
+			{ "id": "two" }
+		]
+	}
+]`;
+		const model = testDisposables.add(createTextModel(content));
+		const result = parseLanguageModelsProviderGroups(model);
+
+		assert.deepStrictEqual({
+			startLineNumber: result[0].modelsRange?.startLineNumber,
+			endLineNumber: result[0].modelsRange?.endLineNumber
+		}, {
+			startLineNumber: 5,
+			endLineNumber: 8
+		});
+	});
+
+	test('parseLanguageModelsConfiguration - empty models range', () => {
+		const content = JSON.stringify([{
+			vendor: 'vendor',
+			name: 'group',
+			models: []
+		}], null, '\t');
+		const model = testDisposables.add(createTextModel(content));
+		const result = parseLanguageModelsProviderGroups(model);
+
+		assert.deepStrictEqual(result[0].modelsRange, {
+			startLineNumber: 5,
+			startColumn: 13,
+			endLineNumber: 5,
+			endColumn: 15
+		});
 	});
 });

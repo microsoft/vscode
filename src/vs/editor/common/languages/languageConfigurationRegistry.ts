@@ -61,7 +61,10 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 
 	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 
-	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
+	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>({
+		leakWarningThreshold: 500,
+		leakWarningName: 'LanguageConfigurationService.onDidChange' /* increased for multi-diff editors with hundreds of text models */
+	}));
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private readonly configurations = new Map<string, ResolvedLanguageConfiguration>();

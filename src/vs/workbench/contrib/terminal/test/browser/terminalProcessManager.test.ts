@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { deepStrictEqual, strictEqual } from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -13,7 +14,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+
+function listenerCount(emitter: Emitter<unknown>): number {
+	return (emitter as unknown as { _size: number })._size ?? 0;
+}
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -51,12 +57,13 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 }
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
+	readonly ptyHostRestartEmitter = new Emitter<void>();
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
 			onPtyHostResponsive: Event.None,
-			onPtyHostRestart: Event.None,
+			onPtyHostRestart: this.ptyHostRestartEmitter.event,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
 			createProcess: (
@@ -77,6 +84,8 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 
 suite('Workbench - TerminalProcessManager', () => {
 	let manager: TerminalProcessManager;
+	let terminalInstanceService: TestTerminalInstanceService;
+	let environmentVariableService: IEnvironmentVariableService;
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -96,10 +105,26 @@ suite('Workbench - TerminalProcessManager', () => {
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
 		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
-		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		terminalInstanceService = new TestTerminalInstanceService();
+		store.add(terminalInstanceService.ptyHostRestartEmitter);
+		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+		environmentVariableService = instantiationService.get(IEnvironmentVariableService);
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
+	});
+
+	test('does not accumulate environment variable collection listeners when relaunching', async () => {
+		const changeCollectionsEmitter = (environmentVariableService as unknown as { _onDidChangeCollections: Emitter<unknown> })._onDidChangeCollections;
+		const initialListenerCount = listenerCount(changeCollectionsEmitter);
+
+		await manager.createProcess({}, 80, 24, false);
+		strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
+
+		for (let i = 0; i < 3; i++) {
+			await manager.relaunch({}, 80, 24, false);
+			strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
+		}
 	});
 
 	suite('process persistence', () => {
@@ -139,6 +164,41 @@ suite('Workbench - TerminalProcessManager', () => {
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
 			});
+		});
+	});
+
+	suite('pty host restart', () => {
+		async function fireRestartAndCaptureData(os: OperatingSystem, rows: number): Promise<string> {
+			await manager.createProcess({}, 80, rows, false);
+			manager.os = os;
+			let captured: string | undefined;
+			store.add(manager.onProcessData(e => captured = e.data));
+			terminalInstanceService.ptyHostRestartEmitter.fire();
+			return captured!;
+		}
+
+		test('appends viewport-clearing newlines and ESC[H on Windows', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Windows, 24);
+			deepStrictEqual(
+				{ endsWithViewportClear: data.endsWith('\r\n'.repeat(23) + '\x1b[H') },
+				{ endsWithViewportClear: true }
+			);
+		});
+
+		test('does not append viewport-clearing sequence on non-Windows', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Linux, 24);
+			deepStrictEqual(
+				{ containsCursorHome: data.includes('\x1b[H') },
+				{ containsCursorHome: false }
+			);
+		});
+
+		test('does not append viewport-clearing sequence on Windows when rows is 0', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Windows, 0);
+			deepStrictEqual(
+				{ containsCursorHome: data.includes('\x1b[H') },
+				{ containsCursorHome: false }
+			);
 		});
 	});
 });

@@ -655,7 +655,16 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 }
 
 export async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHistoryService, descriptor: ITimelineCommandArgument): Promise<{ entry: IWorkingCopyHistoryEntry | undefined; previous: IWorkingCopyHistoryEntry | undefined }> {
-	const entries = await workingCopyHistoryService.getEntries(descriptor.uri, CancellationToken.None);
+
+	// When the resource URI uses the `vscode-local-history` scheme (e.g.
+	// when triggered from the diff editor), map it back to the original
+	// file URI so that the history service can find matching entries.
+	let uri = descriptor.uri;
+	if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
+		uri = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
+	}
+
+	const entries = await workingCopyHistoryService.getEntries(uri, CancellationToken.None);
 
 	let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;
 	let previousEntry: IWorkingCopyHistoryEntry | undefined = undefined;

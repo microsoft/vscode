@@ -10,12 +10,16 @@ import { MarkdownPreviewManager } from '../preview/previewManager';
 export class OpenImageCommand implements Command {
 	public readonly id = '_markdown.openImage';
 
+	readonly #webviewManager: MarkdownPreviewManager;
+
 	public constructor(
-		private readonly _webviewManager: MarkdownPreviewManager,
-	) { }
+		webviewManager: MarkdownPreviewManager,
+	) {
+		this.#webviewManager = webviewManager;
+	}
 
 	public execute(args: { resource: string; imageSource: string }) {
 		const source = vscode.Uri.parse(args.resource);
-		this._webviewManager.openDocumentLink(args.imageSource, source);
+		this.#webviewManager.openDocumentLink(args.imageSource, source);
 	}
 }

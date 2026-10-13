@@ -129,6 +129,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
+			canMoveView: true,
 			canToggleVisibility: true,
 			focusCommand: {
 				id: 'workbench.explorer.fileView.focus'

@@ -1,0 +1,102 @@
+parameters:
+  - name: vscodePlatform
+    type: string
+    values:
+      - darwin
+      - linux
+      - alpine
+      - win32
+
+# Builds the agent SDK tarballs for ONE VS Code build, and (on real
+# publish runs) uploads them to the CDN, emits
+# `##vso[task.setvariable variable=AGENT_SDK_RESULTS_FILE]<path>`, and
+# leaves the downstream gulp packaging step to stamp product.agentSdks.
+#
+# Upload is gated on VSCODE_PUBLISH=true (the same pipeline variable
+# used by sourcemap uploads and similar release-only side effects).
+# Non-publish runs (PRs, CI, local pipeline tests) still produce the
+# tarballs into `$(Build.SourcesDirectory)/.build/agent-sdk/tarballs/`
+# so the calling job can publish them as a pipelineArtifact for
+# inspection, but they skip the CDN write and the agentSdks stamp.
+#
+# Steps:
+#   1. Setup NPM auth for AGENT_SDK_NPMRC_PATH so the `npm ci` inside
+#      produce.ts can talk to the private vscode-build npm mirror. We
+#      have to do this ourselves because the platform job's existing
+#      "Setup NPM Authentication" step is gated on the node_modules
+#      cache being a miss — on a cache hit, the npmrc has no auth and
+#      our `npm ci` fails with E401 against the mirror. Always-on.
+#   2. AzureCLI@2 to fetch the SPN credentials for the CDN storage
+#      account — skipped on non-publish runs (no CDN write to auth for).
+#   3. Run `node build/agent-sdk/produce.ts`. Always builds; uploads
+#      only on publish; emits task.setvariable only on publish.
+steps:
+  - ${{ if eq(parameters.vscodePlatform, 'win32') }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        # `npm config set` creates ~/.npmrc if missing — needed on
+        # cache-hit runs where the platform job's "Setup NPM" was
+        # skipped and the file doesn't exist yet. Idempotent on
+        # cache-miss runs (just rewrites the same registry line).
+        exec { npm config set registry "$env:NPM_REGISTRY" }
+        $NpmrcPath = (npm config get userconfig)
+        echo "##vso[task.setvariable variable=AGENT_SDK_NPMRC_PATH]$NpmrcPath"
+      condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: "Agent SDK: prepare npmrc"
+
+  - ${{ if ne(parameters.vscodePlatform, 'win32') }}:
+    - script: |
+        set -e
+        # `npm config set` creates ~/.npmrc if missing — needed on
+        # cache-hit runs where the platform job's "Setup NPM" was
+        # skipped and the file doesn't exist yet. Idempotent on
+        # cache-miss runs (just rewrites the same registry line).
+        npm config set registry "$NPM_REGISTRY"
+        echo "##vso[task.setvariable variable=AGENT_SDK_NPMRC_PATH]$(npm config get userconfig)"
+      condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: "Agent SDK: prepare npmrc"
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(AGENT_SDK_NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: "Agent SDK: authenticate npm"
+
+  - task: AzureCLI@2
+    displayName: "Agent SDK: fetch CDN credentials"
+    condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+    inputs:
+      azureSubscription: vscode
+      scriptType: pscore
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+      inlineScript: |
+        Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+
+  - ${{ if eq(parameters.vscodePlatform, 'win32') }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node build/agent-sdk/produce.ts --vscode-platform=${{ parameters.vscodePlatform }} --arch=$(VSCODE_ARCH) }
+      env:
+        AGENT_SDK_RESULTS_FILE: $(Build.SourcesDirectory)/.build/agent-sdk/${{ parameters.vscodePlatform }}-$(VSCODE_ARCH).json
+        AZURE_STORAGE_ACCOUNT: vscodeweb
+        AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+        AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+        AZURE_ID_TOKEN: $(AZURE_ID_TOKEN)
+      displayName: "Agent SDK: build + upload"
+
+  - ${{ if ne(parameters.vscodePlatform, 'win32') }}:
+    - script: |
+        set -e
+        node build/agent-sdk/produce.ts --vscode-platform=${{ parameters.vscodePlatform }} --arch=$(VSCODE_ARCH)
+      env:
+        AGENT_SDK_RESULTS_FILE: $(Build.SourcesDirectory)/.build/agent-sdk/${{ parameters.vscodePlatform }}-$(VSCODE_ARCH).json
+        AZURE_STORAGE_ACCOUNT: vscodeweb
+        AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+        AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+        AZURE_ID_TOKEN: $(AZURE_ID_TOKEN)
+      displayName: "Agent SDK: build + upload"

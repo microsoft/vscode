@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, LineInjectedText, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
@@ -346,6 +346,12 @@ export interface InjectedTextOptions {
 	 * If there is an `inlineClassName` which affects letter spacing.
 	 */
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
+
+	/**
+	 * Sets the width used to wrap this injected text in editor-font em units.
+	 * @internal
+	 */
+	readonly widthInEm?: number;
 
 	/**
 	 * This field allows to attach data to this injected text.
@@ -855,6 +861,12 @@ export interface ITextModel {
 	 * Get the text for a certain line.
 	 */
 	getLineContent(lineNumber: number): string;
+
+	/**
+	 * Get the line injected text for a certain line.
+	 * @internal
+	 */
+	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
 
 	/**
 	 * Get the text length for a certain line.
