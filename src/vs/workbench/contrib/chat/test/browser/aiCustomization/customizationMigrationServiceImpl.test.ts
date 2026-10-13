@@ -922,12 +922,12 @@ suite('CustomizationMigrationService', () => {
 			candidates: [
 				['local', [['MCP_COMMAND', 'npx'], ['MCP_PORT', '8080']], [
 					'Inputs will become environment variables. Configure them in the MCP server details after migrating.',
-					'Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.',
+					'Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.',
 				]],
-				['remote', [['MCP_HOST', 'localhost']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
-				['changed', [['MCP_TIMEOUT', '30']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
-				['unset', [['MCP_MISSING', '']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
-				['structured', [['MCP_OPTIONS', '']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
+				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 			],
 			exclusions: [
 				// The `}` in the value would end the `${NAME:-value}` default early.
