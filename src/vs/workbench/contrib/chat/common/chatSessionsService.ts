@@ -525,7 +525,7 @@ export interface IChatSessionForkOptions {
 	readonly initialMessage?: IChatSessionInitialMessage;
 	/**
 	 * Exact last source turn to include, overriding the request-item's exclusive boundary.
-	 * Providers must preserve this selection while the operation is being prepared.
+	 * An active request resolves to the last completed turn; other explicit selections must be preserved.
 	 */
 	readonly sourceRequestId?: string;
 }

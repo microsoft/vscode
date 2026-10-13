@@ -6699,7 +6699,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri });
 		return chat;
 	}
 
@@ -6740,13 +6740,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				cached.chats.map(chats => chats.find(candidate => isEqual(candidate.resource, forked.resource))),
 				(candidate): candidate is IChat => !!candidate,
 			);
-			// The host-published initial message owns the new chat's model and
-			// mode. Do not replace either with a potentially stale source picker.
-			await this._retainChatSessionModel(
-				chat.resource,
-				cached.getChatModelId(chat.resource),
-				cached.getChatMode(chat.resource)?.id,
-			);
+			// Retain the hydrated input state; the new peer's catalog may not yet carry its model or mode.
+			await this._retainChatSessionModel(chat.resource);
 			return chat;
 		}
 
@@ -6782,7 +6777,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri });
 		return chat;
 	}
 
@@ -6840,7 +6835,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._carriedOverChatModelConfigurations.set(chat.resource.toString(), { modelId: selectedModelId, configuration: modelConfiguration });
 		}
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri, modelConfiguration);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri, modelConfiguration });
 		return chat;
 	}
 
@@ -6982,13 +6977,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, modelConfiguration?: IAutomationSessionTemplate['modelConfiguration']): Promise<void> {
+	private async _retainChatSessionModel(chatResource: URI, selection?: {
+		readonly modelId: string | undefined;
+		readonly agentUri: string | undefined;
+		readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'];
+	}): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
 		}
 
-		this._applyChatSessionState(modelRef, modelId, agentUri, { modelConfiguration });
+		if (selection) {
+			this._applyChatSessionState(modelRef, selection.modelId, selection.agentUri, { modelConfiguration: selection.modelConfiguration });
+		}
 		const resourceKey = chatResource.toString();
 		const lease = new DisposableStore();
 		lease.add(modelRef);

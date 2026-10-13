@@ -271,7 +271,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				return;
 			}
 
-			const title = prompt.trim() || undefined;
+			const title = (isAgentHostSession ? afterCommand : prompt).trim() || undefined;
 			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, title ? { title } : undefined);
 			return undefined;
 		}));

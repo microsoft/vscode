@@ -10670,6 +10670,125 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('forkChat retains a prompt-bearing fork without overwriting its hydrated input state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const rawId = 'multi-fork-prompt-input-state';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const childChat = buildChatUri(sessionUri, 'prompt-child');
+			const sourceTurnInputState: IChatModelInputState = {
+				mode: { id: 'agent://source-custom-agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilotcli:source-model', metadata: createTestLanguageModel('source-model') },
+				modelConfiguration: { reasoningEffort: 'high' },
+				inputText: 'Keep the target draft',
+				attachments: [{ kind: 'file', id: 'source-file', name: 'source.ts', value: URI.file('/workspace/source.ts') }],
+				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 2, positionLineNumber: 1, positionColumn: 4 }],
+				contrib: {},
+			};
+			const inputUpdates: Partial<IChatModelInputState>[] = [];
+			const inputModel = new class extends mock<IInputModel>() {
+				override readonly state = observableValue<IChatModelInputState>(this, sourceTurnInputState);
+				override setState(state: Partial<IChatModelInputState>): void {
+					inputUpdates.push(state);
+					this.state.set({ ...this.state.get(), ...state }, undefined);
+				}
+			}();
+			const targetModel = new class extends mock<IChatModel>() {
+				override readonly inputModel = inputModel;
+			}();
+			const acquiredResources: string[] = [];
+			const releasedResources: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async resource => {
+					if (!resource.fragment) {
+						return undefined;
+					}
+					acquiredResources.push(resource.toString());
+					return {
+						object: targetModel,
+						dispose: () => {
+							releasedResources.push(resource.toString());
+						},
+					};
+				},
+				chatSessionsService: {
+					forkChatSession: async resource => {
+						agentHost.setSessionState(rawId, 'copilotcli', makeState([
+							makeChatSummary(defaultChat, ''),
+							makeChatSummary(childChat, 'Prompt child'),
+						], { defaultChat }));
+						return { resource: resource.with({ fragment: 'prompt-child' }), label: 'Prompt child', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, rawId);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:unsent-picker', ChatModelSource.Chosen);
+			provider.setAgent(session.sessionId, { uri: 'agent://unsent-picker', name: 'Unsent picker' });
+
+			const createCallsBefore = agentHost.createdChats.length;
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'selected-turn', {
+				initialMessage: { text: 'Continue with the source custom agent' },
+			});
+			const retained = {
+				inputState: inputModel.state.get(),
+				inputUpdates: [...inputUpdates],
+				sourceModel: session.mainChat.get().modelId.get(),
+				sourceMode: session.mainChat.get().mode.get(),
+				targetCatalogModel: forked.modelId.get(),
+				targetCatalogMode: forked.mode.get(),
+				acquiredResources: [...acquiredResources],
+				releasedResources: [...releasedResources],
+				createCalls: agentHost.createdChats.length - createCallsBefore,
+			};
+			await timeout(10_000);
+
+			assert.deepStrictEqual({ retained, releasedResources }, {
+				retained: {
+					inputState: sourceTurnInputState,
+					inputUpdates: [],
+					sourceModel: 'agent-host-copilotcli:unsent-picker',
+					sourceMode: { id: 'agent://unsent-picker', kind: ChatModeKind.Agent },
+					targetCatalogModel: undefined,
+					targetCatalogMode: undefined,
+					acquiredResources: [forked.resource.toString()],
+					releasedResources: [],
+					createCalls: 0,
+				},
+				releasedResources: [forked.resource.toString()],
+			});
+		}));
+
+		test('forkChat preserves the built-in agent default for bare and named forks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } } as AgentInfo]);
+			const inputStates: Partial<IChatModelInputState>[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+					override readonly inputModel = new class extends mock<IInputModel>() {
+						override setState(state: Partial<IChatModelInputState>): void {
+							inputStates.push(state);
+						}
+					}();
+				}()),
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-default-agent');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-default-agent').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-fork-default-agent', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+			await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Named fork' });
+
+			assert.deepStrictEqual(inputStates, [
+				{ mode: { id: 'agent', kind: ChatModeKind.Agent } },
+				{ mode: { id: 'agent', kind: ChatModeKind.Agent } },
+			]);
+		}));
+
 		test('forkChat omits an unsupported initial title and returns the host-generated peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);

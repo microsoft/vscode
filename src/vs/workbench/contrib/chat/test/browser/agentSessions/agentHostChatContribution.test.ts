@@ -6209,7 +6209,7 @@ suite('AgentHostChatContribution', () => {
 	// ---- Forking ---------------------------------------------------------
 
 	suite('forking', () => {
-		async function forkSession(initialTitle: boolean | undefined, requestedTitle: string, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string }) {
+		async function forkSession(initialTitle: boolean | undefined, requestedTitle: string, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', `fork-${initialTitle === true ? 'supported' : 'legacy'}`);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
@@ -6251,6 +6251,15 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: undefined,
 				})),
+				...(boundary?.activeTurnId ? {
+					activeTurn: {
+						id: boundary.activeTurnId,
+						startedAt: new Date().toISOString(),
+						message: { text: 'Streaming request', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: undefined,
+					},
+				} : {}),
 				...(sourceSelection ? {
 					draft: {
 						text: 'Unsaved composer draft',
@@ -6282,6 +6291,34 @@ suite('AgentHostChatContribution', () => {
 				sourceChat,
 			};
 		}
+
+		test('prompt fork from an active request keeps the last completed turn', async () => {
+			const result = await forkSession(true, 'Fork', 'Fork', { text: 'Continue in a fork' }, false, {
+				turnCount: 2,
+				sourceRequestId: 'streaming-turn',
+				activeTurnId: 'streaming-turn',
+			});
+			assert.deepStrictEqual({
+				source: result.call.options?.fork?.source.toString(),
+				turnId: result.call.options?.fork?.turnId,
+				prompt: result.call.options?.initialMessage?.text,
+			}, {
+				source: result.sourceChat,
+				turnId: 'source-turn-2',
+				prompt: 'Continue in a fork',
+			});
+		});
+
+		test('prompt fork from an active first request cannot invent a completed boundary', async () => {
+			await assert.rejects(
+				forkSession(true, 'Fork', 'Fork', { text: 'Continue in a fork' }, false, {
+					turnCount: 0,
+					sourceRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: no turns to fork from/,
+			);
+		});
 
 		for (const boundary of [
 			{ turnCount: 1, sourceRequestId: 'source-turn' },

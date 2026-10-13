@@ -204,11 +204,16 @@ suite('ForkConversationAction', () => {
 			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
 		const resource = URI.parse('contributed:/source');
+		const agentHostResource = URI.parse('agent-host-copilot:/source');
 
 		assert.ok(forkCommand);
 		for (const prompt of ['', '   ', '  My  title.  ']) {
 			await forkCommand(prompt, { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None);
 		}
+		await forkCommand('icipant /fork Participant title  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '@participant /fork Participant title  ' });
+		await forkCommand('ork  Leading title  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '   /fork  Leading title  ' });
+		await forkCommand('  Fallback  title.  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None);
+		await forkCommand('Legacy title', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork Different title' });
 
 		assert.deepStrictEqual({
 			executeImmediately: forkData?.executeImmediately,
@@ -221,6 +226,10 @@ suite('ForkConversationAction', () => {
 				{ resource, options: undefined },
 				{ resource, options: undefined },
 				{ resource, options: { title: 'My  title.' } },
+				{ resource: agentHostResource, options: { title: 'Participant title' } },
+				{ resource: agentHostResource, options: { title: 'Leading title' } },
+				{ resource: agentHostResource, options: { title: 'Fallback  title.' } },
+				{ resource, options: { title: 'Legacy title' } },
 			],
 		});
 	});
@@ -257,13 +266,42 @@ suite('ForkConversationAction', () => {
 		});
 	});
 
+	const circularMetadata: { self?: object } = {};
+	circularMetadata.self = circularMetadata;
+	const sharedRequestOptions = { attachedContext: [] };
 	const forkIdentityCases: { name: string; first: IForkConversationOptions; second: IForkConversationOptions }[] = [
 		{ name: 'requested title', first: { title: 'First' }, second: { title: 'Second' } },
 		{ name: 'initial prompt', first: { initialMessage: { text: 'First' } }, second: { initialMessage: { text: 'Second' } } },
+		{ name: 'source request', first: { title: 'Same title', sourceRequestId: 'first' }, second: { title: 'Same title', sourceRequestId: 'second' } },
+		{
+			name: 'initial prompt offset',
+			first: { initialMessage: { text: 'Same prompt', textOffset: 13, requestOptions: sharedRequestOptions } },
+			second: { initialMessage: { text: 'Same prompt', textOffset: 20, requestOptions: sharedRequestOptions } },
+		},
+		{
+			name: 'initial prompt intent reference',
+			first: { initialMessage: { text: 'Same prompt' } },
+			second: { initialMessage: { text: 'Same prompt' } },
+		},
 		{
 			name: 'initial attachment payload',
 			first: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 'first payload' }] } } },
 			second: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 'second payload' }] } } },
+		},
+		{
+			name: 'circular attachment value and metadata context',
+			first: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: circularMetadata, _meta: circularMetadata }] } } },
+			second: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: circularMetadata, _meta: circularMetadata }] } } },
+		},
+		{
+			name: 'BigInt attachment context',
+			first: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 1n }] } } },
+			second: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 2n }] } } },
+		},
+		{
+			name: 'function attachment context with colliding serialization',
+			first: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: () => 'first payload' }] } } },
+			second: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: () => 'second payload' }] } } },
 		},
 	];
 	for (const scenario of forkIdentityCases) {
@@ -272,9 +310,9 @@ suite('ForkConversationAction', () => {
 			const source = URI.parse('contributed:/source');
 			const calls: (object | undefined)[] = [];
 			const gates: DeferredPromise<IChatSessionItem>[] = [];
-			const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
 			instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ openSession: async () => undefined }));
+			instantiationService.stub(INotificationService, new TestNotificationService());
 			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 				getContentProviderSchemes: () => [source.scheme],
 				sessionSupportsFork: () => true,
@@ -282,27 +320,79 @@ suite('ForkConversationAction', () => {
 					calls.push(options);
 					const gate = new DeferredPromise<IChatSessionItem>();
 					gates.push(gate);
-					started[calls.length - 1].complete();
 					return gate.p;
 				},
 			}));
-			const action = new class extends ForkConversationAction {
-				protected override async _openForkedSession(): Promise<void> { }
-			};
+			const action = new ForkConversationAction();
 
 			const first = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.first));
-			await started[0].p;
 			const second = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.second));
-			await started[1].p;
 			const duplicate = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.first));
+			const repeatedContext = instantiationService.invokeFunction(accessor => action.run(accessor, source, {
+				...scenario.first,
+				...(scenario.first.initialMessage?.requestOptions ? { initialMessage: { ...scenario.first.initialMessage } } : {}),
+			}));
+			const outcomes = Promise.allSettled([first, second, duplicate, repeatedContext]);
 			await timeout(0);
-			gates[0].complete({ resource: URI.parse('contributed:/fork-1'), label: 'Fork 1', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
-			gates[1].complete({ resource: URI.parse('contributed:/fork-2'), label: 'Fork 2', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
-			await Promise.all([first, second, duplicate]);
+			for (const [index, gate] of gates.entries()) {
+				gate.complete({ resource: URI.parse(`contributed:/fork-${index + 1}`), label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
+			}
+			const results = await outcomes;
+			await timeout(0);
 
-			assert.deepStrictEqual(calls, [scenario.first, scenario.second]);
+			assert.deepStrictEqual({ calls, outcomes: results.map(result => result.status) }, {
+				calls: [scenario.first, scenario.second],
+				outcomes: ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'],
+			});
 		});
 	}
+
+	test('clears a failed pending fork before retrying the same context', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const source = URI.parse('contributed:/source');
+		const target = URI.parse('contributed:/fork');
+		const cause = new Error('Unable to create the fork');
+		const gate = new DeferredPromise<IChatSessionItem>();
+		const options: IForkConversationOptions = {
+			initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 1n }] } },
+		};
+		let creations = 0;
+		let openings = 0;
+		let fail = true;
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			openSession: async () => {
+				openings++;
+				return undefined;
+			},
+		}));
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getContentProviderSchemes: () => [source.scheme],
+			forkChatSession: async () => {
+				creations++;
+				if (fail) {
+					return gate.p;
+				}
+				return { resource: target, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
+			},
+		}));
+		const action = new ForkConversationAction();
+		const first = instantiationService.invokeFunction(accessor => action.run(accessor, source, options));
+		const duplicate = instantiationService.invokeFunction(accessor => action.run(accessor, source, options));
+		const outcomes = Promise.allSettled([first, duplicate]);
+		await timeout(0);
+		gate.error(cause);
+		const results = await outcomes;
+		fail = false;
+		await instantiationService.invokeFunction(accessor => action.run(accessor, source, options));
+
+		assert.deepStrictEqual({
+			errors: results.map(result => result.status === 'rejected' ? result.reason : undefined),
+			creations,
+			openings,
+		}, { errors: [cause, cause], creations: 2, openings: 1 });
+	});
 
 	test('opens a fork with the current session selection reason', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());

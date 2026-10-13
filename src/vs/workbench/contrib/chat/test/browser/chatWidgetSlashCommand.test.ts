@@ -59,7 +59,7 @@ suite('ChatWidget Slash Commands', () => {
 		const widget = {
 			viewModel: widgetModel,
 			getInput: () => input,
-			input: { attachmentModel: { getAttachmentIDs: () => attachmentIds } },
+			input: { attachmentModel: { getAttachmentIDs: () => attachmentIds, get attachments() { return sourceState.get().attachments; } } },
 			parsedInput: upcastPartial<IParsedChatRequest>({
 				parts: [new ChatRequestSlashCommandPart(new OffsetRange(0, '/fork'.length), new Range(1, 1, 1, 6), { command: 'fork', detail: 'Fork', locations: [ChatAgentLocation.Chat] })],
 			}),
@@ -107,6 +107,37 @@ suite('ChatWidget Slash Commands', () => {
 		input = 'plain text /fork prompt mention';
 		(widget as unknown as { parsedInput: IParsedChatRequest }).parsedInput = upcastPartial<IParsedChatRequest>({ parts: [] });
 		assert.strictEqual(privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined), undefined);
+	});
+
+	test('fork prompt cleanup preserves changed attachment content with unchanged IDs', () => {
+		const original = toPasteVariableEntry('Pasted text', 'original content', { id: 'same-id' });
+		const updated = toPasteVariableEntry('Pasted text', 'edited content', { id: 'same-id' });
+		const inputText = '/fork prompt preserve this';
+		const state = observableValue('sourceInput', { inputText, attachments: [original] });
+		const inputModel = {
+			state,
+			setState: (change: Partial<ReturnType<typeof state.get>>) => state.set({ ...state.get(), ...change }, undefined),
+		};
+		const widget = {
+			viewModel: {
+				sessionResource: URI.parse('agent-host-copilot:/source'),
+				model: { inputModel },
+			},
+			getInput: () => state.get().inputText,
+			input: { attachmentModel: { getAttachmentIDs: () => new Set(state.get().attachments.map(attachment => attachment.id)), get attachments() { return state.get().attachments; } } },
+			parsedInput: upcastPartial<IParsedChatRequest>({
+				parts: [new ChatRequestSlashCommandPart(new OffsetRange(0, 5), new Range(1, 1, 1, 6), { command: 'fork', detail: 'Fork', locations: [ChatAgentLocation.Chat] })],
+			}),
+		} as unknown as ChatWidget;
+		const privateMethods = ChatWidget.prototype as unknown as {
+			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined;
+		};
+		const cleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined);
+		assert.ok(cleanup);
+		state.set({ inputText, attachments: [] }, undefined);
+		state.set({ inputText, attachments: [updated] }, undefined);
+		cleanup();
+		assert.deepStrictEqual(state.get(), { inputText, attachments: [updated] });
 	});
 
 	test('during-request execution retains attachments for a non-preserved slash command', async () => {

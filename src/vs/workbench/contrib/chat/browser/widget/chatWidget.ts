@@ -13,6 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CancellationError, ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -3334,7 +3335,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		const sourceInputModel = this.viewModel?.model.inputModel;
-		const ownedAttachmentIds = this.input.attachmentModel.getAttachmentIDs();
+		const ownedAttachments = [...this.input.attachmentModel.attachments];
 		// Keep cleanup bound to the source model even after navigating to the fork.
 		return () => {
 			if (!sourceInputModel) {
@@ -3344,8 +3345,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (state?.inputText !== ownedInput) {
 				return;
 			}
-			const attachmentIds = new Set((state.attachments ?? []).map(attachment => attachment.id));
-			if (attachmentIds.size !== ownedAttachmentIds.size || [...attachmentIds].some(id => !ownedAttachmentIds.has(id))) {
+			if (!structuralEquals(state.attachments ?? [], ownedAttachments)) {
 				return;
 			}
 			sourceInputModel.setState({ inputText: '', attachments: [] });

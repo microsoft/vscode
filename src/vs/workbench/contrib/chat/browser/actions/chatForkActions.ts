@@ -279,19 +279,20 @@ export class ForkConversationAction extends Action2 {
 		return false;
 	}
 
-	private pendingFork = new Map<string, Promise<void>>();
+	private readonly pendingForks = new Set<{ readonly key: string; readonly context: object | undefined; readonly promise: Promise<void> }>();
 
 	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options?: IForkConversationOptions) {
 		const title = options?.title?.trim() || undefined;
 		const forkOptions: IChatSessionForkOptions | undefined = title || options?.initialMessage
 			? { ...(title ? { title } : {}), ...(options?.initialMessage ? { initialMessage: options.initialMessage } : {}), ...(options?.sourceRequestId ? { sourceRequestId: options.sourceRequestId } : {}) }
 			: undefined;
-		// Message context is part of the operation identity: only an identical
-		// in-flight fork may coalesce.
-		const pendingKey = JSON.stringify([sourceSessionResource.toString(), request?.id, title, options?.initialMessage]);
-		const pending = this.pendingFork.get(pendingKey);
-		if (pending) {
-			return pending;
+		const initialMessage = options?.initialMessage;
+		const pendingKey = JSON.stringify([sourceSessionResource.toString(), request?.id, options?.sourceRequestId, title, initialMessage?.text, initialMessage?.textOffset]);
+		const context = initialMessage?.requestOptions ?? initialMessage;
+		for (const pending of this.pendingForks) {
+			if (pending.key === pendingKey && pending.context === context) {
+				return pending.promise;
+			}
 		}
 
 		const forkPromise = (async () => {
@@ -316,11 +317,12 @@ export class ForkConversationAction extends Action2 {
 			}
 		})();
 
-		this.pendingFork.set(pendingKey, forkPromise);
+		const pending = { key: pendingKey, context, promise: forkPromise };
+		this.pendingForks.add(pending);
 		try {
 			await forkPromise;
 		} finally {
-			this.pendingFork.delete(pendingKey);
+			this.pendingForks.delete(pending);
 		}
 	}
 
