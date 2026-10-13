@@ -2169,6 +2169,8 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
+	private refreshRequested = false;
+	private actionRunning = false;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
 		super(context, action, options);
@@ -2179,9 +2181,28 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		container.classList.add('chat-pill-item');
 		const button = this.button = this._register(new Button(container, { secondary: this.secondary, supportIcons: !!this.refreshing, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
-		this._register(button.onDidClick(() => {
-			if (button.enabled) {
-				this.actionRunner.run(this._action, this._context);
+		this._register(button.onDidClick(async () => {
+			if (!button.enabled) {
+				return;
+			}
+			if (this.refreshing) {
+				this.refreshRequested = true;
+				this.updateEnabled();
+				if (this.refreshing.get()) {
+					return;
+				}
+			}
+			this.actionRunning = true;
+			this.updateLabel();
+			try {
+				await this.actionRunner.run(this._action, this._context);
+			} finally {
+				this.actionRunning = false;
+				if (!this.refreshing?.get()) {
+					this.refreshRequested = false;
+				}
+				this.updateLabel();
+				this.updateEnabled();
 			}
 		}));
 		this.updateLabel();
@@ -2189,7 +2210,9 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		const refreshing = this.refreshing;
 		if (refreshing) {
 			this._register(autorun(reader => {
-				refreshing.read(reader);
+				if (!refreshing.read(reader) && !this.actionRunning) {
+					this.refreshRequested = false;
+				}
 				this.updateLabel();
 				this.updateEnabled();
 			}));
@@ -2203,13 +2226,13 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 
 	protected override updateEnabled(): void {
-		if (this.button) { this.button.enabled = this._action.enabled && !this.refreshing?.get(); }
+		if (this.button) { this.button.enabled = this._action.enabled && !this.refreshRequested; }
 	}
 
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
 		if (this.refreshing) {
-			this.button.label = `$(${this.refreshing.get() ? ThemeIcon.modify(Codicon.refresh, 'spin').id : Codicon.refresh.id})`;
+			this.button.label = `$(${this.refreshing.get() || this.refreshRequested ? ThemeIcon.modify(Codicon.refresh, 'spin').id : Codicon.refresh.id})`;
 			return;
 		}
 		DOM.reset(this.button.element, this._action.label);

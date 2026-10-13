@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub, useFakeTimers } from 'sinon';
+import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
@@ -733,6 +734,17 @@ suite('AutomationsCardsWidget', () => {
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, windowFocus, actionFactories };
 	}
 
+	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
+		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
+		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add(toDisposable(() => container.remove()));
+		item.render(container);
+		return container.querySelector<HTMLElement>('.monaco-button')!;
+	}
+
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
 		const { widget, automationService, refreshErrors, instantiationService, contextKeyService } = setup();
 		widget.focus();
@@ -778,15 +790,11 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('refresh icon tracks background definition and history refreshes without blocking cards', async () => {
-		const { automationService, automationDialogService, widget, instantiationService, contextKeyService, actionFactories } = setup();
+		const context = setup();
+		const { automationService, automationDialogService, widget, commandService } = context;
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([automation()]);
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
-			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
-		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
-		const container = document.createElement('div');
-		item.render(container);
-		const button = container.querySelector<HTMLElement>('.monaco-button')!;
+		const button = renderRefreshButton(context);
 		const state = () => ({
 			label: button.getAttribute('aria-label'),
 			text: button.textContent,
@@ -796,20 +804,76 @@ suite('AutomationsCardsWidget', () => {
 		const idle = state();
 		automationService.isRefreshing.set(true, undefined);
 		const definitions = state();
+		button.click();
+		const clickedDuringRefresh = state();
+		button.click();
 		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!.click();
 		await timeout(0);
 		automationService.historyState.set('loading', undefined);
 		automationService.isRefreshing.set(false, undefined);
 		const history = state();
 		automationService.historyState.set('error', undefined);
-		assert.deepStrictEqual({ idle, definitions, history, failed: state(), edits: automationDialogService.showCalls }, {
+		assert.deepStrictEqual({ idle, definitions, clickedDuringRefresh, history, failed: state(), edits: automationDialogService.showCalls, commands: commandService.calls }, {
 			idle: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
-			definitions: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
+			definitions: { label: 'Refresh', text: '', spinning: true, disabled: 'false' },
+			clickedDuringRefresh: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
 			history: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
 			failed: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
 			edits: 1,
+			commands: [],
 		});
+		automationService.historyState.set('loading', undefined);
+		assert.strictEqual(button.getAttribute('aria-disabled'), 'false', 'a later background refresh does not disable the button');
+		button.click();
+		const clickedDuringHistory = button.getAttribute('aria-disabled');
+		automationService.historyState.set('ready', undefined);
+		assert.deepStrictEqual({ clickedDuringHistory, disabled: button.getAttribute('aria-disabled'), commands: commandService.calls },
+			{ clickedDuringHistory: 'true', disabled: 'false', commands: [] });
 	});
+
+	for (const fails of [false, true]) {
+		test(`clicking idle refresh disables and animates until the request ${fails ? 'fails' : 'finishes'}`, async () => {
+			const context = setup();
+			const { automationService, commandService, instantiationService, refreshErrors } = context;
+			await timeout(0);
+			automationService.setCatalogueState('ready');
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
+			const execute = stub(commandService, 'executeCommand').callsFake(async commandId => {
+				const command = CommandsRegistry.getCommand(commandId)!;
+				await instantiationService.invokeFunction(accessor => command.handler(accessor));
+				return undefined;
+			});
+			disposables.add(toDisposable(() => execute.restore()));
+			const button = renderRefreshButton(context);
+			button.click();
+			button.click();
+			const icon = button.querySelector<HTMLElement>('.codicon-refresh')!;
+			const animation = icon.getAnimations()[0];
+			assert.ok(animation, 'refresh must have an actual CSS animation, not only a modifier class');
+			animation.pause();
+			animation.currentTime = 0;
+			const initialTransform = getWindow(icon).getComputedStyle(icon).transform;
+			animation.currentTime = 750;
+			assert.deepStrictEqual({
+				disabled: button.getAttribute('aria-disabled'),
+				animation: getWindow(icon).getComputedStyle(icon).animationName,
+				rotates: getWindow(icon).getComputedStyle(icon).transform !== initialTransform,
+				calls: execute.callCount,
+			}, { disabled: 'true', animation: 'codicon-spin', rotates: true, calls: 1 });
+			automationService.isRefreshing.set(true, undefined);
+			automationService.isRefreshing.set(false, undefined);
+			assert.strictEqual(button.getAttribute('aria-disabled'), 'true', 'keep waiting for the clicked request');
+			automationService.refreshFailure = fails ? new Error('Offline') : undefined;
+			await pending.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				disabled: button.getAttribute('aria-disabled'),
+				animations: button.querySelector('.codicon-refresh')!.getAnimations().length,
+				errors: refreshErrors,
+			}, { disabled: 'false', animations: 0, errors: fails ? ['Could not refresh automations: Offline'] : [] });
+		});
+	}
 
 	test('external run rows preserve identity, expose status and support keyboard actions without a native session', async () => {
 		const { widget, automationService, opened } = setup();

@@ -39,8 +39,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	private readonly pendingRefreshes = observableValue(this, 0);
 	readonly isRefreshing = derived(this, reader =>
-		this.store.read(reader)?.isRefreshing.read(reader) === true || this.historyState.read(reader) === 'loading');
+		this.pendingRefreshes.read(reader) > 0 || this.store.read(reader)?.isRefreshing.read(reader) === true || this.historyState.read(reader) === 'loading');
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
@@ -165,6 +166,15 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	async refresh(): Promise<void> {
+		this.pendingRefreshes.set(this.pendingRefreshes.get() + 1, undefined);
+		try {
+			await this.refreshCatalogueAndHistory();
+		} finally {
+			this.pendingRefreshes.set(this.pendingRefreshes.get() - 1, undefined);
+		}
+	}
+
+	private async refreshCatalogueAndHistory(): Promise<void> {
 		const store = this.requireStore();
 		try {
 			await store.refresh();

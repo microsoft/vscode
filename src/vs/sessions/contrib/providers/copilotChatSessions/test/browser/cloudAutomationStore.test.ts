@@ -224,6 +224,8 @@ suite('CloudAutomationStore', () => {
 		const history = new DeferredPromise<void>();
 		api.pendingList = list.p;
 		api.pendingHistory = history.p;
+		const refreshingStates: boolean[] = [];
+		disposables.add(autorun(reader => refreshingStates.push(provider.isRefreshing.read(reader))));
 		const first = provider.refresh();
 		const second = provider.refresh();
 		await timeout(0);
@@ -237,10 +239,11 @@ suite('CloudAutomationStore', () => {
 		const loadingHistory = { refreshing: provider.isRefreshing.get(), history: provider.historyState.get() };
 		await history.complete();
 		await Promise.all([first, second]);
-		assert.deepStrictEqual({ definitions, loadingHistory, refreshing: provider.isRefreshing.get() }, {
+		assert.deepStrictEqual({ definitions, loadingHistory, refreshing: provider.isRefreshing.get(), refreshingStates }, {
 			definitions: { refreshing: true, catalogue: 'ready', editable: true },
 			loadingHistory: { refreshing: true, history: 'loading' },
 			refreshing: false,
+			refreshingStates: [false, true, false],
 		});
 	});
 
@@ -574,7 +577,7 @@ suite('CloudAutomationStore', () => {
 		api.calls.length = 0;
 		let hideAfterRefresh = false;
 		disposables.add(autorun(reader => {
-			if (!provider.isRefreshing.read(reader) && hideAfterRefresh) {
+			if (provider.automations.read(reader).length > 0 && hideAfterRefresh) {
 				hideAfterRefresh = false;
 				entitlement.sentiment = { hidden: true };
 				sentimentChanged.fire();
