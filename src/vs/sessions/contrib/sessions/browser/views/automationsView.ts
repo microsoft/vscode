@@ -1608,9 +1608,22 @@ class AutomationHistorySection extends Disposable {
 		if (run.externalResource) {
 			const actions = DOM.append(element, $('.automations-run-actions'));
 			const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { telemetrySource: 'automationRun' }));
-			const open = disposables.add(new Action('sessions.automations.openRunSession', localize('automationOpenSession', "Open Session"), ThemeIcon.asClassName(Codicon.commentDiscussion), true, async () => {
-				if (currentRun.sessionResource) {
-					await this.openRunSession(currentRun.sessionResource);
+			disposables.add(Gesture.addTarget(element));
+			for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+				disposables.add(DOM.addDisposableListener(element, eventType, event => {
+					const target = (event as GestureEvent).initialTarget ?? event.target;
+					if (target instanceof Node && DOM.isAncestor(target, actions)) {
+						return;
+					}
+					if (currentRun.sessionResource) {
+						void this.openRunSession(currentRun.sessionResource);
+					}
+				}));
+			}
+			disposables.add(DOM.addDisposableListener(main, DOM.EventType.KEY_DOWN, event => {
+				if (event.target === main && currentRun.sessionResource && (event.key === 'Enter' || event.key === ' ')) {
+					DOM.EventHelper.stop(event, true);
+					void this.openRunSession(currentRun.sessionResource);
 				}
 			}));
 			const external = disposables.add(new Action(OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID, localize('automationOpenExternal', "Open on GitHub"), ThemeIcon.asClassName(Codicon.linkExternal), true, () => this.openRunOnGitHub(currentRun)));
@@ -1656,7 +1669,7 @@ class AutomationHistorySection extends Disposable {
 				if (actionsKey !== key) {
 					const hadFocus = actions.contains(DOM.getActiveElement());
 					actionsKey = key;
-					toolbar.setActions([...(canOpen ? [open] : []), external, ...(canStop ? [stop] : []), ...(canArchive ? [archive] : [])]);
+					toolbar.setActions([external, ...(canStop ? [stop] : []), ...(canArchive ? [archive] : [])]);
 					if (hadFocus) {
 						toolbar.focus(0);
 					}
@@ -1689,6 +1702,19 @@ class AutomationHistorySection extends Disposable {
 					details = localize('automationRunDetails', "{0}, {1}, {2}", repository.textContent, label, timeDate.toLocaleString());
 				}
 				element.setAttribute('aria-label', localize('automationRunState', "{0}, {1}", title, details));
+				if (run.externalResource) {
+					const canOpen = run.sessionResource !== undefined;
+					element.classList.toggle('can-open', canOpen);
+					if (canOpen) {
+						main.tabIndex = 0;
+						main.setAttribute('role', 'button');
+						main.setAttribute('aria-label', localize('automationOpenRunSession', "Open session: {0}, {1}", title, details));
+					} else {
+						main.removeAttribute('tabindex');
+						main.removeAttribute('role');
+						main.removeAttribute('aria-label');
+					}
+				}
 				titleHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), titleElement, title);
 				detailsHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), detailsRow, details);
 				if (run.externalResource) {

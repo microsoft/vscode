@@ -300,7 +300,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.cloud ? createCloudData(options.nativeCloud) : options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 	});
@@ -310,7 +310,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const runs = options.emptyHistory ? [] : data.runs;
 	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
-	const sessionsManagementService = new FixtureSessionsManagementService(runs);
+	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
 		override readonly plugins = constObservable(options.pluginTemplate ? [
 			new class extends mock<IAgentPlugin>() {
@@ -420,7 +420,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	}
 }
 
-function createCloudData(native = false): IAutomationsFixtureData {
+function createCloudData(): IAutomationsFixtureData {
 	const automations = createPopulatedData().automations.slice(0, 2).map((automation, index) => ({
 		...automation,
 		enabled: index === 0,
@@ -432,7 +432,7 @@ function createCloudData(native = false): IAutomationsFixtureData {
 		id: `cloud-run-${index}`, automationId: automations[0].id, status, trigger: 'external',
 		startedAt: new Date(new Date().setHours(9, index * 10, 0, 0)).toISOString(),
 		externalResource: URI.parse(`https://github.com/example/private-project/tasks/task-${index}`),
-		...(native && index > 0 ? { sessionResource: URI.parse(`copilot-cloud-agent:/task/task-${index}`) } : {}),
+		...(index > 0 ? { sessionResource: URI.parse(`copilot-cloud-agent:/task/task-${index}`) } : {}),
 		...(status === 'running' ? { needsInput: true, statusDescription: 'Needs input on GitHub' } : {}),
 		...(status === 'failed' ? { errorMessage: 'Cancelled' } : {}),
 	}));

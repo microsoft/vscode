@@ -858,9 +858,75 @@ suite('AutomationsCardsWidget', () => {
 		const resource = URI.parse('copilot-cloud-agent:/task/not-listed');
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ sessionResource: resource, externalResource: URI.parse('https://github.com/owner/private/tasks/not-listed') })]);
-		widget.element.querySelector<HTMLElement>('[aria-label="Open Session"]')!.click();
+		widget.element.querySelector<HTMLElement>('.automations-temporary-run')!.click();
 		await dialogService.errorCalled.p;
 		assert.deepStrictEqual({ resolved: sessionsManagementService.resolved.map(uri => uri.toString()), opens: sessionsService.openCalls, errors: dialogService.errors.length }, { resolved: [resource.toString()], opens: 0, errors: 1 });
+	});
+
+	for (const key of ['Enter', ' ']) {
+		test(`unresolved cloud history opens its exact session with ${key === ' ' ? 'Space' : key}`, async () => {
+			const { widget, automationService, sessionsManagementService, dialogService } = setup();
+			const resource = URI.parse('copilot-cloud-agent:/task/not-listed');
+			automationService.setAutomations([automation()]);
+			automationService.setRuns([run({ sessionResource: resource, externalResource: URI.parse('https://github.com/owner/private/tasks/not-listed') })]);
+			const row = widget.element.querySelector<HTMLElement>('.automations-temporary-run')!;
+			const main = row.querySelector<HTMLElement>('.session-main')!;
+			main.focus();
+			dispatchKeydown(main, { key, keyCode: key === 'Enter' ? 13 : 32 });
+			await dialogService.errorCalled.p;
+			assert.deepStrictEqual({
+				resolved: sessionsManagementService.resolved.map(uri => uri.toString()),
+				role: main.getAttribute('role'), tabIndex: main.tabIndex,
+				label: main.getAttribute('aria-label')?.startsWith('Open session: Daily review,'),
+				highlightable: row.classList.contains('can-open'),
+				openButton: !!row.querySelector('[aria-label="Open Session"]'),
+			}, { resolved: [resource.toString()], role: 'button', tabIndex: 0, label: true, highlightable: true, openButton: false });
+		});
+	}
+
+	test('fallback row activation is limited to cloud runs with a session and follows resource updates', async () => {
+		const { widget, automationService, sessionsManagementService } = setup();
+		automationService.setAutomations([automation()]);
+		const local = run({ status: 'running', sessionResource: undefined });
+		const cloud = run({ id: 'cloud', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/not-listed') });
+		automationService.setRuns([local, cloud]);
+		const rows = [...widget.element.querySelectorAll<HTMLElement>('.automations-temporary-run')];
+		for (const row of rows) {
+			row.click();
+			dispatchKeydown(row.querySelector<HTMLElement>('.session-main')!, { key: 'Enter', keyCode: 13 });
+		}
+		await timeout(0);
+		const initial = rows.map(row => ({
+			highlightable: row.classList.contains('can-open'),
+			role: row.querySelector('.session-main')!.getAttribute('role'),
+		}));
+		const resource = URI.parse('copilot-cloud-agent:/task/not-listed');
+		automationService.setRuns([local, { ...cloud, sessionResource: resource }]);
+		const cloudRow = widget.element.querySelector<HTMLElement>('.automations-temporary-run.can-open')!;
+		const becameOpenable = !!cloudRow;
+		automationService.setRuns([local, cloud]);
+		assert.deepStrictEqual({
+			initial, resolved: sessionsManagementService.resolved, becameOpenable,
+			removed: !cloudRow.classList.contains('can-open') && !cloudRow.querySelector('.session-main')!.hasAttribute('tabindex'),
+		}, { initial: [{ highlightable: false, role: null }, { highlightable: false, role: null }], resolved: [], becameOpenable: true, removed: true });
+	});
+
+	test('cloud fallback toolbar actions do not also open the session', async () => {
+		const { widget, automationService, sessionsManagementService, opened } = setup();
+		const externalResource = URI.parse('https://github.com/owner/private/tasks/not-listed');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running', sessionResource: URI.parse('copilot-cloud-agent:/task/not-listed'), externalResource })]);
+		const row = widget.element.querySelector<HTMLElement>('.automations-temporary-run')!;
+		row.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!.click();
+		const stop = row.querySelector<HTMLElement>('[aria-label="Stop"]')!;
+		stop.focus();
+		stop.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		dispatchKeydown(stop, { key: 'Enter', keyCode: 13 });
+		stop.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({ resolved: sessionsManagementService.resolved, opened, stopped: automationService.stoppedRuns }, {
+			resolved: [], opened: [externalResource.toString()], stopped: [RUN_ID],
+		});
 	});
 
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
