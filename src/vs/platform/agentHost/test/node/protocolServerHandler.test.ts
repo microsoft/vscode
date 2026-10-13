@@ -73,7 +73,7 @@ import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.j
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -5535,6 +5535,67 @@ suite('ProtocolServerHandler', () => {
 		} finally {
 			await rm(path, { recursive: true });
 		}
+	});
+
+	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
+		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';
+		const laterOpaquePeer = 'ahp-chat:/33333333-3333-4333-8333-333333333333';
+		const opaqueSession = 'ahp-session:/opaque-default';
+		const shapedSession = 'ahp-session:/shaped-default';
+		stateManager.restoreSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefaultChat }, [], creationTimeChatStorageResource);
+		stateManager.restoreSession(makeSessionSummary(shapedSession), [], creationTimeChatStorageResource);
+		stateManager.addChat(opaqueSession, opaquePeer, opaquePeer);
+		stateManager.addChat(shapedSession, opaquePeer, opaquePeer);
+		for (const resource of [opaqueSession, shapedSession]) {
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const shapedDefaultChat = buildDefaultChatUri(shapedSession);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const results: { clientId: string; initialChats: unknown[]; items: unknown[]; opaqueChatSubscribeFailed: boolean; actions: unknown[] }[] = [];
+		const clients: ReturnType<typeof connectClient>[] = [];
+		for (const [clientId, clientInfo, meta] of [
+			['legacy', editorWindowAgentHostClientInfo, sessionsMeta],
+			['modern', editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }],
+			['unmarked', undefined, undefined],
+		] as const) {
+			const client = connectClient(clientId, ['ahp-root://', opaqueSession, shapedSession], clientInfo, meta);
+			const initialized = findResponse(client.sent, 1);
+			assert.ok(initialized && isJsonRpcResponse(initialized) && hasKey(initialized, { result: true }));
+			const snapshots = (initialized.result as InitializeResult).snapshots;
+			const initialChats = snapshots.map(snapshot => hasKey(snapshot.state, { chats: true }) ? [snapshot.resource, (snapshot.state.chats as { resource: string }[]).map(chat => chat.resource)] : snapshot.resource);
+
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			const items = (listed.result as ListSessionsResult).items.map(item => [item.resource, item.chats?.map(chat => chat.resource)]);
+
+			const subscribing = waitForResponse(client, 3);
+			client.simulateMessage(request(3, 'subscribe', { channel: opaquePeer }));
+			const subscribed = await subscribing;
+			results.push({ clientId, initialChats, items, opaqueChatSubscribeFailed: hasKey(subscribed, { error: true }), actions: [] as unknown[] });
+			clients.push(client);
+		}
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+		stateManager.addChat(shapedSession, laterOpaquePeer, laterOpaquePeer);
+		stateManager.dispatchServerAction(shapedSession, { type: ActionType.SessionChatsReordered, chats: [laterOpaquePeer, opaquePeer, shapedDefaultChat] });
+		clients.forEach((client, index) => {
+			results[index].actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const action = (message.params as { action: { type: string; chats?: string[]; summary?: { resource: string } } }).action;
+				return [action.type, action.summary?.resource ?? action.chats];
+			});
+		});
+		assert.deepStrictEqual(results.map(r => ({ ...r, opaqueChatSubscribeFailed: undefined })).map(r => [r.clientId, r.initialChats, r.items, r.actions]), [
+			['legacy', ['ahp-root://', [shapedSession, [shapedDefaultChat]]], [[shapedSession, [shapedDefaultChat]]], [[ActionType.SessionChatsReordered, [shapedDefaultChat]]]],
+			...['modern', 'unmarked'].map(clientId => [clientId,
+				['ahp-root://', [opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[ActionType.SessionChatAdded, laterOpaquePeer], [ActionType.SessionChatsReordered, [laterOpaquePeer, opaquePeer, shapedDefaultChat]]]]),
+		]);
+		assert.deepStrictEqual(results.map(r => r.opaqueChatSubscribeFailed), [true, false, false]);
 	});
 
 	test('listSessions includes project metadata', async () => {

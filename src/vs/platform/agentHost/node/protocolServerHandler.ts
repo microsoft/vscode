@@ -70,6 +70,7 @@ import {
 	type ListSessionsResult,
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
+import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
@@ -1255,8 +1256,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const actions: ActionEnvelope[] = [];
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
-					if (this._isRelevantToClient(client, envelope)) {
-						actions.push(envelope);
+					const projected = this._isRelevantToClient(client, envelope) ? this._projectActionForClient(client, envelope) : undefined;
+					if (projected) {
+						actions.push(projected);
 					}
 				}
 			}
@@ -1958,7 +1960,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		listSessions: async (client) => {
 			const sessions = await this._agentService.listSessions();
-			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString())
+			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString(), s.chats?.find(chat => chat.kind === 'default')?.chat.toString() ?? this._chatOwnership.getDefaultChat(s.session.toString()))
 				&& (!this._config.relayRoots || (s.workingDirectories?.length && (await Promise.all(s.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory.toString())))).every(Boolean)))));
 			const items = sessions.filter((_, index) => visible[index]).map(s => {
 				const provider = s.provider ?? AgentSession.provider(s.session);
@@ -1998,7 +2000,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
-			let prepared = this._stateManager.prepareSessionSummariesForListing(items);
+			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
+				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
+				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.chats, chat => chat.resource)] } : item);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
 					if (!item.workingDirectories?.length || !(await Promise.all(item.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean)) {
@@ -2603,7 +2607,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectSnapshot(snapshot);
+		snapshot = this._projectSnapshotChats(client, this._projectSnapshot(snapshot));
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -3177,12 +3181,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
-		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
 			if (client && this._isRelevantToClient(client, envelope)) {
-				const params = this._projectRelayRootAction(client, envelope);
-				client.transport.send(params === envelope ? msg : { ...msg, params });
+				const projected = this._projectActionForClient(client, envelope);
+				if (projected) {
+					const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: this._projectRelayRootAction(client, projected) };
+					client.transport.send(msg);
+				}
 			}
 		}
 	}
@@ -3191,20 +3197,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (this._config.relayRoots) {
 			return;
 		}
-		// Each protocol notification now ships as its own top-level method. The
-		// `type` discriminant on our local {@link ProtocolNotification} union is
-		// the wire-level method name, so we can route it directly.
+		// Each protocol notification ships as its own top-level method. The
+		// `type` discriminant on our local notification union is the wire-level method name.
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
-			const session = notification.type === 'root/sessionAdded' ? notification.summary.resource
-				: notification.type === 'root/sessionRemoved' || notification.type === 'root/sessionSummaryChanged' ? notification.session : undefined;
-			if (client && (session === undefined || this._isSessionVisible(client, session))) {
-				const projected = this._projectRelayNotification(client, notification);
-				if (projected) {
-					const { type, ...params } = projected;
-					// eslint-disable-next-line local/code-no-dangerous-type-assertions
-					client.transport.send({ jsonrpc: '2.0', method: type, params } as AhpServerNotification);
-				}
+			if (!client) {
+				continue;
+			}
+			const visible = this._projectNotificationForClient(client, notification);
+			const projected = visible && this._projectRelayNotification(client, visible);
+			if (projected) {
+				const { type, ...params } = projected;
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				client.transport.send({ jsonrpc: '2.0', method: type, params } as AhpServerNotification);
 			}
 		}
 	}
@@ -3246,12 +3251,84 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _isSessionVisible(client: IConnectedClient, session: string): boolean {
-		return !client.legacySessionUris || URI.parse(session).scheme !== 'ahp-session';
+	/**
+	 * Whether `client` may see `session`. A VS Code client without `vscode.ahpChatUris`
+	 * cannot address opaque chats, so a session whose recorded default chat is opaque is
+	 * hidden from it. `defaultChat` overrides the recorded default for sessions the host
+	 * has not made resident.
+	 */
+	private _isSessionVisible(client: IConnectedClient, session: string, defaultChat: string | undefined = this._chatOwnership.getDefaultChat(session)): boolean {
+		if (client.legacySessionUris && URI.parse(session).scheme === 'ahp-session') {
+			return false;
+		}
+		return !(client.legacyChatUris && defaultChat !== undefined && !isShapedChatUri(defaultChat));
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		if (client.legacyChatUris && isAhpChatChannel(channel) && !isShapedChatUri(channel)) {
+			return false;
+		}
 		return this._isSessionVisible(client, this._chatOwnership.getChatOwner(channel) ?? channel);
+	}
+
+	/** Drops the chats `client` cannot address (opaque chats for a client without `vscode.ahpChatUris`). */
+	private _filterVisibleChats<T>(client: IConnectedClient, chats: readonly T[], getResource: (chat: T) => string): readonly T[] {
+		return client.legacyChatUris ? chats.filter(chat => isShapedChatUri(getResource(chat))) : chats;
+	}
+
+	/**
+	 * Projects an action for `client`, or returns `undefined` when the client
+	 * must not receive it. Chat list actions about opaque chats are dropped, and a
+	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
+	 */
+	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
+		if (!client.legacyChatUris) {
+			return envelope;
+		}
+		const action = envelope.action;
+		switch (action.type) {
+			case ActionType.SessionChatAdded:
+				return isShapedChatUri(action.summary.resource) ? envelope : undefined;
+			case ActionType.SessionChatUpdated:
+			case ActionType.SessionChatRemoved:
+				return isShapedChatUri(action.chat) ? envelope : undefined;
+			case ActionType.SessionChatsReordered:
+				return { ...envelope, action: { ...action, chats: action.chats.filter(chat => isShapedChatUri(chat)) } };
+			default:
+				return envelope;
+		}
+	}
+
+	private _projectSnapshotChats(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		if (!client.legacyChatUris || !hasKey(snapshot.state, { chats: true }) || !Array.isArray(snapshot.state.chats)) {
+			return snapshot;
+		}
+		const chats = this._filterVisibleChats(client, snapshot.state.chats, chat => chat.resource);
+		return chats.length === snapshot.state.chats.length ? snapshot : { ...snapshot, state: { ...snapshot.state, chats: [...chats] } };
+	}
+
+	/** Projects a root notification for `client`, or returns `undefined` when the session is hidden from it. */
+	private _projectNotificationForClient(client: IConnectedClient, notification: INotification): INotification | undefined {
+		switch (notification.type) {
+			case 'root/sessionAdded': {
+				const summary = notification.summary;
+				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))) {
+					return undefined;
+				}
+				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.chats, chat => chat.resource)] } } : notification;
+			}
+			case 'root/sessionSummaryChanged': {
+				if (!this._isSessionVisible(client, notification.session)) {
+					return undefined;
+				}
+				const chats = notification.changes.chats;
+				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, chats, chat => chat.resource)] } } : notification;
+			}
+			case 'root/sessionRemoved':
+				return this._isSessionVisible(client, notification.session) ? notification : undefined;
+			default:
+				return notification;
+		}
 	}
 
 	/**
