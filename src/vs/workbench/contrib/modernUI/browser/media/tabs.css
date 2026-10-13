@@ -55,10 +55,22 @@
 	--modern-ui-editor-tab-inactive-foreground: var(--vscode-tab-inactiveForeground);
 }
 
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title {
+	--modern-ui-editor-title-background: var(--vscode-editor-background);
+	background-color: var(--modern-ui-editor-title-background);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {
+	background-image: linear-gradient(var(--vscode-editorGroupHeader-noTabsBackground), var(--vscode-editorGroupHeader-noTabsBackground));
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
-	background-color: transparent !important;
 	cursor: default;
 	--editor-group-tab-height: 24px !important;
+}
+
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title.tabs {
+	background-image: linear-gradient(var(--vscode-editorGroupHeader-tabsBackground), var(--vscode-editorGroupHeader-tabsBackground));
 }
 
 /* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
@@ -75,16 +87,47 @@
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
+}
+
+/* Editor tabs leave room for file icons; standalone tabs do not. */
+.modern-ui-tabs .part.editor .tabs-container > .tab {
+	padding: 0 var(--vscode-spacing-size80) 0 var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)) !important;
+}
+
+.modern-ui-tabs .modern-ui-editor-tab {
+	padding-inline: var(--vscode-spacing-size80);
 }
 
 .modern-ui-tabs.monaco-workbench:not(.file-icons-enabled) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left),
 .modern-ui-tabs .part.editor > .content .editor-group-container > .title.tabs:not(.show-file-icons) .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
-	padding-left: var(--vscode-spacing-size80) !important;
+	--modern-ui-editor-tab-left-inset: var(--vscode-spacing-size80);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
+	--modern-ui-tab-terminal-gutter: var(--vscode-spacing-size40);
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
-	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
+	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-tab-terminal-gutter));
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tabs-bar-add-tab {
+	position: relative;
+	inset-inline-end: auto;
+	margin-inline: calc(-1 * var(--last-tab-margin-right)) var(--last-tab-margin-right);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tab:nth-last-child(2) {
+	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-tab-terminal-gutter));
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping:dir(rtl) > .editor-actions {
+	right: auto;
+	left: var(--last-tab-layout-actions-width, 0px);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tab.sizing-fit:nth-last-child(2):not(.sticky-compact) {
+	max-width: calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
@@ -167,38 +210,64 @@
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.close-action-off:not(.sticky-compact) {
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)) !important;
 }
 
 /* Persistent dirty/pin indicators always reserve their overlay column. Clean tabs reserve
  * the transient close/unpin action only while visible or when requested (https://github.com/microsoft/vscode/issues/329605). */
 .modern-ui-tabs .part.editor .tab-actions-reserve-space .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within):not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within):not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
 	padding-right: var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) !important;
 }
 
 .modern-ui-tabs .part.editor .tab-actions-reserve-space .tabs-container > .tab.tab-actions-left:not(.sticky-compact):not(.close-action-off),
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-actions-left:not(.sticky-compact):not(.close-action-off),
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-actions-left:not(.sticky-compact):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact):not(.close-action-off.dirty-border-top),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) !important;
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-action-sizing-rest:not(.sticky-compact):not(.tab-actions-left) {
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off):not(.tab-actions-left) > .tab-label {
+	max-width: calc(100% - var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) + var(--vscode-spacing-size80));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off).tab-actions-left > .tab-label {
+	max-width: calc(100% - var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) + var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)));
+	left: calc(var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) - var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container:dir(rtl) > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off):not(.tab-actions-left) > .tab-label {
+	right: calc(var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) - var(--vscode-spacing-size80));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-action-sizing-rest:not(.sticky-compact):not(.tab-actions-left) {
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-action-sizing-rest.tab-actions-left:not(.sticky-compact) {
-	padding-left: var(--vscode-spacing-size60) !important;
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-action-sizing-rest.tab-actions-left:not(.sticky-compact) {
+	padding-left: var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)) !important;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
 	width: var(--tab-sizing-fit-width, auto) !important;
 	min-width: 0 !important;
 	flex: 0 0 auto !important;
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
+	max-width: 100%;
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit:last-child:not(.sticky-compact) {
+	max-width: calc(100% - var(--last-tab-margin-right) - var(--vscode-spacing-size40));
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label,
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label > .monaco-icon-label-container {
+	overflow: hidden;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab:not(.sticky-compact) > .tab-label {
@@ -239,6 +308,7 @@
 /* Move the bottom gutter into the scrollable element so the horizontal
  * scrollbar sits below the tab pills without increasing total height. */
 .modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
+	min-width: 0;
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
@@ -275,7 +345,7 @@
 	height: auto;
 	align-self: stretch;
 	position: sticky;
-	right: 0;
+	inset-inline-end: 0;
 	z-index: 9;
 	background: var(--vscode-editor-background);
 }
@@ -396,10 +466,23 @@
 	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
+.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab:not(.sticky-compact) > .tab-label > .monaco-icon-label-container {
 	flex: 1 !important;
 	min-width: 0;
 	text-overflow: ellipsis !important;
+	display: flex;
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab:not(.sticky-compact) .monaco-icon-name-container,
+.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab:not(.sticky-compact) .monaco-icon-description-container {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab > .tab-label.monaco-decoration-badge::after {
+	flex-shrink: 0;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container::after {
