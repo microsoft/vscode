@@ -285,7 +285,7 @@ suite('changesetUri', () => {
 			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
 			changeKind: ChangesetKind.Turn,
 		}];
-		const project = (sessionCatalogue: typeof sessionChangeset[] | undefined) => resolveChatChangesetCatalogue(peerChatUri, chatCatalogue, sessionCatalogue)
+		const project = (sessionCatalogue: typeof sessionChangeset[] | undefined) => resolveChatChangesetCatalogue(peerChatUri, chatCatalogue, sessionCatalogue, buildDefaultChatUri(sessionUri))
 			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, uri: changeset.uriTemplate, owner }));
 
 		const expected = [
@@ -317,7 +317,7 @@ suite('changesetUri', () => {
 			label: 'This Turn',
 			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
 			changeKind: ChangesetKind.Turn,
-		}], [sessionChangeset]);
+		}], [sessionChangeset], buildDefaultChatUri(sessionUri));
 
 		assert.deepStrictEqual(resolved?.map(({ changeset, owner }) => ({
 			kind: changeset.changeKind,

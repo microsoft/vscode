@@ -934,9 +934,14 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
 }
 
-export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+/**
+ * Resolves a client chat id (a chat resource fragment) to a chat of the
+ * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
+ * advertised default chat as the caller resolved it.
+ */
+export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	return chatId === DEFAULT_CHAT_ID
-		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		? defaultChat
 		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
 }
 

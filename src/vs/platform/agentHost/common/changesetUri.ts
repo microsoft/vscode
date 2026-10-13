@@ -10,7 +10,7 @@ import { readAgentMergeFolderState } from './agentMerge.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { isAhpChatChannel, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { isAhpChatChannel, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -137,9 +137,10 @@ export const enum ChangesetKind {
  *
  * A chat that advertises its own Session Changes entry keeps it, scoping
  * Session Changes to that chat. Otherwise the session's cumulative Session
- * Changes entry is projected into the chat catalogue.
+ * Changes entry is projected into the chat catalogue. `defaultChatUri` is the
+ * session's advertised default chat (see `getAdvertisedDefaultChat`).
  */
-export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri?: URI): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
 	if (sessionChangesets === undefined) {
 		return chatChangesets?.map(changeset => ({ changeset, owner: 'chat' as const }));
 	}
@@ -153,7 +154,7 @@ export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: read
 		// Older hosts compute per-turn changes from session-keyed checkpoints, so
 		// peer chats share the session's Turn and Compare entries; its Branch and
 		// Uncommitted entries describe the session folder only.
-		const isDefaultChat = defaultChatUri === undefined ? isDefaultChatUri(chatUri) : chatUri === defaultChatUri;
+		const isDefaultChat = chatUri === defaultChatUri;
 		const changesets = isDefaultChat
 			? sessionChangesets
 			: sessionChangesets.filter(changeset => changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn || changeset.changeKind === ChangesetKind.Compare);

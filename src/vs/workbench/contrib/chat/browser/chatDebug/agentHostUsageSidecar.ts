@@ -16,7 +16,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../platfor
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { isDefaultChatUri, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { isAhpChatChannel, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { findChatOwnerInSessionRecords, findChatOwnerInSubscribedState, type AgentHostChatOwnerSource } from '../agentSessions/agentHost/agentHostChatOwner.js';
@@ -307,6 +307,8 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
 	/** Default chat -> owning session, cached only for chats a host has listed. */
 	private readonly _defaultChatOwners = new LRUCache<string, string>(1024);
+	/** Chats no session advertises as its default chat, so their usage is not recorded. */
+	private readonly _nonDefaultChats = new LRUCache<string, true>(1024);
 	/** Per-host queue keeping that host's records in arrival order while owners resolve. */
 	private readonly _recordingByHost = new Map<IAgentHostSessionCatalog, Promise<void>>();
 
@@ -319,9 +321,9 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		if (action.type !== ActionType.ChatUsage) {
 			return;
 		}
-		// Parent aggregate only (skips the sub-agent-scope duplicate on a
-		// sub-agent chat channel, which maps to the same session).
-		if (!isDefaultChatUri(envelope.channel)) {
+		// Parent aggregate only: the session's default chat (skips the sub-agent-scope
+		// duplicate on a sub-agent chat channel, which maps to the same session).
+		if (!isAhpChatChannel(envelope.channel) || this._nonDefaultChats.get(envelope.channel)) {
 			return;
 		}
 		const usage = (action as ChatUsageAction).usage;
@@ -351,7 +353,11 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 			// The default chat's owner is a `copilotcli:/<rawId>` session;
 			// `getCopilotCliSessionRawId` yields the same raw id the reader derives
 			// from the client session resource.
-			const rawId = session !== undefined ? getCopilotCliSessionRawId(URI.parse(session)) : undefined;
+			if (session === undefined) {
+				this._nonDefaultChats.set(chat, true);
+				return;
+			}
+			const rawId = getCopilotCliSessionRawId(URI.parse(session));
 			if (!rawId) {
 				return;
 			}
@@ -379,7 +385,7 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
 	/** Finds the session whose default chat this is: held session state first, then the host's session records. */
 	private async _resolveDefaultChatOwner(catalog: IAgentHostSessionCatalog, chat: string): Promise<string | undefined> {
-		let session = findChatOwnerInSubscribedState(catalog, chat);
+		let session = findChatOwnerInSubscribedState(catalog, chat, true);
 		if (session === undefined) {
 			try {
 				session = await findChatOwnerInSessionRecords(catalog, chat, true);

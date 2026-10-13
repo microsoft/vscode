@@ -156,6 +156,7 @@ suite('AgentHostSessionChangesets', () => {
 			let acquired = 0;
 			let released = 0;
 			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
 					acquired++;
 					return {
@@ -175,6 +176,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 				mapDiffUri: (resource, options) => options?.contentRef ? resource.with({ scheme: 'readonly-content' }) : resource,
 			}, isActiveSession, [{
 				label: 'Changes',
@@ -591,6 +593,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 				defaultChangesetKind,
 			};
 
@@ -649,6 +652,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const catalogue = [entry(ChangesetKind.Session)];
 			const sessionChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue)[0];
@@ -675,6 +679,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const [changeset] = createChangesets(sessionUri, options, constObservable(false), [entry(ChangesetKind.Uncommitted)]);
 
@@ -700,8 +705,9 @@ suite('AgentHostSessionChangesets', () => {
 		}];
 		const initialState: ChatState = createChatState(chatSummary);
 		const chatSubscription = createMutableSubscription(initialState);
-		const sessionSubscription = createMutableSubscription({ changesets: sessionCatalogue } as SessionState);
+		const sessionSubscription = createMutableSubscription({ defaultChat: chatUri.toString(), changesets: sessionCatalogue } as SessionState);
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = component === StateComponents.Chat ? chatSubscription : sessionSubscription;
 				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
@@ -718,6 +724,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
@@ -782,6 +789,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		});
 		const sessionSubscription = createMutableSubscription({
+			defaultChat: chatUri.toString(),
 			changesets: [{
 				label: 'Session Changes',
 				changeKind: ChangesetKind.Session,
@@ -793,6 +801,7 @@ suite('AgentHostSessionChangesets', () => {
 			files: [],
 		});
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = component === StateComponents.Chat
 					? chatSubscription
@@ -824,6 +833,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		}, constObservable(true), currentTurnChanges);
 		let changes: Readonly<Record<string, {
 			readonly loading: boolean;
@@ -917,6 +927,7 @@ suite('AgentHostSessionChangesets', () => {
 			}))],
 		]);
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = component === StateComponents.Session
 					? sessionSubscription
@@ -936,6 +947,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const defaultProjected = createChatChangesets(sessionUri, constObservable(defaultChatUri), options, constObservable(true));
 		const peerProjected = createChatChangesets(sessionUri, constObservable(peerChatUri), options, constObservable(true));
@@ -990,6 +1002,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 		const subscriptions: Array<{ component: StateComponents; resource: string }> = [];
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				subscriptions.push({ component, resource: resource.toString() });
 				switch (component) {
@@ -1015,6 +1028,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
@@ -1101,6 +1115,7 @@ suite('AgentHostSessionChangesets', () => {
 		const releasedChangesets: string[] = [];
 		const acquiredChats: string[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				switch (component) {
 					case StateComponents.Session:
@@ -1132,6 +1147,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
@@ -1201,6 +1217,7 @@ suite('AgentHostSessionChangesets', () => {
 		let dispatchedChannel: string | undefined;
 		let dispatchedAction: Parameters<IAgentConnection['dispatch']>[1] | undefined;
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
 					override readonly value = changesetState as ComponentToState[T];
@@ -1231,6 +1248,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const [changeset] = createChangesets(
 			URI.parse('host-session://cluster/session-1'),
@@ -1273,6 +1291,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
 					override readonly value = changesetState as ComponentToState[T];
@@ -1302,6 +1321,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const changeset = createChangesets(
 			URI.parse('ahp-session:/session-1'),
@@ -1346,6 +1366,7 @@ suite('AgentHostSessionChangesets', () => {
 			};
 			const subscription = createMutableSubscription(changesetState);
 			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
 					return {
 						object: subscription.object as IAgentSubscription<ComponentToState[T]>,
@@ -1367,6 +1388,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 			}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
 			return {
 				changeset,
@@ -1490,6 +1512,7 @@ suite('AgentHostSessionChangesets', () => {
 				}],
 			};
 			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
 					return {
 						object: {
@@ -1518,6 +1541,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
 			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({

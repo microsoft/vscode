@@ -8,6 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -58,7 +59,7 @@ suite('AgentHostCustomizationRecorder', () => {
 			isEnabled,
 			fileService,
 			new NullLogService(),
-			{ onDidAction: actions.event, onDidNotification: notifications.event, listSessions: async () => [], getActiveSubscriptions: () => [], getSubscriptionUnmanaged: () => undefined },
+			{ onDidAction: actions.event, onDidNotification: notifications.event, listSessions: async () => [], getActiveSubscriptions: () => [], getSubscriptionUnmanaged: () => undefined, initializeResult: constObservable(undefined) },
 			new NullRemoteAgentHostService(),
 		));
 		return { fileService, actions, notifications };

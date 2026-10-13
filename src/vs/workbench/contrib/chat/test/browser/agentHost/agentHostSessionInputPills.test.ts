@@ -1754,8 +1754,8 @@ suite('AgentHostSessionInputPills', () => {
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
 		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
-		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
-		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
+		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild, stateWithoutChild.defaultChat);
+		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild, stateWithChild.defaultChat);
 
 		assert.deepStrictEqual({
 			before: [...before],
@@ -1790,7 +1790,7 @@ suite('AgentHostSessionInputPills', () => {
 			})],
 		});
 
-		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state, state.defaultChat)], [
 			sessionResource.toString(),
 			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
 		]);

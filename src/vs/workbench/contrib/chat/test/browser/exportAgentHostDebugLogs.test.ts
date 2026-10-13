@@ -647,9 +647,9 @@ suite('toActiveAgentHostSession', () => {
 		};
 
 		assert.deepStrictEqual({
-			defaultChat: getSessionChatResource(state, 'default'),
-			sideChat: getSessionChatResource(state, 'side-chat'),
-			missing: getSessionChatResource(state, 'missing'),
+			defaultChat: getSessionChatResource(state, 'default', state.defaultChat),
+			sideChat: getSessionChatResource(state, 'side-chat', state.defaultChat),
+			missing: getSessionChatResource(state, 'missing', state.defaultChat),
 		}, {
 			defaultChat,
 			sideChat,
@@ -662,8 +662,8 @@ suite('toActiveAgentHostSession', () => {
 		assert.ok(activeSession);
 
 		assert.deepStrictEqual({
-			unavailable: resolveAgentHostDebugLogsChat(activeSession, undefined),
-			failed: resolveAgentHostDebugLogsChat(activeSession, new Error('disconnected')),
+			unavailable: resolveAgentHostDebugLogsChat(activeSession, undefined, URI.parse('copilotcli:/session-1'), undefined),
+			failed: resolveAgentHostDebugLogsChat(activeSession, new Error('disconnected'), URI.parse('copilotcli:/session-1'), undefined),
 		}, {
 			unavailable: { backendChat: undefined, sessionTitle: 'Session one' },
 			failed: { backendChat: undefined, sessionTitle: 'Session one' },

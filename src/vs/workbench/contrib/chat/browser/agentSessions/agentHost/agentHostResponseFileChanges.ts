@@ -11,12 +11,12 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAdvertisedDefaultChat } from '../../../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { buildBranchChangesetUri, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
-	buildDefaultChatUri,
 	ChangesetStatus,
 	FileEditKind,
 	isHostNoticeTurn,
@@ -203,11 +203,16 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				return undefined;
 			}
 			const resolvedTurnSource = turnSource.read(reader);
+			const defaultChat = getAdvertisedDefaultChat(backendSession.toString(), sessionState.defaultChat, this._connection.initializeResult.read(reader));
+			const chat = resolvedTurnSource.chatUri?.toString() ?? defaultChat;
+			if (chat === undefined) {
+				return undefined;
+			}
 			const resolvedCatalogue = resolveChatChangesetCatalogue(
-				resolvedTurnSource.chatUri?.toString() ?? buildDefaultChatUri(backendSession.toString()),
+				chat,
 				resolvedTurnSource.changesets,
 				sessionState.changesets,
-				sessionState.defaultChat,
+				defaultChat,
 			);
 			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
 			if (!turnEntry) {
@@ -311,8 +316,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				const workspaceRoots = workspaceRootUris.map(roots => roots.map(root => URI.parse(root)));
 				const chatUris = derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
 					const session = state.read(reader);
+					const defaultChat = getAdvertisedDefaultChat(key, session && !(session instanceof Error) ? session.defaultChat : undefined, this._connection.initializeResult.read(reader));
 					return [...new Set([
-						buildDefaultChatUri(key),
+						...(defaultChat !== undefined ? [defaultChat] : []),
 						...(session && !(session instanceof Error) ? session.chats?.map(chat => chat.resource) ?? [] : []),
 					])];
 				});

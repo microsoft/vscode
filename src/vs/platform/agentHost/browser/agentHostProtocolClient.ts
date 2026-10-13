@@ -38,7 +38,8 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { getAdvertisedDefaultChat } from '../common/agentHostDefaultChat.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -1860,7 +1861,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
-		const targetChat = chat && !isDefaultChatUri(chat) ? chat : undefined;
+		const sessionState = this.getSubscriptionUnmanaged<SessionState>(StateComponents.Session, session)?.value;
+		const defaultChat = getAdvertisedDefaultChat(session.toString(), sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined, this._initializeResult.get());
+		const targetChat = chat && chat.toString() !== defaultChat ? chat : undefined;
 		if (targetChat && !supportsAgentHostChatStateFile(this._initializeResult.get())) {
 			return undefined;
 		}
@@ -2042,7 +2045,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				chats: s.chats?.map(chat => ({
 					chat: URI.parse(chat.resource),
 					summary: chat.title,
-					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+					kind: getAdvertisedDefaultChat(s.resource, s.defaultChat, this._initializeResult.get()) === chat.resource ? 'default' : 'peer',
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(isSessionChatArchived(chat) ? { archived: true } : {}),

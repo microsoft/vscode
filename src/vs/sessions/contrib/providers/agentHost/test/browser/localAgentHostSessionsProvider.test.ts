@@ -2289,6 +2289,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 	}
 
+	suite('routing default chat', () => {
+		async function resolveRoutedChats(hostMeta: InitializeResult['_meta'], advertisedDefault: string | undefined, chats: readonly string[]) {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: hostMeta }, undefined);
+			const backend = AgentSession.uri('copilotcli', 'routing-default');
+			agentHost.addSession({ ...createSession('routing-default'), session: backend, provider: 'copilotcli' });
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId);
+			agentHost.setSessionStateResource(backend, {
+				provider: 'copilotcli',
+				title: 'Routing',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				defaultChat: advertisedDefault,
+				chats: chats.map(chat => ({ resource: chat, title: chat, status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() })),
+			});
+			return {
+				defaultChat: provider.getBackendChatResource(session.resource)?.toString(),
+				peerChat: provider.getBackendChatResource(session.resource.with({ fragment: 'peer' }))?.toString(),
+			};
+		}
+
+		const backend = AgentSession.uri('copilotcli', 'routing-default');
+		const shapedDefault = buildDefaultChatUri(backend);
+		const peer = buildChatUri(backend, 'peer');
+
+		test('routes to the advertised default chat even when it is not default-shaped', async () => {
+			const advertised = 'conversation://tenant/main';
+			assert.deepStrictEqual(await resolveRoutedChats({ 'vscode.agentHost': true }, advertised, [advertised, shapedDefault, peer]), {
+				defaultChat: advertised,
+				peerChat: peer,
+			});
+		});
+
+		test('falls back to the default-shaped chat for an identified older VS Code host that advertises none', async () => {
+			assert.deepStrictEqual(await resolveRoutedChats({ 'vscode.agentHost': true }, undefined, [shapedDefault, peer]), {
+				defaultChat: shapedDefault,
+				peerChat: peer,
+			});
+		});
+
+		test('has no default chat for an unmarked host that advertises none', async () => {
+			assert.deepStrictEqual(await resolveRoutedChats({}, undefined, [shapedDefault, peer]), {
+				defaultChat: undefined,
+				peerChat: peer,
+			});
+		});
+	});
+
 	for (const resource of ['copilotcli:/chat-read-routing', 'ahp-session:/chat-read-routing', 'ahp-session://tenant/opaque/session']) {
 		test(`chat read state routes exact advertised resources for ${resource}`, async () => {
 			const backend = URI.parse(resource);
@@ -10564,6 +10615,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				getConnection: () => undefined,
 				agentCapabilities: capabilitiesObs,
 				mapBackendSessionResource: resource => resource.with({ scheme: `agent-host-${resource.scheme}` }),
+				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const adapters = Array.from({ length: 200 }, (_, index) => disposables.add(instantiationService.createInstance(
 				AgentHostSessionAdapter,
