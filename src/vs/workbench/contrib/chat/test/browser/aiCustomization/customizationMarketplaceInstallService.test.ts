@@ -1278,28 +1278,52 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
-		test('pending and unavailable connectors cannot start duplicate or unactionable connections', async () => {
+		test('a connector left pending after authorization can be retried', async () => {
 			const fixture = await createFixture();
 			const candidate = connectorResource();
-			const states: Array<ReturnType<typeof fixture.service.getInstallState>> = [];
-			for (const scenario of [
-				{ status: 'pending' as const, detail: undefined },
-				{ status: 'error' as const, detail: 'unavailable' as const },
-			]) {
-				fixture.connectorsService.statusOverride = scenario.status;
-				fixture.connectorsService.statusDetailOverride = scenario.detail;
-				const state = fixture.service.getInstallState(candidate);
-				states.push(state);
-				await assert.rejects(fixture.service.install(candidate), /cannot be connected/);
-			}
+			fixture.connectorsService.statusOverride = 'pending';
+			const before = fixture.service.getInstallState(candidate);
+			const retry = new DeferredPromise<void>();
+			fixture.connectorsService.onConnect = async name => {
+				await retry.p;
+				fixture.connectorsService.statusOverride = undefined;
+				fixture.connectedConnectors.add(name);
+				fixture.connectorChanges.fire();
+			};
+
+			const first = fixture.service.install(candidate);
+			const second = fixture.service.install(candidate);
+			const during = fixture.service.getInstallState(candidate);
+			retry.complete();
+			await Promise.all([first, second]);
+
 			assert.deepStrictEqual({
-				states,
+				before,
+				during,
+				connects: fixture.connectorsService.connectCalls,
+				installed: fixture.service.getInstallState(candidate).kind,
+			}, {
+				before: { kind: 'available' },
+				during: { kind: 'installing' },
+				connects: ['mail'],
+				installed: 'installed',
+			});
+		});
+
+		test('unavailable connectors cannot start an unactionable connection', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectorsService.statusOverride = 'error';
+			fixture.connectorsService.statusDetailOverride = 'unavailable';
+			const state = fixture.service.getInstallState(candidate);
+
+			await assert.rejects(fixture.service.install(candidate), /cannot be connected/);
+
+			assert.deepStrictEqual({
+				state,
 				connects: fixture.connectorsService.connectCalls,
 			}, {
-				states: [
-					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Connection pending\'. Refresh and try again.' },
-					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Currently unavailable\'. Refresh and try again.' },
-				],
+				state: { kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Currently unavailable\'. Refresh and try again.' },
 				connects: [],
 			});
 		});
