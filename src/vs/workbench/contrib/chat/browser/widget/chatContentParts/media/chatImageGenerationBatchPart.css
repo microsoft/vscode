@@ -1,0 +1,126 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-image-generation-batch {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	margin: var(--vscode-spacing-size160) 0;
+
+	.chat-image-generation-batch-summary {
+		min-width: 0;
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.chat-image-generation-batch-preview {
+		position: relative;
+		left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+		width: calc(100% - var(--vscode-codiconFontSize-compact) * 0.2);
+		max-width: 512px;
+		margin-top: var(--vscode-spacing-size160);
+		display: flex;
+		align-items: flex-start;
+		min-width: 0;
+		user-select: none;
+		-webkit-user-select: none;
+
+		&:empty {
+			display: none;
+		}
+
+		.chat-image-generation-placeholder {
+			margin: 0;
+		}
+	}
+
+	.chat-image-generation-batch-selected {
+		margin: 0;
+		min-width: 0;
+		width: 100%;
+
+		.chat-attached-context {
+			padding: 0;
+		}
+
+		.chat-attached-context-attachment.image-attachment {
+			padding: 0;
+			border: 0;
+			cursor: pointer;
+
+			&:focus:not(:focus-visible) {
+				outline: none;
+			}
+
+			&:focus-visible {
+				outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+				outline-offset: -1px;
+			}
+		}
+
+		img {
+			user-select: none;
+			-webkit-user-select: none;
+		}
+	}
+
+	.chat-image-generation-batch-thumbnails {
+		display: flex;
+		gap: var(--vscode-spacing-size120);
+		padding: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size120);
+		width: 100%;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+
+	.chat-image-generation-batch-thumbnail {
+		box-sizing: border-box;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 56px;
+		height: 56px;
+		padding: var(--vscode-spacing-size20);
+		overflow: hidden;
+		cursor: pointer;
+		border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
+		border-radius: var(--vscode-cornerRadius-small);
+		user-select: none;
+		-webkit-user-select: none;
+
+		img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			border-radius: var(--vscode-cornerRadius-xSmall);
+			pointer-events: none;
+			user-select: none;
+			-webkit-user-select: none;
+		}
+
+		> [hidden] {
+			display: none;
+		}
+
+		&[aria-pressed="true"] {
+			border-color: var(--vscode-focusBorder);
+		}
+
+		&:focus:not(:focus-visible) {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+	}
+
+	.chat-image-generation-batch-confirmations {
+		.chat-tool-invocation-part {
+			margin-top: var(--vscode-spacing-size80);
+		}
+	}
+}

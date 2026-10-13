@@ -17,7 +17,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
+import { MissionControlProtocolServer, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -41,13 +41,15 @@ const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
 
 class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
-	readonly publishes: { group: string; data: { kind: string; data: object; items?: object[]; generation?: number } }[] = [];
+	readonly publishes: { group: string; data: { kind: string; data: object; items?: object[]; generation?: number; seq?: number; total?: number } }[] = [];
+	readonly publishByteLengths: number[] = [];
 	readonly joins: string[] = [];
 	readonly acknowledgements: number[] = [];
 	readonly publishAckIds: number[] = [];
 	readonly userEvents: { readonly event: string; readonly data: object }[] = [];
 	closed = false;
 	failBatchPublish = false;
+	failPublishIndex: number | undefined;
 	constructor(private readonly _ackSuccess = true, private readonly _manualPublishAcks = false) { super(); }
 
 	send(data: string): void {
@@ -62,10 +64,11 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 			this.joins.push(frame.group);
 		}
 		if (frame.type === 'sendToGroup' && frame.group && frame.data) {
-			if (this.failBatchPublish && frame.data.kind === 'batch') {
-				throw new Error('Batch socket send failed');
+			if (this.failBatchPublish && frame.data.kind === 'batch' || this.failPublishIndex === this.publishes.length) {
+				throw new Error(this.failBatchPublish ? 'Batch socket send failed' : 'Chunk socket send failed');
 			}
 			this.publishes.push({ group: frame.group, data: frame.data });
+			this.publishByteLengths.push(Buffer.byteLength(data));
 			if (frame.ackId) {
 				this.publishAckIds.push(frame.ackId);
 			}
@@ -522,7 +525,7 @@ suite('Mission Control WPS', () => {
 		assert.deepStrictEqual(socket.publishes.map(frame => frame.data.kind), ['closed', 'message']);
 	});
 
-	suite('negotiated host batching', () => {
+	suite('host publish queue and negotiated batching', () => {
 		const response = (id: number, result: string | null = null) => ({ jsonrpc: '2.0' as const, id, result });
 
 		async function fixture() {
@@ -531,10 +534,12 @@ suite('Mission Control WPS', () => {
 			const errors: string[] = [];
 			const lanes: IProtocolTransport[] = [];
 			const received: ProtocolMessage[] = [];
+			const diagnostics: MissionControlPublishDiagnostic[] = [];
 			const server = store.add(new MissionControlProtocolServer(
 				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
 				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
 				() => socket, error => errors.push(error.message),
+				undefined, undefined, undefined, undefined, event => diagnostics.push(event),
 			));
 			store.add(server.onConnection(lane => {
 				lanes.push(lane);
@@ -558,8 +563,232 @@ suite('Mission Control WPS', () => {
 					ack(index);
 				}
 			};
-			return { server, socket, errors, lanes, received, deliver, open, advertise, ack, drain };
+			return { server, socket, errors, lanes, received, diagnostics, deliver, open, advertise, ack, drain };
 		}
+
+		for (const batching of [false, true]) {
+			test(`pipelines a bounded chunk window without overlapping payloads, batching=${batching}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				if (batching) {
+					f.advertise();
+				}
+				const large = response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES));
+				lane.send(large);
+				lane.send(response(2));
+				lane.send({ jsonrpc: '2.0', method: 'ping' });
+				const initial = f.socket.publishes.map(frame => frame.data.seq);
+				f.ack(3);
+				f.ack(1);
+				const afterOutOfOrderAcks = f.socket.publishes.map(frame => frame.data.seq);
+				f.ack(3, false, 'Forbidden');
+				for (const index of [0, 5, 2]) {
+					f.ack(index);
+				}
+				const beforeFinalAck = f.socket.publishes.map(frame => frame.data.kind);
+				f.ack(4);
+				const afterFinalAck = f.socket.publishes.map(frame => frame.data.kind);
+				f.drain();
+				const reassembler = new Reassembler();
+				const reassembled = f.socket.publishes.slice(0, 6).reverse().flatMap(frame => {
+					const decoded = parseInbound({ type: 'message', from: 'group', group: frame.group, dataType: 'json', data: frame.data }, { reassembler });
+					return decoded.kind === 'payload' ? [decoded.payload] : [];
+				});
+				assert.deepStrictEqual({
+					initial, afterOutOfOrderAcks, beforeFinalAck, afterFinalAck,
+					reassembled: reassembled.map(payload => createHash('sha256').update(JSON.stringify(payload)).digest('hex')),
+					destinations: f.socket.publishes.slice(6).map(frame => frame.group),
+					errors: f.errors, closed: f.server.isClosed,
+				}, {
+					initial: [0, 1, 2, 3], afterOutOfOrderAcks: [0, 1, 2, 3, 4, 5],
+					beforeFinalAck: Array(6).fill('chunk'), afterFinalAck: [...Array(6).fill('chunk'), 'message'],
+					reassembled: [createHash('sha256').update(JSON.stringify(large)).digest('hex')],
+					destinations: [`${prefix}.client.client-a.to-client`, `${prefix}.client.client-a.broadcast`],
+					errors: [], closed: false,
+				});
+			});
+		}
+
+		test('queues every fragment of a small chunk group before receiving any acknowledgement', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			lane.send(response(1, 'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES)));
+			lane.send(response(2));
+			const beforeAcks = f.socket.publishes.map(frame => ({ kind: frame.data.kind, sequence: frame.data.seq }));
+			f.ack(2);
+			f.ack(0);
+			const beforeLastAck = f.socket.publishes.length;
+			f.ack(1);
+			assert.deepStrictEqual({ beforeAcks, beforeLastAck, afterLastAck: f.socket.publishes.map(frame => frame.data.kind) }, {
+				beforeAcks: [0, 1, 2].map(sequence => ({ kind: 'chunk', sequence })),
+				beforeLastAck: 3, afterLastAck: ['chunk', 'chunk', 'chunk', 'message'],
+			});
+		});
+
+		for (const failure of ['ack rejection', 'socket send']) {
+			test(`stops the chunk group and queued publication after ${failure}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				const large = response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES));
+				if (failure === 'socket send') {
+					f.socket.failPublishIndex = 2;
+					assert.throws(() => lane.send(large), /Chunk socket send failed/);
+				} else {
+					lane.send(large);
+					lane.send(response(2));
+					f.ack(1, false, 'Forbidden');
+				}
+				f.drain();
+				assert.deepStrictEqual({
+					closed: f.server.isClosed, socketClosed: f.socket.closed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, {
+					closed: true, socketClosed: true,
+					kinds: Array(failure === 'socket send' ? 2 : 4).fill('chunk'),
+					errors: failure === 'socket send' ? [] : ['Mission Control WPS operation rejected: Forbidden'],
+				});
+			});
+		}
+
+		test('times out the oldest outstanding fragment despite newer acknowledgements', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				lane.send(response(2));
+				clock.tick(25_000);
+				f.ack(3);
+				f.ack(2);
+				clock.tick(4_999);
+				const beforeDeadline = f.server.isClosed;
+				clock.tick(1);
+				f.drain();
+				assert.deepStrictEqual({
+					beforeDeadline, closed: f.server.isClosed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, {
+					beforeDeadline: false, closed: true, kinds: Array(6).fill('chunk'),
+					errors: ['Mission Control WPS acknowledgement timed out'],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('allows a progressing chunk group to outlive one acknowledgement timeout interval', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				lane.send(response(2));
+				clock.tick(20_000);
+				for (let index = 0; index < 4; index++) {
+					f.ack(index);
+				}
+				clock.tick(20_000);
+				const beforeCompletion = f.server.isClosed;
+				f.drain();
+				assert.deepStrictEqual({
+					beforeCompletion, closed: f.server.isClosed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, { beforeCompletion: false, closed: false, kinds: [...Array(6).fill('chunk'), 'message'], errors: [] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		for (const method of ['initialize', 'reconnect']) {
+			test(`keeps a chunk group ahead of its closure and ${method} successor`, async () => {
+				const f = await fixture();
+				const old = f.open();
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'initialize', params: { clientId: 'client-a' } } });
+				old.send(response(100));
+				f.ack(0);
+				old.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 101, method, params: { clientId: 'client-a' } } });
+				f.lanes[1].send(response(101));
+				const beforeAcks = f.socket.publishes.map(frame => frame.data.kind);
+				f.drain();
+				const oldGeneration = f.socket.publishes[0].data.generation;
+				const newGeneration = f.socket.publishes.at(-1)!.data.generation;
+				assert.deepStrictEqual({
+					beforeAcks, publications: f.socket.publishes.map(frame => ({ kind: frame.data.kind, oldGeneration: frame.data.generation === oldGeneration })),
+					distinctGeneration: newGeneration !== oldGeneration, errors: f.errors,
+				}, {
+					beforeAcks: ['message', ...Array(4).fill('chunk')],
+					publications: [
+						{ kind: 'message', oldGeneration: true }, ...Array(6).fill({ kind: 'chunk', oldGeneration: true }),
+						{ kind: 'closed', oldGeneration: true }, { kind: 'message', oldGeneration: false },
+					],
+					distinctGeneration: true, errors: [],
+				});
+			});
+		}
+
+		test('reports payload-level queue and acknowledgement timing without contents', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(0));
+				lane.send(response(1, 'private-content'.repeat(80_000)));
+				clock.tick(20);
+				f.ack(0);
+				clock.tick(30);
+				f.ack(2);
+				clock.tick(10);
+				f.ack(1);
+				const publications = f.diagnostics.filter(event => event.phase === 'relayPublish' && event.outcome === 'succeeded');
+				const diagnostic = publications.at(-1)!;
+				const bytes = f.socket.publishByteLengths.slice(1).reduce((sum, value) => sum + value, 0);
+				assert.deepStrictEqual({
+					count: publications.length, phase: diagnostic.phase, outcome: diagnostic.outcome,
+					durationMs: diagnostic.durationMs, detail: diagnostic.detail, measurements: diagnostic.measurements,
+				}, {
+					count: 2, phase: 'relayPublish', outcome: 'succeeded', durationMs: 60,
+					detail: `bytes=${bytes}; frames=2; queueWaitMs=20; meanAckLatencyMs=35; maxAckLatencyMs=40; peakInFlight=2`,
+					measurements: { bytes, frameCount: 2, chunked: true, queueWaitMs: 20, ackLatencyMs: 70, maxAckLatencyMs: 40, peakInFlight: 2 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('counts every in-flight chunk toward the outstanding frame limit', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+			for (let index = 0; index < 506; index++) {
+				lane.send(response(index + 2));
+			}
+			assert.throws(() => lane.send(response(508)), /ordered publish queue exceeded its limit/);
+			assert.deepStrictEqual({
+				published: f.socket.publishes.map(frame => frame.data.kind),
+				closed: f.server.isClosed, errors: f.errors,
+			}, {
+				published: Array(4).fill('chunk'), closed: true,
+				errors: ['Mission Control ordered publish queue exceeded its limit'],
+			});
+		});
+
+		test('retains mirror backpressure credit until the in-flight event is acknowledged', async () => {
+			const f = await fixture();
+			const event = {
+				type: 'event' as const, event: 'sessionLifecycle' as const, dataType: 'json' as const,
+				data: { environment_id: 'environment', session_id: 'session', kind: 'completed' as const, at: '2030-01-01T00:00:00Z' },
+			};
+			const accepted = Array.from({ length: 128 }, () => f.server.publishMirrorEvent(event));
+			const full = f.server.publishMirrorEvent(event);
+			f.ack(0);
+			const released = f.server.publishMirrorEvent(event);
+			f.drain();
+			assert.deepStrictEqual({
+				accepted: accepted.every(result => result === undefined), full, released,
+				published: f.socket.userEvents.length, closed: f.server.isClosed, errors: f.errors,
+			}, { accepted: true, full: false, released: undefined, published: 129, closed: false, errors: [] });
+		});
 
 		test('sends immediately and packs only already-queued raw messages under one acknowledgement', async () => {
 			const f = await fixture();
@@ -585,6 +814,18 @@ suite('Mission Control WPS', () => {
 					{ group: `${prefix}.client.client-a.to-client`, data: { kind: 'message', data: response(3), generation } },
 				],
 			});
+
+		});
+
+		test('reports service connection lifecycle independently of client lanes', async () => {
+			const f = await fixture();
+			const beforeDisposal = f.diagnostics.filter(event => event.phase === 'relayConnection').map(event => event.connected);
+			f.server.dispose();
+			assert.deepStrictEqual({
+				beforeDisposal,
+				afterDisposal: f.diagnostics.filter(event => event.phase === 'relayConnection').map(event => event.connected),
+				clientLanes: f.lanes.length,
+			}, { beforeDisposal: [true], afterDisposal: [true, false], clientLanes: 0 });
 		});
 
 		test('preserves pre-handshake support and snapshots queued payloads', async () => {
@@ -611,11 +852,11 @@ suite('Mission Control WPS', () => {
 			const lane = f.open();
 			f.advertise();
 			lane.send(response(0));
-			for (let id = 1; id <= 512; id++) {
+			for (let id = 1; id < 512; id++) {
 				lane.send(response(id));
 			}
 			f.ack(0);
-			for (let id = 513; id < 769; id++) {
+			for (let id = 512; id < 768; id++) {
 				lane.send(response(id));
 			}
 			const event = {
@@ -629,7 +870,7 @@ suite('Mission Control WPS', () => {
 			assert.deepStrictEqual({
 				full, freed, sizes: f.socket.publishes.map(frame => frame.data.items?.length ?? 1),
 				mirrors: f.socket.userEvents.length, closed: f.server.isClosed, errors: f.errors,
-			}, { full: false, freed: undefined, sizes: [1, 256, 256, 256], mirrors: 1, closed: false, errors: [] });
+			}, { full: false, freed: undefined, sizes: [1, 256, 256, 255], mirrors: 1, closed: false, errors: [] });
 		});
 
 		for (const accepts of [undefined, [], ['future']]) {
@@ -951,7 +1192,7 @@ suite('Mission Control WPS', () => {
 				f.advertise();
 				lane.send(response(0));
 				const payload = budget === 'bytes' ? 'x'.repeat(800 * 1024) : null;
-				const count = budget === 'bytes' ? 82 : 513;
+				const count = budget === 'bytes' ? 82 : 512;
 				for (let id = 1; id < count; id++) {
 					lane.send(response(id, payload));
 				}

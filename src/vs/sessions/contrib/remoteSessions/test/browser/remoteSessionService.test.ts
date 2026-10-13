@@ -290,7 +290,7 @@ suite('RemoteSessionService', () => {
 				query: 'Run tests',
 				title: undefined,
 				background: true,
-				metadata: toRemoteSessionMessageMetadata({ session: source.resource.toString(), chat: sourceChat.resource.toString() }),
+				metadata: toRemoteSessionMessageMetadata({ session: source.resource.toString(), chat: sourceChat.resource.toString() }, undefined),
 			},
 		});
 	});

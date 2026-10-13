@@ -367,7 +367,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				hasPopup: button?.getAttribute('aria-haspopup'),
 			})),
 		}, {
-			title: 'Discover customizations',
+			title: 'Browse customizations',
 			buttons: [
 				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
 				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },

@@ -15,7 +15,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
@@ -91,6 +91,39 @@ export interface ISdkShellExit {
 type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
 	readonly outputPreview?: string | null;
 });
+
+/** Uses the native image tool's indexed originals, not any resized model-facing copies. */
+export function getSdkToolResultContent(toolName: string, result: ToolExecutionCompleteResult | undefined): Pick<ToolExecutionCompleteResult, 'contents' | 'binaryResultsForLlm'> | undefined {
+	const contents = result?.contents;
+	const structuredContent = result?.structuredContent;
+	if (toolName !== CopilotToolName.ImageGeneration || !contents
+		|| typeof structuredContent !== 'object' || !structuredContent || Array.isArray(structuredContent)) {
+		return result;
+	}
+	const imageGeneration = structuredContent.imageGeneration;
+	if (typeof imageGeneration !== 'object' || !imageGeneration || Array.isArray(imageGeneration)
+		|| !Array.isArray(imageGeneration.images) || imageGeneration.images.length === 0) {
+		return result;
+	}
+
+	const imageIndexes = new Set<number>();
+	for (const image of imageGeneration.images) {
+		if (typeof image !== 'object' || !image || Array.isArray(image)
+			|| typeof image.contentIndex !== 'number' || !Number.isInteger(image.contentIndex)
+			|| image.contentIndex < 0 || imageIndexes.has(image.contentIndex)) {
+			return result;
+		}
+		const content = contents[image.contentIndex];
+		if (content?.type !== 'image' || content.mimeType !== image.mimeType) {
+			return result;
+		}
+		imageIndexes.add(image.contentIndex);
+	}
+	return {
+		contents: contents.filter((content, index) => content.type !== 'image' || imageIndexes.has(index)),
+		binaryResultsForLlm: result.binaryResultsForLlm?.filter(binary => binary.type !== 'image'),
+	};
+}
 
 export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }, binaries?: ToolExecutionCompleteResult['binaryResultsForLlm'], assets?: ReadonlyMap<string, BinaryAssetData>): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
@@ -356,12 +389,9 @@ export async function mapSessionEvents(
 	db: ISessionDatabase | undefined,
 	events: readonly SessionEvent[],
 	routingChatUri: URI,
+	routingSession: URI,
 	options: IMapSessionEventsOptions | undefined = undefined,
 ): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
-	const routingChat = parseChatUri(routingChatUri);
-	if (!routingChat) {
-		throw new Error(`Malformed AHP chat URI: ${routingChatUri.toString()}`);
-	}
 	const workingDirectory = options?.workingDirectory;
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
@@ -491,7 +521,6 @@ export async function mapSessionEvents(
 	}
 
 	const sessionUriStr = session.toString();
-	const routingSession = URI.parse(routingChat.session);
 	const providerId = AgentSession.provider(routingSession) ?? COPILOT_CLI_AGENT_PROVIDER_ID;
 	const rawSessionId = AgentSession.id(routingSession);
 	const turns: Turn[] = [];
@@ -1148,9 +1177,10 @@ function makeCompletedToolCallPart(
 	if (displayOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: displayOutput });
 	}
+	const resultContent = getSdkToolResultContent(info.toolName, d.result);
 	appendSdkToolResultContent(
 		content,
-		d.result?.contents,
+		resultContent?.contents,
 		info.toolKind === 'terminal' ? {
 			storage: sessionUriStr,
 			session: routingSession,
@@ -1158,7 +1188,7 @@ function makeCompletedToolCallPart(
 			toolCallId: d.toolCallId,
 			title: info.displayName,
 		} : undefined,
-		d.result?.binaryResultsForLlm,
+		resultContent?.binaryResultsForLlm,
 		binaryAssets,
 	);
 

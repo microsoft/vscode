@@ -230,6 +230,36 @@ suite('Automation dialog creation', () => {
 		};
 	}
 
+	test('keeps the title outside scrolling content and themes the Name input consistently', async () => {
+		const dialog = openDialog();
+		const body = dialog.container.querySelector<HTMLElement>('.automation-dialog-body')!;
+		const scrollable = dialog.container.querySelector<HTMLElement>('.automation-dialog-scrollable')!;
+		const titlebar = dialog.container.querySelector<HTMLElement>('.automation-titlebar')!;
+		const nameInputBox = dialog.container.querySelector<HTMLElement>('.automation-form-input-host > .monaco-inputbox')!;
+
+		assert.deepStrictEqual({
+			bodyChildren: Array.from(body.children, element => element.className),
+			titleInScrollableContent: scrollable.contains(titlebar),
+			scrollableChildren: Array.from(scrollable.children, element => element.className),
+			nameInputStyles: {
+				background: nameInputBox.style.backgroundColor,
+				foreground: nameInputBox.style.color,
+				border: nameInputBox.style.border,
+			},
+		}, {
+			bodyChildren: ['automation-dialog-progress', 'automation-titlebar', 'automation-dialog-scrollable'],
+			titleInScrollableContent: false,
+			scrollableChildren: ['automation-description', 'automation-form-pane'],
+			nameInputStyles: {
+				background: 'var(--vscode-settings-textInputBackground)',
+				foreground: 'var(--vscode-settings-textInputForeground)',
+				border: '1px solid var(--vscode-settings-textInputBorder, transparent)',
+			},
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	function toolCatalog(tools: readonly IAutomationTool[] = [{ id: 'read', label: 'Read Files' }, { id: 'edit', label: 'Edit Files' }]): AutomationToolCatalog {
 		return { kind: 'ready', groups: [{ id: 'files', label: 'Files', tools }] };
 	}

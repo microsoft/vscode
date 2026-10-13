@@ -58,7 +58,8 @@ import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/a
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
-const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v4.';
+const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
+// Keep stable's legacy-addressed summaries separate across host downgrades.
 const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
 const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
@@ -102,6 +103,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 	/**
@@ -187,6 +189,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
@@ -336,6 +339,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
+		this.isVisibleInEnvironmentPicker = config.isVisibleInEnvironmentPicker;
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;

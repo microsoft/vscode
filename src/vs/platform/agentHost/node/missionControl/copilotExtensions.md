@@ -2,6 +2,8 @@
 
 The native VS Code Agent Host exposes the following Copilot Host extension methods on its authenticated Mission Control listener:
 
+`MissionControlHost` injects a `MissionControlCopilotExtension` into the listener. The contribution owns method registration, read-only classification, capability metadata, and the project catalogue. `ProtocolServerHandler` enforces relay authentication, passive access, and channel visibility, and records contribution actions in the listener's replay stream.
+
 | Method | Request | Result |
 | --- | --- | --- |
 | `extensions/listProjects` | `{}` | `{ projects: Project[] }` |

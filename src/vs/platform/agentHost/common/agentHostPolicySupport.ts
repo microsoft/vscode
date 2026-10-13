@@ -124,6 +124,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatApprovedAccountOrganizations: { status: 'enforced' },
 	ChatDefaultModel: { status: 'enforced' },
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
+	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
 
