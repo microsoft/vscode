@@ -50,6 +50,7 @@ import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 const OTHER_MODELS_SECTION = 'other';
 const PICKER_WIDTH = 320;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
+const OTHER_MODELS_EXPANDED_STORAGE_KEY = 'chat.modelPicker.otherModelsExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
@@ -119,6 +120,11 @@ export class TabbedModelPicker extends Disposable {
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private _filterValue = '';
+	/**
+	 * Whether Other Models was expanded when the popup opened. The popup's height is
+	 * measured from it, so toggling the section while open doesn't resize the popup.
+	 */
+	private _otherModelsExpandedOnOpen = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	/** The HydraFusion tier last chosen, which HydraFusion's row stands for while another model is in use. */
@@ -194,6 +200,7 @@ export class TabbedModelPicker extends Disposable {
 	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number, options?: IModelPickerOpenOptions): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
+			this._otherModelsExpandedOnOpen = this._isOtherModelsExpanded();
 			if (context.workflow?.available.get() && context.workflow.summary.get()) {
 				context.workflow.start();
 			}
@@ -355,9 +362,10 @@ export class TabbedModelPicker extends Disposable {
 					headerLink: hint?.link,
 					headerDismiss: hint?.dismiss,
 					// A tab with nothing promoted would open on an empty list, so leave it expanded.
-					collapsedByDefault: !step && hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+					collapsedByDefault: !step && hasPromotedModels(sections) && !(forSizing ? this._otherModelsExpandedOnOpen : this._isOtherModelsExpanded()) ? new Set([OTHER_MODELS_SECTION]) : undefined,
 					onDidToggleSection: (section, collapsed) => {
 						if (section === OTHER_MODELS_SECTION) {
+							this._storageService.store(OTHER_MODELS_EXPANDED_STORAGE_KEY, !collapsed, StorageScope.APPLICATION, StorageTarget.USER);
 							current.onDidToggleOtherModels(collapsed);
 						}
 					},
@@ -401,6 +409,10 @@ export class TabbedModelPicker extends Disposable {
 		if (this._context?.selectedModelId) {
 			this._rememberSpeedVariant(this._context.selectedModelId);
 		}
+	}
+
+	private _isOtherModelsExpanded(): boolean {
+		return this._storageService.getBoolean(OTHER_MODELS_EXPANDED_STORAGE_KEY, StorageScope.APPLICATION, false);
 	}
 
 	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
