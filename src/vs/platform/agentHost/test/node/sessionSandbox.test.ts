@@ -20,6 +20,7 @@ import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolic
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
+import { getSandboxPathGrantConfirmation } from '../../node/copilot/copilotToolDisplay.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
 suite('Session sandbox configuration', () => {
@@ -1061,6 +1062,22 @@ suite('Session sandbox configuration', () => {
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
 		}, owner, 'turn').options?.map(option => option.id));
 		assert.deepStrictEqual(options, [['allow-once', 'skip'], ['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip']]);
+	});
+
+	test('sandbox path grant choices survive action construction except for managed asks', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('grant-options');
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService()));
+		const grant = { path: '/outside', access: 'read' } as const;
+		const options = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
+			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired,
+			state: {
+				status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'read', displayName: 'Read',
+				_meta: { 'vscode.sandboxPathGrant': grant },
+				...getSandboxPathGrantConfirmation(grant, false),
+			},
+		}, owner, 'turn').options?.map(option => option.id));
+		assert.deepStrictEqual(options, [['allow-sandbox-path-session', 'save-sandbox-path', 'allow-once', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {

@@ -8,7 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -239,6 +239,29 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
 		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
+suite('Sandbox path grant confirmation display', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('describes read-only, read-write and broader-folder upgrades', () => {
+		const read = getSandboxPathGrantConfirmation({ path: '/read', access: 'read' }, false);
+		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' }, false);
+		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] }, false);
+		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
+		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
+			['Allow read access to `/read` and retry inside the sandbox.', 'Allow in this Session keeps access in this session only. Save to Sandbox Settings and Retry saves access to your VS Code user settings, which are shared with connected agent hosts.'],
+			['Allow read/write access to `/write` and retry inside the sandbox.', 'Allow in this Session keeps access in this session only. Save to Sandbox Settings and Retry saves access to your VS Code user settings, which are shared with connected agent hosts.'],
+			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
+		]);
+	});
+
+	test('does not label a permissive retry as outside the sandbox', () => {
+		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' }, true);
+		assert.deepStrictEqual(display.options?.map(option => option.label), [
+			'Allow in this Session', 'Save to Sandbox Settings and Retry', 'Allow Once with Relaxed Sandbox Restrictions', 'Skip',
+		]);
 	});
 });
 

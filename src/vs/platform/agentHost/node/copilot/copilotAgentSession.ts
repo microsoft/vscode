@@ -21,6 +21,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
@@ -46,6 +47,9 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
+import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { ALLOW_SANDBOX_PATH_SESSION, SAVE_SANDBOX_PATH, applySandboxPathGrant, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
@@ -95,7 +99,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -178,6 +182,7 @@ interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 
 type PendingPermissionResponse =
 	| { readonly kind: 'decision'; readonly result: PermissionRequestResult; readonly source?: PermissionDecisionSource }
+	| { readonly kind: 'grant-sandbox-path'; readonly context: IAgentPermissionResponseContext; readonly persist: boolean }
 	| { readonly kind: 'disable-sandbox'; readonly context: IAgentPermissionResponseContext };
 
 function isCopilotSdkAuthRejection(error: { readonly errorType: string; readonly statusCode?: number }): boolean {
@@ -1103,9 +1108,13 @@ export class CopilotAgentSession extends Disposable {
 		readonly managedApprovalRequired: boolean;
 		readonly sdkSandboxBypass?: boolean;
 		readonly sdkSandboxPermissive?: boolean;
+		readonly sandboxPathGrant?: ISandboxPathGrant;
 		readonly samplingServerIdentity?: string;
 	}>();
 	private readonly _sandboxBypassRequests = new Map<string, string>();
+	private readonly _pendingSandboxPathGrants = new Map<string, ISandboxPathGrant>();
+	private readonly _sessionSandboxPathGrants: ISandboxPathGrant[] = [];
+	private _sandboxConfigUpdateDeferred = false;
 	private _sandboxDisabledForSession = false;
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -5655,6 +5664,7 @@ export class CopilotAgentSession extends Disposable {
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		let sandboxRequestId: string | undefined;
+		let sandboxPathGrant: ISandboxPathGrant | undefined;
 		try {
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
@@ -5675,6 +5685,12 @@ export class CopilotAgentSession extends Disposable {
 			const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
 				? request.requestSandboxPermissive === true
 				: false;
+			sandboxPathGrant = !managedApprovalRequired && requestSandboxBypass && (request.kind === 'read' || request.kind === 'write' || request.kind === 'shell')
+				? request.sandboxPathGrant
+				: undefined;
+			if (sandboxPathGrant) {
+				this._pendingSandboxPathGrants.set(toolCallId, sandboxPathGrant);
+			}
 			if (!managedApprovalRequired && request.kind === 'custom-tool' && this._mcpRoutingProxies.has(request.toolName)) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving MCP routing proxy ${request.toolName}`);
 				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
@@ -5720,14 +5736,14 @@ export class CopilotAgentSession extends Disposable {
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
 			if (approvedSignature !== undefined) {
 				this._approvedDuplicablePermissionSignatures.delete(toolCallId);
-				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell') && safeStringify(request) === approvedSignature) {
+				if (!managedApprovalRequired && !requestSandboxBypass && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell') && safeStringify(request) === approvedSignature) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving duplicate ${request.kind} permission request for tool call ${toolCallId}`);
 					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 			}
 
 			const sessionResourcePath = this._getInternalSessionResourcePath(request);
-			if (!managedApprovalRequired && sessionResourcePath) {
+			if (!managedApprovalRequired && !requestSandboxBypass && sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
 				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
@@ -5736,7 +5752,7 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot SDK itself. The SDK spills oversized tool results to
 			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
 			// to read them back in a follow-up turn — no need to confirm.
-			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string') {
+			if (!managedApprovalRequired && !requestSandboxBypass && request.kind === 'read' && typeof request.path === 'string') {
 				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
@@ -5814,6 +5830,7 @@ export class CopilotAgentSession extends Disposable {
 				managedApprovalRequired,
 				sdkSandboxBypass: requestSandboxBypass === true,
 				sdkSandboxPermissive: requestSandboxPermissive,
+				sandboxPathGrant,
 			});
 
 			// Auto-approve shell commands that run sandboxed by default, since the
@@ -5870,6 +5887,8 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
 			sandboxRequestId = this._sandboxBypassRequests.get(toolCallId);
+			const grantConfirmation = sandboxPathGrant && sandboxRequestId ? getSandboxPathGrantConfirmation(sandboxPathGrant, requestSandboxPermissive) : undefined;
+			const grantMeta = grantConfirmation && sandboxPathGrant ? this._sandboxPathGrantForSettings(sandboxPathGrant) : undefined;
 			if (trackedToolCall) {
 				trackedToolCall.pendingImageReady = undefined;
 			}
@@ -5883,9 +5902,10 @@ export class CopilotAgentSession extends Disposable {
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
-					_meta: withPermissionDiff(trackedToolCall?.meta
-						? toToolCallMeta(trackedToolCall.meta)
-						: isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
+					_meta: withPermissionDiff(grantMeta ? { ...toToolCallMeta(trackedToolCall?.meta ?? (isShellRequest ? { toolKind: 'terminal', language: shellLanguage } : {})), 'vscode.sandboxPathGrant': grantMeta }
+						: trackedToolCall?.meta
+							? toToolCallMeta(trackedToolCall.meta)
+							: isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
 						request.kind === 'write' ? request.diff : undefined),
 					invocationMessage,
 					toolInput: request.kind === 'mcp' && trackedToolCall?.parameters
@@ -5901,6 +5921,7 @@ export class CopilotAgentSession extends Disposable {
 						}
 						: undefined,
 					edits,
+					...grantConfirmation,
 				},
 				permissionKind,
 				permissionPath,
@@ -5914,6 +5935,9 @@ export class CopilotAgentSession extends Disposable {
 			});
 
 			const result = await pendingPermission;
+			if (result.kind === 'grant-sandbox-path') {
+				return await this._grantSandboxPathForPendingRequest(toolCallId, sandboxRequestId, sandboxPathGrant, result, abortToken);
+			}
 			if (result.kind === 'disable-sandbox') {
 				return await this._disableSandboxForPendingRequest(toolCallId, sandboxRequestId, result.context, abortToken);
 			}
@@ -5929,6 +5953,59 @@ export class CopilotAgentSession extends Disposable {
 			if (request.toolCallId && this._sandboxBypassRequests.get(request.toolCallId) === sandboxRequestId) {
 				this._sandboxBypassRequests.delete(request.toolCallId);
 			}
+			if (request.toolCallId && sandboxPathGrant && this._pendingSandboxPathGrants.get(request.toolCallId) === sandboxPathGrant) {
+				this._pendingSandboxPathGrants.delete(request.toolCallId);
+			}
+			if (!this._pendingSandboxPathGrants.size && this._sandboxConfigUpdateDeferred && !this._store.isDisposed) {
+				this._sandboxConfigUpdateDeferred = false;
+				void this._syncPermissionModeAfterConfigChange();
+			}
+		}
+	}
+
+	/** Includes settings spellings normalized by the host before they reached the SDK. */
+	private _sandboxPathGrantForSettings(grant: ISandboxPathGrant): ISandboxPathGrant {
+		if (!grant.removedReadonlyPaths?.length) {
+			return grant;
+		}
+		const removed = new Set(grant.removedReadonlyPaths);
+		const paths = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.UserConfiguredPaths]?.readonlyPaths ?? [];
+		const os = this._platform === 'win32' ? OperatingSystem.Windows : this._platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+		return { ...grant, removedReadonlyPaths: [...removed, ...paths.filter(path => removed.has(normalizeSandboxFileSystemPath(path, os)))] };
+	}
+
+	private async _grantSandboxPathForPendingRequest(toolCallId: string, requestId: string | undefined, grant: ISandboxPathGrant | undefined, response: Extract<PendingPermissionResponse, { kind: 'grant-sandbox-path' }>, token: CancellationToken): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		try {
+			return await this._sandboxConfigSequencer.queue(async () => {
+				if (response.persist && !response.context.sandboxPathGrantSaved) {
+					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code or use Allow in this Session."));
+				}
+				if (token.isCancellationRequested || !requestId || !grant || this._sandboxBypassRequests.get(toolCallId) !== requestId) {
+					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
+				}
+				const attributed = attributePermissionResult({ kind: 'approve-once' }, response.context.decisionSource);
+				const result = await this._wrapper.session.rpc.sandbox.grantPathForRequest({
+					requestId,
+					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
+				});
+				if (!result.success) {
+					throw new Error(localize('copilot.permission.grant.rejected', "The SDK did not grant sandbox access for this request."));
+				}
+				if (!response.persist) {
+					this._sessionSandboxPathGrants.push(grant);
+				}
+				return { kind: 'no-result' };
+			});
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to grant sandbox path access`);
+			const message = response.persist && response.context.sandboxPathGrantSaved
+				? localize('copilot.permission.grant.savedButFailed', "The path was saved to your sandbox settings, but this request could not be retried. {0}", getErrorMessage(error))
+				: getErrorMessage(error);
+			if (response.context.origin) {
+				const owner = this._ownerSessionUri.toString();
+				this._configurationService.setSessionSandboxEnabled(owner, this._configurationService.getSessionSandboxEnabled(owner) ?? true, { ...response.context.origin, message });
+			}
+			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 		}
 	}
 
@@ -6047,7 +6124,13 @@ export class CopilotAgentSession extends Disposable {
 		const owner = this._ownerSessionUri.toString();
 		const sandbox = getSessionSandboxConfig(this._configurationService, owner, this._platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(owner);
-		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths(), policy);
+		const config = buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths(), policy);
+		if (config) {
+			for (const grant of this._sessionSandboxPathGrants) {
+				config.userPolicy = { ...config.userPolicy, filesystem: applySandboxPathGrant(config.userPolicy?.filesystem, grant) };
+			}
+		}
+		return config;
 	}
 
 	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
@@ -6246,6 +6329,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _updateEffectiveSandboxConfig(failOnError: boolean, requestDisable: boolean, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		// Saving settings must not replace the live policy before the runtime accepts the pending grant.
+		if (this._pendingSandboxPathGrants.size) {
+			this._sandboxConfigUpdateDeferred = true;
+			return;
+		}
 		const base = this._computeSdkSandboxConfig();
 		if (!base && this._sandboxDisabledForSession) {
 			// disableForSession already applied the opt-out. A bare disabled
@@ -6434,7 +6522,20 @@ export class CopilotAgentSession extends Disposable {
 
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): boolean {
 		const metadata = this._pendingPermissions.getMetadata(requestId);
-		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.sdkSandboxPermissive && !metadata.managedApprovalRequired
+		if (context?.selectedOptionId === ALLOW_SANDBOX_PATH_SESSION || context?.selectedOptionId === SAVE_SANDBOX_PATH) {
+			if (!approved || !metadata?.sandboxPathGrant || metadata.managedApprovalRequired || context.decisionSource !== 'human_response') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Rejecting invalid sandbox path grant response: ${requestId}`);
+				const responded = this._pendingPermissions.respond(requestId, { kind: 'decision', result: { kind: 'reject' }, source: 'host_policy' });
+				if (responded) {
+					this._deletePendingEditContent(requestId);
+				}
+				return responded;
+			}
+			const responded = this._pendingPermissions.respond(requestId, { kind: 'grant-sandbox-path', context, persist: context.selectedOptionId === SAVE_SANDBOX_PATH });
+			this._deletePendingEditContent(requestId);
+			return responded;
+		}
+		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.sandboxPathGrant && !metadata.sdkSandboxPermissive && !metadata.managedApprovalRequired
 			? { kind: 'disable-sandbox', context } as const
 			: { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource } as const;
 		if (this._pendingPermissions.respond(requestId, result)) {
