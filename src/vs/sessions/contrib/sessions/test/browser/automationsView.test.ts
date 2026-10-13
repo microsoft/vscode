@@ -798,7 +798,7 @@ suite('AutomationsCardsWidget', () => {
 		const state = () => ({
 			label: button.getAttribute('aria-label'),
 			text: button.textContent,
-			spinning: !!button.querySelector('.codicon-refresh.codicon-modifier-spin'),
+			spinning: !!button.querySelector('.codicon-loading.codicon-modifier-spin'),
 			disabled: button.getAttribute('aria-disabled'),
 		});
 		const idle = state();
@@ -848,7 +848,7 @@ suite('AutomationsCardsWidget', () => {
 			const button = renderRefreshButton(context);
 			button.click();
 			button.click();
-			const icon = button.querySelector<HTMLElement>('.codicon-refresh')!;
+			const icon = button.querySelector<HTMLElement>('.codicon-loading.codicon-modifier-spin')!;
 			const animation = icon.getAnimations()[0];
 			assert.ok(animation, 'refresh must have an actual CSS animation, not only a modifier class');
 			animation.pause();

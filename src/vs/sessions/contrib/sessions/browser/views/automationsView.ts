@@ -2232,7 +2232,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
 		if (this.refreshing) {
-			this.button.label = `$(${this.refreshing.get() || this.refreshRequested ? ThemeIcon.modify(Codicon.refresh, 'spin').id : Codicon.refresh.id})`;
+			this.button.label = `$(${this.refreshing.get() || this.refreshRequested ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
 			return;
 		}
 		DOM.reset(this.button.element, this._action.label);
