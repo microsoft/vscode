@@ -469,34 +469,34 @@ suite('Workbench editor utils', () => {
 	});
 
 	test('title separator follows the inset editor content while tabs remain full width', async () => {
-			const part = await createEditorPart(instantiationService, disposables);
-			const root = mainWindow.document.createElement('div');
-			root.className = 'monaco-workbench';
-			mainWindow.document.body.appendChild(root);
-			const partContainer = part.getContainer()!;
-			partContainer.classList.add('part', 'editor');
-			root.appendChild(partContainer);
-			disposables.add(toDisposable(() => root.remove()));
-			const group = part.activeGroup;
-			assert.ok(group instanceof EditorGroupView);
-			await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/title-separator.ts'), TEST_EDITOR_ID)), { pinned: true });
-			const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
-			title.classList.add('title-border-bottom');
-			const results = [];
-			for (const { width, inset } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }]) {
-				group.layout(width, 400, 0, 0);
-				group.setContentRightInset(inset);
-				results.push({
-					width, inset,
-					separatorWidth: mainWindow.getComputedStyle(title, '::after').width,
-					editorWidth: root.querySelector<HTMLElement>('.editor-container')!.style.width,
-				});
-			}
-			assert.deepStrictEqual(results, results.map(result => ({
-				...result,
-				separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
-				editorWidth: `${Math.max(0, result.width - result.inset)}px`,
-			})));
+		const part = await createEditorPart(instantiationService, disposables);
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench';
+		mainWindow.document.body.appendChild(root);
+		const partContainer = part.getContainer()!;
+		partContainer.classList.add('part', 'editor');
+		root.appendChild(partContainer);
+		disposables.add(toDisposable(() => root.remove()));
+		const group = part.activeGroup;
+		assert.ok(group instanceof EditorGroupView);
+		await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/title-separator.ts'), TEST_EDITOR_ID)), { pinned: true });
+		const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
+		title.classList.add('title-border-bottom');
+		const results = [];
+		for (const { width, inset } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }]) {
+			group.layout(width, 400, 0, 0);
+			group.setContentRightInset(inset);
+			results.push({
+				width, inset,
+				separatorWidth: mainWindow.getComputedStyle(title, '::after').width,
+				editorWidth: root.querySelector<HTMLElement>('.editor-container')!.style.width,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
+			editorWidth: `${Math.max(0, result.width - result.inset)}px`,
+		})));
 	});
 
 	test('editor tab mode class follows configured and enforced part options', async () => {
