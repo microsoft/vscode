@@ -617,7 +617,7 @@ export class PromptFilesLocator {
 					const uri = joinPath(userHome, configuredLocation.substring(2));
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						const { searchRoot, filePattern } = resolveSearchLocation(type, uri);
+						const { searchRoot, filePattern } = resolveSearchLocation(type, userHome, configuredLocation.substring(2));
 						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 					continue;
@@ -641,7 +641,7 @@ export class PromptFilesLocator {
 						const absolutePath = joinPath(folder, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							const { searchRoot, filePattern } = resolveSearchLocation(type, absolutePath);
+							const { searchRoot, filePattern } = resolveSearchLocation(type, folder, configuredLocation);
 							result.push({ uri: absolutePath, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
@@ -1020,13 +1020,15 @@ interface ISearchLocationResult {
  * );
  * ```
  */
-function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocationResult {
+function resolveSearchLocation(type: PromptsType, location: URI, relativePath?: string): ISearchLocationResult {
+	// Workspace and home directory segments are literal; only the configured path can contain globs.
+	const resolvedLocation = relativePath === undefined ? location : joinPath(location, relativePath);
 	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
 		// only instructions and prompts support glob patterns, so we can return the location as is
-		return { searchRoot: location };
+		return { searchRoot: resolvedLocation };
 	}
 
-	const segments = location.path.split('/');
+	const segments = (relativePath ?? location.path).split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
 		i++;
@@ -1034,9 +1036,10 @@ function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocatio
 	if (i === segments.length) {
 		// the path does not contain a glob pattern, so we can
 		// just find all prompt files in the provided location
-		return { searchRoot: location };
+		return { searchRoot: resolvedLocation };
 	}
-	const parent = location.with({ path: segments.slice(0, i).join('/') });
+	const parentPath = segments.slice(0, i).join('/');
+	const parent = relativePath === undefined ? location.with({ path: parentPath }) : joinPath(location, parentPath || '.');
 	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
 		return { searchRoot: parent };
 	}
