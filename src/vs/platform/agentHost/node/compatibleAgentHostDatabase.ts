@@ -74,12 +74,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		write.finally(() => this._pendingChatRecords.delete(write));
 	}
 
-	async deleteChatStorageIdentity(chat: string): Promise<void> {
-		if (this.identity.deleteChat(chat)) {
-			await this.raw.deleteStorageIdentityMetadata(chatStorageIdentityPrefix + chat);
-		}
-	}
-
 	async prepareSessionStorage(session: string, provider: string): Promise<void> {
 		return this._allocations.queue(() => this._prepareSessionStorage(session, provider));
 	}

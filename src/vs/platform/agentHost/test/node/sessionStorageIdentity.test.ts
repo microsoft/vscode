@@ -1097,22 +1097,35 @@ suite('Session storage identity compatibility', () => {
 			restoredRef.dispose();
 		});
 
-		test('a recreated default chat keeps its generation in storage and a deleted chat forgets its record', async () => {
+		test('a recreated default chat keeps its generation in storage', async () => {
 			const db = await database();
 			await db.prepareSessionStorage(session, 'copilotcli');
 			db.recordChatStorageIdentity(session, defaultChat, { kind: 'default', generation: 'regenerated' });
-			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
-			await db.deleteChatStorageIdentity(peer);
 			await db.close();
 			const next = await database();
+			assert.strictEqual(next.identity.toStorage(defaultChat), `${buildDefaultChatUri(storageSession)}?generation=regenerated`);
+		});
+
+		test('chat records are immutable: recording again is idempotent and a chat that no longer exists keeps its record', async () => {
+			const db = await database();
+			await db.prepareSessionStorage(session, 'copilotcli');
+			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			// A rolled back createChat retries with the same URI.
+			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			await db.close();
+			// An older build that never wrote the chat to its catalog leaves the record behind; nothing deletes it.
+			const next = await database();
+			next.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			await next.close();
+			const reopened = await database();
 			assert.deepStrictEqual({
-				defaultChat: next.identity.toStorage(defaultChat),
-				peer: next.identity.toStorage(peer),
-				records: (await next.raw.readStorageIdentityMetadata('chatStorageIdentity:')).map(entry => entry.key),
+				storage: reopened.identity.toStorage(peer),
+				chat: (await reopened.readChatV2(session, peer)).chat,
+				records: (await reopened.raw.readStorageIdentityMetadata('chatStorageIdentity:')).map(entry => entry.key),
 			}, {
-				defaultChat: `${buildDefaultChatUri(storageSession)}?generation=regenerated`,
-				peer,
-				records: [`chatStorageIdentity:${defaultChat}`],
+				storage: reopened.identity.toStorage(peer),
+				chat: undefined,
+				records: [`chatStorageIdentity:${peer}`],
 			});
 		});
 	});

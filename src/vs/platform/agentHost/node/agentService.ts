@@ -5748,7 +5748,6 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					try {
 						await this._sessionDataService.deleteSessionData(chat);
-						await this._orchestratorDatabase.deleteChatStorageIdentity(chat.toString());
 					} catch (rollbackError) {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
@@ -5896,8 +5895,6 @@ export class AgentService extends Disposable implements IAgentService {
 							this._catalogChatsFromState(state, this._requireDefaultChat(sessionKey)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
-					// Last: locating the chat's data needs its storage spelling until the data is gone.
-					await this._orchestratorDatabase.deleteChatStorageIdentity(chatKey);
 					ancillaryCleanupSucceeded = true;
 				} finally {
 					if (membershipRemoved) {
@@ -5940,7 +5937,6 @@ export class AgentService extends Disposable implements IAgentService {
 							this._catalogChatsFromState(state, this._requireDefaultChat(session)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
-					await this._orchestratorDatabase.deleteChatStorageIdentity(chatKey);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to repair ancillary state for removed chat ${chatKey}`, error);
 				}
@@ -7033,9 +7029,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			traceStage('deleteSessionData');
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
-			for (const chat of new Set([...chatsToDelete.map(chat => chat.toString()), ...sessionChats.map(chat => chat.resource)])) {
-				await this._orchestratorDatabase.deleteChatStorageIdentity(chat);
-			}
 			traceStage('removeSessionWorktree');
 			await this._worktree.removeSessionWorktree(sessionId, worktree);
 			this._changesetCoordinator.onSessionDisposed(session.toString());

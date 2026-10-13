@@ -287,8 +287,6 @@ export interface IAgentHostDatabase extends IDisposable {
 	 * storage identity record gets one.
 	 */
 	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void;
-	/** Forgets the storage spelling of a permanently deleted chat. */
-	deleteChatStorageIdentity(chat: string): Promise<void>;
 
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
@@ -853,18 +851,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async deleteStorageIdentityMetadata(key: string): Promise<void> {
-		if (!isStorageIdentityMetadataKey(key)) {
-			throw new Error(`Invalid storage identity metadata key: ${key}`);
-		}
-		await this._transactionSequencer.queue(async () => run(await this._ensureDatabase(), 'DELETE FROM metadata WHERE key = ?', [key]));
-	}
-
 	recordChatStorageIdentity(_session: string, _chat: string, _role: ChatStorageRole): void {
 		// This database stores runtime identities as they are.
 	}
 
-	async deleteChatStorageIdentity(_chat: string): Promise<void> { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;

@@ -18,7 +18,6 @@ import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLe
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
 	recordChatStorageIdentity(): void { }
-	async deleteChatStorageIdentity(): Promise<void> { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
 	}
