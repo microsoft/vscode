@@ -4428,7 +4428,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (isBrowserViewVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else {
-				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container)
+				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container, this._widget?.viewModel?.sessionResource)
 					?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);
 			}
 

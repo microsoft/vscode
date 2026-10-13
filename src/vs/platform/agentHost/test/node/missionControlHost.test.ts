@@ -32,6 +32,7 @@ import { getMissionControlEnvironmentName, MissionControlHost, type MissionContr
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -517,7 +518,8 @@ suite('Mission Control host integration', () => {
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
+			sessionList: config.sessionListAdapter === toMissionControlSessionList,
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true, sessionList: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {

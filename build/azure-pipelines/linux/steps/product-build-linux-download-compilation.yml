@@ -12,9 +12,9 @@ steps:
       path: $(Agent.TempDirectory)/compilation
     displayName: Download compilation artifact
 
-  - script: tar -xzf $(Agent.TempDirectory)/compilation/builds.tar.gz -C $(Agent.BuildDirectory)
+  - script: tar -xpzf $(Agent.TempDirectory)/compilation/builds.tar.gz -C $(Agent.BuildDirectory)
     displayName: Extract client, server and web server builds
 
   - ${{ if eq(parameters.VSCODE_DOWNLOAD_OUT_BUILD, true) }}:
-    - script: tar -xzf $(Agent.TempDirectory)/compilation/out-build.tar.gz -C $(Build.SourcesDirectory)
+    - script: tar -xpzf $(Agent.TempDirectory)/compilation/out-build.tar.gz -C $(Build.SourcesDirectory)
       displayName: Extract out-build
