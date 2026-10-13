@@ -2440,7 +2440,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'CopilotCliCommand',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.142',
+				minimumVersion: '1.143',
 				localization: {
 					description: {
 						key: 'chat.copilotCliCommand.enabled.policy',
