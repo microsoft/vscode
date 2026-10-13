@@ -454,7 +454,14 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 	const inputWarnings = server.environmentVariables?.length
 		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
 		: [];
-	return [...inputWarnings, ...mcpServerCustomizationMigrationRemovableProperties
+	const oauthWarnings = server.oauth
+		? [localize('mcpMigrationOAuthSignIn', "You may need to sign in again after migration.")]
+		: [];
+	// Copilot user servers are trusted per configuration, and the migrated server is a new configuration.
+	const trustWarnings = server.storage === PromptsStorage.user
+		? [localize('mcpMigrationTrustAgain', "VS Code will ask you to trust this server again after migration.")]
+		: [];
+	return [...inputWarnings, ...oauthWarnings, ...trustWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
 		.flatMap(property => {
 			switch (property) {

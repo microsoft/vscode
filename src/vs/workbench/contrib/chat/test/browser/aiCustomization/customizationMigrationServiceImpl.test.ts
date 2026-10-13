@@ -50,6 +50,7 @@ import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mc
 import { TestEnablementModel, TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
@@ -225,6 +226,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			mcpService,
 			copilotGlobalConfigurationService,
 			workspaceContextService,
+			this._register(new TestSecretStorageService()),
 		));
 	}
 

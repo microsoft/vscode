@@ -19,14 +19,16 @@ import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPl
 import { hasConfigurationVariable } from '../../../../../platform/configuration/common/configurationVariables.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { hasEnvVarReferences, MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../platform/mcp/common/envVarResolution.js';
 import { toCopilotMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpCopilotConfiguration.js';
 import { parseCopilotGlobalMcpConfiguration } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
+import { mcpOAuthClientSecretStorageKey } from '../../../mcp/common/mcpTypes.js';
 import { ConfigurationResolverExpression, Replacement } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationVariable, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationOAuthClient, IMcpServerCustomizationMigrationVariable, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { environmentVariableNamePattern, getConfigurationVariables, getMcpSourceFile, getMigratedVariables, IMcpSourceFile, isDefaultReferenceIntact, isJsonObject, parseJsonContent, removeUnreferencedInputs, replaceConfigurationVariables } from './mcpServerEnvironmentVariables.js';
@@ -99,6 +101,7 @@ export class McpServerCustomizationMigrator {
 		private readonly fileService: IFileService,
 		private readonly logService: ILogService,
 		private readonly configurationResolverService: IConfigurationResolverService,
+		private readonly secretStorageService: ISecretStorageService,
 	) { }
 
 	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[], token = CancellationToken.None, userTarget?: URI): Promise<IMcpServerCustomizationMigrationPlan> {
@@ -180,6 +183,23 @@ export class McpServerCustomizationMigrator {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
 			}
+			const oauth = analysis.oauthClientId !== undefined ? { clientId: analysis.oauthClientId } : undefined;
+			if (oauth) {
+				let hasSecret: boolean;
+				try {
+					hasSecret = await hasOAuthClientSecret(oauth, server.projectedConfiguration, this.secretStorageService);
+				} catch (error) {
+					excluded(McpServerCustomizationMigrationFailureReason.SourceUnavailable, toError(error));
+					continue;
+				}
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (hasSecret) {
+					excluded(McpServerCustomizationMigrationFailureReason.OAuthClientSecret);
+					continue;
+				}
+			}
 			const removedProperties = getRemovedProperties(rawConfiguration);
 			candidates.push({
 				type: CustomizationMigrationType.McpServers,
@@ -192,6 +212,7 @@ export class McpServerCustomizationMigrator {
 				...(analysis.migration !== analysis.projection ? { migratedConfiguration: analysis.migration } : {}),
 				...(analysis.environmentVariables ? { environmentVariables: analysis.environmentVariables } : {}),
 				...(removedProperties ? { removedProperties } : {}),
+				...(oauth ? { oauth } : {}),
 			});
 		}
 
@@ -203,7 +224,7 @@ export class McpServerCustomizationMigrator {
 		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 		options: IMcpServerCustomizationMigrationExecutionOptions = {},
 	): Promise<IMcpServerCustomizationMigrationResult> {
-		return executeMigration(candidates, this.fileService, this.logService, this.configurationResolverService, options);
+		return executeMigration(candidates, this.fileService, this.logService, this.configurationResolverService, this.secretStorageService, options);
 	}
 
 	private async readMcpSourceFile(resource: URI, token: CancellationToken): Promise<IMcpSourceFile | undefined> {
@@ -234,6 +255,7 @@ async function executeMigration(
 	fileService: IFileService,
 	logService: ILogService,
 	configurationResolverService: IConfigurationResolverService,
+	secretStorageService: ISecretStorageService,
 	options: IMcpServerCustomizationMigrationExecutionOptions,
 ): Promise<IMcpServerCustomizationMigrationResult> {
 	const groups = new Map<string, IMcpServerMigrationGroup>();
@@ -268,7 +290,7 @@ async function executeMigration(
 			continue;
 		}
 		try {
-			const result = await migrateGroup(group, fileService, logService, configurationResolverService, options);
+			const result = await migrateGroup(group, fileService, logService, configurationResolverService, secretStorageService, options);
 			migratedCount += result.migratedCount;
 			failures.push(...result.failures);
 		} catch (error) {
@@ -286,6 +308,7 @@ async function migrateGroup(
 	fileService: IFileService,
 	logService: ILogService,
 	configurationResolverService: IConfigurationResolverService,
+	secretStorageService: ISecretStorageService,
 	options: IMcpServerCustomizationMigrationExecutionOptions,
 ): Promise<IMcpServerCustomizationMigrationResult> {
 	logService.trace(`${LOG_PREFIX} Migrating ${group.candidates.length} server(s) from ${group.sourceUri.toString()} to ${group.targetUri.toString()}.`);
@@ -342,6 +365,19 @@ async function migrateGroup(
 			|| !equals(getRemovedProperties(sourceServers[candidate.name]), candidate.removedProperties)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
+		}
+		if (candidate.oauth) {
+			let hasSecret: boolean;
+			try {
+				hasSecret = await hasOAuthClientSecret(candidate.oauth, candidate.projectedConfiguration, secretStorageService);
+			} catch {
+				reject(candidate, McpServerCustomizationMigrationFailureReason.SourceUnavailable);
+				continue;
+			}
+			if (hasSecret) {
+				reject(candidate, McpServerCustomizationMigrationFailureReason.OAuthClientSecret);
+				continue;
+			}
 		}
 		if (Object.hasOwn(targetServers, candidate.name) && !isEquivalentTargetConfiguration(targetServers[candidate.name], candidate)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.TargetConflict);
@@ -603,7 +639,24 @@ function getTargetServers(target: IMcpTargetDocument): Record<string, unknown> {
 }
 
 function getTargetConfiguration(candidate: IMcpServerCustomizationMigrationCandidate) {
-	return toCopilotMcpServerConfiguration(getMigratedConfiguration(candidate));
+	const migrated = getMigratedConfiguration(candidate);
+	return toCopilotMcpServerConfiguration(candidate.oauth && migrated.type === McpServerType.REMOTE ? { ...migrated, oauth: { clientId: candidate.oauth.clientId } } : migrated);
+}
+
+/**
+ * Whether VS Code stores a client secret for an OAuth client, read with the key that the *Set Client
+ * Secret* code lens and VS Code's sign-in use. The destination has no way to use the secret.
+ */
+async function hasOAuthClientSecret(
+	oauth: IMcpServerCustomizationMigrationOAuthClient,
+	projectedConfiguration: IMcpServerConfiguration,
+	secretStorageService: ISecretStorageService,
+): Promise<boolean> {
+	if (projectedConfiguration.type !== McpServerType.REMOTE) {
+		return false;
+	}
+	const serverUrl = URI.parse(projectedConfiguration.url).toString(true);
+	return !!await secretStorageService.get(mcpOAuthClientSecretStorageKey(serverUrl, oauth.clientId));
 }
 
 function getMigratedConfiguration(candidate: IMcpServerCustomizationMigrationCandidate): IMcpServerConfiguration {
@@ -764,7 +817,7 @@ function isConfigurationRepresentable(configuration: IMcpServerConfiguration): b
 			&& configuration.sandboxEnabled !== true
 			&& (!configuration.env || Object.values(configuration.env).every(value => value !== null));
 	}
-	return configuration.oauth === undefined && configuration.transport !== 'sse';
+	return configuration.transport !== 'sse';
 }
 
 function canonicalizeSourceConfiguration(rawConfiguration: unknown): IMcpServerConfiguration | undefined {
@@ -794,6 +847,8 @@ interface IMcpServerSourceAnalysis {
 	readonly migration: IMcpServerConfiguration;
 	/** The inputs the server reads from environment variables once migrated, if it references any. */
 	readonly environmentVariables?: readonly IMcpServerCustomizationMigrationVariable[];
+	/** The OAuth client ID of a remote server, which neither configuration includes, since the client does not forward it. */
+	readonly oauthClientId?: string;
 }
 
 /**
@@ -812,12 +867,50 @@ async function analyzeSourceConfiguration(
 	configurationResolverService: IConfigurationResolverService,
 ): Promise<IMcpServerSourceAnalysis | McpServerCustomizationMigrationFailureReason> {
 	const configuration = canonicalizeSourceConfiguration(rawConfiguration);
-	if (!configuration) {
+	if (!configuration || !isJsonObject(rawConfiguration)) {
 		return normalizeMcpServerConfiguration(rawConfiguration)
 			? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
 			: McpServerCustomizationMigrationFailureReason.InvalidSource;
 	}
+	const oauth = getSourceOAuthClient(rawConfiguration);
+	if (typeof oauth === 'string') {
+		return oauth;
+	}
+	const analysis = await analyzeSourceConnection(configuration, sourceFile, root, storage, configurationResolverService);
+	return typeof analysis === 'string' || oauth.clientId === undefined ? analysis : { ...analysis, oauthClientId: oauth.clientId };
+}
 
+/**
+ * Reads the `oauth` of a source server. Only its client ID is migrated, since the client secret is kept in
+ * VS Code's secret storage. Enterprise-managed sign-in relies on a VS Code setting, so it cannot be migrated.
+ */
+function getSourceOAuthClient(rawConfiguration: Record<string, unknown>): { readonly clientId?: string } | McpServerCustomizationMigrationFailureReason {
+	const oauth = rawConfiguration.oauth;
+	if (oauth === undefined) {
+		return {};
+	}
+	if (!isJsonObject(oauth)
+		|| Object.keys(oauth).some(key => key !== 'clientId' && key !== 'enterpriseManaged')
+		|| (oauth.clientId !== undefined && typeof oauth.clientId !== 'string')
+		|| (oauth.enterpriseManaged !== undefined && typeof oauth.enterpriseManaged !== 'boolean')) {
+		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
+	if (oauth.enterpriseManaged === true) {
+		return McpServerCustomizationMigrationFailureReason.EnterpriseManagedOAuth;
+	}
+	if (typeof oauth.clientId === 'string' && hasConfigurationVariable(oauth.clientId)) {
+		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
+	return oauth.clientId ? { clientId: oauth.clientId } : {};
+}
+
+async function analyzeSourceConnection(
+	configuration: IMcpServerConfiguration,
+	sourceFile: IMcpSourceFile,
+	root: URI | undefined,
+	storage: PromptsStorage.local | PromptsStorage.user,
+	configurationResolverService: IConfigurationResolverService,
+): Promise<IMcpServerSourceAnalysis | McpServerCustomizationMigrationFailureReason> {
 	const isPortable = (replacement: Replacement) => isPortableMigrationVariable(replacement.name, replacement.arg)
 		&& (!!root || replacement.name === 'pathSeparator' || replacement.name === '/');
 	let hasEnvironmentVariables = false;
@@ -867,7 +960,8 @@ async function analyzeSourceConfiguration(
 function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IMcpServerCustomizationMigrationCandidate): boolean {
 	return equals(analysis.projection, canonicalizeConfiguration(candidate.projectedConfiguration))
 		&& equals(analysis.migration, canonicalizeConfiguration(getMigratedConfiguration(candidate)))
-		&& equals(analysis.environmentVariables, candidate.environmentVariables);
+		&& equals(analysis.environmentVariables, candidate.environmentVariables)
+		&& analysis.oauthClientId === candidate.oauth?.clientId;
 }
 
 /**
@@ -1081,7 +1175,7 @@ function isPortableMigrationVariable(name: string, argument: string | undefined)
 function hasOnlyRepresentableProperties(rawConfiguration: Record<string, unknown>, type: McpServerType): boolean {
 	const allowed = type === McpServerType.LOCAL
 		? new Set(['type', 'command', 'args', 'env', 'cwd', ...mcpServerCustomizationMigrationRemovableProperties])
-		: new Set(['type', 'transport', 'url', 'headers', ...mcpServerCustomizationMigrationRemovableProperties.filter(property => property !== 'sandboxEnabled')]);
+		: new Set(['type', 'transport', 'url', 'headers', 'oauth', ...mcpServerCustomizationMigrationRemovableProperties.filter(property => property !== 'sandboxEnabled')]);
 	return Object.keys(rawConfiguration).every(key => allowed.has(key));
 }
 
