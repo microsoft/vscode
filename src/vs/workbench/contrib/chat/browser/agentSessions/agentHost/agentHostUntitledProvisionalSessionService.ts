@@ -77,7 +77,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { getAgentHostApprovalDefault, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -673,7 +674,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const workingDirectory = entry.workingDirectory;
 			const workingDirectories = this._computeEntryWorkingDirectories(entry);
 			const configVersion = entry.configVersion;
-			const config = { ...entry.config };
+			let config = { ...entry.config };
 			const metadata = this.getInitialSessionMetadata(sessionResource);
 
 			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
@@ -685,6 +686,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const candidate = this._newProvisionalUri(entry.provider);
 			let created: URI;
 			try {
+				config = await resolveInitialAgentHostApprovalConfig(this._configurationService, this._agentHostService, entry.provider, workingDirectory, config);
+				if (this._entries.get(sessionResource) !== entry || entry.disposed) {
+					return undefined;
+				}
+				if (entry.configVersion !== configVersion || !this._sameUri(entry.workingDirectory, workingDirectory)) {
+					continue;
+				}
+				entry.config = { ...config };
 				created = await this._agentHostService.createSession({
 					provider: entry.provider,
 					session: candidate,
@@ -1165,8 +1174,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
 	 * - `mode` / `autoApprove`: seeded from the single
 	 *   `chat.defaultConfiguration` object setting (`mode` and
-	 *   `approvals` properties). The approval seed is clamped to `'default'`
-	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `approvals` properties). Approval policy is applied after host schema
+	 *   discovery, before backend creation. The local-only
 	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
@@ -1179,14 +1188,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-
-		const configuredApprovals = getChatPermissionLevelFromDefaultConfiguration(configuredDefaults?.approvals);
+		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
 		if (configuredApprovals) {
-			const policyRestricted = policyValue === false;
-			// Bypass and (legacy) Autopilot auto-approve at least some tool
-			// calls, so clamp anything but Default under policy.
-			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
+			config[SessionConfigKey.AutoApprove] = configuredApprovals;
 		}
 
 		const configuredMode = configuredDefaults?.mode;

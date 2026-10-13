@@ -29,8 +29,7 @@ import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/commo
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { getTerminalSandboxReadAllowListForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
@@ -167,42 +166,10 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
-		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
-			readonlyPaths: ['c:\\tools\\node'],
-			readwritePaths: [],
-		};
-		environment = [
-			'SystemRoot=c:\\windows',
-			'PATH=c:\\tools\\node;c:\\windows\\system32',
-			'ComSpec=c:\\windows\\system32\\cmd.exe',
-			'PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1',
-			'PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
-			'USERPROFILE=c:\\users\\test',
-			'APPDATA=c:\\users\\test\\appdata\\roaming',
-			'PSHOME=c:\\program files\\powershell\\7'
-		];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
 			return Promise.resolve(this.status);
-		}
-
-		getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy> {
-			return Promise.resolve(this.filesystemPolicy);
-		}
-
-		getWindowsMxcEnvironment(): Promise<string[]> {
-			return Promise.resolve(this.environment);
-		}
-
-		buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig> {
-			return Promise.resolve({
-				...policy,
-				command: commandLine,
-				workingDirectory,
-				containerName,
-				containment: { type: containment },
-			});
 		}
 	}
 
@@ -251,7 +218,6 @@ suite('TerminalSandboxService - network domains', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
 		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
-		instantiationService.stub(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 	});
 
 	test('dependency checks should not be called for isEnabled', async () => {
@@ -1494,7 +1460,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
 		if (isWindows) {
-			// Windows uses PowerShell syntax to launch the MXC SDK runner.
+			// The Local harness does not support Windows sandboxing.
 			this.skip();
 		}
 		remoteAgentService.remoteEnvironment = null;
@@ -1515,56 +1481,8 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
 	});
 
-	test('should route remote Windows sandbox commands through MXC', async () => {
+	test('should keep remote Windows sandbox disabled even when the unified setting is on', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
-		remoteAgentService.remoteEnvironment = {
-			...remoteAgentService.remoteEnvironment!,
-			os: OperatingSystem.Windows,
-			appRoot: URI.file('/c:/app'),
-			execPath: 'c:\\app\\Code.exe',
-			tmpDir: URI.file('/c:/tmp'),
-			userHome: URI.file('/c:/Users/test'),
-			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
-			arch: 'arm64'
-		};
-		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		const configPath = await sandboxService.getSandboxConfigPath();
-		const wrapped = await sandboxService.wrapCommand('echo test', false, 'c:\\program files\\powershell\\7\\pwsh.exe', URI.file('/c:/workspace-one'));
-
-		ok(configPath, 'Config path should be defined for remote Windows');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created for remote Windows');
-		const config = JSON.parse(configContent);
-
-		strictEqual(wrapped.isSandboxWrapped, true);
-		ok(wrapped.command.includes('out\\vs\\platform\\sandbox\\node\\mxcMain.js'), `Wrapped command should use the MXC SDK runner. Actual: ${wrapped.command}`);
-		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, undefined);
-		deepStrictEqual(config.containment, { type: 'process' });
-		strictEqual(config.command, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
-		strictEqual(config.workingDirectory, 'c:\\workspace-one');
-		deepStrictEqual(config.environment, {
-			SystemRoot: 'c:\\windows',
-			PATH: 'c:\\tools\\node;c:\\windows\\system32',
-			ComSpec: 'c:\\windows\\system32\\cmd.exe',
-			PATHEXT: '.COM;.EXE;.BAT;.CMD;.PS1',
-			PSModulePath: 'c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
-			USERPROFILE: 'c:\\users\\test',
-			APPDATA: 'c:\\users\\test\\appdata\\roaming',
-			PSHOME: 'c:\\program files\\powershell\\7',
-		});
-		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
-		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
-		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
-		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
-	});
-
-	test('should keep remote Windows sandbox disabled when the unified setting is off', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1578,16 +1496,24 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the unified setting is off');
-		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the unified setting is enabled');
-		const prereqs = await sandboxService.checkForSandboxingPrereqs();
-		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the unified setting is off');
-		strictEqual(prereqs.failedCheck, undefined, 'No prereq check should fail when Windows sandboxing is disabled');
+		deepStrictEqual({
+			enabled: await sandboxService.isEnabled(),
+			configPath: await sandboxService.getSandboxConfigPath(),
+			prerequisites: await sandboxService.checkForSandboxingPrereqs(),
+			wrapped: await sandboxService.wrapCommand('echo test'),
+			createdFiles: createFileCount,
+		}, {
+			enabled: false,
+			configPath: undefined,
+			prerequisites: { enabled: false, sandboxConfigPath: undefined, failedCheck: undefined },
+			wrapped: { command: 'echo test', isSandboxWrapped: false },
+			createdFiles: 0,
+		});
 	});
 
 	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
 		if (isWindows) {
-			// Local Windows uses MXC, which does not use the POSIX local temp-dir path shape asserted below.
+			// The Local harness does not support Windows sandboxing.
 			this.skip();
 		}
 		remoteAgentService.remoteEnvironment = null;

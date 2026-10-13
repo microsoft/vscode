@@ -45,7 +45,7 @@ suite('Mission Control projects', () => {
 		await rm(directory, { recursive: true, force: true });
 	});
 
-	async function fixture(runGit?: ConstructorParameters<typeof MissionControlProjects>[0]['runGit']) {
+	async function fixture(runGit?: ConstructorParameters<typeof MissionControlProjects>[0]['runGit'], separateProjectRoots = false) {
 		const home = join(directory, 'home');
 		const workspace = join(directory, 'workspace');
 		await Promise.all([mkdir(home, { recursive: true }), mkdir(workspace, { recursive: true })]);
@@ -56,7 +56,7 @@ suite('Mission Control projects', () => {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const git = new AgentHostGitService(new class extends mock<IFileService>() { }(), environment, log);
-		const options = { getRoots: () => [workspace], runGit };
+		const options = { getRoots: () => separateProjectRoots ? [home, workspace] : [workspace], getProjectRoots: separateProjectRoots ? () => [workspace] : undefined, runGit };
 		const projects = store.add(new MissionControlProjects(options, environment, git,
 			new class extends mock<IAgentHostAuthenticationService>() {
 				override getAuthToken(): string { return 'test-credential'; }
@@ -73,6 +73,19 @@ suite('Mission Control projects', () => {
 	function catalogue(projects: MissionControlProjects) {
 		return readCloudSandboxProjects({ agents: [], _meta: { 'copilot.projectManagement': { available: true } }, config: projects.config })!;
 	}
+
+	test('pins recent project folders without advertising the home filesystem grant as a project', async () => {
+		const { projects, options, home, workspace } = await fixture(undefined, true);
+		const folder = join(home, 'another-project');
+		await mkdir(folder);
+		const added = readCloudSandboxCloneResult(await projects.handleRequest('extensions/addProject', { path: folder }))!;
+		const initialPaths = catalogue(projects).map(project => project.path);
+		options.getProjectRoots = () => [];
+		await projects.initialize();
+		assert.deepStrictEqual({ initialPaths, paths: catalogue(projects).map(project => project.path), addedPath: added.path }, {
+			initialPaths: [workspace, folder], paths: [folder], addedPath: folder,
+		});
+	});
 
 	for (const method of ['extensions/addProject', 'extensions/cloneProject']) {
 		test(`${method} rechecks authorization after awaited preparation before mutating the catalogue`, async () => {

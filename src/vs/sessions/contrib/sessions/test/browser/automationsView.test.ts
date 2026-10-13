@@ -974,6 +974,19 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('renders weekdays consistently in visible, ARIA and accessible summaries', () => {
+		const { automationService, widget } = setup();
+		const item = automation({ schedule: { interval: 'weekdays', scheduleHour: 13, scheduleMinute: 5, scheduleDay: 6 } });
+		const time = new Date(Date.UTC(2000, 0, 1, 13, 5)).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+		const expected = `Weekdays at ${time}`;
+		automationService.setAutomations([item]);
+		assert.deepStrictEqual({
+			card: widget.element.querySelector('.automations-card-schedule')?.textContent,
+			aria: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready').includes(`Schedule: ${expected}`),
+		}, { card: expected, aria: `${item.name} — ${expected}`, accessible: true });
+	});
+
 	for (const interval of ['daily', 'weekly'] as const) {
 		test(`renders ${interval} UTC schedule in local time consistently in cards and accessible view`, () => {
 			const { automationService, widget } = setup();
@@ -3397,6 +3410,21 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
+	test('accessibility help explains local weekdays and Cloud restrictions', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		const content = provider.provideContent();
+		assert.deepStrictEqual({
+			localWeekdays: content.includes('Monday through Friday at the same local time, without choosing a day of the week'),
+			cloudRestriction: content.includes('Weekdays is not available for Cloud automations'),
+		}, { localWeekdays: true, cloudRestriction: true });
 	});
 
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {

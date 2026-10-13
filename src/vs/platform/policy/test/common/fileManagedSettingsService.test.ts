@@ -171,6 +171,13 @@ suite('normalizeManagedSettings', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({}), {});
 	});
 
+	test('retains permission-key presence through serialization without treating an empty block as configured', () => {
+		const documents = [{ permissions: {} }, { permissions: { future: {} } }, { permissions: { future: null } }, { permissions: { limitTo: [] } }, { permissions: { disableAssistedPermissionsMode: false } }];
+		assert.deepStrictEqual(documents.map(document => JSON.parse(JSON.stringify(normalizeManagedSettings(document)))), [
+			{}, { 'permissions.future': '{}' }, { 'permissions.future': 'null' }, { 'permissions.limitTo': '[]' }, { 'permissions.disableAssistedPermissionsMode': false },
+		]);
+	});
+
 	test('retains empty and future-only telemetry block presence through JSON serialization', () => {
 		const documents = [{ telemetry: {} }, { telemetry: { capture: {} } }, { telemetry: { future: ['value'] } }];
 		assert.deepStrictEqual(documents.map(document => JSON.parse(JSON.stringify(normalizeManagedSettings(document)))), [

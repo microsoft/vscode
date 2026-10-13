@@ -345,6 +345,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		readonly target: AgentSessionTarget,
 		providerId: string,
 		readonly initialAutomationSessionConfiguration: IAutomationSessionConfiguration | undefined,
+		readonly isAutomationDraft: boolean,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
@@ -1369,7 +1370,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (!isCloudSandboxEnabled(this.configurationService) || this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
 				throw new Error(localize('sandbox.disabled', "GitHub sandbox sessions are not enabled."));
 			}
-			if (sessionTypeId !== CopilotSandboxSessionType.id || options?.automationConfiguration) {
+			if (sessionTypeId !== CopilotSandboxSessionType.id || options?.automationConfiguration || options?.isAutomationDraft) {
 				throw new Error(localize('sandbox.unsupportedConfiguration', "This configuration is not supported for a new GitHub sandbox session."));
 			}
 		}
@@ -1391,7 +1392,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		const target = this.providerMode === 'sandbox' ? CopilotSandboxSessionType.id : AgentSessionProviders.Cloud;
 		const resource = URI.from({ scheme: target, path: `/untitled-${generateUuid()}` });
-		const session = this.instantiationService.createInstance(RemoteNewSession, resource, cloudWorkspace, target, this.id, automationConfiguration);
+		const session = this.instantiationService.createInstance(RemoteNewSession, resource, cloudWorkspace, target, this.id, automationConfiguration, options?.isAutomationDraft === true);
 		session.setCreatedBySession(options?.createdBySession);
 		this._newSessions.set(session.sessionId, session);
 		if (this._usesSandbox(session)) {
@@ -1566,7 +1567,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _usesSandbox(session?: RemoteNewSession): boolean {
-		return session?.isQuickChat.get() === true || this.providerMode === 'sandbox' || isCloudSandboxEnabled(this.configurationService);
+		return !session?.isAutomationDraft && (session?.isQuickChat.get() === true || this.providerMode === 'sandbox' || isCloudSandboxEnabled(this.configurationService));
 	}
 
 	private _getSandboxCatalog(): CloudSandboxModels {

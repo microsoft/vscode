@@ -380,6 +380,7 @@ async function resolveAuthenticationSessionForResource(
 	logService: ILogService,
 	logPrefix: string,
 	rejectedSession: RejectedAuthenticationSession | null = null,
+	preferredSessionId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	const requestedSet = new Set(scopes);
@@ -417,7 +418,8 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession) &&
+			(!preferredSessionId || session.id === preferredSessionId));
 		if (exactSession) {
 			return {
 				kind: 'resolved',
@@ -436,10 +438,18 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
+		const preferredAccountId = preferredSessionId
+			? allSessions.find(session => session.id === preferredSessionId)?.account.id
+			: undefined;
+		if (preferredSessionId && !preferredAccountId) {
+			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
+			continue;
+		}
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
+			if (!isAuthenticationSessionCandidate(session, rejectedSession) ||
+				preferredAccountId && session.account.id !== preferredAccountId) {
 				continue;
 			}
 			const sessionScopes = new Set(session.scopes);
@@ -478,6 +488,8 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
+	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
+	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;
 	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
 	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
@@ -750,6 +762,7 @@ async function resolveSessionForProtectedResource(
 		logService,
 		options.logPrefix,
 		rejectedSession,
+		options.preferredSessionId,
 	);
 	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
 		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {

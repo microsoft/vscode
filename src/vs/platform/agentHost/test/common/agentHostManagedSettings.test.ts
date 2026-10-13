@@ -20,14 +20,13 @@ suite('AgentHostManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('combines restrictive contributions from enterprise approval policies', () => {
+	test('leaves global approval policy to host mode resolution while retaining terminal restrictions', () => {
 		const configurationService = createConfigurationService({
 			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false },
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
-			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		});
 	});

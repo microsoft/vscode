@@ -173,7 +173,6 @@ export interface ICopilotConnectorsService {
 	readonly connectionStateKnown: boolean;
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
 	readonly authorizationRequired: boolean;
-	readonly catalogMayRequireConsent: boolean;
 	/** Signs in for catalog browsing without requesting connector permission. */
 	signIn(token: CancellationToken): Promise<void>;
 	/** Signs in if needed, then requests connector consent after an explicit user action. */
@@ -205,7 +204,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private authenticationAccountId: string | undefined;
 	private readonly connectorAuthorizationSessionIds = new Set<string>();
 	private _authorizationRequired = false;
-	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _connectionStateKnown = false;
 	private _lastRefreshTime = 0;
@@ -252,11 +250,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	get authorizationRequired(): boolean {
-		return this.isEnabled() && (this._authorizationRequired || this._catalogMayRequireConsent);
-	}
-
-	get catalogMayRequireConsent(): boolean {
-		return this.isEnabled() && this._catalogMayRequireConsent;
+		return this.isEnabled() && this._authorizationRequired;
 	}
 
 	async signIn(token: CancellationToken): Promise<void> {
@@ -546,7 +540,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			cancellation.cancel();
 		}
 		this._authorizationRequired = false;
-		this._catalogMayRequireConsent = false;
 		this._lastRefreshTime = 0;
 		this.lastReportedCatalogSnapshot = undefined;
 		this.setConnectors([], false);
@@ -655,12 +648,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this._catalogMayRequireConsent = false;
 			return { document, scoped: session !== undefined };
 		} catch (error) {
 			if (!token.isCancellationRequested && request.type === 'query' && !session && error instanceof CopilotConnectorsError && error.statusCode === 403) {
-				this._catalogMayRequireConsent = true;
-				throw new CopilotConnectorsError(localize('copilotConnectors.catalogScopeRollout', "The connector catalog is unavailable (HTTP 403). Browsing without connector authorization may not yet be available for this account."), 403);
+				throw new CopilotConnectorsError(localize('copilotConnectors.catalogScopeRollout', "The connector catalog is unavailable for this account (HTTP 403)."), 403);
 			}
 			throw error;
 		}

@@ -18,7 +18,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../c
 import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -154,7 +154,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerRoot = URI.file('/peer-repo');
-		stateManager.addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
 		const target = URI.file('/peer-repo/src/file.ts');
 
 		await handler.invoke({

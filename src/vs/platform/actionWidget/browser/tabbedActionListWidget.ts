@@ -9,7 +9,6 @@ import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
-import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -82,11 +81,6 @@ function readTabBox(element: HTMLElement): ITabBox {
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
-	/**
-	 * For a sizing build, other layouts the sizing tab can show at rest, such as a
-	 * mode it can be switched into. The popup is sized to the tallest of them.
-	 */
-	readonly alternateSizingItems?: readonly (readonly IActionListItem<T>[])[];
 }
 
 /**
@@ -104,13 +98,6 @@ export interface ITabDescriptor {
 	readonly tooltip?: string;
 	/** Optional leading icon rendered before the label. */
 	readonly icon?: ThemeIcon;
-	/** A separate mode switch beside the active tab's button. */
-	readonly toggle?: {
-		readonly label: string;
-		readonly ariaLabel: string;
-		readonly getState: () => { readonly checked: boolean; readonly enabled: boolean; readonly description?: string } | undefined;
-		readonly onChange: (checked: boolean) => void;
-	};
 }
 
 /**
@@ -237,6 +224,8 @@ export class TabbedActionListWidget extends Disposable {
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
+	/** Side of the anchor the popup opened on, kept across tab swaps so it cannot jump sides. */
+	private _anchorPosition: AnchorPosition | undefined;
 
 	get isVisible(): boolean {
 		return !!this._activePopup.value;
@@ -271,6 +260,7 @@ export class TabbedActionListWidget extends Disposable {
 			this._fixedListHeight = undefined;
 			this._fixedPopupHeight = undefined;
 			this._hasMeasuredSizingTab = false;
+			this._anchorPosition = undefined;
 		}
 
 		let activeTab = options.initialTab;
@@ -372,38 +362,6 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				const activeIndex = options.tabs.findIndex(tab => tab.id === activeTab);
-				const toggleOptions = options.tabs[activeIndex]?.toggle;
-				let updateTabToggle: (() => void) | undefined;
-				if (toggleOptions) {
-					const button = radio.optionElements[activeIndex];
-					const group = dom.$('.tabbed-action-list-tab');
-					button.before(group);
-					group.appendChild(button);
-					const toggleContainer = dom.append(group, dom.$('.tabbed-action-list-tab-toggle'));
-					dom.append(toggleContainer, dom.$('span', undefined, toggleOptions.label));
-					const toggle = renderDisposables.add(new Switch({ ariaLabel: toggleOptions.ariaLabel }));
-					toggleContainer.appendChild(toggle.domNode);
-					updateTabToggle = () => {
-						const state = toggleOptions.getState();
-						toggleContainer.hidden = !state;
-						group.classList.toggle('has-toggle', !!state);
-						toggle.checked = !!state?.checked;
-						toggle.disabled = !state?.enabled;
-						toggle.setAriaLabel(toggleOptions.ariaLabel, state?.description ?? toggleOptions.ariaLabel);
-						if (state?.description) {
-							toggle.domNode.setAttribute('aria-description', state.description);
-						} else {
-							toggle.domNode.removeAttribute('aria-description');
-						}
-					};
-					updateTabToggle();
-					renderDisposables.add(toggle.onChange(checked => {
-						toggleOptions.onChange(checked);
-						updateTabToggle?.();
-					}));
-				}
-
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
@@ -434,6 +392,9 @@ export class TabbedActionListWidget extends Disposable {
 
 				const { items, listOptions } = options.createActionList(activeTab);
 				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
+				// Padding belongs to the popup's chrome, not the list's content height.
+				const getChromeHeight = (listElement: HTMLElement) => getExpandedPopupHeight() - (emptyBody ? emptyBody.offsetHeight : dom.getContentHeight(listElement));
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -441,12 +402,16 @@ export class TabbedActionListWidget extends Disposable {
 					items,
 					options.delegate,
 					options.accessibilityProvider,
-					listOptions,
+					{
+						...listOptions,
+						anchorPosition: this._anchorPosition ?? listOptions?.anchorPosition,
+						// The tabs are part of the popup, so they have to fit beside the anchor too.
+						getPopupChromeHeight: getChromeHeight,
+					},
 					options.anchor,
 				));
 				listRef = list;
-				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => Math.max(...[sizing.items, ...sizing.alternateSizingItems ?? []]
-					.map(sizingItems => list.computeHeightForItems(sizingItems, sizing.listOptions?.collapsedByDefault, sizing.listOptions))) || undefined;
+				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
 				this._focusItemAction = (itemId, actionId) => !body.inert && list.focusItemAction(itemId, actionId);
 				this._focusItem = itemId => {
 					if (body.inert) {
@@ -473,7 +438,6 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
-					updateTabToggle?.();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
 						: undefined;
@@ -545,18 +509,13 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
-				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
 				const layout = () => {
 					if (this._detailsVisible) {
 						return;
 					}
-					const listBody = emptyBody ?? list.domNode;
-					// Padding belongs to the popup's chrome, not the fixed list content height.
-					const listHeight = emptyBody ? listBody.offsetHeight : dom.getContentHeight(listBody);
-					const chromeHeight = getExpandedPopupHeight() - listHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
-						: Math.max(0, this._fixedPopupHeight - chromeHeight);
+						: Math.max(0, this._fixedPopupHeight - getChromeHeight(list.domNode));
 					const width = list.layout(0, contentHeight);
 					widget.style.width = `${options.width ?? width}px`;
 					if (emptyBody && this._fixedListHeight !== undefined) {
@@ -567,6 +526,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				};
 				layout();
+				this._anchorPosition ??= list.anchorPosition;
 
 				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
 				const finishBodyAnimation = () => {
@@ -774,7 +734,7 @@ export class TabbedActionListWidget extends Disposable {
 					// The empty body and the hover panel carry controls of their own, e.g. a
 					// sign-in button or the detail card's pin. Keys pressed there belong to
 					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .tabbed-action-list-tab-toggle');
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,8 +16,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
-import type { IResponse } from '../../../common/model/chatModel.js';
+import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { Response, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -49,6 +50,50 @@ suite('ChatResponseAccessibleView', () => {
 			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
 		]);
 	});
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool', 'view']) {
+		test(`keeps preconfirmation image tools out of accessible and response text (${toolId})`, async () => {
+			const invocation = ChatToolInvocation.createStreaming({
+				toolId, toolCallId: 'pending-tool',
+				toolData: { id: toolId, displayName: 'Proposed tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			});
+			if (toolId === 'custom_image_tool') {
+				invocation.toolSpecificData = { kind: 'input', rawInput: {}, imageGeneration: { requestedModel: { id: 'image-model' } } };
+			}
+			const response = store.add(new Response([]));
+			response.updateContent(invocation);
+			const item = upcastPartial<IChatResponseViewModel>({ response });
+			const snapshot = () => ({
+				plaintext: getChatResponsePlaintextParts(item, true).map(part => part.text),
+				response: response.toString(),
+			});
+			const snapshots = [snapshot()];
+			invocation.requestConfirmation({
+				invocationMessage: 'Run tool',
+				confirmationMessages: { title: 'Allow Tool?', message: new MarkdownString('Inspect the proposed operation.') },
+			});
+			snapshots.push(snapshot());
+			const confirmation = invocation.state.get();
+			assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			confirmation.confirm({ type: ToolConfirmKind.UserAction });
+			snapshots.push(snapshot());
+			await invocation.didExecuteTool({ content: [], toolResultMessage: 'Done' });
+			snapshots.push(snapshot());
+			const restored = store.add(new Response([invocation.toJSON()]));
+			assert.deepStrictEqual({
+				snapshots,
+				restored: { plaintext: getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({ response: restored }), true).map(part => part.text), response: restored.toString() },
+			}, {
+				snapshots: [
+					toolId === 'view' ? { plaintext: ['Proposed tool'], response: 'Proposed tool' } : { plaintext: [], response: '' },
+					{ plaintext: ['Allow Tool?\nInspect the proposed operation.'], response: 'Run tool' },
+					{ plaintext: ['Run tool'], response: 'Run tool' },
+					{ plaintext: ['Done'], response: 'Done' },
+				],
+				restored: { plaintext: ['Done'], response: 'Done' },
+			});
+		});
+	}
 
 	for (const error of [true, 'Connection refused'] as const) {
 		test(`describes failures without output details in live and restored content (${error})`, async () => {
@@ -105,6 +150,38 @@ suite('ChatResponseAccessibleView', () => {
 			partIndex: 0,
 			text: 'MCP authentication required for GitHub account to continue Read issue.\nGitHub (MCP Server)',
 		}]);
+	});
+
+	test('includes standalone MCP authentication prompts while they are pending', () => {
+		const servers = observableValue('servers', [{ id: 'github', name: 'GitHub', resource: 'https://api.github.com/mcp' }]);
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers,
+			isUsed: false,
+		};
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [authentication] }),
+		});
+		const plaintext = () => getChatResponsePlaintextParts(item, true);
+		const pending = plaintext();
+		authentication.isUsed = true;
+		const used = plaintext();
+		authentication.isUsed = false;
+		servers.set([], undefined);
+
+		assert.deepStrictEqual({
+			pending,
+			used,
+			empty: plaintext(),
+		}, {
+			pending: [{
+				partIndex: 0,
+				text: 'The MCP server GitHub requires authentication. Use the Authenticate button in the chat response to continue.',
+			}],
+			used: [],
+			empty: [],
+		});
 	});
 
 	test('includes the canonical MCP title and origin while waiting for result approval', async () => {

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -20,16 +21,18 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
+import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
-import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
+import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
-import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 import '../../browser/parts/media/chatCompositeBar.css';
 
@@ -691,7 +694,7 @@ suite('Sessions - Workbench', () => {
 				sessionViewAbovePanel: ['7px', '7px', '7px', '7px'],
 				sessionViewBorder: ['7px', '7px', '11px', '11px'],
 				internalSessionView: ['7px', '7px', '7px', '7px'],
-				sessionViewWithoutConnectedTabs: ['0px', '0px', '0px', '0px'],
+				sessionViewWithoutConnectedTabs: ['7px', '7px', '11px', '11px'],
 				sessionViewWithoutModernTabs: ['0px', '0px', '0px', '0px'],
 				customView: ['8px', '8px', '12px', '8px'],
 				editor: ['8px', '8px', '12px', '8px'],
@@ -2242,6 +2245,87 @@ suite('Sessions - Workbench', () => {
 			editorOnlyNone: 'single',
 			fullyHiddenMultiple: undefined,
 		});
+	});
+
+	test('desktop editor part tracks effective tab presentation through its content lifecycle', async () => {
+		interface ITabsPresentationLifecycleHarness {
+			readonly partOptions: IEditorPartOptions;
+			readonly onDidChangeEditorPartOptions: BaseEvent<IEditorPartOptionsChangeEvent>;
+			readonly agentWorkbenchLayoutService: { readonly mainContainer: HTMLElement; layout(): void };
+			readonly _tabsPresentationRelayout: MutableDisposable<IDisposable>;
+			_updateTabsOverride(): void;
+			_register<T extends IDisposable>(disposable: T): T;
+			_registerGroupRelayoutListeners(): never;
+		}
+
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		const disposables = new DisposableStore();
+		const optionsEmitter = disposables.add(new Emitter<IEditorPartOptionsChangeEvent>());
+		const relayout = disposables.add(new MutableDisposable<IDisposable>());
+		const originalCreateContentArea = Reflect.get(MainEditorPart.prototype, 'createContentArea');
+		const stopAfterTabsLifecycle = new Error('Tabs lifecycle registered');
+		let partOptions: IEditorPartOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, showTabs: 'single' };
+		let layouts = 0;
+
+		Reflect.set(MainEditorPart.prototype, 'createContentArea', function (this: { element: HTMLElement }, parent: HTMLElement) {
+			this.element = parent;
+			return parent;
+		});
+		try {
+			const editorPart = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
+				onDidChangeEditorPartOptions: optionsEmitter.event,
+				agentWorkbenchLayoutService: {
+					mainContainer: root,
+					layout: () => layouts++,
+				},
+				_tabsPresentationRelayout: relayout,
+				_updateTabsOverride: () => { },
+				_register<T extends IDisposable>(disposable: T): T {
+					return disposables.add(disposable);
+				},
+				_registerGroupRelayoutListeners(): never {
+					throw stopAfterTabsLifecycle;
+				},
+			}) as ITabsPresentationLifecycleHarness;
+			Object.defineProperty(editorPart, 'partOptions', { get: () => partOptions });
+			const createContentArea = Reflect.get(DesktopMainEditorPart.prototype, 'createContentArea') as (this: ITabsPresentationLifecycleHarness, parent: HTMLElement) => HTMLElement;
+			let thrown: unknown;
+			try {
+				createContentArea.call(editorPart, root);
+			} catch (error) {
+				thrown = error;
+			}
+
+			const states = [{
+				showTabs: partOptions.showTabs,
+				multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+				layouts,
+			}];
+			for (const showTabs of ['multiple', 'single'] as const) {
+				const oldPartOptions = partOptions;
+				partOptions = { ...partOptions, showTabs };
+				optionsEmitter.fire({ oldPartOptions, newPartOptions: partOptions });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+				states.push({
+					showTabs,
+					multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+					layouts,
+				});
+			}
+
+			assert.deepStrictEqual({ thrown, states }, {
+				thrown: stopAfterTabsLifecycle,
+				states: [
+					{ showTabs: 'single', multipleTabsClass: false, layouts: 0 },
+					{ showTabs: 'multiple', multipleTabsClass: true, layouts: 1 },
+					{ showTabs: 'single', multipleTabsClass: false, layouts: 2 },
+				],
+			});
+		} finally {
+			Reflect.set(MainEditorPart.prototype, 'createContentArea', originalCreateContentArea);
+			disposables.dispose();
+			root.remove();
+		}
 	});
 
 	test('desktop editor part initializes tabs from restored visibility at content creation', () => {

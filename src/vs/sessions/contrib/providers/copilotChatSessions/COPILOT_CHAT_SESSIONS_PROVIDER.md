@@ -24,7 +24,9 @@ On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-
 
 Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
-For new Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
+For new interactive Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Interactive draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
+
+Automation configuration drafts instead retain the scheduled-Cloud model catalogue and configuration contract regardless of this setting; see [Automations](../../../AUTOMATIONS.md#definitions-and-session-configuration).
 
 While GitHub sandboxes are enabled and AI features are visible, the provider also advertises quick chats. These drafts explicitly have no workspace or repository and always require the sandbox backend; disabling it withdraws that capability and prevents a pending quick chat from falling back to the repository-bound legacy agent.
 

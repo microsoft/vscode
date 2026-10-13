@@ -13,8 +13,8 @@ import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../com
 import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { Reassembler } from '../../common/webPubSub/chunking.js';
-import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
+import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
+import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL, type SendToGroupCommand } from '../../common/webPubSub/framing.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { MissionControlControlVerifier } from './missionControlControl.js';
 import { MissionControlAuthentication } from './missionControlAuthentication.js';
@@ -73,11 +73,13 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _active = false;
 	private _hasHandshake = false;
 	private _handshakeId: number | string | undefined;
+	private _acceptsBatch = false;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
 	readonly generation = newConnectionGeneration();
 	lastReceived = Date.now();
 	get isClosed(): boolean { return this._closed; }
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
+	get acceptsBatch(): boolean { return !this._closed && this._acceptsBatch; }
 
 	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
 		super();
@@ -135,6 +137,12 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		}
 	}
 
+	setReceiveCapabilities(accepts: readonly string[]): void {
+		if (!this._closed) {
+			this._acceptsBatch = accepts.includes('batch');
+		}
+	}
+
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._closed) {
 			throw new Error('Mission Control lane closed');
@@ -164,6 +172,13 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	}
 }
 
+interface QueuedPublish {
+	readonly ackId: number;
+	readonly frame: string;
+	readonly mirror?: boolean;
+	readonly batch?: { readonly lane: MissionControlLane; readonly group: string; readonly generation: number };
+}
+
 /**
  * A bounded virtual AHP server over one reliable-JSON WPS connection.
  * The bootstrap and owner are supplied by the trusted registration lifecycle.
@@ -183,7 +198,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	}, 30_000));
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _pending = new Set<number>();
-	private readonly _outbound: { ackId: number; frame: string; mirror?: boolean }[] = [];
+	private readonly _outbound: QueuedPublish[] = [];
 	private _outboundBytes = 0;
 	private _queuedMirrorFrames = 0;
 	private _queuedMirrorBytes = 0;
@@ -271,8 +286,12 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._send({ type: 'joinGroup', group, ackId });
 	}
 
-	private _publish(group: string, payload: unknown, generation?: number): void {
-		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({ ackId: frame.ackId, frame: JSON.stringify(frame) }));
+	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane): void {
+		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({
+			ackId: frame.ackId,
+			frame: JSON.stringify(frame),
+			batch: frame.data.kind === 'message' ? { lane, group, generation } : undefined,
+		}));
 		this._enqueue(frames);
 	}
 
@@ -292,7 +311,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		return undefined;
 	}
 
-	private _enqueue(frames: readonly { ackId: number; frame: string; mirror?: boolean }[]): void {
+	private _enqueue(frames: readonly QueuedPublish[]): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
 		if (this._closed || this._outbound.length + frames.length > 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
@@ -308,6 +327,48 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._drain();
 	}
 
+	private _takeOutbound(): QueuedPublish {
+		const first = this._outbound[0];
+		const batch = first.batch;
+		let count = 1;
+		let frame = first.frame;
+		if (batch?.lane.acceptsBatch && this._outbound.length > 1) {
+			const items: unknown[] = [];
+			let bytes = Buffer.byteLength(JSON.stringify({ kind: 'batch', items: [], generation: batch.generation }));
+			for (const queued of this._outbound) {
+				if (items.length === 256 || queued.batch?.lane !== batch.lane || queued.batch.group !== batch.group || queued.batch.generation !== batch.generation) {
+					break;
+				}
+				const command = JSON.parse(queued.frame) as SendToGroupCommand;
+				if (command.data.kind !== 'message') {
+					break;
+				}
+				const item = command.data.data;
+				bytes += Buffer.byteLength(JSON.stringify(item)) + (items.length > 0 ? 1 : 0);
+				if (bytes > DEFAULT_MAX_CHUNK_BYTES) {
+					break;
+				}
+				items.push(item);
+			}
+			if (items.length > 1) {
+				count = items.length;
+				frame = JSON.stringify({
+					type: 'sendToGroup', group: batch.group, ackId: first.ackId, dataType: 'json', noEcho: true,
+					data: { kind: 'batch', items, generation: batch.generation },
+				});
+			}
+		}
+		for (const queued of this._outbound.splice(0, count)) {
+			const bytes = Buffer.byteLength(queued.frame);
+			this._outboundBytes -= bytes;
+			if (queued.mirror) {
+				this._queuedMirrorFrames--;
+				this._queuedMirrorBytes -= bytes;
+			}
+		}
+		return { ackId: first.ackId, frame };
+	}
+
 	private _drain(): void {
 		if (this._draining || this._closed) {
 			return;
@@ -315,17 +376,14 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._draining = true;
 		try {
 			while (this._pending.size === 0 && this._outbound.length > 0) {
-				const next = this._outbound.shift()!;
-				const bytes = Buffer.byteLength(next.frame);
-				this._outboundBytes -= bytes;
-				if (next.mirror) {
-					this._queuedMirrorFrames--;
-					this._queuedMirrorBytes -= bytes;
-				}
+				const next = this._takeOutbound();
 				this._pending.add(next.ackId);
 				this._waitForAck();
 				this._socket!.send(next.frame);
 			}
+		} catch (error) {
+			this.dispose();
+			throw error;
 		} finally {
 			this._draining = false;
 		}
@@ -420,7 +478,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			if (fields.type === 'message' && fields.from === 'group' && typeof fields.group === 'string') {
 				const group = parseGroupName(fields.group, { expected: { uid: this._owner, eid: this._environment } });
 				if (group.scope === 'client' && group.lane === 'to-host') {
-					if (this._authenticationFactory && fields.fromUserId !== this._owner) {
+					if ((this._authenticationFactory || envelope?.kind === 'capabilities') && fields.fromUserId !== this._owner) {
 						throw new Error('WPS publisher does not match the registered owner');
 					}
 					const lane = this._lanes.get(group.cid);
@@ -430,6 +488,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				}
 			}
 			const result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: { expected: { uid: this._owner, eid: this._environment } } });
+			if (result.kind === 'capabilities' && result.group.scope === 'client' && result.group.lane === 'to-host') {
+				if (fields.fromUserId !== this._owner) {
+					throw new Error('WPS publisher does not match the registered owner');
+				}
+				this._lanes.get(result.group.cid)?.setReceiveCapabilities(result.accepts);
+				return;
+			}
 			if (result.kind !== 'payload' && result.kind !== 'batch') {
 				return;
 			}
@@ -495,7 +560,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	private _createLane(clientId: string, passive: boolean): MissionControlLane {
 		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
-		const lane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation), prefix, this._authenticationFactory?.(), (previous, message) => {
+		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation, lane), prefix, this._authenticationFactory?.(), (previous, message) => {
 			if (this._closed || this._lanes.get(clientId) !== previous) {
 				return;
 			}
@@ -526,6 +591,11 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 			this._socket?.close();
 			this._socket = undefined;
+			this._outbound.length = 0;
+			this._outboundBytes = 0;
+			this._queuedMirrorFrames = 0;
+			this._queuedMirrorBytes = 0;
+			this._pending.clear();
 			this._onClose.fire();
 		}
 		super.dispose();

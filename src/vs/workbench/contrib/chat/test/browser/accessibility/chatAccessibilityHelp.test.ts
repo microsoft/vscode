@@ -44,6 +44,38 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents participant redirection only in workbench panel and editor chats', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
+				getAccessibilityHelpText(type, keybindings, false).includes('Submitting an @ chat participant'),
+				getAccessibilityHelpText(type, keybindings, false, true).includes('Submitting an @ chat participant'),
+			]),
+			[[true, false], [true, false], [true, false], [false, false], [false, false]],
+		);
+	});
+
+	test('documents the canvases pill only for editor window session pills', () => {
+		const keybindings = new MockKeybindingService();
+		const canvasesPill = 'the chat\'s canvases appear in their own pill in the main window';
+		assert.deepStrictEqual(
+			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
+				getAccessibilityHelpText(type, keybindings, false).includes(canvasesPill),
+				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
+			]),
+			[[true, false], [true, false], [false, false], [false, false], [false, false]],
+		);
+	});
+
+	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			silent: help.includes('while refreshing silently'),
+			keyboard: help.includes('use Tab to reach Refresh in the banner and press Enter or Space'),
+			apiOnly: help.includes('Refresh retries recorded history without restarting the session, waking its environment, or sending your draft.'),
+		}, { silent: true, keyboard: true, apiOnly: true });
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);
@@ -62,13 +94,13 @@ suite('Chat Accessibility Help', () => {
 			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
 			placeholder: help.includes('A compact decorative band of shifting glyphs remains visible below the dropdown'),
-			overlapping: help.includes('Overlapping image-generation attempts each keep their own input dropdown and share one animation'),
+			overlapping: help.includes('Multiple image-generation calls in a response share one batch preview'),
 			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
 			reveal: help.includes('The reveal is skipped in those modes and when reopening a chat'),
 			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
 			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
 			progress: help.includes('Only the persistent progress line rotates through painting-themed phrases, without repeatedly announcing them'),
-			imageModel: help.includes('Its title says Using the image model to generate an image when the model is available, and does not shimmer'),
+			imageModel: help.includes('Its title says Generating image with the image model when the model is available, and does not shimmer'),
 			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown, including the image model when available, with a single image below it even when collapsed'),
 			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
 			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
@@ -79,6 +111,44 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Use the Save action to the right of the image to save generated images'),
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
+	});
+
+	test('documents batch selection and visible approval requests', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
+			stableSelection: help.includes('without changing your selection'),
+			selectedBorder: help.includes('The selected thumbnail has a highlighted border'),
+			confirmationFirst: help.includes('start only when the tool executes, after any required confirmation'),
+			preparation: help.includes('stay hidden while the model assembles the tool arguments'),
+			responsivePreview: help.includes('The thumbnail row follows the selected preview\'s size'),
+			noEmptyPreview: help.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
+			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
+			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, details: true, approvals: true });
+	});
+
+	test('documents generated image artifacts and conversation carousel navigation', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			artifacts: help.includes('Generated images also appear in artifacts'),
+			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
+			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
+		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
+	test('documents the shared editor artifacts pill and its actions', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			shared: help.includes('same compact Artifacts pill as the Agents Window'),
+			noLegacyList: help.includes('rather than an expanded list above the input'),
+			automatic: help.includes('Generated images appear automatically'),
+			subagentArtifacts: help.includes('In a subagent chat, the Artifacts pill shows that chat\'s transcript artifacts without the parent session\'s metadata'),
+			dropdown: help.includes('multiple artifacts open a dropdown with a Generated Images section'),
+			actions: help.includes('to save an artifact or copy its path'),
+		}, { shared: true, noLegacyList: true, automatic: true, subagentArtifacts: true, dropdown: true, actions: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
@@ -170,15 +240,14 @@ suite('Chat Accessibility Help', () => {
 		}, { focus: true, open: true, inline: true, status: true, modelSettings: true, resourceLinks: true, nestedSubagent: true });
 	});
 
-	test('documents the Copilot tab switch and independent provider navigation', () => {
+	test('documents Auto as the first Copilot model and independent provider navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			switch: help.includes('active Copilot tab has an Auto switch beside the provider name'),
-			keyboardTargets: help.includes('provider button and switch are separate keyboard targets'),
-			providers: help.includes('provider tabs and search remain available'),
-			restored: help.includes('Turn Auto off to restore the previous manual Copilot model'),
+			autoEntry: help.includes('Auto is the first model in the Copilot tab and is selected like any other model'),
+			providers: help.includes('Provider tabs and search remain available'),
+			noSwitch: help.includes('Auto switch'),
 			noImplicitSelection: help.includes('Browsing another provider does not change the selected model'),
-		}, { switch: true, keyboardTargets: true, providers: true, restored: true, noImplicitSelection: true });
+		}, { autoEntry: true, providers: true, noSwitch: false, noImplicitSelection: true });
 	});
 
 	test('explains organization-managed defaults separately from this chat selection', () => {
@@ -186,11 +255,11 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			managedDefault: help.includes('Org default identifies the model your organization sets for new chats'),
 			perChatChoice: help.includes('the checkmark identifies your current selection'),
-			auto: help.includes('Auto section carries the same label when Auto is the organization default'),
+			auto: help.includes('Auto carries the same label when it is the organization default'),
 		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
-	test('documents model details and activating Auto through Optimize for', () => {
+	test('documents model details, Auto\'s Optimize for preferences, and HydraFusion\'s Default and Max', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('Tab to reach its configuration button'),
@@ -198,13 +267,15 @@ suite('Chat Accessibility Help', () => {
 			inputShortcut: help.includes('opens the same page for the current model'),
 			defaults: help.includes('Known values are shown even at their defaults'),
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
-			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
-			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
-			hydraDescription: help.includes('Focus HydraFusion and press Tab to reach Learn more'),
-			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
-			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
-			noAutoDetails: help.includes('Auto has no separate details page'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, hydraDescription: true, activation: true, autoEntry: true, noAutoDetails: true });
+			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence.'),
+			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
+			discount: help.includes('When Auto has a discount, it is described below the preferences'),
+			hydra: help.includes('HydraFusion, a research preview, is listed after Auto as a model of its own'),
+			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
+			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
+			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
+			ensemble: help.includes('When Auto is presented as Ensemble, its details hold a "Thinking Level" setting instead'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, ensemble: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {

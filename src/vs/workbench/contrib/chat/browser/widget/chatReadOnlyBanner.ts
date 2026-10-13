@@ -26,7 +26,7 @@ export class ChatReadOnlyBanner extends Disposable {
 	private readonly actionLink: Link;
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 	private action: { label: string; tooltip?: string; run(): Promise<void> } | undefined;
-	private running = false;
+	private runningAction: typeof this.action;
 
 	constructor(
 		private readonly defaultMessage: string = localize('chatReadOnlyBanner.archivedMessage', "Archived sessions are read-only."),
@@ -67,23 +67,29 @@ export class ChatReadOnlyBanner extends Disposable {
 	}
 
 	setAction(action?: { label: string; tooltip?: string; run(): Promise<void> }): void {
+		if (this.action?.label !== action?.label || this.action?.tooltip !== action?.tooltip) {
+			this.actionLink.link = { label: action?.label ?? '', href: '#', title: action?.tooltip };
+		}
 		this.action = action;
 		this.actionContainer.hidden = !action;
-		this.actionLink.link = { label: action?.label ?? '', href: '#', title: action?.tooltip };
+		this.actionLink.enabled = !!action && this.runningAction !== action;
 	}
 
-	private async runAction(): Promise<void> {
-		if (!this.action || this.running) {
+	async runAction(): Promise<void> {
+		const action = this.action;
+		if (!action || this.runningAction === action) {
 			return;
 		}
-		this.running = true;
+		this.runningAction = action;
 		this.actionLink.enabled = false;
 		try {
-			await this.action.run();
+			await action.run();
 		} finally {
-			this.running = false;
-			if (!this._store.isDisposed) {
-				this.actionLink.enabled = true;
+			if (this.runningAction === action) {
+				this.runningAction = undefined;
+				if (!this._store.isDisposed) {
+					this.actionLink.enabled = !!this.action;
+				}
 			}
 		}
 	}

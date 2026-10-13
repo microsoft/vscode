@@ -8,6 +8,14 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
+const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
+const selection = z.object({ anchor: offset, active: offset });
+export const navigationState = z.object({
+	editEpoch: offset,
+	revision: offset,
+	selection: z.optional(selection),
+	scrollTop: z.number().check(z.nonnegative()),
+});
 const diagnostic = z.extend(range, {
 	message: z.string(),
 	severity: z.enum(['error', 'warning', 'info', 'hint']),
@@ -59,7 +67,7 @@ const linkStatus = z.object({
 	label: z.string(),
 });
 const richLinkPresentationUpdate = z.object({
-	href: z.string(),
+	subscriptionId: z.string(),
 	presentation: z.optional(z.object({
 		kind: z.enum(['resource', 'issue', 'pullRequest', 'commit', 'file', 'folder', 'session', 'repository', 'branch']),
 		title: z.optional(z.string()),
@@ -72,6 +80,10 @@ const richLinkPresentationUpdate = z.object({
 		isLoading: z.optional(z.boolean()),
 	})),
 });
+const richLinkSubscriptions = z.object({
+	subscribe: z.readonly(z.array(z.object({ subscriptionId: z.string(), href: z.string() }))),
+	unsubscribe: z.readonly(z.array(z.string())),
+});
 const runtime = z.object({ runtimeId: z.string() });
 // The nested editor owns its protocol. Only its routing and lifetime belong to this bridge.
 const runtimeMessage = z.extend(runtime, { message: z.unknown() });
@@ -83,7 +95,8 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
-	richLinkTargets: notificationType(z.object({ hrefs: z.readonly(z.array(z.string())) })),
+	selectionChanged: requestType(z.object({ editEpoch: offset, selection: z.optional(selection) }), z.void()),
+	richLinkSubscriptions: notificationType(richLinkSubscriptions),
 	resolveCodeBlockEditor: requestType(z.object({ providerId: z.string(), language: z.string() }), z.object({ descriptor: z.optional(resolvedCodeBlockEditor) })),
 	createCodeBlockEditorHostTransport: requestType(z.extend(runtime, { providerId: z.string(), runtimeKey: z.string() }), z.void()),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
@@ -106,6 +119,7 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
+	configurationChanged: notificationType(editorConfiguration),
 	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),
 	codeBlockEditorProviders: notificationType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) })),
@@ -119,6 +133,14 @@ export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.ren
 	})),
 	revealComment: notificationType(z.object({ id: z.string() })),
 	revealLinkTarget: requestType(z.extend(range, { selectionStart: offset }), z.void()),
+	captureNavigationState: requestType(z.object({}), navigationState),
+	revealRange: requestType(z.extend(range, {
+		editEpoch: offset,
+		revision: offset,
+		selection: z.optional(selection),
+		preserveFocus: z.boolean(),
+	}), z.void()),
+	restoreNavigationState: requestType(navigationState, z.void()),
 	command: requestType(z.object({ command: z.string() }), z.void()),
 	highlightThemeChanged: notificationType(z.object({})),
 	richLinkPresentations: notificationType(z.object({ presentations: z.readonly(z.array(richLinkPresentationUpdate)) })),
@@ -126,9 +148,12 @@ export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.ren
 
 export type MarkdownEditorHost = InterfaceClient<typeof markdownEditorHost>;
 export type MarkdownEditorRenderer = InterfaceClient<typeof markdownEditorRenderer>;
+export type MarkdownEditorConfiguration = z.infer<typeof editorConfiguration>;
 export type CodeBlockEditorProviderDefinition = z.infer<typeof codeBlockEditorProvider>;
 export type ResolvedCodeBlockEditor = z.infer<typeof resolvedCodeBlockEditor>;
 export type HighlightResult = z.infer<typeof highlightResult>;
 export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpdate>;
+export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;
+export type MarkdownNavigationState = z.infer<typeof navigationState>;

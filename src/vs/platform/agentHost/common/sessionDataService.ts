@@ -389,6 +389,9 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
 
+	/** Atomically replaces a metadata value using its latest stored value. */
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
+
 	/**
 	 * Atomically store multiple metadata key-value pairs.
 	 */

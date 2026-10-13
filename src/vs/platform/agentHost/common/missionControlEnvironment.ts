@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IObservable } from '../../../base/common/observable.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
@@ -24,6 +25,8 @@ export interface IMissionControlSharingService {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
 	setEnabled(enabled: boolean): Promise<void>;
+	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
+	setProjectFolders(folders: readonly URI[]): void;
 }
 
 export interface IMissionControlHost extends IMissionControlEnvironment {

@@ -14,12 +14,13 @@ import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IDispatchedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType, isChatAction, type ChatAction, type ChatPendingMessageSetAction } from '../../../common/state/sessionActions.js';
-import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { getErrorResponsePart, isAhpChatChannel, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
 import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 const SteeringSender = createChatMementoKey<{ readonly messageId: string; readonly sender: IAgentPendingMessageSender } | undefined>('queueDrain.steeringSender', () => undefined);
@@ -39,6 +40,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -136,7 +138,10 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (!host) {
 			return;
 		}
-		const session = parseRequiredSessionUriFromChatUri(channel);
+		const session = this._chatOwnership.getChatOwner(channel);
+		if (session === undefined) {
+			return;
+		}
 		const steeringSender = this._context.memento(SteeringSender, channel).get();
 		this._providerService.getProviderForSession(session)?.setPendingMessages?.(
 			URI.parse(channel),
@@ -180,7 +185,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
-		const sessionChannel = parseRequiredSessionUriFromChatUri(channel);
+		const sessionChannel = this._chatOwnership.requireChatOwner(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,

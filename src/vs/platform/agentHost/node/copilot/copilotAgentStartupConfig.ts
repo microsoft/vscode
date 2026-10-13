@@ -27,6 +27,7 @@ export class CopilotAgentStartupConfig {
 		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
+		readonly legacyApprovalRestricted = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

@@ -59,6 +59,7 @@ import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
@@ -623,7 +624,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	const markdown = typeof value === 'string'
+		? new MarkdownString(stripSystemNotificationWrapper(value))
+		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
@@ -779,6 +782,8 @@ export interface TurnModelLookup {
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	/** Whether a raw AHP model id names this provider's fusion routing model. */
+	isFusionModel?(rawModelId: string | undefined): boolean;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -803,10 +808,35 @@ export interface ITurnResponseModel {
 
 /** Fusion is the response-level model; constituent models remain in phase pills and usage. */
 export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
-	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
-		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
-		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
+	const isFusionModel = (modelId: string | undefined) => lookup?.isFusionModel?.(modelId) ?? false;
+	const selectedModelId = turn?.message.model?.id;
+	let isFusion = isFusionModel(selectedModelId);
+	// Turns selected as Auto, or restored without a model, learn which fusion model ran from its progress.
+	let reportedModelId: string | undefined;
+	for (const part of turn?.responseParts ?? []) {
+		if (part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase') {
+			isFusion = true;
+		} else if (part.kind === ResponsePartKind.SystemNotification) {
+			const meta = readAgentSystemNotificationMeta(part);
+			if (meta.kind === AgentSystemNotificationKind.FusionProgress) {
+				isFusion = true;
+				reportedModelId ??= isFusionModel(meta.fusionModel) ? meta.fusionModel : undefined;
+			}
+		}
+	}
+	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+}
+
+/**
+ * Result metadata for a finished turn. Records the model Auto routed the turn to as
+ * `resolvedModel`, the key the Copilot extension sets for local requests, so readers
+ * of a response's result (such as the model feedback survey) work for both. Read from
+ * the routing decision rather than the rendered routing row, which an experiment can hide.
+ */
+export function turnToResultMetadata(turn: Turn | undefined): { readonly resolvedModel: string } | undefined {
+	const resolvedModel = readUsageInfoMeta(turn?.usage).autoModeResolved?.chosenModel;
+	return resolvedModel ? { resolvedModel } : undefined;
 }
 
 /**
@@ -2052,7 +2082,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 		block.type === ToolResultContentType.EmbeddedResource
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
