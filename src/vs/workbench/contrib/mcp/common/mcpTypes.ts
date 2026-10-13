@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals as arraysEqual } from '../../../../base/common/arrays.js';
+import { distinct, equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -808,7 +808,7 @@ export namespace McpServerLaunch {
 				env: configuration.env ? { ...configuration.env } : {},
 				envFile: configuration.envFile,
 				cwd: configuration.cwd,
-				sandbox,
+				sandbox: mergeSandboxConfiguration(sandbox, configuration.sandbox),
 			};
 		}
 
@@ -828,6 +828,23 @@ export namespace McpServerLaunch {
 	export async function hash(launch: McpServerLaunch): Promise<string> {
 		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(launch)));
 		return encodeHex(VSBuffer.wrap(new Uint8Array(nonce)));
+	}
+
+	function mergeSandboxConfiguration(root: IMcpSandboxConfiguration | undefined, server: IMcpSandboxConfiguration | undefined): IMcpSandboxConfiguration | undefined {
+		if (!root) {
+			return server;
+		}
+		return {
+			network: {
+				allowedDomains: distinct(server?.network?.allowedDomains ?? []),
+				deniedDomains: distinct([...(root.network?.deniedDomains ?? []), ...(server?.network?.deniedDomains ?? [])]),
+			},
+			filesystem: {
+				allowWrite: distinct(server?.filesystem?.allowWrite ?? []),
+				denyRead: distinct([...(root.filesystem?.denyRead ?? []), ...(server?.filesystem?.denyRead ?? [])]),
+				denyWrite: distinct([...(root.filesystem?.denyWrite ?? []), ...(server?.filesystem?.denyWrite ?? [])]),
+			},
+		};
 	}
 }
 

@@ -177,6 +177,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		createdAt: new Date(1).toISOString(),
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [URI.file('/repo').toString()],
+		defaultChat: buildDefaultChatUri(session.toString()),
 	});
 	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
 		branchName: 'feature/test',
@@ -227,7 +228,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		const changesets = new TestChangesetService();
 		const { handler, session, stateManager, committedSessions } = setup(disposables, gitService, new TestCopilotApiService(), changesets);
 		const peer = buildChatUri(session.toString(), 'peer');
-		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [URI.file('/peer-repo').toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
 
 		await handler.invoke({ channel: buildUncommittedChangesetUri(peer), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 

@@ -44,7 +44,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../../canvases/common/sessionCanvas.js';
+import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
@@ -1221,7 +1221,7 @@ suite('SessionChatInputToolbar', () => {
 		const commandCalls: { readonly id: string; readonly reference: unknown }[] = [];
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, reference) => {
-				if (id === REVEAL_SESSION_CANVAS_COMMAND_ID) {
+				if (id === REVEAL_CANVAS_COMMAND_ID) {
 					commandCalls.push({ id, reference });
 				}
 				return undefined;
@@ -1299,7 +1299,7 @@ suite('SessionChatInputToolbar', () => {
 			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
 			commandCalls: [
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,
@@ -1308,7 +1308,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,

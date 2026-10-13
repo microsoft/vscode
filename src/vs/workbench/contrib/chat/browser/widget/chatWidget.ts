@@ -1622,6 +1622,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (context) {
 			this.transcriptContextPart.value = this.instantiationService.createInstance(ChatAttachmentsContentPart, {
 				variables: [context],
+				sessionResource: this.viewModel?.sessionResource,
 				domNode: this.transcriptContext,
 			});
 		} else {

@@ -12,6 +12,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -35,7 +36,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputResponseKind, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IFileService } from '../../../files/common/files.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { claudeDirectoryQualifiesForPrimary } from './claudeFolderPickerCriteria.js';
@@ -65,6 +66,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
@@ -1879,7 +1881,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const resolved = resolveAgentChatContext(context, chat);
 		this._recordChatScope(chat, resolved.configurationResource, resolved.resource);
 		if (providerData === undefined) {
-			if (!isDefaultChatUri(chat)) {
+			// Only the session-backed default chat can recover its backing from the session.
+			if (!isEqual(resolved.resource, resolved.configurationResource)) {
 				return;
 			}
 			const backing = { sdkSessionId: AgentSession.id(resolved.configurationResource) };
@@ -1938,7 +1941,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * surface (`IAgent`) does not include it.
 	 */
 	getSessionForTesting(session: URI): ClaudeAgentSession | undefined {
-		const sess = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session));
+		const sessionBackedChat = [...this._chatConfigScopes].find(([, scope]) => isEqual(scope.configurationResource, session) && isEqual(scope.resource, session))?.[0];
+		const sess = (sessionBackedChat ? this._findChatByUri(URI.parse(sessionBackedChat)) : undefined) ?? this._findAnySession(AgentSession.id(session));
 		return sess?.isPipelineReady ? sess : undefined;
 	}
 
@@ -2073,7 +2077,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		return Promise.all(sdkEntries.map(async entry => {
 			const session = AgentSession.uri(this.id, entry.sessionId);
-			const chat = URI.parse(buildDefaultChatUri(session));
+			// A provider-native SDK session records no default chat.
+			const chat = URI.parse(deriveLegacyDefaultChat(session));
 			return { ...await this._withPersistedWorkingDirectories(session, { chat, ...this._metadataStore.project(entry) }), session };
 		}));
 	}
@@ -2267,6 +2272,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				sessionMutable: true,
 			}),
 			[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
+			[SessionConfigKey.SensitiveEditLocations]: platformSessionSchema.definition[SessionConfigKey.SensitiveEditLocations],
 		});
 
 		const values = sessionSchema.validateOrDefault(_params.config, {

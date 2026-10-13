@@ -55,6 +55,7 @@ import { readSlashCommandResource, type ISlashCommandResource } from '../../../.
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
@@ -66,7 +67,7 @@ import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrim
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, isSubagentChatUri, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -108,6 +109,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
@@ -726,12 +728,13 @@ function inputRequestResponsePartKey(part: InputRequestResponsePart): string {
 	return `ir:${part.request.id}:${JSON.stringify({ ...part.request, answers: undefined })}`;
 }
 
-function getChatTitle(state: Pick<SessionState, 'chats' | 'title'>, chatURI: string): string | undefined {
+/** `defaultChat` is the session's advertised default chat, which inherits the session title while untitled. */
+function getChatTitle(state: Pick<SessionState, 'chats' | 'title'>, chatURI: string, defaultChat: string | undefined): string | undefined {
 	const chat = state.chats.find(chat => chat.resource === chatURI);
 	if (!chat) {
 		return undefined;
 	}
-	return chat.title || (isDefaultChatUri(chatURI) ? state.title : undefined);
+	return chat.title || (chatURI === defaultChat ? state.title : undefined);
 }
 
 /**
@@ -1033,6 +1036,27 @@ function offsetToPosition(text: string, offset: number): IPosition {
 	return { lineNumber, column };
 }
 
+/** Compares active-client state, ignoring undefined object properties omitted by JSON. */
+function equalsActiveClientState(one: unknown, other: unknown): boolean {
+	if (one === other) {
+		return true;
+	}
+	if (Array.isArray(one) || Array.isArray(other)) {
+		return Array.isArray(one) && Array.isArray(other)
+			&& one.length === other.length
+			&& one.every((value, index) => equalsActiveClientState(value, other[index]));
+	}
+	if (!one || !other || typeof one !== 'object' || typeof other !== 'object') {
+		return false;
+	}
+	const oneObject = one as Record<string, unknown>;
+	const otherObject = other as Record<string, unknown>;
+	const oneKeys = Object.keys(oneObject).filter(key => oneObject[key] !== undefined);
+	const otherKeys = Object.keys(otherObject).filter(key => otherObject[key] !== undefined);
+	return oneKeys.length === otherKeys.length
+		&& oneKeys.every(key => Object.hasOwn(otherObject, key) && equalsActiveClientState(oneObject[key], otherObject[key]));
+}
+
 class ActiveClientEntry extends Disposable {
 
 	private readonly _activeClient: IObservable<SessionActiveClient>;
@@ -1128,11 +1152,11 @@ class ActiveClientEntry extends Disposable {
 				if (!existing && !this._claimRequested) {
 					return;
 				}
-				if (equals(existing, activeClient)) {
+				if (equalsActiveClientState(existing, activeClient)) {
 					this._lastPublished = undefined;
 					return;
 				}
-				if (equals(this._lastPublished, activeClient)) {
+				if (equalsActiveClientState(this._lastPublished, activeClient)) {
 					return;
 				}
 				this._dispatch(backendSession, {
@@ -1404,7 +1428,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sessionResource => this._resolveSessionUri(sessionResource),
 				sessionResource => {
 					const backendSession = this._resolveSessionUri(sessionResource);
-					return backendSession ? URI.parse(this._getChatURIOrDefault(sessionResource, backendSession)) : undefined;
+					const chat = backendSession ? this._getChatURIOrDefault(sessionResource, backendSession) : undefined;
+					return chat !== undefined ? URI.parse(chat) : undefined;
 				},
 				this._logService,
 			)),
@@ -1627,7 +1652,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost] provideChatSessionContent: chat state hydrated for ${chatURI}`);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
 					if (sessionState) {
-						chatTitle = getChatTitle(sessionState, chatURI);
+						chatTitle = getChatTitle(sessionState, chatURI, sessionState.defaultChat);
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
 						if (!sessionState.draft && draft) {
@@ -1770,7 +1795,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._canvasProvider,
 				this._config.promptCacheNotification,
 				this._config.connection.refreshSubscription
-					? () => this._config.connection.refreshSubscription!(URI.parse(this._getChatURIOrDefault(sessionResource, resolvedSession)))
+					? () => {
+						const chat = this._getChatURIOrDefault(sessionResource, resolvedSession);
+						return chat !== undefined ? this._config.connection.refreshSubscription!(URI.parse(chat)) : Promise.resolve();
+					}
 					: undefined,
 				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 					if (!this._getSessionState(resolvedSession.toString())) {
@@ -1780,7 +1808,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._forkSession(sessionResource, resolvedSession, request, token);
 				},
 				(title: string, _token: CancellationToken) => {
-					this._config.connection.dispatch(this._getChatURIOrDefault(sessionResource, resolvedSession), {
+					const chat = this._getChatURIOrDefault(sessionResource, resolvedSession);
+					if (chat === undefined) {
+						return Promise.reject(new Error(`No chat to rename for ${sessionResource.toString()}`));
+					}
+					this._config.connection.dispatch(chat, {
 						type: ActionType.SessionTitleChanged,
 						title,
 					});
@@ -1919,7 +1951,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			metadata: { themeIcon: getAgentSessionProviderIcon(this._config.sessionType) },
 			slashCommands: [],
 			locations: [ChatAgentLocation.Chat],
-			modes: [ChatModeKind.Agent],
+			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 		};
 
@@ -1951,7 +1983,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
 			const invocationChat = this._getChatURIOrDefault(request.sessionResource, this._resolveSessionUri(request.sessionResource));
-			if (!isSubagentChatUri(invocationChat)) {
+			if (invocationChat === undefined || !isSubagentChatUri(invocationChat)) {
 				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
 			}
 
@@ -1996,6 +2028,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
+			const sensitiveEditLocationsConfig = this._getSensitiveEditLocationsConfig(request.sessionResource, existingState);
 
 			if (!existingState) {
 				// Eager-create did not produce server-side state (e.g. no
@@ -2017,6 +2050,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
+					...sensitiveEditLocationsConfig,
 					...request.agentHostSessionConfig,
 				};
 				await this._createAndSubscribe(
@@ -2048,18 +2082,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._ensureDraftSyncSubscription(request.sessionResource, resolvedSession, chatURI);
 				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
-				// In the Agents window, the sessions provider supplies per-request
-				// config via `request.agentHostSessionConfig` (e.g. the user's
-				// permission level). Push it to the agent so its provisional record
-				// materializes with those values. Workbench defaults (`isolation`,
-				// `autoApprove`) are seeded upstream at provisional `createSession`
-				// time, so we don't need to merge them here. Picker selections
-				// already live in `existingState.config?.values` and don't need to
-				// be re-dispatched.
-				if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+				// Recompute settings-derived security config before each turn; Agents-window request config layers on top.
+				const sessionConfig = {
+					...sensitiveEditLocationsConfig,
+					...request.agentHostSessionConfig,
+				};
+				if (Object.keys(sessionConfig).length > 0) {
 					this._dispatchAction(resolvedSession, {
 						type: ActionType.SessionConfigChanged,
-						config: request.agentHostSessionConfig,
+						config: sessionConfig,
 					});
 				}
 			}
@@ -2068,7 +2099,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// telemetry event is populated for agent-host providers.
 			chatId = this._getChatURI(request.sessionResource);
 			const state = this._getSessionState(sessionKey, chatId);
-			sessionTurnKind = state && isDefaultChatUri(chatId) ? (state.turns.length > 0 ? 'later' : 'first') : 'unknown';
+			sessionTurnKind = state && chatId === state.defaultChat ? (state.turns.length > 0 ? 'later' : 'first') : 'unknown';
 			const isExistingTurn = state?.activeTurn?.id === request.requestId || state?.turns.some(turn => turn.id === request.requestId)
 				|| request.acceptedConfirmationData?.some(isResumeTurnConfirmationData);
 			invocationKind = isSubagentChatUri(chatId) ? 'subagent' : isExistingTurn ? 'existingTurn' : 'newTurn';
@@ -2469,7 +2500,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
-	private _getChatURIOrDefault(sessionResource: URI, session: URI): string {
+	private _getChatURIOrDefault(sessionResource: URI, session: URI): string | undefined {
 		const mapped = this._chatURIsBySessionResource.get(sessionResource);
 		if (mapped) {
 			return mapped;
@@ -2478,7 +2509,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (explicitChat) {
 			return explicitChat;
 		}
-		return sessionResource.fragment ? buildChatUri(session, sessionResource.fragment) : buildDefaultChatUri(session);
+		return sessionResource.fragment ? buildChatUri(session, sessionResource.fragment) : this._getRawSessionState(session.toString())?.defaultChat;
 	}
 
 	private _getCurrentActiveClient(sessionResource: URI): SessionActiveClient {
@@ -2571,7 +2602,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
-		let previousTitle: string | undefined = currentState ? getChatTitle(currentState, chatURI) : undefined;
+		let previousTitle: string | undefined = currentState ? getChatTitle(currentState, chatURI, currentState.defaultChat) : undefined;
 		let previousTurnIds = new Set(currentState?.turns.map(turn => turn.id) ?? []);
 
 		const disposables = new DisposableStore();
@@ -2636,7 +2667,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			previousSteeringId = currentSteeringId;
 
-			const currentTitle = getChatTitle(e.state, chatURI);
+			const currentTitle = getChatTitle(e.state, chatURI, e.state.defaultChat);
 			if (currentTitle && currentTitle !== previousTitle) {
 				this._chatService.setChatSessionTitle(sessionResource, currentTitle);
 			}
@@ -3318,14 +3349,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
-		this._clientDispatchedTurnIds.add(turnId);
-
 		// Model and agent selection now travel on the turn message itself rather
 		// than via the removed `session/modelChanged` / `session/agentChanged`
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 		const requestedAgentUri = request.modeInstructions?.uri ? fromAgentHostUri(request.modeInstructions.uri).toString() : undefined;
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => agent.uri === requestedAgentUri);
+			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
+				throw new Error(localize('agentHost.askUnavailable', "Agent mode is disabled and this host does not provide the selected read-only Ask agent."));
+			}
+		}
+		this._clientDispatchedTurnIds.add(turnId);
 
 		// If the chat model has fewer previous requests than the protocol has
 		// turns, a checkpoint was restored or a message was edited. Dispatch
@@ -6356,7 +6392,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
-		const agentUri = state.mode.kind === ChatModeKind.Agent && state.mode.id !== ChatMode.Agent.id ? state.mode.id : undefined;
+		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : state.mode.id;
 		const attachments = this._variableEntriesToAttachments(state.attachments, sessionResource, state.inputText, false);
 		if (!state.inputText && !model && !agentUri && attachments.length === 0) {
 			return undefined;
@@ -6415,11 +6451,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
 		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
+		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
 		return {
 			attachments: variableData?.variables ?? [],
 			contrib: {},
 			inputText: draft.text,
-			mode: { id: draft.agent?.uri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent },
+			mode: {
+				id: draft.agent?.uri ?? ChatMode.Agent.id,
+				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
+			},
 			selectedModel: modelId && metadata ? {
 				identifier: modelId,
 				metadata,
@@ -6576,6 +6616,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workingDirectoryResolver?.resolve(sessionResource)
 			?? this._newSessionFolderService?.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private _getSensitiveEditLocationsConfig(sessionResource: URI, existingState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
+		const desired = mergeChatSensitiveEditLocations(...this._resolveCustomizationScopeRoots(sessionResource).map(resource => {
+			const overrides = { resource };
+			return getChatSensitiveEditLocations(
+				this._configurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides),
+				this._configurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides),
+			);
+		}));
+		const current = existingState?.config?.values[SessionConfigKey.SensitiveEditLocations];
+		return (desired.length > 0 || (current !== undefined && !equals(current, desired)))
+			? { [SessionConfigKey.SensitiveEditLocations]: desired }
+			: {};
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
@@ -7494,7 +7548,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _findChatOwner(chat: string): string | undefined {
 		for (const session of this._sessionSubscriptions.keys()) {
 			const state = this._getRawSessionState(session);
-			if (state && ((state.defaultChat?.toString() ?? buildDefaultChatUri(session)) === chat || state.chats.some(summary => summary.resource.toString() === chat))) {
+			if (state && (state.defaultChat?.toString() === chat || state.chats.some(summary => summary.resource.toString() === chat))) {
 				return session;
 			}
 		}

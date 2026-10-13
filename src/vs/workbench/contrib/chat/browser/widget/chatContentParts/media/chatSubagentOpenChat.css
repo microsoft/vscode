@@ -183,14 +183,15 @@
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-connector {
-	align-self: flex-start;
+	align-self: center;
 	flex: 0 0 var(--vscode-spacing-size80);
-	height: var(--vscode-spacing-size100);
-	margin-right: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-bottom-left-radius: var(--vscode-cornerRadius-small);
-	transform: translateY(calc(-1 * var(--vscode-spacing-size40)));
+	/* Center the horizontal stroke on the activity row. */
+	transform: translateY(calc(-50% + var(--vscode-strokeThickness) / 2));
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-icon {

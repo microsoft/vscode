@@ -2034,10 +2034,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const modes = this._currentChatModesObservable.get();
-		const mode2 = modes.findModeById(mode) ??
+		let mode2 = modes.findModeById(mode) ??
 			modes.findModeByName(mode) ??
 			modes.findModeById(ChatModeKind.Agent) ??
 			ChatMode.Ask;
+		if (!this.isManagedSettingsRefreshBlocked) {
+			if (mode2.kind === ChatModeKind.Agent && !this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled)) {
+				mode2 = modes.custom.find(mode => mode.kind === ChatModeKind.Ask) ?? ChatMode.Ask;
+			} else if (mode2.id === ChatMode.Ask.id) {
+				mode2 = modes.custom.find(mode => mode.kind === ChatModeKind.Ask) ?? mode2;
+			}
+		}
 		this.setChatMode2(mode2, storeSelection, isUserInitiated);
 	}
 
@@ -2288,7 +2295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const modelInfo = modelName ? localize('chatInput.model', ", {0}. ", modelName) : '';
 
 		let modeLabel = '';
-		if (!mode.isBuiltin) {
+		if (!mode.isBuiltin && mode.kind !== ChatModeKind.Ask) {
 			const mode = this.currentModeObs.get();
 			modeLabel = localize('chatInput.mode.custom', "({0}), {1}", mode.label.get(), mode.description.get());
 		} else {
@@ -2344,9 +2351,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
+		if (validMode.kind !== currentMode.kind) {
+			this.setChatMode(validMode.id);
+			return;
+		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
 			this.setChatMode(ChatModeKind.Ask);
 			return;
+		}
+		if (currentMode.id === ChatMode.Ask.id) {
+			const askMode = this._currentChatModesObservable.get().custom.find(mode => mode.kind === ChatModeKind.Ask);
+			if (askMode) {
+				this.setChatMode(askMode.id);
+			}
 		}
 	}
 
@@ -4428,7 +4445,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (isBrowserViewVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else {
-				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container)
+				// The bound input model's session owns these attachments: restoring them renders before the widget's view model switches to it.
+				// The inline request-edit input part has no bound input model and falls back to the widget's session.
+				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 					?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);
 			}
 

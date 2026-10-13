@@ -11,7 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { readSessionGitHubState, readSessionGitState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, readSessionGitHubState, readSessionGitState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat } from '../../common/state/sessionState.js';
 import { AgentHostPullRequestAssociationResolver } from '../../node/agentHostPullRequestAssociationResolver.js';
 import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
@@ -76,8 +76,9 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			revParse: async () => undefined,
 		};
 		const resolver = disposables.add(new AgentHostPullRequestAssociationResolver(gitService, options?.gitHubService ?? createTestGitHubService(createTestGitHubClient({ query }))));
-		const summary: SessionSummary = {
+		const summary = {
 			resource: SESSION,
+			defaultChat: buildDefaultChatUri(SESSION),
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
