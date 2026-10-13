@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceBrowseSectionPresentation, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -32,7 +32,6 @@ export function getProviderMarketplaceSourceId(name: string): string {
 interface IAgentFinderBrowseFeed {
 	readonly id: string;
 	readonly title: string;
-	readonly presentation: CustomizationMarketplaceBrowseSectionPresentation;
 }
 
 export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
@@ -345,17 +344,14 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			{
 				id: feedIds.editorsPicks,
 				title: localize('customizationMarketplace.editorsPicks', "Editor's picks"),
-				presentation: 'hero',
 			},
 			{
 				id: feedIds.planBuildAndShip,
 				title: localize('customizationMarketplace.planBuildAndShip', "Plan, build, and ship"),
-				presentation: 'compact',
 			},
 			{
 				id: feedIds.connectYourWork,
 				title: localize('customizationMarketplace.connectYourWork', "Connect your work"),
-				presentation: 'list',
 			},
 		] : [];
 	}
