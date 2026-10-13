@@ -190,6 +190,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private selectedTopic: string | undefined;
 	private supervisor: ProjectBoardSupervisor | undefined;
 	private readonly topicElement = mainWindow.document.createElement('div');
+	private readonly topicScrollable: DomScrollableElement;
+	private readonly topicControlElements = new Map<string, HTMLElement>();
+	private topicSummary: HTMLElement | undefined;
+	private topicsCollapsed = false;
 	private readonly topicControls = this._register(new MutableDisposable<DisposableStore>());
 	private drafts: readonly IProjectBoardDraft[] = [];
 	private readonly questionPreviews = this._register(new DisposableMap<string, IProjectBoardQuestionLease>());
@@ -333,7 +337,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.topicElement.className = 'project-board-topics';
 		this.topicElement.setAttribute('role', 'group');
 		this.topicElement.setAttribute('aria-label', localize('projectBoard.topicFilters', "Supervisor topic filters"));
-		this.filterElement.append(this.topicElement, this.searchSummary);
+		this.topicElement.id = `project-board-topics-${this.viewId}`;
+		this.topicScrollable = this._register(new DomScrollableElement(this.topicElement, {
+			horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false,
+		}));
+		this.topicScrollable.getDomNode().classList.add('project-board-topics-scrollable');
+		this._register(addDisposableListener(this.topicElement, EventType.SCROLL, () => this.topicScrollable.scanDomNode()));
+		this._register(toDisposable(() => this.topicScrollable.getDomNode().remove()));
+		this.filterElement.append(this.searchSummary);
 		this.renderTopics();
 		this._register(this.searchInput.onDidChange(() => this.filterChanged.schedule()));
 		this._register(addStandardDisposableListener(this.searchInput.inputElement, EventType.KEY_DOWN, event => {
@@ -646,6 +657,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (!supervisor.enabled) {
 			return undefined;
 		}
+		if (supervisor.waitingForModel) {
+			return localize('projectBoard.summaryWaitingForModel', "Summary waiting for Copilot. Use Sign In to Copilot above; analysis resumes when the summary model is available.");
+		}
 		if (supervisor.error) {
 			return localize('projectBoard.summaryFailed', "Summary unavailable. Use Refresh Topics to retry.");
 		}
@@ -666,7 +680,19 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			count: this.model.cards.filter(card => topic.cardIds.has(card.id) && (this.showArchived || !card.archived)
 				&& (this.boardState.configuration.get().autoIncludeSessions || this.model.getPlacement(card.id))).length,
 		})).filter(topic => topic.count) ?? [];
+		if (this.topicSummary) {
+			this.topicSummary.textContent = !this.supervisor ? localize('projectBoard.topicsNotEnabled', "Not enabled") : [
+				localize('projectBoard.topicsCount', "{0} topics", topics.length),
+				localize('projectBoard.topicsSummaryCount', "{0}/{1} summaries", this.supervisor.completed, this.supervisor.total),
+				this.selectedTopic ? localize('projectBoard.topicFilterActive', "Filtered: {0}", this.selectedTopic) : '',
+				!this.supervisor.enabled ? localize('projectBoard.topicsPaused', "Paused")
+					: this.supervisor.waitingForModel ? localize('projectBoard.topicsWaitingForCopilot', "Waiting for Copilot")
+					: this.supervisor.error ? localize('projectBoard.topicsUnavailable', "Analysis unavailable")
+					: this.supervisor.busy ? localize('projectBoard.topicsAnalyzing', "Analyzing…") : '',
+			].filter(Boolean).join(' · ');
+		}
 		const key = JSON.stringify([this.supervisor?.enabled, this.supervisor?.busy, this.supervisor?.error,
+			this.supervisor?.waitingForModel, this.supervisor?.signingIn,
 			this.supervisor?.total, this.supervisor?.completed, this.supervisor?.waiting, this.supervisor?.queued,
 			this.supervisor?.hasTranscript, this.supervisor?.stale, this.selectedTopic,
 			topics.map(({ topic, count }) => [topic.label, [...topic.cardIds], count])]);
@@ -674,18 +700,21 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			return;
 		}
 		this.topicsRenderKey = key;
+		const scrollTop = this.topicElement.scrollTop;
 		const focused = this.topicElement.ownerDocument.activeElement?.getAttribute('data-topic-control');
 		const restoreFocus = this.topicElement.ownerDocument.hasFocus();
 		const store = new DisposableStore();
 		this.topicControls.value = store;
+		this.topicControlElements.clear();
 		this.topicElement.replaceChildren();
 		const add = (id: string, label: string, run: () => void, enabled = true) => {
 			const button = store.add(new Button(this.topicElement, { ...defaultButtonStyles, secondary: true }));
 			button.label = label;
 			button.enabled = enabled;
 			button.element.dataset.topicControl = id;
+			this.topicControlElements.set(id, button.element);
 			store.add(button.onDidClick(run));
-			if (id === focused && restoreFocus) {
+			if (id === focused && restoreFocus && !this.topicsCollapsed) {
 				button.element.focus({ preventScroll: true });
 			}
 			return button;
@@ -693,6 +722,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		add('toggle', this.supervisor?.enabled ? localize('projectBoard.stopTopics', "Stop Topics") : localize('projectBoard.startTopics', "Enable Topics"), () => { void this.toggleSupervisor(); });
 		if (this.supervisor) {
 			const supervisor = this.supervisor;
+			if (supervisor.waitingForModel) {
+				add('signIn', supervisor.signingIn ? localize('projectBoard.signingIn', "Signing In…") : localize('projectBoard.signInToCopilot', "Sign In to Copilot"),
+					() => { void supervisor.signIn(); }, supervisor.enabled && !supervisor.signingIn);
+			}
 			add('refresh', supervisor.busy ? localize('projectBoard.analyzingTopics', "Analyzing…") : localize('projectBoard.refreshTopics', "Refresh Topics"),
 				() => { void supervisor.refresh(); }, supervisor.enabled && !supervisor.busy);
 			if (supervisor.hasTranscript) {
@@ -723,7 +756,32 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			coverage.textContent = localize('projectBoard.topicCoverage', "Summaries: {0}/{1} chats · {2} waiting for details · {3} queued. Topics include completed analyses; updates are incremental.", supervisor.completed, supervisor.total, supervisor.waiting, supervisor.queued);
 			this.topicElement.appendChild(coverage);
 		}
+		this.topicScrollable.scanDomNode();
+		this.topicElement.scrollTop = scrollTop;
+		this.pinnedLayout.schedule();
 		this._onDidChangeContentSize.fire();
+	}
+
+	private createTopicsTray(document: Document, store: DisposableStore): HTMLElement {
+		const tray = document.createElement('section');
+		tray.className = 'project-board-card-group project-board-topics-tray';
+		tray.setAttribute('aria-label', localize('projectBoard.topics', "Topics"));
+		const heading = document.createElement('h3');
+		heading.className = 'project-board-tray-heading';
+		tray.appendChild(heading);
+		const toggle = this.createCollapseControl(heading, 'collapse:topics', localize('projectBoard.topics', "Topics"),
+			this.topicsCollapsed, [this.topicElement.id], () => { this.topicsCollapsed = !this.topicsCollapsed; }, store, localize('projectBoard.topics', "Topics"), true);
+		toggle.element.classList.add('project-board-tray-toggle');
+		this.topicSummary = document.createElement('span');
+		this.topicSummary.className = 'project-board-topics-summary';
+		this.topicSummary.setAttribute('role', 'status');
+		heading.appendChild(this.topicSummary);
+		store.add(this.hoverService.setupDelayedHover(this.topicSummary, () => ({ content: this.topicSummary?.textContent ?? '' })));
+		const body = this.topicScrollable.getDomNode();
+		body.hidden = this.topicsCollapsed;
+		tray.appendChild(body);
+		this.renderTopics();
+		return tray;
 	}
 
 	private hasFocusedCard(target: Element | null = this.container.ownerDocument.activeElement): boolean {
@@ -846,6 +904,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			return;
 		}
 		this.boardElement.style.setProperty('--project-board-pinned-max-height', `${viewport.clientHeight / 2}px`);
+		if (!this.topicsCollapsed) {
+			const scrollTop = this.topicElement.scrollTop;
+			this.topicElement.style.height = 'auto';
+			this.topicElement.style.height = `${Math.min(this.topicElement.scrollHeight, this.topicScrollable.getDomNode().clientHeight)}px`;
+			this.topicElement.scrollTop = scrollTop;
+		}
 		if (!this.unassignedList.hidden) {
 			const scrollTop = this.rendering ? this.unassignedScrollTop : this.unassignedList.scrollTop;
 			for (const entry of this.sessionLists.values()) {
@@ -859,6 +923,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.unassignedList.scrollTop = scrollTop;
 		}
 		this.unassignedScrollable.scanDomNode();
+		this.topicScrollable.scanDomNode();
 		this.boardElement.style.setProperty('--project-board-pinned-height', `${pinned.offsetHeight + parseFloat(getWindow(viewport).getComputedStyle(viewport).paddingTop)}px`);
 		this.scrollable?.scanDomNode();
 	}
@@ -940,6 +1005,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	getAccessibleContent(): string {
 		const lines = [this.title];
+		lines.push(this.topicsCollapsed ? localize('projectBoard.accessibleTopicsCollapsed', "Topics (collapsed)") : localize('projectBoard.topics', "Topics"));
+		if (this.topicSummary?.textContent) {
+			lines.push(this.topicSummary.textContent);
+		}
 		const appendCardDetails = (card: IProjectBoardCard) => {
 			const summary = this.getSummaryLabel(card);
 			if (summary) {
@@ -1563,6 +1632,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const activeElement = ownerDocument.hasFocus() ? ownerDocument.activeElement : null;
 		const focusedSearch = activeElement === this.searchInput.inputElement;
 		const focusedControl = activeElement?.getAttribute('data-board-control');
+		const focusedTopic = activeElement?.getAttribute('data-topic-control');
 		const focusedQuestion = activeElement && [...this.questionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedAction = activeElement && [...this.actionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedPill = activeElement && [...this.contextPills.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
@@ -1673,6 +1743,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			selectionTools.appendChild(description);
 		}
 		pinned.appendChild(selectionTools);
+		pinned.appendChild(this.createTopicsTray(document, store));
 		this.updateCustomViewContexts();
 		if (!this.boardState.canEdit) {
 			const warning = document.createElement('section');
@@ -1772,6 +1843,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (ownerDocument.hasFocus()) {
 			if (focusedSearch) {
 				this.searchInput.focus();
+			} else if (focusedTopic && !this.topicsCollapsed) {
+				this.topicControlElements.get(focusedTopic)?.focus({ preventScroll: true });
 			} else if (focusedPill?.isConnected && isHTMLElement(focusedPill)) {
 				focusedPill.focus({ preventScroll: true });
 			} else if (focusedAction?.isConnected && isHTMLElement(focusedAction)) {
@@ -2325,6 +2398,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}
 		this.unassignedCollapsed = state.unassignedCollapsed;
+		this.topicsCollapsed = state.topicsCollapsed ?? false;
 		this.visibleCounts.clear();
 		for (const [key, count] of state.visibleCounts) {
 			this.visibleCounts.set(key, count);
@@ -2338,6 +2412,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			version: 1, expandedCards: [...this.expandedCards], expandedChats: [...this.expandedChats],
 			collapsedRows: [...this.collapsedRows], collapsedColumns: [...this.collapsedColumns],
 			unassignedCollapsed: this.unassignedCollapsed, visibleCounts: [...this.visibleCounts],
+			topicsCollapsed: this.topicsCollapsed,
 		});
 	}
 
@@ -2345,9 +2420,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return [...this.cardElements.values()].filter(element => !element.closest('.project-board-card-list[hidden], .project-board-child-cards[hidden]'));
 	}
 
-	private createCollapseControl(container: HTMLElement, key: string, name: string, collapsed: boolean, controlledIds: string[], toggle: () => void, store: DisposableStore, visibleLabel?: string): Button {
+	private createCollapseControl(container: HTMLElement, key: string, name: string, collapsed: boolean, controlledIds: string[], toggle: () => void, store: DisposableStore, visibleLabel?: string, allowWhileFiltering = false): Button {
 		const button = this.createControl(container, visibleLabel ?? '', key, store);
-		button.enabled = !this.filtering;
+		button.enabled = allowWhileFiltering || !this.filtering;
 		const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 		if (visibleLabel !== undefined) {
 			const glyph = renderIcon(icon);

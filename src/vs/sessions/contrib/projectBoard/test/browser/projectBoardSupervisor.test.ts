@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { AsyncIterableObject, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,10 +16,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatCompleteResponse, IChatService, IChatSessionStartOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatRequestOptions, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IProjectBoardTopicSource, parseProjectBoardAnalysis, parseProjectBoardTopics, ProjectBoardSupervisor, projectBoardSupervisorLimits } from '../../browser/projectBoardSupervisor.js';
 import { matchesProjectBoardFilter } from '../../common/projectBoardFilter.js';
@@ -30,6 +33,8 @@ suite('ProjectBoardSupervisor', () => {
 	});
 
 	function harness() {
+		const modelChanged = store.add(new Emitter<string>());
+		const executeCommand = sinon.stub().resolves(false);
 		const state = {
 			available: true, response: '',
 			requests: [] as { messages: IChatMessage[]; options: ILanguageModelChatRequestOptions; token: CancellationToken }[],
@@ -41,6 +46,14 @@ suite('ProjectBoardSupervisor', () => {
 			appendError: false, disposedModels: 0, opened: [] as string[],
 		};
 		const models = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = modelChanged.event;
+			override getLanguageModelIds() { return state.available ? ['utility'] : []; }
+			override lookupLanguageModel() {
+				return state.available ? new class extends mock<ILanguageModelChatMetadata>() {
+					override readonly vendor = 'copilot';
+					override readonly id = 'copilot-utility-small';
+				}() : undefined;
+			}
 			override async selectLanguageModels() { return state.available ? ['utility'] : []; }
 			override async sendChatRequest(_model: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken) {
 				state.requests.push({ messages, options, token });
@@ -78,9 +91,137 @@ suite('ProjectBoardSupervisor', () => {
 		}(),
 			store.add(new NullLogService()), new class extends mock<INotificationService>() {
 				override error(message: string) { state.errors.push(message); }
-			}()));
-		return { supervisor, state };
+			}(), new class extends mock<ICommandService>() { override executeCommand = executeCommand; }()));
+		return { supervisor, state, modelChanged, executeCommand };
 	}
+
+	test('recovers pending analysis when the exact Copilot summary model registers after the initial failure', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const { supervisor, state, modelChanged } = harness();
+		state.available = false;
+		supervisor.update([source()]);
+		supervisor.setEnabled(true);
+		await clock.tickAsync(0);
+		assert.match(supervisor.error!, /summary model is unavailable/);
+		state.available = true;
+		modelChanged.fire('copilot');
+		await clock.tickAsync(1000);
+		assert.deepStrictEqual({
+			completed: supervisor.completed, queued: supervisor.queued, error: supervisor.error,
+			requests: state.requests.length, errors: state.errors.length,
+		}, { completed: 1, queued: 0, error: undefined, requests: 1, errors: 1 });
+	});
+
+	test('model arrival does not resume stopped, inactive or disposed supervisors until explicitly active', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		for (const lifecycle of ['stopped', 'inactive', 'disposed'] as const) {
+			const h = harness();
+			h.state.available = false;
+			h.supervisor.update([source()]);
+			h.supervisor.setEnabled(true);
+			await clock.tickAsync(0);
+			if (lifecycle === 'stopped') { h.supervisor.setEnabled(false); }
+			if (lifecycle === 'inactive') { h.supervisor.setActive(false); }
+			if (lifecycle === 'disposed') { h.supervisor.dispose(); }
+			h.state.available = true;
+			h.modelChanged.fire('copilot');
+			await clock.tickAsync(240_000);
+			assert.strictEqual(h.state.requests.length, 0);
+			if (lifecycle === 'inactive') {
+				h.supervisor.setActive(true);
+				await clock.tickAsync(1000);
+				assert.strictEqual(h.supervisor.completed, 1);
+			}
+		}
+	});
+
+	test('unrelated model changes and non-availability failures do not trigger automatic retries', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const h = harness();
+		h.state.available = false;
+		h.supervisor.update([source()]);
+		h.supervisor.setEnabled(true);
+		await clock.tickAsync(0);
+		h.state.available = true;
+		h.modelChanged.fire('copilotcli');
+		await clock.tickAsync(240_000);
+		assert.strictEqual(h.state.requests.length, 0, 'Agent Host models are not a direct-LM fallback');
+		h.state.response = 'invalid summary JSON';
+		await h.supervisor.refresh();
+		h.state.response = '';
+		h.modelChanged.fire('copilot');
+		await clock.tickAsync(240_000);
+		assert.strictEqual(h.state.requests.length, 1, 'Schema errors require explicit retry');
+	});
+
+	test('explicit recovery reuses native Copilot setup without forcing another login and retries only after success', async () => {
+		const h = harness();
+		h.state.available = false;
+		h.supervisor.update([source()]);
+		h.supervisor.setEnabled(true);
+		await timeout(0);
+		h.executeCommand.callsFake(async () => { h.state.available = true; return true; });
+		await h.supervisor.signIn();
+		const [id, context, options] = h.executeCommand.firstCall.args;
+		assert.strictEqual(id, CHAT_SETUP_ACTION_ID);
+		assert.strictEqual(context, undefined);
+		assert.ok(options.cancellationToken);
+		assert.strictEqual(options.forceSignInDialog, undefined, 'Existing eligible VS Code accounts must retain the native no-dialog setup path');
+		assert.deepStrictEqual({ completed: h.supervisor.completed, requests: h.state.requests.length, signingIn: h.supervisor.signingIn }, {
+			completed: 1, requests: 1, signingIn: false,
+		});
+	});
+
+	test('cancelled sign-in preserves pending work and never fabricates a usable model', async () => {
+		const h = harness();
+		h.state.available = false;
+		h.supervisor.update([source()]);
+		h.supervisor.setEnabled(true);
+		await timeout(0);
+		await h.supervisor.signIn();
+		assert.deepStrictEqual({
+			completed: h.supervisor.completed, queued: h.supervisor.queued, waitingForModel: h.supervisor.waitingForModel,
+			requests: h.state.requests.length, commands: h.executeCommand.callCount, errors: h.state.errors.length,
+		}, { completed: 0, queued: 1, waitingForModel: true, requests: 0, commands: 1, errors: 1 });
+	});
+
+	test('Stop cancels an owned pending sign-in and prevents late setup success from starting analysis', async () => {
+		const h = harness();
+		h.state.available = false;
+		h.supervisor.update([source()]);
+		h.supervisor.setEnabled(true);
+		await timeout(0);
+		const setup = new DeferredPromise<boolean>();
+		h.executeCommand.returns(setup.p);
+		const signingIn = h.supervisor.signIn();
+		h.supervisor.setEnabled(false);
+		await signingIn;
+		h.state.available = true;
+		await setup.complete(true);
+		h.modelChanged.fire('copilot');
+		await timeout(0);
+		assert.deepStrictEqual({
+			cancelled: h.executeCommand.firstCall.args[2].cancellationToken.isCancellationRequested,
+			requests: h.state.requests.length, signingIn: h.supervisor.signingIn, errors: h.state.errors.length,
+		}, { cancelled: true, requests: 0, signingIn: false, errors: 1 });
+	});
+
+	test('native setup failure is explicitly reported and another sign-in attempt remains possible', async () => {
+		const h = harness();
+		h.state.available = false;
+		h.supervisor.update([source()]);
+		h.supervisor.setEnabled(true);
+		await timeout(0);
+		h.executeCommand.rejects(new Error('Native setup failed'));
+		await h.supervisor.signIn();
+		assert.match(h.state.errors[1], /Could not sign in/);
+		h.executeCommand.callsFake(async () => { h.state.available = true; return true; });
+		await h.supervisor.signIn();
+		assert.deepStrictEqual({ completed: h.supervisor.completed, commands: h.executeCommand.callCount, signingIn: h.supervisor.signingIn }, { completed: 1, commands: 2, signingIn: false });
+	});
 
 	test('details readiness queues summary analysis without waiting for every chat to load', async () => {
 		const clock = sinon.useFakeTimers();

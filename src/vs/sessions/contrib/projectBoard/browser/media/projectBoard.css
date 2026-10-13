@@ -100,6 +100,37 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	margin-top: var(--vscode-spacing-size40);
+	max-height: calc(var(--project-board-pinned-max-height, 50vh) / 3);
+	overflow: hidden;
+}
+
+.project-board-card-group.project-board-topics-tray {
+	display: flex;
+	flex-direction: column;
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.project-board-topics-tray > .project-board-tray-heading {
+	flex-shrink: 0;
+}
+
+.project-board-topics-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.project-board-topics-scrollable[hidden] {
+	display: none;
+}
+
+.project-board-topics-summary {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .project-board-topics > .monaco-button {
@@ -925,7 +956,7 @@
 }
 
 .project-board [data-board-control],
-.project-board-filter [data-topic-control],
+.project-board-topics [data-topic-control],
 .project-board-card-status,
 .project-board-card-lifecycle,
 .project-board-card-workspace,

@@ -58,6 +58,15 @@ suite('ProjectBoardViewState', () => {
 		assert.notStrictEqual(ProjectBoardViewState.storageKey('first.embedded', 'standalone'), ProjectBoardViewState.storageKey('first', 'embedded'));
 	});
 
+	test('Topics tray fold persists while older v1 view states remain valid without a saved choice', () => {
+		const h = setup();
+		h.state.save({ ...sample, topicsCollapsed: true });
+		assert.strictEqual(setup(h.storage).state.value.topicsCollapsed, true);
+		h.storage.store(key, JSON.stringify(sample), StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.strictEqual(setup(h.storage).state.value.topicsCollapsed, undefined);
+		assert.throws(() => validateProjectBoardViewState({ ...sample, topicsCollapsed: 'true' }), /view state is invalid/);
+	});
+
 	test('unchanged snapshots do not write or publish storage changes', () => {
 		const h = setup();
 		const writes = sinon.spy(h.storage, 'store');
