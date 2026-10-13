@@ -2647,10 +2647,12 @@ suite('ModernUIContribution', () => {
 				const highContrast = themeId.startsWith('hc-');
 				assert.deepStrictEqual({
 					strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
+					addBacking: targetWindow.getComputedStyle(addTab, '::before').backgroundColor,
 					fill: targetWindow.getComputedStyle(fill).backgroundColor,
 					actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
 				}, {
-					strip: [expected, expected, expected],
+					strip: [expected, expected, 'rgba(0, 0, 0, 0)'],
+					addBacking: expected,
 					fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
 					actionMask: highContrast ? 'rgba(0, 0, 0, 0)' : undefined,
 				}, `${themeId}, ${strip}`);
@@ -3090,10 +3092,11 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('shares connected geometry between single-row and bottom wrapped tabs', () => {
+	test('aligns single-row connected caps while retaining wrapped gutters', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size200', '20px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
@@ -3168,11 +3171,11 @@ suite('ModernUIContribution', () => {
 			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '4px', borderWidths: ['1px', '1px'] },
 			upper: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			inactive: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '2px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			},
 			active: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '-1px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '-1px'], fillInlineStart: '0px' },
 			},
 		});

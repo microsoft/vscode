@@ -426,7 +426,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 
 	const headerBackground = theme.getColor(partOptions.showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
 	if (headerBackground) {
-		titleContainer.style.backgroundColor = headerBackground.toString();
+		titleContainer.style.backgroundColor = `var(--modern-ui-editor-title-background, ${headerBackground})`;
 	}
 
 	const editorContainer = $('.editor-container');
