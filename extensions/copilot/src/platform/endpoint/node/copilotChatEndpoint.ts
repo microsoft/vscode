@@ -54,8 +54,8 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 
 	/**
 	 * CAPI serves no embeddings to anonymous tokens, so tool search stays off for them, except
-	 * when CAPI traffic (including embeddings) goes through a proxy that re-authenticates
-	 * server-side, e.g. HMAC evals.
+	 * when CAPI traffic (including embeddings) goes through an HMAC proxy that re-authenticates
+	 * server-side, e.g. evals. Token-mode overrides (smoke tests, mock servers) stay gated.
 	 */
 	public override get supportsToolSearch(): boolean | undefined {
 		if (!super.supportsToolSearch) {
@@ -64,7 +64,12 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		if (!this._copilotAuthService.copilotToken?.isNoAuthUser) {
 			return true;
 		}
-		return !!this._configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl);
+		if (!this._configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl)) {
+			return false;
+		}
+		// Only respect the auth type from user (global) settings so a workspace cannot opt in.
+		const authType = this._configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType)?.globalValue ?? 'hmac';
+		return authType === 'hmac';
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {
