@@ -1504,7 +1504,7 @@ suite('AgentHostChatContribution', () => {
 		test('registers agent', () => {
 			const { chatAgentService } = createContribution(disposables);
 
-			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
 		});
 
 	});
@@ -3378,6 +3378,44 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 		});
+
+		test('round trips host Ask identity and semantics through AHP drafts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const askUri = 'other-host:/opaque/ask';
+			class AskCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents(): readonly AgentCustomization[] {
+					return [{ type: CustomizationType.Agent, id: 'opaque', uri: askUri, name: 'Questions', _meta: { 'vscode.chatMode': 'ask' } }];
+				}
+			}
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { customizationServiceOverride: new AskCustomizationService() });
+			const backendSession = AgentSession.uri('copilot', 'ask-draft');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/ask-draft' });
+			seedDraftSession(agentHostService, backendSession, 'Ask Draft');
+			const { inputModel, inputState } = createDraftInputModel({
+				attachments: [],
+				mode: { id: askUri, kind: ChatModeKind.Ask },
+				selectedModel: undefined,
+				inputText: 'explain this',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+			await timeout(500);
+			const drafts = agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []);
+			fireRemoteDraft(agentHostService, backendSession, { text: 'remote question', origin: { kind: MessageKind.User }, agent: { uri: askUri } });
+
+			assert.deepStrictEqual({
+				agents: drafts.map(draft => draft?.agent),
+				received: { text: inputState.get()?.inputText, mode: inputState.get()?.mode },
+			}, {
+				agents: [{ uri: askUri }],
+				received: { text: 'remote question', mode: { id: askUri, kind: ChatModeKind.Ask } },
+			});
+		}));
 
 		test('debounces chat input state into AHP draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });

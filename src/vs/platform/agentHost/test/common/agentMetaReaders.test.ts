@@ -450,6 +450,13 @@ suite('Agent host _meta readers', () => {
 	});
 
 	suite('readAgentCustomizationMeta', () => {
+		test('reads only explicit, bounded Ask metadata', () => {
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),
+				...[undefined, null, true, {}, 'agent', 'Ask'].map(value => readAgentCustomizationMeta(agentCustomization({ 'vscode.chatMode': value }))),
+			], [{ 'vscode.chatMode': 'ask' }, {}, {}, {}, {}, {}, {}]);
+		});
+
 		test('reads userInvocable, ignores garbage, round-trips', () => {
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});

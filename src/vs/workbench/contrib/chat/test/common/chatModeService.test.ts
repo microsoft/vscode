@@ -12,17 +12,18 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
-import { ChatMode, ChatModeService } from '../../common/chatModes.js';
+import { ChatMode, ChatModeService, CustomChatMode } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { SessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -115,6 +116,34 @@ suite('ChatModeService', () => {
 		assert.ok(agentMode);
 		assert.strictEqual(agentMode.id, ChatMode.Agent.id);
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
+	});
+
+	test('keeps host Ask available without a tools agent and restores its cached semantics', async () => {
+		const ask: ICustomAgent = {
+			id: 'host:/opaque/ask',
+			uri: URI.parse('host:/opaque/ask'),
+			kind: ChatModeKind.Ask,
+			name: 'Questions',
+			agentInstructions: { content: '', toolReferences: [] },
+			source: { storage: PromptsStorage.builtIn },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: false },
+			enabled: true,
+		};
+		promptsService.setCustomModes([ask, { ...ask, id: 'user-ask', kind: undefined, name: 'Ask', source: workspaceSource }]);
+		await waitForRefresh();
+		chatAgentService.setHasToolsAgent(false);
+		const modes = await chatModeService.getLocalModes();
+		storageService.store('chat.customModes.local', [new CustomChatMode(ask)], StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const cached = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+
+		assert.deepStrictEqual({
+			available: modes.custom.map(mode => ({ id: mode.id, kind: mode.kind })),
+			cached: cached.findModeById(ask.id)?.kind,
+		}, {
+			available: [{ id: ask.id, kind: ChatModeKind.Ask }],
+			cached: ChatModeKind.Ask,
+		});
 	});
 
 	test('should return undefined for non-existent mode', async () => {
