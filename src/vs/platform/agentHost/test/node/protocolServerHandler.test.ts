@@ -3635,6 +3635,74 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('projects approval reports in resolution, snapshots, live updates and replay without changing native clients', async () => {
+			const schema = sessionSchema();
+			const nativeValues = { autoApprove: 'assisted', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] };
+			const wireValues = { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] };
+			const config: ResolveSessionConfigResult = {
+				schema: {
+					...schema,
+					properties: {
+						...schema.properties,
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					},
+				},
+				values: nativeValues,
+			};
+			stateManager.setSessionConfig(sessionUri, config);
+			const resolve = sinon.stub(agentService, 'resolveSessionConfig').resolves(config);
+			disposables.add(toDisposable(() => resolve.restore()));
+			const { scopedHandler, transport, connect } = createRelay();
+			const local = connectClient('native-approval-reports', [sessionUri]);
+			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli' }));
+			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
+			const initial = result<InitializeResult>(transport, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const subscribed = result<SubscribeResult>(transport, 3).snapshot?.state as SessionState;
+			const localInitial = result<InitializeResult>(local, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const resolved = result<ResolveSessionConfigResult>(transport, 2);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: nativeValues });
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			const reports = { effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'autoApprove'] };
+			const wireReports = { effectiveApprovalMode: 'allow-all', availableApprovalModes: ['manual', 'allow-all'] };
+			const action = { type: ActionType.SessionConfigChanged as const, config: reports };
+			const lastSeen = stateManager.serverSeq;
+			stateManager.dispatchServerAction(sessionUri, action);
+			const changes = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			const localChanges = findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			transport.simulateClose();
+			const replayTransport = connect();
+			replayTransport.simulateMessage(request(4, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: lastSeen, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const replay = result<ReconnectResult>(replayTransport, 4);
+			replayTransport.simulateClose();
+			const snapshotTransport = connect();
+			snapshotTransport.simulateMessage(request(5, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: -1, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const refreshed = result<ReconnectResult>(snapshotTransport, 5);
+			const refreshedState = refreshed.type === 'snapshot' ? refreshed.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState : undefined;
+			const wireAction = { ...action, config: wireReports };
+			assert.deepStrictEqual({
+				resolved: resolved.values,
+				initial: initial.config?.values,
+				subscribed: subscribed.config?.values,
+				localInitial: localInitial.config?.values,
+				changes, localChanges,
+				replay: replay.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay.type,
+				refreshed: refreshedState?.config?.values,
+				nativeState: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, {
+				resolved: wireValues,
+				initial: wireValues, subscribed: wireValues, localInitial: nativeValues,
+				changes: [wireAction], localChanges: [action],
+				replay: [wireAction],
+				refreshed: { ...wireValues, ...wireReports },
+				nativeState: { ...nativeValues, ...reports },
+			});
+		});
+
 		test('rejects invalid workspace preferences at resolution, creation, completions and dispatch', async () => {
 			const { scopedHandler, transport } = createRelay();
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { config: { target: 'folder' } }));
