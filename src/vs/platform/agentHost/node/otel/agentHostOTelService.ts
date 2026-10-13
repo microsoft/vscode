@@ -6,7 +6,8 @@
 import { mkdir } from 'fs/promises';
 import { hostname, userInfo } from 'os';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { dirname, join } from '../../../../base/common/path.js';
+import { untildify } from '../../../../base/common/labels.js';
+import { dirname, join, parse, resolve } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,7 +27,8 @@ import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { chatUserInteractionAttributes, ChatUserInteractionSpanName, IChatUserInteractionTiming } from '../../../otel/common/chatUserInteraction.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
-import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
+import { AgentHostOTelEnvVars, AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
 import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, AgentHostProviderTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
@@ -50,6 +52,8 @@ interface ResolvedConfig {
 	readonly otlpEndpoint: string | undefined;
 	/** Pass-through file path (file exporter). */
 	readonly filePath: string | undefined;
+	/** Safe reason why a managed file path was ignored. */
+	readonly filePathError?: string;
 	/** Instrumentation source/service name. */
 	readonly sourceName: string | undefined;
 	/** Capture prompt/response content in spans. */
@@ -118,12 +122,46 @@ function parseResourceAttributes(raw: string | undefined, serviceName: string | 
 
 const identityAttributeKeys = new Set(['user.name', 'process.user.name', 'host.name']);
 
+function resolveManagedFilePath(filePath: string, env: NodeJS.ProcessEnv): { filePath: string | undefined; error?: string } {
+	let candidate = filePath.startsWith('~\\') ? `~/${filePath.slice(2)}` : filePath;
+	if (!candidate.trim()) {
+		return { filePath: undefined, error: 'path is empty' };
+	}
+	if (candidate.includes('\0')) {
+		return { filePath: undefined, error: 'path contains a NUL character' };
+	}
+	if (candidate === '~' || candidate === '~/' || candidate === '~\\' || (candidate.startsWith('~') && !candidate.startsWith('~/'))) {
+		return { filePath: undefined, error: 'path has an unsupported home prefix' };
+	}
+	if (/\$(?:\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*)/.test(candidate) || /%[^%]*%/.test(candidate)) {
+		return { filePath: undefined, error: 'path contains an environment variable reference' };
+	}
+	if (candidate === '.' || candidate === '..' || /[\\/]$/.test(candidate) || /[\\/]\.{1,2}$/.test(candidate)) {
+		return { filePath: undefined, error: 'path names a directory' };
+	}
+	if (candidate.startsWith('~/')) {
+		const home = isWindows ? env.USERPROFILE : env.HOME;
+		if (!home?.trim()) {
+			return { filePath: undefined, error: `path requires ${isWindows ? 'USERPROFILE' : 'HOME'}` };
+		}
+		candidate = untildify(candidate, home);
+	}
+	const resolved = resolve(process.cwd(), candidate);
+	if (parse(resolved).root === resolved) {
+		return { filePath: undefined, error: 'path names a filesystem root' };
+	}
+	return { filePath: resolved };
+}
+
 export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	const dbSpanExporter = isTruthy(env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED);
 	const otlpEndpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT ?? env.COPILOT_OTEL_ENDPOINT;
-	const filePath = env.COPILOT_OTEL_FILE_EXPORTER_PATH;
+	const rawFilePath = env.COPILOT_OTEL_FILE_EXPORTER_PATH;
+	const managedFilePath = isTruthy(env[AgentHostOTelEnvVars.FilePathIsManaged]);
+	const managedFilePathResult = managedFilePath ? resolveManagedFilePath(rawFilePath ?? '', env) : undefined;
+	const filePath = managedFilePathResult ? managedFilePathResult.filePath : rawFilePath;
 	const explicitlyEnabled = isTruthy(env.COPILOT_OTEL_ENABLED);
-	const enabled = explicitlyEnabled || dbSpanExporter || !!otlpEndpoint || !!filePath;
+	const enabled = explicitlyEnabled || dbSpanExporter || !!otlpEndpoint || !!rawFilePath;
 
 	// Map the OTLP protocol env var onto our four user-visible exporter types.
 	const rawType = (env.COPILOT_OTEL_EXPORTER_TYPE ?? '').trim().toLowerCase();
@@ -131,7 +169,7 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	let exporterType: ResolvedConfig['exporterType'] = 'otlp-http';
 	if (rawType === 'console' || rawType === 'file' || rawType === 'otlp-grpc' || rawType === 'otlp-http') {
 		exporterType = rawType;
-	} else if (filePath) {
+	} else if (rawFilePath) {
 		exporterType = 'file';
 	}
 	if (protocol === 'grpc' || protocol === 'http/grpc') {
@@ -151,6 +189,7 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 		exporterType,
 		otlpEndpoint,
 		filePath,
+		...(managedFilePathResult?.error ? { filePathError: managedFilePathResult.error } : {}),
 		sourceName: env.COPILOT_OTEL_SOURCE_NAME,
 		captureContent: env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT === undefined
 			? undefined
@@ -275,6 +314,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 
 	constructor(
 		private readonly _options: {
+			readonly env?: NodeJS.ProcessEnv;
 			readonly fetchFn?: typeof globalThis.fetch;
 			readonly readOSUsername?: () => string;
 			readonly readHostname?: () => string;
@@ -284,7 +324,10 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	) {
 		super();
 		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
-		this._config = readAgentHostOTelEnv(process.env);
+		this._config = readAgentHostOTelEnv(this._options?.env ?? process.env);
+		if (this._config.filePathError) {
+			this._logService.error(`[agentHost.otel] ignored managed file export path: ${this._config.filePathError}`);
+		}
 		this._hostResourceAttributes = this._config.resourceAttributes;
 		if (this._config.enabled && this._config.captureIdentity) {
 			let username: string | undefined;

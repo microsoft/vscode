@@ -69,6 +69,32 @@ suite('NativeManagedSettingsService', () => {
 		});
 	});
 
+	test('retains an invalid managed telemetry file path until the watcher removes it', async () => {
+		const filePath = 'telemetry.filePath';
+		let onDidChange: ((update: Record<string, PolicyValue | undefined>, metadata?: { invalidPolicies: readonly string[] }) => void) | undefined;
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
+			onDidChange = callback;
+			callback({});
+			return Disposable.None;
+		};
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+
+		await service.updatePolicyDefinitions({
+			TelemetryFilePath: {
+				type: 'string',
+				managedSettings: { [filePath]: { type: 'string' } },
+			},
+		});
+		onDidChange?.({ [filePath]: undefined }, { invalidPolicies: [filePath] });
+		const invalid = service.managedSettings;
+		onDidChange?.({ [filePath]: undefined }, { invalidPolicies: [] });
+
+		assert.deepStrictEqual({ invalid, removed: service.managedSettings }, {
+			invalid: { [filePath]: '' },
+			removed: {},
+		});
+	});
+
 	for (const leaf of ['prompts', 'responses', 'toolArguments', 'toolOutput', 'policyDetail']) {
 		test(`native capture.${leaf} selects telemetry without a corresponding Local capture policy`, async () => {
 			const key = `telemetry.capture.${leaf}`;

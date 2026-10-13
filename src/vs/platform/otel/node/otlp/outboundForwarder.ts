@@ -7,6 +7,7 @@ import type * as http from 'http';
 import type * as https from 'https';
 import { Queue } from '../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname } from '../../../../base/common/path.js';
 import { URL } from 'url';
 import { promises as fs } from 'fs';
 import { ILogService } from '../../../log/common/log.js';
@@ -228,6 +229,7 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 
 	private async _append(lines: string): Promise<void> {
 		try {
+			await fs.mkdir(dirname(this._options.filePath), { recursive: true });
 			await fs.appendFile(this._options.filePath, lines, { encoding: 'utf8' });
 		} catch (err) {
 			this._logService.warn(`[agentHost-otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);

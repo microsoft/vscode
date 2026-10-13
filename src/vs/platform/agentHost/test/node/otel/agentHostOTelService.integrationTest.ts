@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { deepStrictEqual, notStrictEqual, ok, rejects, strictEqual } from 'assert';
+import { access, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
-import { join } from '../../../../../base/common/path.js';
+import { join, resolve } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
 import { TestInstantiationService } from '../../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { OTelSqliteStore } from '../../../../otel/node/sqlite/otelSqliteStore.js';
 import { OTLP_TRACES_PATH } from '../../../../otel/node/otlp/localOtlpReceiver.js';
+import type { ICompletedSpanData } from '../../../../otel/common/spanData.js';
 import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
-import { AgentHostOTelSpansDbSubPath, buildAgentHostOTelEnv } from '../../../common/agentService.js';
+import { AgentHostOTelEnvVars, AgentHostOTelSpansDbSubPath, buildAgentHostOTelEnv } from '../../../common/agentService.js';
 
 interface IPostResponse {
 	statusCode: number;
@@ -102,6 +105,7 @@ const OTEL_ENV_KEYS = [
 	'COPILOT_OTEL_EXPORTER_TYPE',
 	'COPILOT_OTEL_ENDPOINT',
 	'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	'VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED',
 	'COPILOT_OTEL_SOURCE_NAME',
 	'COPILOT_OTEL_PROTOCOL',
 	'OTEL_EXPORTER_OTLP_ENDPOINT',
@@ -465,6 +469,301 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		const cfg = readAgentHostOTelEnv({ COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' });
 		strictEqual(cfg.enabled, true);
 		strictEqual(cfg.dbSpanExporter, true);
+	});
+
+	test('managed file path expands either home-directory prefix using the writer home', () => {
+		const home = isWindows ? 'C:\\synthetic-writer-home' : '/synthetic-writer-home';
+		const homeEnv = isWindows ? { USERPROFILE: home } : { HOME: home };
+		for (const [prefix, path] of [['~/', '~/nested/otel.jsonl'], ['~\\', '~\\nested/otel.jsonl']] as const) {
+			const cfg = readAgentHostOTelEnv({
+				...homeEnv,
+				...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: path }),
+			});
+			deepStrictEqual({
+				enabled: cfg.enabled,
+				dbSpanExporter: cfg.dbSpanExporter,
+				exporterType: cfg.exporterType,
+				filePath: cfg.filePath,
+			}, {
+				enabled: true,
+				dbSpanExporter: false,
+				exporterType: 'file',
+				filePath: join(home, 'nested', 'otel.jsonl'),
+			}, `expected ${prefix} managed file path to use the writer home`);
+		}
+	});
+
+	test('managed file path rejects invalid paths without disabling DB export', () => {
+		const home = isWindows ? 'C:\\synthetic-writer-home' : '/synthetic-writer-home';
+		const homeEnv = isWindows ? { USERPROFILE: home } : { HOME: home };
+		for (const path of ['', ' ', '~', '~/', '~\\', '.', '..', '${HOME}/otel.jsonl', '%USERPROFILE%\\otel.jsonl', 'prefix${HOME}/trace', 'prefix$HOME/trace', 'prefix%HOME%/trace', '~named/otel.jsonl', 'directory/', 'directory/.', 'directory/..']) {
+			const cfg = readAgentHostOTelEnv({
+				...homeEnv,
+				...buildAgentHostOTelEnv({ dbSpanExporterEnabled: true }, {}, { enabled: true, exporterType: 'file', outfile: path }),
+			});
+			deepStrictEqual({
+				enabled: cfg.enabled,
+				dbSpanExporter: cfg.dbSpanExporter,
+				exporterType: cfg.exporterType,
+				filePath: cfg.filePath,
+			}, {
+				enabled: true,
+				dbSpanExporter: true,
+				exporterType: 'file',
+				filePath: undefined,
+			}, `expected invalid managed file path ${JSON.stringify(path)} to be rejected`);
+		}
+	});
+
+	test('managed file path requires a non-blank platform writer-home variable', () => {
+		const otherHomeEnv = isWindows ? { HOME: '/synthetic-other-home' } : { USERPROFILE: 'C:\\synthetic-other-home' };
+		const blankHomeEnv = isWindows ? { USERPROFILE: '   ' } : { HOME: '   ' };
+		for (const env of [otherHomeEnv, blankHomeEnv]) {
+			const cfg = readAgentHostOTelEnv({
+				...env,
+				...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: '~/nested/otel.jsonl' }),
+			});
+			deepStrictEqual({
+				enabled: cfg.enabled,
+				dbSpanExporter: cfg.dbSpanExporter,
+				exporterType: cfg.exporterType,
+				filePath: cfg.filePath,
+			}, {
+				enabled: true,
+				dbSpanExporter: false,
+				exporterType: 'file',
+				filePath: undefined,
+			});
+		}
+	});
+
+	test('managed file marker without a path is rejected and logged without the path value', async () => {
+		const logMessages: string[] = [];
+		const env = {
+			COPILOT_OTEL_ENABLED: 'true',
+			COPILOT_OTEL_EXPORTER_TYPE: 'file',
+			[AgentHostOTelEnvVars.FilePathIsManaged]: 'true',
+		};
+		const cfg = readAgentHostOTelEnv(env);
+		strictEqual(cfg.filePath, undefined);
+		strictEqual(cfg.filePathError, 'path is empty');
+
+		const service = store.add(new AgentHostOTelService({ env }, new class extends NullLogService {
+			override error(message: string): void { logMessages.push(message); }
+		}, makeEnvService(tmpdir())));
+		strictEqual((await service.getSdkTelemetryConfig())?.filePath, undefined);
+		deepStrictEqual(logMessages, ['[agentHost.otel] ignored managed file export path: path is empty']);
+	});
+
+	test('managed file path resolves a normal relative path from the current working directory', () => {
+		const relativePath = 'synthetic/otel.jsonl';
+		const cfg = readAgentHostOTelEnv(buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: relativePath }));
+		deepStrictEqual({
+			enabled: cfg.enabled,
+			dbSpanExporter: cfg.dbSpanExporter,
+			exporterType: cfg.exporterType,
+			filePath: cfg.filePath,
+		}, {
+			enabled: true,
+			dbSpanExporter: false,
+			exporterType: 'file',
+			filePath: resolve(process.cwd(), relativePath),
+		});
+	});
+
+	test('managed file path does not alter unmanaged paths or a managed disable', () => {
+		const unmanaged = readAgentHostOTelEnv({
+			COPILOT_OTEL_ENABLED: 'true',
+			COPILOT_OTEL_EXPORTER_TYPE: 'file',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: '~/nested/otel.jsonl',
+		});
+		const managedDisabled = readAgentHostOTelEnv(buildAgentHostOTelEnv({ dbSpanExporterEnabled: true }, {}, { enabled: false }));
+		deepStrictEqual({
+			enabled: unmanaged.enabled,
+			dbSpanExporter: unmanaged.dbSpanExporter,
+			exporterType: unmanaged.exporterType,
+			filePath: unmanaged.filePath,
+		}, {
+			enabled: true,
+			dbSpanExporter: false,
+			exporterType: 'file',
+			filePath: '~/nested/otel.jsonl',
+		});
+		deepStrictEqual({
+			enabled: managedDisabled.enabled,
+			dbSpanExporter: managedDisabled.dbSpanExporter,
+		}, {
+			enabled: false,
+			dbSpanExporter: false,
+		});
+	});
+
+	test('managed file path provenance validates service configuration without mutating process environment', async () => {
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-file-'));
+		const home = join(tmp, 'home');
+		const homeEnv = isWindows ? { USERPROFILE: home } : { HOME: home };
+		const managedFileEnv = {
+			...homeEnv,
+			...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: '~/spans.jsonl' }),
+		};
+		const logMessages: string[] = [];
+		let fetchCalls = 0;
+		try {
+			const fileService = store.add(new AgentHostOTelService({
+				env: managedFileEnv,
+				fetchFn: async () => {
+					fetchCalls++;
+					return new Response(null, { status: 200 });
+				},
+			}, new NullLogService(), makeEnvService(tmp)));
+			ok(fileService.getSessionTraceContext('managed-file', 'copilot:/managed-file'));
+			await fileService.flush();
+			ok((await readFile(join(home, 'spans.jsonl'), 'utf8')).includes(AgentHostSessionSpanName));
+
+			const missingHomeService = store.add(new AgentHostOTelService({
+				env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: '~/spans.jsonl' }),
+			}, new class extends NullLogService {
+				override error(message: string): void { logMessages.push(message); }
+			}, makeEnvService(tmp)));
+			strictEqual((await missingHomeService.getSdkTelemetryConfig())?.filePath, undefined);
+			strictEqual(logMessages.length, 1);
+
+			const dbService = store.add(new AgentHostOTelService({
+				env: buildAgentHostOTelEnv({ dbSpanExporterEnabled: true }, {}, { enabled: true, exporterType: 'file', outfile: '~' }),
+				fetchFn: async () => {
+					fetchCalls++;
+					return new Response(null, { status: 200 });
+				},
+			}, new NullLogService(), makeEnvService(tmp)));
+			ok(dbService.getSessionTraceContext('invalid-file', 'copilot:/invalid-file'));
+			await dbService.flush();
+			const dbPath = dbService.getSpansDbPath();
+			ok(dbPath);
+			const reader = new OTelSqliteStore(dbPath!.fsPath);
+			try {
+				strictEqual(reader.getSpansByConversationId('invalid-file').length, 1);
+			} finally {
+				reader.close();
+			}
+			strictEqual(fetchCalls, 0);
+		} finally {
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	test('managed collector and file keep distinct host session records in SQLite while using their selected forwarder', async () => {
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-routing-'));
+		const services = new DisposableStore();
+		const collectorBodies: string[] = [];
+		const collectorUrls: string[] = [];
+		try {
+			const cases = [
+				{
+					conversationId: 'managed-collector-conversation',
+					sessionUri: 'copilot:/managed-collector-session',
+					env: buildAgentHostOTelEnv(
+						{ dbSpanExporterEnabled: true, otlpEndpoint: 'http://user-receiver.invalid:4318' },
+						{},
+						{ enabled: true, exporterType: 'otlp-http', otlpEndpoint: 'http://managed-collector.invalid:4318', otlpProtocol: 'http/json' },
+					),
+					usesCollector: true,
+				},
+				{
+					conversationId: 'managed-file-conversation',
+					sessionUri: 'copilot:/managed-file-session',
+					env: buildAgentHostOTelEnv(
+						{ dbSpanExporterEnabled: true, otlpEndpoint: 'http://user-receiver.invalid:4318' },
+						{},
+						{ enabled: true, exporterType: 'file', outfile: join(tmp, 'managed-spans.jsonl') },
+					),
+					usesCollector: false,
+				},
+			];
+			for (const testCase of cases) {
+				const userDataPath = join(tmp, testCase.conversationId);
+				const svc = services.add(new AgentHostOTelService({
+					env: testCase.env,
+					fetchFn: async (input, init) => {
+						collectorUrls.push(String(input));
+						collectorBodies.push(await new Response(init?.body).text());
+						return new Response(null, { status: 200 });
+					},
+				}, new NullLogService(), makeEnvService(userDataPath)));
+
+				const context = svc.getSessionTraceContext(testCase.conversationId, testCase.sessionUri);
+				ok(context);
+				await svc.flush();
+
+				const dbPath = svc.getSpansDbPath();
+				ok(dbPath);
+				const reader = new OTelSqliteStore(dbPath.fsPath);
+				try {
+					const spans = reader.getSpansByConversationId(testCase.conversationId);
+					strictEqual(spans.length, 1);
+					strictEqual(spans[0].name, AgentHostSessionSpanName);
+					strictEqual(reader.getSpanAttribute(spans[0].span_id, 'gen_ai.conversation.id'), testCase.conversationId);
+					strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionUriAttribute), testCase.sessionUri);
+				} finally {
+					reader.close();
+				}
+
+				if (testCase.usesCollector) {
+					strictEqual(collectorBodies.length, 1);
+					deepStrictEqual(collectorUrls, ['http://managed-collector.invalid:4318/v1/traces']);
+					const payload: IOtlpExportTraceServiceRequest = JSON.parse(collectorBodies[0]);
+					const forwardedSpans = payload.resourceSpans?.flatMap(resourceSpan => resourceSpan.scopeSpans?.flatMap(scopeSpan => scopeSpan.spans ?? []) ?? []) ?? [];
+					strictEqual(forwardedSpans.length, 1);
+					strictEqual(forwardedSpans[0].name, AgentHostSessionSpanName);
+					strictEqual(forwardedSpans[0].attributes?.find(attribute => attribute.key === 'gen_ai.conversation.id')?.value?.stringValue, testCase.conversationId);
+				} else {
+					const output = await readFile(join(tmp, 'managed-spans.jsonl'), 'utf8');
+					const records: ICompletedSpanData[] = output.trim().split('\n').map(line => JSON.parse(line));
+					strictEqual(records.length, 1);
+					deepStrictEqual({
+						name: records[0].name,
+						conversationId: records[0].attributes['gen_ai.conversation.id'],
+						sessionUri: records[0].attributes[AgentHostSessionUriAttribute],
+					}, {
+						name: AgentHostSessionSpanName,
+						conversationId: testCase.conversationId,
+						sessionUri: testCase.sessionUri,
+					});
+					strictEqual(collectorBodies.length, 1);
+					deepStrictEqual(collectorUrls, ['http://managed-collector.invalid:4318/v1/traces']);
+				}
+			}
+		} finally {
+			services.dispose();
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	test('managed valid and invalid file paths do not create a SQLite database when DB export is off', async () => {
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-file-db-off-'));
+		const services = new DisposableStore();
+		try {
+			const cases = [
+				{
+					name: 'valid-file',
+					env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: join(tmp, 'spans.jsonl') }),
+				},
+				{
+					name: 'invalid-file',
+					env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: '~' }),
+				},
+			];
+			for (const testCase of cases) {
+				const userDataPath = join(tmp, testCase.name);
+				const svc = services.add(new AgentHostOTelService({ env: testCase.env }, new NullLogService(), makeEnvService(userDataPath)));
+				ok(svc.getSessionTraceContext(`${testCase.name}-conversation`, `copilot:/${testCase.name}-session`));
+				await svc.flush();
+				strictEqual(svc.getSpansDbPath(), undefined);
+				await rejects(access(join(userDataPath, AgentHostOTelSpansDbSubPath)), { code: 'ENOENT' });
+			}
+		} finally {
+			services.dispose();
+			await rm(tmp, { recursive: true, force: true });
+		}
 	});
 
 	test('readAgentHostOTelEnv: grpc aliases select the gRPC exporter type', () => {

@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_FILE_PATH_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -92,6 +92,9 @@ type AgentHostStarterConfigurationPropertySchema = IConfigurationPropertySchema 
 //   - outfile: when the enterprise mandates an OTLP endpoint/protocol, local file export is
 //     suppressed so spans can't be diverted to disk.
 function managedOTelProtocolValue(policyData: IPolicyData): string | undefined {
+	if (policyData.managedSettings?.[COPILOT_OTEL_FILE_PATH_KEY] !== undefined) {
+		return 'file';
+	}
 	const protocol = policyData.managedSettings?.[COPILOT_OTEL_PROTOCOL_KEY];
 	if (protocol === 'grpc') {
 		return 'otlp-grpc';
@@ -110,8 +113,20 @@ function managedOTelCaptureContentValue(policyData: IPolicyData): boolean | unde
 	return policyData.managedSettings?.[COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY] === true ? false : undefined;
 }
 
+function managedOTelEnabledValue(policyData: IPolicyData): boolean | undefined {
+	const enabled = policyData.managedSettings?.[COPILOT_OTEL_ENABLED_KEY];
+	if (typeof enabled === 'boolean') {
+		return enabled;
+	}
+	return policyData.managedSettings?.[COPILOT_OTEL_FILE_PATH_KEY] !== undefined ? true : undefined;
+}
+
 function managedOTelOutfileValue(policyData: IPolicyData): string | undefined {
 	const managedSettings = policyData.managedSettings;
+	const filePath = managedSettings?.[COPILOT_OTEL_FILE_PATH_KEY];
+	if (typeof filePath === 'string') {
+		return filePath;
+	}
 	if (managedSettings?.[COPILOT_OTEL_ENDPOINT_KEY] !== undefined || managedSettings?.[COPILOT_OTEL_PROTOCOL_KEY] !== undefined) {
 		return '';
 	}
@@ -394,9 +409,10 @@ configurationRegistry.registerConfiguration({
 				name: 'CopilotOtelEnabled',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.127',
-				value: managedSettingValue(COPILOT_OTEL_ENABLED_KEY),
+				value: managedOTelEnabledValue,
 				managedSettings: {
 					[COPILOT_OTEL_ENABLED_KEY]: { type: 'boolean' },
+					[COPILOT_OTEL_FILE_PATH_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
@@ -432,7 +448,7 @@ configurationRegistry.registerConfiguration({
 						{ key: 'chat.agentHost.otel.protocol.policy.otlpHttp', value: nls.localize('chat.agentHost.otel.protocol.policy.otlpHttp', "Use OTLP over HTTP."), },
 						{ key: 'chat.agentHost.otel.protocol.policy.otlpGrpc', value: nls.localize('chat.agentHost.otel.protocol.policy.otlpGrpc', "Use OTLP over gRPC."), },
 						{ key: 'chat.agentHost.otel.protocol.policy.console', value: nls.localize('chat.agentHost.otel.protocol.policy.console', "Console exporter is not selected by enterprise managed settings."), },
-						{ key: 'chat.agentHost.otel.protocol.policy.file', value: nls.localize('chat.agentHost.otel.protocol.policy.file', "File exporter is not selected by enterprise managed settings."), },
+						{ key: 'chat.agentHost.otel.protocol.policy.file', value: nls.localize('chat.agentHost.otel.protocol.policy.file', "Use the enterprise-managed file exporter."), },
 					],
 				},
 			},
@@ -454,6 +470,7 @@ configurationRegistry.registerConfiguration({
 				value: managedSettingValue(COPILOT_OTEL_PROTOCOL_KEY),
 				managedSettings: {
 					[COPILOT_OTEL_PROTOCOL_KEY]: { type: 'string' },
+					[COPILOT_OTEL_FILE_PATH_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
@@ -535,11 +552,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostOTelOutfileSettingId]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Configurable in user settings only. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
+			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. An enterprise-managed telemetry file path takes precedence over user settings. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
-			// Owns `CopilotOtelOutfile`; suppresses local file export when the enterprise mandates an OTLP sink.
+			// Owns `CopilotOtelOutfile`; supplies the managed file destination or suppresses local file export for an enterprise OTLP sink.
 			policy: {
 				name: 'CopilotOtelOutfile',
 				category: PolicyCategory.InteractiveSession,
@@ -548,11 +565,12 @@ configurationRegistry.registerConfiguration({
 				managedSettings: {
 					[COPILOT_OTEL_ENDPOINT_KEY]: { type: 'string' },
 					[COPILOT_OTEL_PROTOCOL_KEY]: { type: 'string' },
+					[COPILOT_OTEL_FILE_PATH_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
 						key: 'chat.agentHost.otel.outfile.policy',
-						value: nls.localize('chat.agentHost.otel.outfile.policy', "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."),
+						value: nls.localize('chat.agentHost.otel.outfile.policy', "Controls the enterprise-managed file export destination for Copilot OpenTelemetry and prevents local file export when an enterprise OTLP destination is configured."),
 					}
 				},
 			},
