@@ -21,7 +21,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentCustomization, ROOT_STATE_URI, StateComponents, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -78,6 +78,9 @@ export interface IAgentHostCustomizationService {
 
 	/** The ordered roots in the client's URI space for filesystem access. */
 	getClientWorkingDirectoryUris(sessionResource: URI): readonly URI[];
+
+	/** Returns the host-advertised chat URI for the selected client chat resource. */
+	getBackendChatResource?(sessionResource: URI): URI | undefined;
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
@@ -788,6 +791,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		if (!target) {
 			return false;
 		}
+
 		const entry = this._ensureSessionStateSubscription(sessionResource, target);
 		if (!entry || entry.sub.value !== undefined) {
 			return !!entry && hasSessionSnapshot(entry.sub);
@@ -798,6 +802,19 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
 		await raceCancellation(entry.readiness, token);
 		return hasSessionSnapshot(entry.sub);
+	}
+
+	getBackendChatResource(sessionResource: URI): URI | undefined {
+		const owningSession = sessionResource.with({ fragment: null });
+		const target = this._resolveSessionTarget(owningSession);
+		const entry = target ? this._ensureSessionStateSubscription(owningSession, target) : undefined;
+		if (!entry) {
+			return undefined;
+		}
+		const value = entry.sub.value;
+		const state = value && !(value instanceof Error) ? value : entry.sub.verifiedValue;
+		const resource = state && getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID, state.defaultChat);
+		return resource ? URI.parse(resource.toString()) : undefined;
 	}
 
 	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {

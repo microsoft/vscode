@@ -291,9 +291,9 @@ export class Code {
 	 * may shift due to siblings being inserted asynchronously (e.g. status bar items
 	 * in the editor area when extensions register a language status item).
 	 */
-	async robustClick(selector: string): Promise<void> {
+	async robustClick(selector: string, position?: { x: number; y: number }): Promise<void> {
 		await this.waitForElement(selector);
-		await this.driver.robustClick(selector);
+		await this.driver.robustClick(selector, undefined, position);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {

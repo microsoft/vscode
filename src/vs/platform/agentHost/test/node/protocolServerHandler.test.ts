@@ -8,8 +8,8 @@ import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
-import { dirname, join } from '../../../../base/common/path.js';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
@@ -3635,6 +3635,74 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('projects approval reports in resolution, snapshots, live updates and replay without changing native clients', async () => {
+			const schema = sessionSchema();
+			const nativeValues = { autoApprove: 'assisted', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] };
+			const wireValues = { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] };
+			const config: ResolveSessionConfigResult = {
+				schema: {
+					...schema,
+					properties: {
+						...schema.properties,
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					},
+				},
+				values: nativeValues,
+			};
+			stateManager.setSessionConfig(sessionUri, config);
+			const resolve = sinon.stub(agentService, 'resolveSessionConfig').resolves(config);
+			disposables.add(toDisposable(() => resolve.restore()));
+			const { scopedHandler, transport, connect } = createRelay();
+			const local = connectClient('native-approval-reports', [sessionUri]);
+			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli' }));
+			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
+			const initial = result<InitializeResult>(transport, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const subscribed = result<SubscribeResult>(transport, 3).snapshot?.state as SessionState;
+			const localInitial = result<InitializeResult>(local, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const resolved = result<ResolveSessionConfigResult>(transport, 2);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: nativeValues });
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			const reports = { effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'autoApprove'] };
+			const wireReports = { effectiveApprovalMode: 'allow-all', availableApprovalModes: ['manual', 'allow-all'] };
+			const action = { type: ActionType.SessionConfigChanged as const, config: reports };
+			const lastSeen = stateManager.serverSeq;
+			stateManager.dispatchServerAction(sessionUri, action);
+			const changes = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			const localChanges = findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			transport.simulateClose();
+			const replayTransport = connect();
+			replayTransport.simulateMessage(request(4, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: lastSeen, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const replay = result<ReconnectResult>(replayTransport, 4);
+			replayTransport.simulateClose();
+			const snapshotTransport = connect();
+			snapshotTransport.simulateMessage(request(5, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: -1, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const refreshed = result<ReconnectResult>(snapshotTransport, 5);
+			const refreshedState = refreshed.type === 'snapshot' ? refreshed.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState : undefined;
+			const wireAction = { ...action, config: wireReports };
+			assert.deepStrictEqual({
+				resolved: resolved.values,
+				initial: initial.config?.values,
+				subscribed: subscribed.config?.values,
+				localInitial: localInitial.config?.values,
+				changes, localChanges,
+				replay: replay.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay.type,
+				refreshed: refreshedState?.config?.values,
+				nativeState: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, {
+				resolved: wireValues,
+				initial: wireValues, subscribed: wireValues, localInitial: nativeValues,
+				changes: [wireAction], localChanges: [action],
+				replay: [wireAction],
+				refreshed: { ...wireValues, ...wireReports },
+				nativeState: { ...nativeValues, ...reports },
+			});
+		});
+
 		test('rejects invalid workspace preferences at resolution, creation, completions and dispatch', async () => {
 			const { scopedHandler, transport } = createRelay();
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { config: { target: 'folder' } }));
@@ -4098,6 +4166,90 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(reads.filter(uri => uri === peerContent).length, 1);
 		} finally {
 			await rm(path, { recursive: true });
+		}
+	});
+
+	test('MC filesystem-root grants allow files outside home while preserving identity, passive and content checks', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-machine-access-'));
+		try {
+			const home = join(directory, 'home');
+			const outsideHome = join(directory, 'another-location');
+			await Promise.all([mkdir(home), mkdir(outsideHome)]);
+			const file = URI.file(join(outsideHome, 'file.txt'));
+			await writeFile(file.fsPath, 'test data');
+			const root = parse(directory).root;
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [root], defaultDirectory: URI.file(home).toString() },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const reads: string[] = [];
+			const writes: string[] = [];
+			agentService.resourceList = async uri => ({
+				entries: (await readdir(uri.fsPath, { withFileTypes: true }))
+					.map(entry => ({ name: entry.name, type: entry.isDirectory() ? ResourceType.Directory : ResourceType.File })),
+			});
+			agentService.resourceRead = async uri => {
+				reads.push(uri.path);
+				return { data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 };
+			};
+			agentService.resourceWrite = async params => {
+				const uri = URI.parse(params.uri);
+				writes.push(uri.path);
+				await writeFile(uri.fsPath, params.data);
+				return {};
+			};
+			const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			active.relayAuthenticated = true;
+			relay.simulateConnection(active);
+			active.simulateMessage(request(1, 'initialize', { clientId: 'machine-active', protocolVersions: [PROTOCOL_VERSION] }));
+			active.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			active.simulateMessage(request(3, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			active.simulateMessage(request(4, 'resourceRead', { uri: 'ui://unpublished/app' }));
+			active.simulateMessage(request(7, 'resourceList', { uri: URI.file(outsideHome).toString() }));
+			const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-passive', true));
+			passive.relayAuthenticated = true;
+			relay.simulateConnection(passive);
+			passive.simulateMessage(request(1, 'initialize', { clientId: 'machine-passive', protocolVersions: [PROTOCOL_VERSION] }));
+			passive.simulateMessage(request(2, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-unauthenticated', false));
+			unauthenticated.relayAuthenticated = false;
+			relay.simulateConnection(unauthenticated);
+			unauthenticated.simulateMessage(request(1, 'initialize', { clientId: 'machine-unauthenticated', protocolVersions: [PROTOCOL_VERSION] }));
+			unauthenticated.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
+			const initialization = findResponse(active.sent, 1);
+			const result = initialization && hasKey(initialization, { result: true }) ? initialization.result as InitializeResult : undefined;
+			const listing = findResponse(active.sent, 7);
+			active.simulateClose();
+			const recovered = disposables.add(new class extends MockProtocolTransport {
+				readonly relayHandshakeMeta = { 'copilot.keepAliveTimeoutMs': 900_000 };
+			}(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			recovered.relayAuthenticated = true;
+			relay.simulateConnection(recovered);
+			recovered.simulateMessage(request(5, 'reconnect', { clientId: 'machine-active', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
+			await scopedHandler.whenIdle();
+			recovered.simulateMessage(request(6, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
+			const errorCode = (transport: MockProtocolTransport, id: number) => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			};
+			assert.deepStrictEqual({
+				reads, writes, defaultDirectory: result?.defaultDirectory,
+				fileContent: await readFile(file.fsPath, 'utf8'),
+				directoryEntries: listing && hasKey(listing, { result: true }) ? listing.result : undefined,
+				contentError: errorCode(active, 4), passiveError: errorCode(passive, 2), identityError: errorCode(unauthenticated, 2),
+			}, {
+				reads: [URI.parse(file.toString()).path, URI.parse(file.toString()).path], writes: [URI.parse(file.toString()).path], defaultDirectory: URI.file(home).toString(),
+				fileContent: 'updated',
+				directoryEntries: { entries: [{ name: 'file.txt', type: 'file' }] },
+				contentError: AhpErrorCodes.PermissionDenied, passiveError: JsonRpcErrorCodes.InvalidRequest, identityError: AHP_AUTH_REQUIRED,
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
 		}
 	});
 
