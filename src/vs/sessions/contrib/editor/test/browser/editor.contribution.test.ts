@@ -143,8 +143,9 @@ suite('Sessions - Editor Contribution', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
 		appendElement(tabs, 'tab');
+		const toolbars = appendElement(row, 'editor-toolbars');
 		const buttons = ['editor-actions', 'editor-layout-actions'].map(className => {
-			const container = appendElement(row, className);
+			const container = appendElement(toolbars, className);
 			container.style.display = 'block';
 			const toolbar = appendElement(container, 'monaco-toolbar');
 			const actions = appendElement(appendElement(toolbar, 'monaco-action-bar'), 'actions-container');
