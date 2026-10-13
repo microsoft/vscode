@@ -267,6 +267,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
 	}
+	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
+		content.push(localize('chat.editorCopySessionLink', "For an Agent Host chat editor, open the editor tab context menu and choose Copy Link to copy a session URL that renders as a session link in Markdown. Selecting multiple chat tabs copies one link per line."));
+	}
 	content.push(localize('chat.attachments.pastedText', "Long pasted text, including single-line text, is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.paste.asText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
