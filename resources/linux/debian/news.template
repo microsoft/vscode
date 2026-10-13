@@ -1,0 +1,8 @@
+@@NAME@@ (1.139.0-1790208000) stable; urgency=medium
+
+  Linux desktop launcher names changed in version 1.139. Existing pinned
+  shortcuts may need to be re-created. Details and migration steps:
+
+  https://code.visualstudio.com/updates/v1_139#_linux-desktop-launcher-names
+
+ -- Microsoft Corporation <vscode-linux@microsoft.com>  Thu, 24 Sep 2026 00:00:00 +0000
