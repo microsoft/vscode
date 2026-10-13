@@ -612,6 +612,10 @@ suite('TerminalLinkParsing', () => {
 					deepStrictEqual(detectLinks('app/(marketing)/page.tsx:42', os), pathWithSuffix('app/(marketing)/page.tsx', 0, ':42', 42));
 					deepStrictEqual(detectLinks('app/[[...slug]]/page.tsx:7', os), pathWithSuffix('app/[[...slug]]/page.tsx', 0, ':7', 7));
 					deepStrictEqual(detectLinks('error in (group)/page.tsx:12', os), pathWithSuffix('(group)/page.tsx', 9, ':12', 12));
+					// A bracket segment at the end of the path
+					deepStrictEqual(detectLinks('(group):42', os), pathWithSuffix('(group)', 0, ':42', 42));
+					deepStrictEqual(detectLinks('[slug]:42', os), pathWithSuffix('[slug]', 0, ':42', 42));
+					deepStrictEqual(detectLinks('app/(group):42', os), pathWithSuffix('app/(group)', 0, ':42', 42));
 				});
 				test(`should not take in unbalanced or surrounding parentheses ${osLabel[os]}`, () => {
 					deepStrictEqual(detectLinks('(./foo/bar)', os), onlyPath('./foo/bar', 1));
@@ -640,6 +644,8 @@ suite('TerminalLinkParsing', () => {
 				deepStrictEqual(detectLinks('(group)\\page.tsx:42', OperatingSystem.Windows), pathWithSuffix('(group)\\page.tsx', 0, ':42', 42));
 				deepStrictEqual(detectLinks('[slug]\\page.tsx:3:4', OperatingSystem.Windows), pathWithSuffix('[slug]\\page.tsx', 0, ':3:4', 3, 4));
 				deepStrictEqual(detectLinks('C:\\app\\(marketing)\\page.tsx:42', OperatingSystem.Windows), pathWithSuffix('C:\\app\\(marketing)\\page.tsx', 0, ':42', 42));
+				deepStrictEqual(detectLinks('(group):42', OperatingSystem.Windows), pathWithSuffix('(group)', 0, ':42', 42));
+				deepStrictEqual(detectLinks('C:\\app\\(group):42', OperatingSystem.Windows), pathWithSuffix('C:\\app\\(group)', 0, ':42', 42));
 			});
 			test('should not take in unbalanced or surrounding parentheses [Windows]', () => {
 				deepStrictEqual(detectLinks('(C:\\foo\\bar)', OperatingSystem.Windows), onlyPath('C:\\foo\\bar', 1));

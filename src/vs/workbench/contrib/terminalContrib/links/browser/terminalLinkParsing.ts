@@ -216,14 +216,15 @@ const linkWithSuffixBracketSegment = '(?:\\([^\\s\\|<>()\\[\\]\\\\/]+\\)|\\[\\[[
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character. A path may also start with a whole
-// bracket segment followed by a separator, such as `(group)/page.tsx`.
-const linkWithSuffixPathCharacters = new RegExp(`(?<path>(?:file:\\/\\/\\/)?(?:${linkWithSuffixBracketSegment}(?=[\\\\/])|[^\\s\\|<>\\[\\({])[^\\s\\|<>]*)$`);
+// bracket segment followed by a separator or the end of the path, such as `(group)/page.tsx` or
+// `(group)`.
+const linkWithSuffixPathCharacters = new RegExp(`(?<path>(?:file:\\/\\/\\/)?(?:${linkWithSuffixBracketSegment}(?=[\\\\/]|$)|[^\\s\\|<>\\[\\({])[^\\s\\|<>]*)$`);
 
 /**
  * Matches whole bracket segments inside a path, these are part of the path so they should not
  * produce an extra link starting after their opening bracket.
  */
-const linkWithSuffixBracketSegmentInPath = new RegExp(`(?<=^|[\\\\/])${linkWithSuffixBracketSegment}(?=[\\\\/])`, 'g');
+const linkWithSuffixBracketSegmentInPath = new RegExp(`(?<=^|[\\\\/])${linkWithSuffixBracketSegment}(?=[\\\\/]|$)`, 'g');
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
