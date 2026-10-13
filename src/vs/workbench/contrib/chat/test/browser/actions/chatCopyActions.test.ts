@@ -13,6 +13,7 @@ import { IClipboardService } from '../../../../../../platform/clipboard/common/c
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IListService } from '../../../../../../platform/list/browser/listService.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CopyChatSessionLinkAction } from '../../../browser/actions/chatCopyActions.js';
@@ -23,7 +24,7 @@ suite('Chat editor Copy Link', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createServices(resources: readonly URI[], identities: readonly (IAgentHostSessionIdentity | undefined)[], provisional?: Promise<URI | undefined>, selectedIndices = resources.map((_, index) => index)) {
-		const editors: ChatEditorInput[] = resources.map(resource => Object.assign(Object.create(ChatEditorInput.prototype), { _sessionResource: resource }));
+		const editors: EditorInput[] = resources.map(resource => Object.assign(Object.create(ChatEditorInput.prototype), { _sessionResource: resource }));
 		const selectedEditors = selectedIndices.map(index => editors[index]);
 		const group = upcastPartial<IEditorGroup>({
 			id: 1,
