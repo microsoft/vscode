@@ -79,6 +79,20 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 10, 20]);
 	});
 
+	test('does not shrink fold headers for hidden empty lines', () => {
+		const { editor } = createEditor('header\n\nbody', {
+			shrinkEmptyLines: 'compact',
+		});
+
+		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 20]);
+
+		editor.setHiddenAreas([new Range(2, 1, 3, 1)]);
+		assert.deepStrictEqual(getLineHeights(editor), [20]);
+
+		editor.setHiddenAreas([]);
+		assert.deepStrictEqual(getLineHeights(editor), [20, 10, 20]);
+	});
+
 	test('reacts to variable line height and base line height changes', () => {
 		const { editor } = createEditor('a\n', {
 			shrinkEmptyLines: 'compact',

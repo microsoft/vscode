@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findLastMonotonous } from '../../../../base/common/arraysFind.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
@@ -43,6 +44,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			}
 		}));
 		this._register(this.editor.onDidChangeModelContent(event => this._updateDecorations(event)));
+		this._register(this.editor.onDidChangeHiddenAreas(() => this._updateAllDecorations()));
 		this._updateMode();
 		this._updateAllDecorations();
 	}
@@ -79,9 +81,12 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	private _getDecorations(model: ITextModel, ranges: readonly LineRange[], lineHeight: number): IModelDeltaDecoration[] {
 		const decorations: IModelDeltaDecoration[] = [];
+		const hiddenAreas = this.editor._getViewModel()?.getHiddenAreas() ?? [];
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-				if (this._isEmptyLine(model.getLineContent(lineNumber))) {
+				const hiddenArea = findLastMonotonous(hiddenAreas, area => area.startLineNumber <= lineNumber);
+				const isHidden = hiddenArea && lineNumber <= hiddenArea.endLineNumber;
+				if (!isHidden && this._isEmptyLine(model.getLineContent(lineNumber))) {
 					decorations.push(this._createDecoration(model, lineNumber, lineHeight));
 				}
 			}
