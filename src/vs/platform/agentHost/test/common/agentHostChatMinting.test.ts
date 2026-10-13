@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { chatUriFormatOf, mintDefaultChatUri, mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
+import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildDefaultChatUri, buildSubagentChatUri } from '../../common/state/sessionState.js';
 
 suite('Agent host chat minting', () => {
@@ -42,5 +42,18 @@ suite('Agent host chat minting', () => {
 
 	test('shaped sessions keep shaped subagent ids', () => {
 		assert.strictEqual(subagentChatUri('shaped', session, buildDefaultChatUri(session), 'call-1'), buildSubagentChatUri(session, 'call-1'));
+	});
+
+	test('createChat accepts any ahp-chat uri in opaque sessions and rejects opaque or foreign uris otherwise', () => {
+		const opaqueDefault = mintDefaultChatUri('opaque', session, undefined);
+		const shapedDefault = mintDefaultChatUri('shaped', session, '1');
+		const opaquePeer = mintPeerChatUri('opaque', session);
+		assert.deepStrictEqual({
+			anyInOpaque: createChatUriError(opaqueDefault, 'ahp-chat:/x/y'),
+			shapedInOpaque: createChatUriError(opaqueDefault, mintPeerChatUri('shaped', session)),
+			opaqueInShaped: createChatUriError(shapedDefault, opaquePeer) !== undefined,
+			shapedInShaped: createChatUriError(shapedDefault, mintPeerChatUri('shaped', session)),
+			foreignScheme: createChatUriError(opaqueDefault, 'file:///x') !== undefined,
+		}, { anyInOpaque: undefined, shapedInOpaque: undefined, opaqueInShaped: true, shapedInShaped: undefined, foreignScheme: true });
 	});
 });

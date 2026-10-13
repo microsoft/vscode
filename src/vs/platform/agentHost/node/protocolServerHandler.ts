@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createChatUriError } from '../common/agentHostChatMinting.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -1912,6 +1913,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(params.channel);
 			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
+			}
+			const chatUriError = createChatUriError(defaultChat, params.chat);
+			if (chatUriError !== undefined) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
 			const source = params.source;
 			let options: IAgentCreateChatRequestOptions | undefined = params.workingDirectories !== undefined

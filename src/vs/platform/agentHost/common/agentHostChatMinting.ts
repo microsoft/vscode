@@ -45,3 +45,19 @@ export function subagentChatUri(format: ChatUriFormat, session: string, rootConv
 		? opaqueChatUri(uuidFromSha1(`${rootConversationChat}\0${toolCallId}`))
 		: buildSubagentChatUri(session, toolCallId);
 }
+
+/**
+ * Why a client-supplied `createChat` URI is unacceptable, or `undefined` when it
+ * is fine: it must be an `ahp-chat:` URI, and a session with a shaped default
+ * chat cannot hold opaque chats because clients of such sessions may not
+ * understand them.
+ */
+export function createChatUriError(defaultChat: string | undefined, chat: string): string | undefined {
+	if (!chat.startsWith(`${AHP_CHAT_SCHEME}:`)) {
+		return `Chat URI must use the ${AHP_CHAT_SCHEME} scheme: ${chat}`;
+	}
+	if (chatUriFormatOf(defaultChat) === 'shaped' && !isShapedChatUri(chat)) {
+		return `Opaque chat URI is not allowed in a session with a shaped default chat: ${chat}`;
+	}
+	return undefined;
+}
