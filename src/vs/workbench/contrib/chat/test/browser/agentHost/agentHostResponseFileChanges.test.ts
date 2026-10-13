@@ -799,6 +799,48 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 	});
 
+	test('converts immutable response file edits once across consumers and re-observation', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let editReads = 0;
+		const chat = chatWithTurns([completedTurn('t1', fileEdit('/repo/a.ts', 1, () => editReads++))]);
+		conn.setState(backendSession.toString(), sessionState());
+		conn.setState(chat.resource, chat);
+
+		const observeBoth = () => {
+			const observation = new DisposableStore();
+			const diffs = observe(provider, observation);
+			const edits = provider.getFileEditsForRequest(chatResource, 't1')!;
+			let fileEdits: readonly IChatResponseFileEdit[] = [];
+			observation.add(autorun(reader => { fileEdits = edits.read(reader); }));
+			const result = { diffs: diffs.latest(), fileEdits };
+			observation.dispose();
+			return result;
+		};
+		const first = observeBoth();
+		const readsAfterFirst = editReads;
+		const second = observeBoth();
+		const readsAfterSecond = editReads;
+
+		conn.setState(chat.resource, { ...chat, turns: [completedTurn('t1', fileEdit('/repo/a.ts', 9, () => editReads++))] });
+		const third = observeBoth();
+
+		assert.deepStrictEqual({
+			firstAdded: first.diffs.map(d => d.added),
+			reconvertedOnReobserve: readsAfterSecond - readsAfterFirst,
+			sameUri: first.diffs[0].modifiedURI === second.diffs[0].modifiedURI,
+			changedAdded: [third.diffs.map(d => d.added), third.fileEdits.map(d => d.added)],
+			recomputedAfterChange: editReads > readsAfterSecond,
+		}, {
+			firstAdded: [1],
+			reconvertedOnReobserve: 0,
+			sameUri: true,
+			changedAdded: [[9], [9]],
+			recomputedAfterChange: true,
+		});
+	});
+
 	test('keeps file edits consistent when an errored turn resumes and completes again', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
