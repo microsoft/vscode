@@ -307,7 +307,7 @@ suite('customizationMigration', () => {
 			galleryDisabled: [],
 			galleryDisabledWithVersion: [],
 			versionOnly: [],
-			inputsAndGallery: ['Inputs become environment variables; saved values are not kept.', 'Migrating will stop auto-updates from the MCP registry.'],
+			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
 		});
 	});
 

@@ -452,7 +452,7 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
 	const inputWarnings = server.environmentVariables?.length
-		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs become environment variables; saved values are not kept.")]
+		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
 		: [];
 	return [...inputWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
