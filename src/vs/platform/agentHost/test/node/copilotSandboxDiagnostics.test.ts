@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { agentSandboxDiagnosticsMetaKey, readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotSandboxDiagnostics } from '../../node/copilot/copilotSandboxDiagnostics.js';
 
@@ -27,6 +27,7 @@ suite('CopilotSandboxDiagnostics', () => {
 			createdAt: '2026-09-25T00:00:00.000Z',
 			modifiedAt: '2026-09-25T00:00:00.000Z',
 			_meta: { unrelated: 'preserved' },
+			defaultChat: buildDefaultChatUri(session),
 		});
 		return manager;
 	}

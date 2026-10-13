@@ -174,23 +174,26 @@ export function resolveAgentHostChangeset(
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
-/** Resolves the chat channel URI a workbench chat resource addresses. */
-export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): URI | undefined {
+/**
+ * Resolves the chat channel URI a workbench chat resource addresses.
+ * `defaultChat` is the session's advertised default chat (`SessionState.defaultChat`).
+ */
+export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): URI | undefined {
 	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
 	if (explicitChatResource) {
 		return parseUri(explicitChatResource);
 	}
-	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString()) : undefined;
+	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID, defaultChat)?.toString()) : undefined;
 }
 
 /** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
-export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): ReadonlySet<string> {
+export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): ReadonlySet<string> {
 	const ownerIds = new Set<string>([sessionResource.toString()]);
 	if (!state) {
 		return ownerIds;
 	}
 
-	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state);
+	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state, defaultChat);
 	if (!currentChatResource) {
 		return ownerIds;
 	}
@@ -561,9 +564,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
+		const defaultChat = derived(this, reader => {
+			const current = resolution.read(reader);
+			return current ? sessionState.read(reader)?.defaultChat : undefined;
+		});
 		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);
-			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader), defaultChat.read(reader)) : undefined;
 		});
 		const chatStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -588,7 +595,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const session = sessionState.read(reader);
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader));
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
@@ -680,7 +687,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!resource || !resolution.read(reader)) {
 				return [];
 			}
-			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
+			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader), defaultChat.read(reader));
 			return getAgentBrowserViewsNewestFirst(this._browserViewService, ownerIds);
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {

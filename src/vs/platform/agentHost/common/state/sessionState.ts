@@ -867,13 +867,10 @@ export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: stri
 }
 
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, every session always owns a
- * default chat whose URI is derived from the owning session URI so producers and
- * consumers can compute it without a lookup table.
- *
- * The session URI is encoded into the path so {@link parseChatUri} can recover
- * it.
+ * Mints the URI of a new session's default chat. This is the minting scheme
+ * for new default chats and may change (for example, to opaque URIs); it does
+ * not find an existing session's default chat. Hosts read the recorded default
+ * chat and clients read the advertised `SessionState.defaultChat`.
  */
 export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
@@ -929,14 +926,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string }
 	}
 }
 
-/** Returns `true` when `uri` is the default chat of its session. */
-export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
-}
-
-export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+/**
+ * Resolves a client chat id (a chat resource fragment) to a chat of the
+ * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
+ * advertised default chat as the caller resolved it.
+ */
+export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	return chatId === DEFAULT_CHAT_ID
-		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		? defaultChat
 		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
 }
 
@@ -1004,19 +1001,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
  */
 export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
 	return chat?.activeTurn;
-}
-
-/**
- * Resolves the default chat's catalog summary from a session, if present.
- */
-export function getDefaultChat(session: SessionState): ChatSummary | undefined {
-	if (session.defaultChat !== undefined) {
-		const match = session.chats.find(c => c.resource === session.defaultChat);
-		if (match) {
-			return match;
-		}
-	}
-	return session.chats[0];
 }
 
 // ---- SessionMeta accessors -------------------------------------------------

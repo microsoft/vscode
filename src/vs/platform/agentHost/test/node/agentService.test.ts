@@ -37,7 +37,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -58,7 +58,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -83,7 +83,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { mintedTestChatOwner } from '../common/mintedChatUri.js';
+import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -102,6 +102,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agen
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -1789,7 +1790,7 @@ suite('AgentService (node dispatcher)', () => {
 				const [listed] = await svc.listSessions();
 				await svc.whenCatalogReconciliationIdle();
 				assert.deepStrictEqual({
-					stableDefault: manager.getDefaultChatUri(session.toString()),
+					stableDefault: manager.getDefaultChat(session.toString()),
 					routingDefault: manager.getSessionState(session.toString())?.defaultChat,
 					persisted: after.sourceRevision > before.sourceRevision,
 					defaults: data.chats.filter(chat => chat.kind === 'default').map(chat => chat.uri),
@@ -2839,6 +2840,7 @@ suite('AgentService (node dispatcher)', () => {
 					const now = new Date().toISOString();
 					stateManager.restoreSession({
 						resource: session.toString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 						provider: provider.id,
 						title: 'Canvas session',
 						status: SessionStatus.Idle,
@@ -2900,6 +2902,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (const session of [requestedSession, owningSession]) {
 				stateManager.restoreSession({
 					resource: session.toString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 					provider: provider.id,
 					title: 'Canvas session',
 					status: SessionStatus.Idle,
@@ -2910,7 +2913,7 @@ suite('AgentService (node dispatcher)', () => {
 			const foreignChat = URI.parse(buildChatUri(owningSession, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(owningSession.toString(), foreignChat.toString(), {
-				storageResource: creationTimeChatStorageResource(owningSession.toString(), foreignChat.toString()),
+				storageResource: creationTimeChatStorageResource(owningSession.toString(), foreignChat.toString(), buildDefaultChatUri(owningSession.toString())),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -2940,6 +2943,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = AgentSession.uri('copilot', 'canvas-disabled-session');
 			stateManager.restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: provider.id,
 				title: 'Canvas session',
 				status: SessionStatus.Idle,
@@ -2949,7 +2953,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(session.toString(), chat.toString(), {
-				storageResource: creationTimeChatStorageResource(session.toString(), chat.toString()),
+				storageResource: creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -3835,6 +3839,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(localService).restoreSession({
 				resource: owner.toString(),
+				defaultChat: buildDefaultChatUri(owner.toString()),
 				provider: 'copilotcli',
 				title: '',
 				status: SessionStatus.Idle,
@@ -3842,7 +3847,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: now,
 				workingDirectories: [],
 			}, [createTurn('root-turn', rootTerminal, 'root preview', true)], creationTimeChatStorageResource);
-			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), creationTimeChatStorageResource(owner.toString(), peerChat.toString()), {
+			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), creationTimeChatStorageResource(owner.toString(), peerChat.toString(), buildDefaultChatUri(owner.toString())), {
 				title: 'Peer',
 				turns: [createTurn('peer-turn', peerTerminal, 'peer preview', true)],
 			});
@@ -3904,6 +3909,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(localService).restoreSession({
 				resource: owner.toString(),
+				defaultChat: buildDefaultChatUri(owner.toString()),
 				provider: 'copilotcli',
 				title: '',
 				status: SessionStatus.Idle,
@@ -4073,7 +4079,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(peer, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
 
@@ -4093,7 +4099,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 			const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
@@ -4460,7 +4466,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session.toString());
 			const peerChat = buildChatUri(session, 'peer');
-			getStateManager(svc).addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat));
+			getStateManager(svc).addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat, buildDefaultChatUri(session.toString())));
 			getStateManager(svc).dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -4498,7 +4504,7 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(session, 'peer');
 			const stateManager = getStateManager(svc);
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 			stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
 			const sessionReadPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
@@ -4554,7 +4560,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const toolChat = buildChatUri(session, 'tool');
-			getStateManager(svc).addChat(session.toString(), toolChat, creationTimeChatStorageResource(session.toString(), toolChat), {
+			getStateManager(svc).addChat(session.toString(), toolChat, creationTimeChatStorageResource(session.toString(), toolChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4581,7 +4587,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const sideChat = buildChatUri(session, 'side');
-			getStateManager(svc).addChat(session.toString(), sideChat, creationTimeChatStorageResource(session.toString(), sideChat), {
+			getStateManager(svc).addChat(session.toString(), sideChat, creationTimeChatStorageResource(session.toString(), sideChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4612,7 +4618,7 @@ suite('AgentService (node dispatcher)', () => {
 				let targetResolverCalls = 0;
 				if (targetIsPeer) {
 					stateManager.registerRestoredChatSummary(session.toString(), targetChat, {
-						storageResource: creationTimeChatStorageResource(session.toString(), targetChat),
+						storageResource: creationTimeChatStorageResource(session.toString(), targetChat, buildDefaultChatUri(session.toString())),
 						resolver: async () => {
 							targetResolverCalls++;
 							return { turns: [] };
@@ -4623,7 +4629,7 @@ suite('AgentService (node dispatcher)', () => {
 				let unrelatedResolverCalls = 0;
 				for (const chat of unopenedChats) {
 					stateManager.registerRestoredChatSummary(session.toString(), chat, {
-						storageResource: creationTimeChatStorageResource(session.toString(), chat),
+						storageResource: creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())),
 						resolver: async () => {
 							unrelatedResolverCalls++;
 							throw new Error('Unrelated chat history must not block prompt dispatch');
@@ -4873,7 +4879,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/repo')],
 				config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///repo': { enabled: true } } },
 			});
-			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer')), { workingDirectories: [other] });
+			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer'), buildDefaultChatUri(session.toString())), { workingDirectories: [other] });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
 			// A client sends only the folders it changes, by working directory. A chat
@@ -7189,7 +7195,7 @@ suite('AgentService (node dispatcher)', () => {
 			const release = new DeferredPromise<void>();
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						started.complete();
 						await release.p;
 					}
@@ -7997,6 +8003,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const handle = generateUuid();
 			await writeSessionAdditionalWorktrees(perSession.service, session, [{
@@ -8341,7 +8348,7 @@ suite('AgentService (node dispatcher)', () => {
 							const disposeChat = this.chats.disposeChat;
 							this.chats.createChat = async (chat, context, options) => {
 								const result = await createChat(chat, context, options);
-								const backing = isDefaultChatUri(chat) ? 'sdk-default' : 'sdk-peer';
+								const backing = isMintedTestDefaultChat(chat) ? 'sdk-default' : 'sdk-peer';
 								backings.add(backing);
 								this.bound.set(chat.toString(), backing);
 								return { ...(result ?? {}), providerData: backing };
@@ -8357,7 +8364,7 @@ suite('AgentService (node dispatcher)', () => {
 							};
 						}
 						override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-							if (materializeFailure === (isDefaultChatUri(chat) ? 'default' : 'peer')) {
+							if (materializeFailure === (isMintedTestDefaultChat(chat) ? 'default' : 'peer')) {
 								throw new Error('Cold provider backing is unavailable');
 							}
 							assert.ok(providerData);
@@ -11155,6 +11162,7 @@ suite('AgentService (node dispatcher)', () => {
 				state.createSession({
 					resource: session.toString(), provider: 'copilot', title: 'Active',
 					status: SessionStatus.Idle, createdAt: new Date(10).toISOString(), modifiedAt: new Date(10).toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				}, { emitNotification: false });
 				state.dispatchServerAction(buildDefaultChatUri(session), {
 					type: ActionType.ChatTurnStarted,
@@ -17141,6 +17149,7 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(service).restoreSession(
 				{
 					resource: childSessionUri,
+					defaultChat: buildDefaultChatUri(childSessionUri),
 					provider: 'subagent',
 					title: 'Explore',
 					status: SessionStatus.Idle,
@@ -17186,7 +17195,7 @@ suite('AgentService (node dispatcher)', () => {
 					provider: agent.id, startTime: 1, source: 'restore',
 				}, { checkTombstone: false });
 				getStateManager(svc).restoreSession({
-					resource: child.toString(), provider: agent.id, title: 'Internal worker',
+					resource: child.toString(), defaultChat: buildDefaultChatUri(child.toString()), provider: agent.id, title: 'Internal worker',
 					status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
 				}, [], creationTimeChatStorageResource);
 			}
@@ -17362,6 +17371,7 @@ suite('AgentService (node dispatcher)', () => {
 			const summaryNow = Date.now();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: 'copilot',
 				title: 'Materialized',
 				status: SessionStatus.Idle,
@@ -18375,6 +18385,7 @@ suite('AgentService (node dispatcher)', () => {
 			const subagent = buildSubagentSessionUri(parent, 'tool-call');
 			getStateManager(localService).restoreSession({
 				resource: subagent,
+				defaultChat: buildDefaultChatUri(subagent),
 				provider: 'subagent',
 				title: 'Subagent',
 				status: SessionStatus.Idle,
@@ -20804,6 +20815,7 @@ suite('AgentService (node dispatcher)', () => {
 						...chat,
 						resource: index === 0 ? buildDefaultChatUri(sessionStr) : buildChatUri(sessionStr, chat.resource),
 					})),
+					defaultChat: buildDefaultChatUri(sessionStr),
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
@@ -21040,6 +21052,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle | SessionStatus.IsArchived,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			let canCommit = true;
 
@@ -21070,6 +21083,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle | SessionStatus.IsArchived,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			const validationStarted = new DeferredPromise<void>();
 			const finishValidation = new DeferredPromise<void>();
@@ -21832,7 +21846,7 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.restoreSession(session);
 			const row = (await database.readChatV2(session.toString(), child)).chat;
 			assert.deepStrictEqual({
-				physical: getStateManager(svc).getDefaultChatUri(session.toString()),
+				physical: getStateManager(svc).getDefaultChat(session.toString()),
 				parent: row?.parentChat,
 				origin: row?.origin,
 				publicOrder: row?.order,
@@ -21872,6 +21886,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -21879,7 +21894,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: now,
 				workingDirectories: [URI.file('/workspace/original').toString()],
 			}, [], creationTimeChatStorageResource);
-			getStateManager(svc).addChat(session.toString(), child, creationTimeChatStorageResource(session.toString(), child), {
+			getStateManager(svc).addChat(session.toString(), child, creationTimeChatStorageResource(session.toString(), child, buildDefaultChatUri(session.toString())), {
 				title: 'Historical Worker',
 				turns: [{
 					id: 'materialized-turn',
@@ -21987,6 +22002,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -22120,6 +22136,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -22176,6 +22193,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22272,6 +22290,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22340,6 +22359,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22474,6 +22494,7 @@ suite('AgentService (node dispatcher)', () => {
 				const now = new Date().toISOString();
 				const restoreOwner = (title: string) => stateManager.restoreSession({
 					resource: sessionKey,
+					defaultChat: buildDefaultChatUri(sessionKey),
 					provider: agent.id,
 					title,
 					status: SessionStatus.Idle,
@@ -22578,6 +22599,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22654,6 +22676,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22724,6 +22747,7 @@ suite('AgentService (node dispatcher)', () => {
 				const now = new Date().toISOString();
 				getStateManager(svc).restoreSession({
 					resource: session.toString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 					provider: agent.id,
 					title: 'Stale Owner',
 					status: SessionStatus.Idle,
@@ -22775,7 +22799,7 @@ suite('AgentService (node dispatcher)', () => {
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' } as const;
 			getStateManager(service).registerRestoredChatSummary(parent.toString(), childChat, {
-				storageResource: creationTimeChatStorageResource(parent.toString(), childChat),
+				storageResource: creationTimeChatStorageResource(parent.toString(), childChat, buildDefaultChatUri(parent.toString())),
 				title: 'Subagent',
 				origin,
 				interactivity: ChatInteractivity.ReadOnly,
@@ -22911,7 +22935,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 
 			const peerChat = buildChatUri(parent, 'peer-spawner');
-			getStateManager(service).addChat(parent, peerChat, creationTimeChatStorageResource(parent, peerChat), {
+			getStateManager(service).addChat(parent, peerChat, creationTimeChatStorageResource(parent, peerChat, buildDefaultChatUri(parent)), {
 				title: 'Peer',
 				turns: [{
 					id: 'peer-turn', state: TurnState.Complete, usage: undefined,
@@ -22979,7 +23003,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 			let peerResolved = false;
 			getStateManager(service).registerRestoredChatSummary(parent, peerChat, {
-				storageResource: creationTimeChatStorageResource(parent, peerChat),
+				storageResource: creationTimeChatStorageResource(parent, peerChat, buildDefaultChatUri(parent)),
 				title: 'Peer',
 				resolver: async () => {
 					peerResolved = true;
@@ -23545,7 +23569,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chat = URI.parse(buildChatUri(session, 'peer-1'));
-			getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
+			getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 
 			assert.deepStrictEqual({
 				result: await service.stopBackgroundWork(chat, 'shell:3'),
@@ -24342,7 +24366,7 @@ suite('AgentService (node dispatcher)', () => {
 			override async materializeChat(chat: URI): Promise<void> {
 				// The default chat is always offered to materializeChat on restore
 				// too; these tests are only concerned with peer-chat resolution.
-				if (isDefaultChatUri(chat)) {
+				if (isMintedTestDefaultChat(chat)) {
 					return;
 				}
 				this.materializeCalls++;
@@ -24406,7 +24430,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildSubagentChatUri(session, 'tool-1');
-			getStateManager(service).addChat(session.toString(), sourceChat, creationTimeChatStorageResource(session.toString(), sourceChat), {
+			getStateManager(service).addChat(session.toString(), sourceChat, creationTimeChatStorageResource(session.toString(), sourceChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [completedTurn('t1')],
 			});
@@ -25195,7 +25219,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const source = buildSubagentChatUri(session.toString(), 'tool-1');
-			getStateManager(service).addChat(session.toString(), source, creationTimeChatStorageResource(session.toString(), source), {
+			getStateManager(service).addChat(session.toString(), source, creationTimeChatStorageResource(session.toString(), source, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [{ id: 't1', state: TurnState.Complete, message: { text: 'work', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
 			});
@@ -25869,7 +25893,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override async materializeChat(chat: URI): Promise<void> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						this.peerMaterializations++;
 					}
 				}
@@ -26043,7 +26067,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						this.materializedProviderData.push(providerData);
 					}
 				}
@@ -26148,7 +26172,7 @@ suite('AgentService (node dispatcher)', () => {
 				repairedCentral: catalogDataOf(repairedCentral)?.chats.map(chat => chat.uri),
 				secondRestore: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
 				legacyEnumerations: agent.legacyEnumerations,
-				materialized: agent.materialized.filter(chat => !isDefaultChatUri(URI.parse(chat))).sort(),
+				materialized: agent.materialized.filter(chat => !isMintedTestDefaultChat(URI.parse(chat))).sort(),
 			}, {
 				firstRestore: [buildDefaultChatUri(session), legacyPeer.toString()],
 				repairedCentral: [buildDefaultChatUri(session), legacyPeer.toString()],
@@ -26295,7 +26319,7 @@ suite('AgentService (node dispatcher)', () => {
 			// own store starts enumerating it too.
 			class BackedPeerChatAgent extends MockAgent {
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					return { providerData, backingSession: AgentSession.uri(this.id, 'restored-peer-backing-sdk-id') };
@@ -26345,7 +26369,7 @@ suite('AgentService (node dispatcher)', () => {
 				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 				workspaceName: 'peer workspace',
 			}));
-			agent.chats.getMessages = async chat => isDefaultChatUri(chat) ? [] : [{
+			agent.chats.getMessages = async chat => isMintedTestDefaultChat(chat) ? [] : [{
 				id: 'peer-turn',
 				message: { text: 'Continue peer work', origin: { kind: MessageKind.SystemNotification } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response', content: 'Peer output' }],
@@ -26576,7 +26600,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 					// The default chat is always offered to materializeChat on restore
 					// too; this test only tracks peer-chat materialization.
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					calls.push({ call: 'materialize', uri: chat.toString(), providerData });
@@ -26698,7 +26722,7 @@ suite('AgentService (node dispatcher)', () => {
 			const state = stateManager.getSessionState(session.toString());
 			assert.deepStrictEqual({
 				sessionModifiedAt: stateManager.getSessionSummary(session.toString())?.modifiedAt,
-				defaultChatModifiedAt: state?.chats.find(chat => isDefaultChatUri(chat.resource))?.modifiedAt,
+				defaultChatModifiedAt: state?.chats.find(chat => isMintedTestDefaultChat(chat.resource))?.modifiedAt,
 			}, {
 				sessionModifiedAt: new Date(sessionModifiedTime).toISOString(),
 				defaultChatModifiedAt: new Date(providerModifiedTime).toISOString(),
@@ -26709,7 +26733,7 @@ suite('AgentService (node dispatcher)', () => {
 			let peerMetadataCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					if (!isDefaultChatUri(chat)) {
+					if (!isMintedTestDefaultChat(chat)) {
 						peerMetadataCalls++;
 						throw new Error('Peer metadata requires materialization');
 					}
@@ -26745,7 +26769,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async materializeChat(chat: URI): Promise<void> {
 					// The default chat is always offered to materializeChat on
 					// restore too; it must not block on the peer-chat gate below.
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -26799,7 +26823,7 @@ suite('AgentService (node dispatcher)', () => {
 					this.serverToolHost = host;
 				}
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27235,7 +27259,7 @@ suite('AgentService (node dispatcher)', () => {
 			let providerForkSource: string | undefined;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27297,7 +27321,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gates = new Map<string, DeferredPromise<void>>();
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					started.add(chat.toString());
@@ -27338,7 +27362,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27381,7 +27405,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27519,7 +27543,7 @@ suite('AgentService (node dispatcher)', () => {
 			let materializeCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async materializeChat(chat: URI): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializeCalls++;
@@ -27578,7 +27602,7 @@ suite('AgentService (node dispatcher)', () => {
 					return { providerData: 'v1' };
 				}
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-					if (isDefaultChatUri(chat)) {
+					if (isMintedTestDefaultChat(chat)) {
 						return;
 					}
 					materializedProviderData.push(providerData);
@@ -27665,7 +27689,7 @@ suite('AgentService (node dispatcher)', () => {
 					afterPeer,
 					physical: (await database.getChatV2ProviderDetail(physical))?.providerData,
 					peer: (await database.getChatV2ProviderDetail(peer))?.providerData,
-					stableDefault: getStateManager(svc).getDefaultChatUri(session.toString()),
+					stableDefault: getStateManager(svc).getDefaultChat(session.toString()),
 				}, { afterPeer: 'default-backing', physical: 'default-update', peer: 'peer-update', stableDefault: physical });
 			});
 		}
@@ -27700,7 +27724,7 @@ suite('AgentService (node dispatcher)', () => {
 					registerTestAgentProvider(svc, agent);
 					if (restore) {
 						await svc.restoreSession(session);
-						assert.strictEqual(getStateManager(svc).getDefaultChatUri(session.toString()), physical);
+						assert.strictEqual(getStateManager(svc).getDefaultChat(session.toString()), physical);
 						svc.dispatchAction(physical, {
 							type: ActionType.ChatTurnStarted, turnId: 'cold-turn', startedAt: new Date().toISOString(),
 							message: { text: 'Cold send', origin: { kind: MessageKind.User } },
@@ -27722,6 +27746,136 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		test('a registered session that records no default chat restores with, and records, the legacy default chat', async () => {
+			const session = AgentSession.uri('copilot', 'legacy-unrecorded-default');
+			const legacyDefault = deriveLegacyDefaultChat(session);
+			class LegacyAgent extends MockAgent {
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Legacy' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new LegacyAgent('copilot')));
+			const before = getStateManager(svc).getDefaultChat(session.toString());
+			await svc.restoreSession(session);
+			const manager = getStateManager(svc);
+			assert.deepStrictEqual({
+				before,
+				recorded: manager.getDefaultChat(session.toString()),
+				advertised: manager.getSessionState(session.toString())?.defaultChat,
+				chats: manager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				storage: manager.getChatStorageResource(legacyDefault),
+			}, {
+				before: undefined,
+				recorded: legacyDefault,
+				advertised: legacyDefault,
+				chats: [legacyDefault],
+				storage: session.toString(),
+			});
+		});
+
+		test('a normalized session whose default chat is not default-shaped treats a default-shaped chat as a peer', async () => {
+			const session = URI.parse('ahp-session:/recorded-default');
+			const recordedDefault = buildChatUri(session, 'advertised-default');
+			const shaped = buildDefaultChatUri(session);
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Owner' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: recordedDefault, order: 0, providerData: 'default-backing' },
+				peers: [], privateDescendants: [],
+			});
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot')));
+			const coldShapedSubscribe = await svc.subscribe(URI.parse(shaped), 'cold-client').then(() => 'subscribed', (error: Error) => error.message);
+			await svc.restoreSession(session);
+			await svc.createChat(session, URI.parse(shaped), { title: 'Shaped peer' });
+			const manager = getStateManager(svc);
+			svc.dispatchAction(shaped, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 1);
+			svc.dispatchAction(recordedDefault, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 2);
+			assert.deepStrictEqual({
+				coldShapedSubscribe,
+				recordedDefault: manager.getDefaultChat(session.toString()),
+				chats: manager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				storage: [recordedDefault, shaped].map(chat => manager.getChatStorageResource(chat)),
+				archived: [recordedDefault, shaped].map(chat => isSessionStatusArchived(manager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.status)),
+			}, {
+				coldShapedSubscribe: `Cannot subscribe to unknown resource: ${shaped}`,
+				recordedDefault,
+				chats: [recordedDefault, shaped],
+				storage: [session.toString(), shaped],
+				archived: [false, true],
+			});
+		});
+
+		test('a provider listing or discovering the default-shaped chat keeps a registered session\'s recorded default', async () => {
+			const session = AgentSession.uri('copilot', 'recorded-generation');
+			const shaped = buildDefaultChatUri(session);
+			// A recreated session records a default chat with a generation query.
+			const recordedDefault = URI.parse(shaped).with({ query: 'generation=1' }).toString();
+			class ListingAgent extends MockAgent {
+				override async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
+					return [{ session, chat: URI.parse(shaped), startTime: 1, modifiedTime: 2, summary: 'Listed' }];
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 2, summary: 'Owner' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: recordedDefault, order: 0, providerData: 'default-backing' },
+				peers: [], privateDescendants: [],
+			});
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const agent = disposables.add(new ListingAgent('copilot', undefined, undefined, false));
+			registerTestAgentProvider(svc, agent);
+			const internals = svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>>; _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> };
+			await internals._initialProviderMigrations.get(agent.id);
+			await svc.whenCatalogReconciliationIdle();
+			agent.fireDiscoveredChats([{ session, chat: URI.parse(shaped), startTime: 1, modifiedTime: 2, external: false }]);
+			await internals._providerDiscoveryRegistrations.get(agent.id);
+			const listChats = async () => (await svc.listSessions()).find(candidate => isEqual(candidate.session, session))?.chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind }));
+			const listedCold = await listChats();
+			await svc.restoreSession(session);
+			const listedLive = await listChats();
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				listedCold,
+				listedLive,
+				recordedDefault: snapshot?.header?.defaultChatUri,
+				restoredDefault: getStateManager(svc).getDefaultChat(session.toString()),
+				restoredDefaultChat: getStateManager(svc).getSessionState(session.toString())?.defaultChat,
+			}, {
+				listedCold: [{ chat: recordedDefault, kind: 'default' }],
+				listedLive: [{ chat: recordedDefault, kind: 'default' }],
+				recordedDefault: recordedDefault,
+				restoredDefault: recordedDefault,
+				restoredDefaultChat: recordedDefault,
+			});
+		});
+
 		test('onDidChangeChatData does not persist tool-origin chats as peer membership', async () => {
 			const onDidChangeChatData = disposables.add(new Emitter<IAgentChatDataChange>());
 			class MultiChatAgent extends MockAgent {
@@ -27740,7 +27894,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const toolCallId = 'tool-1';
 			const toolChatUri = URI.parse(buildSubagentChatUri(session.toString(), toolCallId));
-			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), creationTimeChatStorageResource(session.toString(), toolChatUri.toString()), {
+			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), creationTimeChatStorageResource(session.toString(), toolChatUri.toString(), buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId },
 			});
 			onDidChangeChatData.fire({ chat: toolChatUri, providerData: 'tool-backing' });
@@ -28492,7 +28646,7 @@ suite('AgentService (node dispatcher)', () => {
 				/title persistence failed/
 			);
 
-			getStateManager(localService).addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Original chat' });
+			getStateManager(localService).addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Original chat' });
 			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
 			await db.setMetadata(`customChatTitleSource:${defaultChat}`, 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
@@ -28809,7 +28963,7 @@ suite('AgentService (node dispatcher)', () => {
 				svc.dispatchAction(first.toString(), { type: ActionType.SessionDefaultChatChanged, defaultChat: peer.toString() }, 'residency-client', 1);
 				await createUsedSession(svc, residency.agent);
 				await waitForResidency(() => !getStateManager(svc).getSessionState(first.toString()), 'Routed session was not evicted');
-				const evictedDefault = getStateManager(svc).getDefaultChatUri(first.toString());
+				const evictedDefault = getStateManager(svc).getDefaultChat(first.toString());
 				if (operation === 'delete') {
 					await svc.disposeSession(first);
 				} else {
@@ -28818,7 +28972,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					evictedDefault,
 					disposed: residency.agent.chatContexts.filter(call => call.boundary === 'disposeChat').map(call => call.chat.toString()),
-					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getDefaultChatUri(first.toString()) : undefined,
+					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getDefaultChat(first.toString()) : undefined,
 				}, {
 					evictedDefault: physical,
 					disposed: operation === 'delete' ? [peer.toString(), physical] : [],
@@ -28891,7 +29045,7 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
-				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
+				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString(), buildDefaultChatUri(sessionResource.toString())), {});
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					peerChat.toString(),
@@ -28949,7 +29103,7 @@ suite('AgentService (node dispatcher)', () => {
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'initial-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'initial', origin: { kind: MessageKind.User } } });
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
-				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
+				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString(), buildDefaultChatUri(sessionResource.toString())), {});
 				localService.addSubscriber(sessionResource, 'client-1');
 				localService.unsubscribe(sessionResource, 'client-1');
 
@@ -29237,7 +29391,7 @@ suite('AgentService (node dispatcher)', () => {
 				];
 				await service.restoreSession(session);
 				const chat = URI.parse(buildChatUri(session, 'peer-1'));
-				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()), {});
+				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())), {});
 				service.addSubscriber(session, 'client-1');
 
 				service.unsubscribe(session, 'client-1');
@@ -29827,7 +29981,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const named = AgentSession.uri('copilot', 'named-by-uri');
 				const chat = URI.parse(buildChatUri(named, 'moved'));
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
 				service.addSubscriber(chat, 'client-1');
 				getStateManager(service).removeChat(owner.toString(), chat.toString());
 
@@ -29845,7 +29999,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
 				service.addSubscriber(chat, 'client-1');
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
 
 				service.unsubscribe(chat, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
@@ -30899,6 +31053,7 @@ suite('AgentService (node dispatcher)', () => {
 			const resolve = (resource: string, chat = buildDefaultChatUri(resource)) => resolver._resolveWorkingDirectoryBeforeSend({ session: resource, chat, turnId: 't', prompt: 'hi' });
 			const inject = (resource: string, dirs?: readonly URI[]) => getStateManager(service).restoreSession({
 				resource,
+				defaultChat: buildDefaultChatUri(resource),
 				provider: 'copilot',
 				title: 't',
 				status: SessionStatus.Idle,
@@ -30919,7 +31074,7 @@ suite('AgentService (node dispatcher)', () => {
 			inject(none, undefined);
 			const peerDirectory = URI.file('/roots/peer');
 			const peerChat = buildChatUri(URI.parse(multi), 'peer');
-			getStateManager(service).addChat(multi, peerChat, creationTimeChatStorageResource(multi, peerChat), { workingDirectories: [peerDirectory.toString()] });
+			getStateManager(service).addChat(multi, peerChat, creationTimeChatStorageResource(multi, peerChat, buildDefaultChatUri(multi)), { workingDirectories: [peerDirectory.toString()] });
 
 			// No worktree isolation is configured, so index 0 resolves to itself and
 			// the additional roots are preserved as-is; a session with no roots
@@ -30948,6 +31103,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 			getStateManager(localService).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: 'copilot',
 				title: 'Additional resume',
 				status: SessionStatus.Idle,
@@ -31045,6 +31201,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(sessionResource),
 			}, { emitNotification: false });
 			getStateManager(localService).setSessionConfig(sessionResource, {
 				schema: { type: 'object', properties: {} },
@@ -31146,6 +31303,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(sessionResource),
 			});
 			getStateManager(localService).setSessionConfig(sessionResource, {
 				schema: { type: 'object', properties: {} },
@@ -31214,6 +31372,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: [sourceDir.toString()],
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			getStateManager(localService).setSessionConfig(session.toString(), {
 				schema: { type: 'object', properties: {} },
@@ -31254,6 +31413,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = buildDefaultChatUri(sessionResource);
 			getStateManager(localService).restoreSession({
 				resource: sessionResource,
+				defaultChat: buildDefaultChatUri(sessionResource),
 				provider: 'copilot',
 				title: 'Worktree fallback',
 				status: SessionStatus.Idle,
