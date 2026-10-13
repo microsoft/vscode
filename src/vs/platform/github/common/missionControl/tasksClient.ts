@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNumber } from '../../../../base/common/types.js';
-import { pathSegment, queryPath } from '../client/routing.js';
+import { pathSegment, withQuery } from '../client/routing.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { parse } from '../client/schema.js';
-import { PaginatedResponse, PaginationOptions } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseEnvironmentKind, parseUser } from './missionControlClient.js';
+import { PaginatedResponse } from './missionControl.js';
+import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
 import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { PageOptions } from '../client/types.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
@@ -17,7 +18,7 @@ export class TasksClient implements ITasksClient {
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath('/tasks', { ...options, ...pagination(options) }),
+			path: withQuery('/tasks', { ...options }),
 			expectedStatus: [200],
 		}, signal, response => paginated(response, parseListTasksResponse(response.data)));
 	}
@@ -90,10 +91,10 @@ export class TasksClient implements ITasksClient {
 		return this.steer(taskId, { type: 'abort' }, signal);
 	}
 
-	getEvents(taskId: string, signal: AbortSignal, options?: PaginationOptions): Promise<PaginatedResponse<ListTaskEventsResponse>> {
+	getEvents(taskId: string, signal: AbortSignal, options?: PageOptions): Promise<PaginatedResponse<ListTaskEventsResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${taskPath(taskId)}/events`, { ...pagination(options) }),
+			path: withQuery(`${taskPath(taskId)}/events`, { ...options }),
 			expectedStatus: [200],
 			retry: false,
 		}, signal, response => paginated(response, parseTaskEventsResponse(response.data)));

@@ -103,6 +103,12 @@
 	overflow: hidden;
 }
 
+.customization-migration-dashboard .migration-warning-banner {
+	flex: 0 0 auto;
+	min-height: 0;
+	margin-top: var(--vscode-spacing-size80);
+}
+
 .customization-migration-dashboard .migration-tree .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-small);
 }

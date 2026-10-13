@@ -14,8 +14,11 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
 	return typeof data === 'object' && data !== null;
@@ -35,9 +38,14 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map()) => {
+	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map(), chatOwners: ReadonlyMap<string, string> = new Map([[defaultChat.toString(), session.toString()]])) => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IAgentHostStateManager, {
+			getChatOwner: (chat: string) => chatOwners.get(chat),
+			findRetainedChatOwner: () => undefined,
+		});
+		instantiationService.stub(IAgentHostChatOwnershipService, createLiveChatOwnership(chat => chatOwners.get(chat)));
 		instantiationService.stub(IAgentHostProviderService, {
 			getProviderForSession: session => {
 				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);
@@ -239,7 +247,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				for (const scheme of [provider, 'ahp-session']) {
 					const resource = AgentSession.uri(scheme, 'session');
 					const telemetryService = new TestTelemetryService();
-					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]));
+					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]), new Map([buildDefaultChatUri(resource), buildChatUri(resource, 'peer')].map(chat => [chat, resource.toString()])));
 					for (const channel of [resource, URI.parse(buildDefaultChatUri(resource)), URI.parse(buildChatUri(resource, 'peer'))]) {
 						await service.withSubscription(channel, async telemetry => telemetry.setServedFromMemory(true));
 					}
@@ -264,6 +272,29 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			});
 		});
 	}
+
+	test('a cold chat subscription is measured once the subscribe resolves its owner', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestTelemetryService();
+			// No chat is registered when the subscription starts.
+			const service = createService(telemetryService, ['copilotcli'], new Map(), new Map());
+			const peer = URI.parse(buildChatUri(session, 'cold-peer'));
+			await service.withSubscription(peer, async telemetry => {
+				telemetry.setServedFromMemory(false);
+				telemetry.setSession(session);
+				telemetry.restoreStarted(false);
+				telemetry.restoreCompleted();
+			});
+			await service.withSubscription(URI.parse(buildChatUri(session, 'unknown')), async () => { });
+			assert.deepStrictEqual(telemetryService.events.map(event => ({
+				provider: event.data.provider,
+				channel: event.data.channel,
+				outcome: event.data.outcome,
+				servedFromMemory: event.data.servedFromMemory,
+				restored: event.data.timeToRestoreCompleteMs !== undefined,
+			})), [{ provider: 'copilotcli', channel: 'chat', outcome: 'success', servedFromMemory: false, restored: true }]);
+		});
+	});
 
 	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {

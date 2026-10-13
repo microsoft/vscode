@@ -121,8 +121,10 @@ suite('cloudSandbox telemetry', () => {
 		const missionControl = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
 		cloud.onConnectionStateChange('connected');
 		missionControl.onConnectionStateChange('connected');
+		cloud.recordConnectionDiagnostic({ operationId: 'cloud-session', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
 		missionControl.recordConnectionDiagnostic({ operationId: 'session', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
 		await timeout(1000);
+		cloud.recordConnectionDiagnostic({ operationId: 'cloud-session', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
 		missionControl.recordConnectionDiagnostic({ operationId: 'session', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
 		missionControl.onConnectionStateChange('reconnecting');
 		missionControl.onConnectionStateChange('reconnecting');
@@ -139,18 +141,29 @@ suite('cloudSandbox telemetry', () => {
 		service.dispose();
 
 		assert.deepStrictEqual({
-			outcomes: telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => [
-				event.data?.environmentKind, event.data?.operation, event.data?.environmentOperation, event.data?.outcome,
+			outcomes: telemetry.events.filter(event => event.eventName.endsWith('ConnectionOutcome')).map(event => [
+				event.eventName, event.data?.environmentKind, event.data?.operation, event.data?.environmentOperation, event.data?.outcome,
 			]),
-			firstRequest: telemetry.events.find(event => event.eventName === 'cloudSandboxFirstSessionRequest')?.data,
-			health: telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionHealth').map(event => event.data),
+			firstRequest: telemetry.events.filter(event => event.eventName.endsWith('FirstSessionRequest')),
+			health: telemetry.events.filter(event => event.eventName.endsWith('ConnectionHealth')),
+			totalEvents: telemetry.events.length,
 		}, {
-			outcomes: [['cloud', 'connect', 'resume', 'success'], ['user-local', 'connect', 'attach', 'success'], ['user-local', 'recover', 'recover', 'success'], ['user-local', 'connect', 'attach', 'failure'], ['user-local', 'connect', 'attach', 'cancelled']],
-			firstRequest: { environmentKind: 'user-local', surface: 'agentsDesktop', source: 'existing', outcome: 'success', durationMs: 1000 },
-			health: [
-				{ environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 0 },
-				{ environmentKind: 'user-local', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 },
+			outcomes: [
+				['cloudSandboxConnectionOutcome', 'cloud', 'connect', 'resume', 'success'],
+				['userLocalRelayConnectionOutcome', 'user-local', 'connect', 'attach', 'success'],
+				['userLocalRelayConnectionOutcome', 'user-local', 'recover', 'recover', 'success'],
+				['userLocalRelayConnectionOutcome', 'user-local', 'connect', 'attach', 'failure'],
+				['userLocalRelayConnectionOutcome', 'user-local', 'connect', 'attach', 'cancelled'],
 			],
+			firstRequest: [
+				{ eventName: 'cloudSandboxFirstSessionRequest', data: { environmentKind: 'cloud', surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 1000 } },
+				{ eventName: 'userLocalRelayFirstSessionRequest', data: { environmentKind: 'user-local', surface: 'agentsDesktop', source: 'existing', outcome: 'success', durationMs: 1000 } },
+			],
+			health: [
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+				{ eventName: 'userLocalRelayConnectionHealth', data: { environmentKind: 'user-local', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+			],
+			totalEvents: 9,
 		});
 	}));
 
@@ -180,7 +193,7 @@ suite('cloudSandbox telemetry', () => {
 		connection.onConnectionStateChange('connected');
 		service.dispose();
 		assert.deepStrictEqual(telemetry.events, [{
-			eventName: 'cloudSandboxConnectionOutcome', data: {
+			eventName: 'userLocalRelayConnectionOutcome', data: {
 				...connectionDetails, operation: 'connect', surface: 'agentsDesktop', outcome: 'success', stage: 'connection',
 				environmentKind: 'user-local', environmentOperation: 'attach', readinessMs: 40, durationMs: 40, connectionMs: 40,
 			},
@@ -507,26 +520,29 @@ suite('cloudSandbox telemetry', () => {
 		]);
 	}));
 
-	for (const outcome of ['success', 'failure', 'cancelled'] as const) {
-		test(`reports first session request ${outcome} without counting user idle time`, () => runWithFakedTimers({}, async () => {
-			const telemetry = new TestTelemetryService();
-			const service = store.add(new CloudSandboxTelemetryService(telemetry));
-			const connection = store.add(service.trackConnection('connection', 'editorDesktop'));
-			connection.onConnectionStateChange('connected');
-			await timeout(20_000);
-			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
-			await timeout(40);
-			if (outcome === 'cancelled') {
-				connection.dispose();
-			} else {
-				connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: outcome === 'success' ? 'succeeded' : 'failed', timestamp: Date.now() });
-			}
-			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
-			service.dispose();
-			assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'cloudSandboxFirstSessionRequest'), [{
-				eventName: 'cloudSandboxFirstSessionRequest', data: { environmentKind: 'cloud', surface: 'editorDesktop', source: 'existing', outcome, durationMs: 40 },
-			}]);
-		}));
+	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
+			test(`reports ${environmentKind} first session request ${outcome} without counting user idle time`, () => runWithFakedTimers({}, async () => {
+				const telemetry = new TestTelemetryService();
+				const service = store.add(new CloudSandboxTelemetryService(telemetry));
+				const connection = store.add(service.trackConnection('connection', 'editorDesktop', 'existing', { environmentKind: environmentKind === 'user-local' ? environmentKind : undefined }));
+				connection.onConnectionStateChange('connected');
+				await timeout(20_000);
+				connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+				await timeout(40);
+				if (outcome === 'cancelled') {
+					connection.dispose();
+				} else {
+					connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: outcome === 'success' ? 'succeeded' : 'failed', timestamp: Date.now() });
+				}
+				connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+				service.dispose();
+				assert.deepStrictEqual(telemetry.events.filter(event => event.eventName.endsWith('FirstSessionRequest')), [{
+					eventName: environmentKind === 'user-local' ? 'userLocalRelayFirstSessionRequest' : 'cloudSandboxFirstSessionRequest',
+					data: { environmentKind, surface: 'editorDesktop', source: 'existing', outcome, durationMs: 40 },
+				}]);
+			}));
+		}
 	}
 
 	test('requestOutcomeForStatus buckets every response kind', () => {
@@ -810,57 +826,62 @@ suite('cloudSandbox telemetry', () => {
 		]);
 	}));
 
-	test('connection events use the standard telemetry level gate', () => runWithFakedTimers({}, async () => {
-		const events: string[] = [];
-		const telemetry = store.add(TelemetryService.createWithLevel({
-			telemetryLevel: TelemetryLevel.NONE,
-			appenders: [{ log: event => events.push(event), flush: async () => { } }],
-		}, new class extends mock<IProductService>() { }()));
-		const service = store.add(new CloudSandboxTelemetryService(telemetry));
-		service.reportProvisioningOutcome('success', 1000);
-		const connection = store.add(service.trackConnection('connection'));
-		connection.onConnectionStateChange('connected');
-		await timeout(300_001);
-		connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
-		connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
-		connection.onConnectionStateChange('reconnecting');
-		connection.onConnectionStateChange('failed');
-		service.dispose();
-		assert.deepStrictEqual(events, []);
-	}));
+	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		test(`${environmentKind} connection events use the standard telemetry level gate`, () => runWithFakedTimers({}, async () => {
+			const events: string[] = [];
+			const telemetry = store.add(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.NONE,
+				appenders: [{ log: event => events.push(event), flush: async () => { } }],
+			}, new class extends mock<IProductService>() { }()));
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			service.reportProvisioningOutcome('success', 1000);
+			const connection = store.add(service.trackConnection('connection', 'unknown', 'existing', { environmentKind: environmentKind === 'user-local' ? environmentKind : undefined }));
+			connection.onConnectionStateChange('connected');
+			await timeout(300_001);
+			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+			connection.onConnectionStateChange('reconnecting');
+			connection.onConnectionStateChange('failed');
+			service.dispose();
+			assert.deepStrictEqual(events, []);
+		}));
+	}
 
-	test('classification marks every numeric payload field, and no string field, as a measurement', () => runWithFakedTimers({}, async () => {
-		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
-		const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
-			...connectionDetails, operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000, readinessMs: 2000, connectionMs: 2000,
-			firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
-		};
-		const provisioning: ClassifiedSample<CloudSandboxProvisioningOutcomeClassification> = { outcome: 'success', durationMs: 1000 };
-		const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { environmentKind: 'cloud', surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
-		const health: ClassifiedSample<CloudSandboxConnectionHealthClassification> = { environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 1 };
-		const telemetry = new TestTelemetryService();
-		const service = store.add(new CloudSandboxTelemetryService(telemetry));
-		service.reportProvisioningOutcome('success', 1000);
-		const connection = store.add(service.trackConnection('connection'));
-		const failedPhase = {
-			operationId: 'reconnect', phase: 'protocol.reconnect', timestamp: Date.now(),
-			error: { name: 'Error', message: 'private response', code: String(JsonRpcErrorCodes.InvalidParams) },
-		};
-		connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'started' });
-		connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'failed' });
-		await timeout(2000);
-		connection.onConnectionStateChange('connected');
-		connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
-		connection.recordReceivedFrame();
-		await timeout(3000);
-		connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
-		connection.dispose();
-		service.dispose();
-		assert.deepStrictEqual(telemetry.events, [
-			{ eventName: 'cloudSandboxProvisioningOutcome', data: provisioning },
-			{ eventName: 'cloudSandboxConnectionOutcome', data: outcome },
-			{ eventName: 'cloudSandboxFirstSessionRequest', data: firstRequest },
-			{ eventName: 'cloudSandboxConnectionHealth', data: health },
-		]);
-	}));
+	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		test(`${environmentKind} classification marks every numeric payload field, and no string field, as a measurement`, () => runWithFakedTimers({}, async () => {
+			type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+			const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
+				...connectionDetails, environmentKind, environmentOperation: environmentKind === 'user-local' ? 'attach' : 'resume',
+				operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000, readinessMs: 2000, connectionMs: 2000,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
+			};
+			const provisioning: ClassifiedSample<CloudSandboxProvisioningOutcomeClassification> = { outcome: 'success', durationMs: 1000 };
+			const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { environmentKind, surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
+			const health: ClassifiedSample<CloudSandboxConnectionHealthClassification> = { environmentKind, connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 1 };
+			const telemetry = new TestTelemetryService();
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			service.reportProvisioningOutcome('success', 1000);
+			const connection = store.add(service.trackConnection('connection', 'unknown', 'existing', { environmentKind: environmentKind === 'user-local' ? environmentKind : undefined }));
+			const failedPhase = {
+				operationId: 'reconnect', phase: 'protocol.reconnect', timestamp: Date.now(),
+				error: { name: 'Error', message: 'private response', code: String(JsonRpcErrorCodes.InvalidParams) },
+			};
+			connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'started' });
+			connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'failed' });
+			await timeout(2000);
+			connection.onConnectionStateChange('connected');
+			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+			connection.recordReceivedFrame();
+			await timeout(3000);
+			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+			connection.dispose();
+			service.dispose();
+			assert.deepStrictEqual(telemetry.events, [
+				{ eventName: 'cloudSandboxProvisioningOutcome', data: provisioning },
+				{ eventName: environmentKind === 'user-local' ? 'userLocalRelayConnectionOutcome' : 'cloudSandboxConnectionOutcome', data: outcome },
+				{ eventName: environmentKind === 'user-local' ? 'userLocalRelayFirstSessionRequest' : 'cloudSandboxFirstSessionRequest', data: firstRequest },
+				{ eventName: environmentKind === 'user-local' ? 'userLocalRelayConnectionHealth' : 'cloudSandboxConnectionHealth', data: health },
+			]);
+		}));
+	}
 });

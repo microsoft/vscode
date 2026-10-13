@@ -333,6 +333,14 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
+export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
+	if (group.activeEditor && expectedActiveEditor.matches(group.activeEditor)) {
+		return group.activeEditorPane?.getSelection?.()?.restore(options) ?? options;
+	}
+
+	return options;
+}
+
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
 		const options: IEditorOptions = {

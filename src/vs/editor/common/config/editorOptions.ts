@@ -6436,7 +6436,7 @@ export const EditorOptions = {
 		{
 			enumDescriptions: [
 				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
-				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
 			],
 			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
 		}

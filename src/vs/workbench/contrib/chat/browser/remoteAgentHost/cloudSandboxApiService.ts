@@ -470,16 +470,17 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
 						const eventType = full.event_type || task.event_type;
+						const repositoryId = [full.repository?.id, task.repository?.id].find(id => id !== undefined && id > 0);
 						cached = {
 							summary: task,
-							repositoryId: full.repository?.id ?? task.repository?.id,
+							repositoryId,
 							unstartedSince: getUnstartedSessionCreatedAt(full),
 							session: binding ? {
 								...binding,
 								taskId: task.id,
 								...(eventType ? { eventType } : {}),
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
-								hasRepository: task.hasRepository || !!(full.repository ?? task.repository),
+								hasRepository: task.hasRepository || repositoryId !== undefined,
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),
 								...(full.archived_at ? { isArchived: true } : {}),

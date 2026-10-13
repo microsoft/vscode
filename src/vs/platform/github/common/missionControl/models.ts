@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { JsonValue } from '../client/schema.js';
+import { JsonValue } from '../client/types.js';
 
 /** A Copilot model's limits and features, before session-UI normalization. */
 export interface ModelCapabilities {
