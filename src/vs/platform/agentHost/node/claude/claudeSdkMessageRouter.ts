@@ -12,7 +12,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildSubagentChatUri } from '../../common/state/sessionState.js';
+import { subagentChatUri, type ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -54,6 +54,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	constructor(
 		private readonly _chatChannelUri: URI,
 		private readonly _ownerSession: URI,
+		private readonly _subagentChatUriFormat: ChatUriFormat,
 		private readonly _resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
@@ -108,7 +109,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	private _getEditChatUri(parentToolUseId: string | null): string {
 		return parentToolUseId
-			? buildSubagentChatUri(this._ownerSession, parentToolUseId)
+			? subagentChatUri(this._subagentChatUriFormat, this._ownerSession.toString(), this._chatChannelUri.toString(), parentToolUseId)
 			: this._chatChannelUri.toString();
 	}
 }

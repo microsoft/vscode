@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
 import type { IAgentChatContext } from '../common/agent.js';
 import { type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
@@ -42,6 +43,7 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		configurationResource: sessionUri,
+		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 	};

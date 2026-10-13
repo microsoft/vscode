@@ -91,6 +91,7 @@ function createRouter(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
 		URI.parse('claude:/sess-1'),
+		'shaped',
 		isMintedTestDefaultChat(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
 		subagents,

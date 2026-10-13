@@ -35,6 +35,7 @@ import type { RootConfigChangedAction } from '../../common/state/protocol/action
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -433,7 +434,7 @@ suite('AgentSideEffects', () => {
 		// registerProgressListener) so the subagent chat exists first. addChat is
 		// idempotent, matching the real spawn-channel/side-effects overlap.
 		disposables.add(agent.onDidChatProgress(signal => {
-			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => stateManager.getChatOwner(chat));
+			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = stateManager.getChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
 			if (spawn) {
 				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), creationTimeChatStorageResource(spawn.session.toString(), spawn.chat.toString(), buildDefaultChatUri(spawn.session.toString())), {
 					title: spawn.title,
@@ -7336,7 +7337,7 @@ suite('AgentSideEffects', () => {
 		test('spawn events place a subagent under the spawning chat\'s recorded owner, not the session its URI encodes', () => {
 			const spawningChat = URI.parse(buildChatUri('copilot:/encoded', 'moved'));
 			const signal: AgentSignal = { kind: 'subagent_started', chat: spawningChat, toolCallId: 'tool-1', agentName: 'worker', agentDisplayName: 'Worker' };
-			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => chat === spawningChat.toString() ? 'copilot:/owner' : undefined);
+			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => chat === spawningChat.toString() ? { owner: 'copilot:/owner', format: 'shaped' } : undefined);
 			assert.deepStrictEqual({
 				session: spawn?.session.toString(),
 				chat: spawn?.chat.toString(),
@@ -7477,6 +7478,44 @@ suite('AgentSideEffects', () => {
 			assert.ok(toolCall?.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(readToolCallMeta(toolCall.toolCall).subagentChatUri, expectedUri);
 			assert.strictEqual(stateManager.getSnapshot(expectedUri), undefined);
+		});
+
+		test('stamps an opaque-session subagent id derived from the root conversation chat, also for nested calls', () => {
+			const rootChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+				defaultChat: rootChat,
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
+			const firstSubagent = subagentChatUri('opaque', sessionUri.toString(), rootChat, 'tc-1');
+			stateManager.addChat(sessionUri.toString(), firstSubagent, creationTimeChatStorageResource(sessionUri.toString(), firstSubagent, rootChat), {
+				title: 'Sub',
+				origin: { kind: ChatOriginKind.Tool, chat: rootChat, toolCallId: 'tc-1' },
+			});
+			startTurn('turn-1', firstSubagent);
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(firstSubagent),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-2', toolName: 'task', displayName: 'Task', contributor: undefined,
+					_meta: { toolKind: 'subagent', language: undefined },
+				},
+			});
+
+			const state = stateManager.getChatState(firstSubagent);
+			const toolCall = state?.activeTurn?.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-2'
+			);
+			assert.ok(toolCall?.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(readToolCallMeta(toolCall.toolCall).subagentChatUri, subagentChatUri('opaque', sessionUri.toString(), rootChat, 'tc-2'));
 		});
 
 		test('nested subagent_started routes discovery block and seeds each request prompt via the immediate parent chat (arbitrary depth)', () => {

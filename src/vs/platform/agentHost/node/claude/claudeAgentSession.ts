@@ -19,6 +19,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
+import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -85,6 +86,8 @@ export interface IMaterializeContext {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
+	/** Format of the subagent chat ids minted for this chat's session. */
+	readonly subagentChatUriFormat: ChatUriFormat;
 	/**
 	 * Host-supplied concrete persistence/config resource for this materialize
 	 * operation. Used transiently; the session never derives it from URI shape.
@@ -676,6 +679,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.sessionId,
 				this._chatChannelUri,
 				this._configurationResource,
+				ctx.subagentChatUriFormat,
 				ctx.resource,
 				warm,
 				this.abortController,
