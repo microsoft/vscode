@@ -94,6 +94,18 @@ suite('MultiSelectDropdown', () => {
 		});
 	});
 
+	test('shows dividers only between sections and no keyboard hint footer', () => {
+		const { container, filter } = create({ searchable: true });
+		container.style.setProperty('--vscode-editorHoverWidget-border', 'currentColor');
+		const borders = () => [...container.querySelectorAll('.separator')].map(row => dom.getWindow(row).getComputedStyle(row).borderTopWidth);
+		assert.deepStrictEqual({
+			borders: borders(),
+			footer: container.querySelector('.action-list-footer'),
+		}, { borders: ['0px', '1px'], footer: null });
+		filter('Saturday');
+		assert.deepStrictEqual(borders(), ['0px']);
+	});
+
 	test('Enter and Space toggle, arrows skip disabled rows, Escape restores trigger focus', () => {
 		const { dropdown, changes, key, anchor, hides } = create();
 		key('Enter', 13);

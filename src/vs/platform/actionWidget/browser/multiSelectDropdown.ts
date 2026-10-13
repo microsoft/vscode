@@ -10,7 +10,6 @@ import { Emitter } from '../../../base/common/event.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, ActionListItemKind, IActionListItem } from './actionList.js';
@@ -134,7 +133,6 @@ export class MultiSelectDropdown extends Disposable {
 					minWidth: options.width ?? 280,
 					maxWidth: options.width ?? 280,
 					hideDefaultKeybindingTooltip: true,
-					footerText: localize('multiSelectDropdown.hint', "Enter or Space to toggle. Escape to close."),
 					preferredAnchorPosition: AnchorPosition.BELOW,
 				}, options.anchor,
 				));
@@ -142,9 +140,6 @@ export class MultiSelectDropdown extends Disposable {
 					widget.appendChild(list.filterContainer);
 				}
 				widget.appendChild(list.domNode);
-				if (list.footerContainer) {
-					widget.appendChild(list.footerContainer);
-				}
 				widget.style.width = `${list.layout(options.width ?? 280)}px`;
 				store.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
 					if (e.browserEvent.isComposing || e.ctrlKey || e.metaKey || e.altKey) {

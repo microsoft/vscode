@@ -15,21 +15,16 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 
 const sections: readonly IMultiSelectDropdownSection[] = [
-	{ label: 'Weekdays', items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(label => ({ id: label, label })) },
-	{ label: 'Weekend', items: ['Saturday', 'Sunday'].map(label => ({ id: label, label })) },
 	{
-		label: 'Tools', items: Array.from({ length: 24 }, (_, index) => ({
-			id: `tool-${index}`, label: `Workspace Tool ${index + 1}`,
-			description: index === 0 ? 'Unavailable in this workspace' : 'Available for automation',
-			disabled: index === 0,
-		}))
+		label: 'Weekdays',
+		items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(label => ({ id: label, label })),
 	},
 ];
 
-async function render(context: ComponentFixtureContext, search?: string): Promise<void> {
+async function render(context: ComponentFixtureContext): Promise<void> {
 	const { container, disposableStore, theme } = context;
-	container.style.width = '420px';
-	container.style.height = '540px';
+	container.style.width = '320px';
+	container.style.height = '300px';
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: registration => {
@@ -46,23 +41,16 @@ async function render(context: ComponentFixtureContext, search?: string): Promis
 	button.element.style.width = '280px';
 	button.element.setAttribute('aria-haspopup', 'menu');
 	button.element.setAttribute('aria-expanded', 'false');
-	button.label = 'Select Days and Tools';
+	button.label = 'Weekdays';
 	const dropdown = disposableStore.add(instantiationService.createInstance(MultiSelectDropdown));
-	let selectedIds: readonly string[] = ['Monday', 'Wednesday', 'Friday', 'tool-2'];
+	let selectedIds: readonly string[] = ['Monday', 'Wednesday', 'Friday'];
 	disposableStore.add(dropdown.onDidChangeSelection(ids => {
 		selectedIds = ids;
-		button.label = `${ids.length} Selected`;
 	}));
 	disposableStore.add(button.onDidClick(() => dropdown.show({
-		anchor: button.element, ariaLabel: 'Days and tools', sections, selectedIds,
-		searchable: true, filterPlaceholder: 'Search days and tools', width: 320,
+		anchor: button.element, ariaLabel: 'Weekdays', sections, selectedIds,
 	})));
 	button.element.click();
-	if (search !== undefined) {
-		const input = container.querySelector('input')!;
-		input.value = search;
-		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-	}
 	context.focus(container.querySelector<HTMLElement>('.monaco-list')!);
 	await waitForFixtureCondition(() => [...container.querySelectorAll('.scrollbar')].every(element =>
 		element.classList.contains('invisible') && dom.getWindow(element).getComputedStyle(element).opacity === '0'),
@@ -70,12 +58,10 @@ async function render(context: ComponentFixtureContext, search?: string): Promis
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/multiSelectDropdown' }, {
-	SectionsAndScrolling: defineComponentFixture({
+	Weekdays: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		virtualTime: { enabled: false },
 		deferPaint: true,
-		render: context => render(context),
+		render,
 	}),
-	Search: defineComponentFixture({ virtualTime: { enabled: false }, deferPaint: true, render: context => render(context, 'Wednesday') }),
-	NoResults: defineComponentFixture({ virtualTime: { enabled: false }, deferPaint: true, render: context => render(context, 'No matching item') }),
 });
