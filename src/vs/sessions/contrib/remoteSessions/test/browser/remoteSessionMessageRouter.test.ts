@@ -124,6 +124,8 @@ class TestConnection extends mock<IAgentHostService>() {
 		};
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 		const get = this.subscriptions[kind];
 		assert.ok(get);

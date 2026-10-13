@@ -16,7 +16,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSess
 import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, isSessionDefaultChatId, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -39,6 +39,16 @@ export function assertRemoteSessionCaller(resource: URI): void {
 	if (!isAgentHostSessionResource(resource)) {
 		throw new Error(localize('remoteMessage.unsupportedSource', "Remote delegation requires an originating chat on an Agent Host. Other chat providers are not supported."));
 	}
+}
+
+/** A fragment naming the session's advertised default chat addresses the session itself. */
+function isDefaultChatFragment(resource: URI, connectionsService: IAgentHostConnectionsService): boolean {
+	if (!resource.fragment) {
+		return false;
+	}
+	const resolution = connectionsService.resolveSessionResource(resource.with({ fragment: '' }));
+	const state = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+	return !!state && !(state instanceof Error) && isSessionDefaultChatId(state, resource.fragment, state.defaultChat);
 }
 
 export function resolveRemoteSessionReference(reference: string, connectionsService: IAgentHostConnectionsService): { resource: URI; identity: IAgentHostSessionIdentity } {
@@ -64,7 +74,7 @@ export function resolveRemoteSessionReference(reference: string, connectionsServ
 		|| ((resource.authority || resource.query) && !identity.backendSessionIsAdvertised)) {
 		throw new Error(localize('remoteMessage.unqualifiedReference', "Use an exact host-qualified session or chat reference returned by the remote session tools."));
 	}
-	return { resource: resource.fragment === DEFAULT_CHAT_ID ? resource.with({ fragment: '' }) : resource, identity };
+	return { resource: resource.fragment === DEFAULT_CHAT_ID || isDefaultChatFragment(resource, connectionsService) ? resource.with({ fragment: '' }) : resource, identity };
 }
 
 export function resolveRemoteSessionChat(resource: URI, sessionsService: ISessionsManagementService, connectionsService: IAgentHostConnectionsService): IRemoteSessionChat {

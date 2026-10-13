@@ -28,6 +28,7 @@ suite('RemoteSessionTools', () => {
 			override findSessionResource(resource: URI, authority?: string): URI | undefined {
 				return authority === 'other-host' && isEqual(resource, backend) ? frontend : undefined;
 			}
+			override resolveSessionResource() { return undefined; }
 			override resolveSessionResourceIdentity(resource: URI) {
 				return isEqual(resource, frontend) ? { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: 'other-host' }
 					: { backendSession: resource.with({ scheme: 'claude' }), connectionAuthority: 'other-host' };

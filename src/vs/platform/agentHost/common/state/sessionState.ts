@@ -967,6 +967,11 @@ export function getSessionChatResource(state: { readonly chats: readonly Pick<Ch
 		?? state.chats.find(chat => getAgentHostChatId(chat.resource) === chatId)?.resource;
 }
 
+/** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */
+export function isSessionDefaultChatId(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): boolean {
+	return defaultChat !== undefined && getSessionChatResource(state, chatId, defaultChat)?.toString() === defaultChat.toString();
+}
+
 /** Returns `true` when `uri` identifies a chat channel. */
 export function isAhpChatChannel(uri: string): boolean {
 	try {
