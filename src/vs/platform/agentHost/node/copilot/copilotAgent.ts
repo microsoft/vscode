@@ -6657,17 +6657,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Instantiates a session; the caller must initialize and register it on success. */
-	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
-		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
-		// A provider-native session bound to no chat records no primary chat.
-		const chatChannelUri = identity?.chatChannelUri ?? this._findBoundSessionChatUri(launchPlan.sessionId) ?? URI.parse(deriveLegacyPrimaryChat(sessionUri));
+	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity): CopilotAgentSession {
+		const { sessionUri, chatChannelUri } = identity;
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
 			{
 				sessionUri,
 				chatChannelUri,
-				...(identity?.resource ? { resource: identity.resource } : {}),
+				resource: identity.resource,
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				onSessionEvent: event => {
@@ -6847,11 +6845,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	protected _resumeSession(sessionId: string, chatChannelUri?: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		if (chatChannelUri) {
-			const current = this._chatBackings.get(chatChannelUri.toString());
-			this._chatBackings.set(chatChannelUri.toString(), { ...current, sdkSessionId: sessionId });
-		}
+	protected _resumeSession(sessionId: string, chatChannelUri: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
+		const current = this._chatBackings.get(chatChannelUri.toString());
+		this._chatBackings.set(chatChannelUri.toString(), { ...current, sdkSessionId: sessionId });
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
 			return Promise.reject(new CancellationError());
@@ -6862,18 +6858,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new CancellationError();
 			}
 			try {
-				return await this._doResumeSession(sessionId, workingDirectories, stageRecorder);
+				return await this._doResumeSession(sessionId, chatChannelUri, workingDirectories, stageRecorder);
 			} finally {
 				lease.dispose();
 			}
 		});
 	}
 
-	private _doResumeSession(sessionId: string, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, acquireClient, workingDirectories, stageRecorder));
+	private _doResumeSession(sessionId: string, chatChannelUri: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder));
 	}
 
-	private async _resumeSessionOnce(sessionId: string, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
+	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		// Read persisted metadata while the SDK client is acquired.
@@ -6946,7 +6942,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		};
 
-		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
+		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, { sessionUri, chatChannelUri, resource: sessionUri });
 		try {
 			await this._initializeAndRegisterSession(agentSession, () => {
 				this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);

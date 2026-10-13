@@ -37,7 +37,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -27783,6 +27783,57 @@ suite('AgentService (node dispatcher)', () => {
 				chats: [primary, shaped],
 				storage: [session.toString(), shaped],
 				archived: [false, true],
+			});
+		});
+
+		test('a provider listing or discovering the default-shaped chat keeps a registered session\'s recorded primary', async () => {
+			const session = AgentSession.uri('copilot', 'recorded-generation');
+			const shaped = buildDefaultChatUri(session);
+			// A recreated session records a primary with a generation query.
+			const primary = URI.parse(shaped).with({ query: 'generation=1' }).toString();
+			class ListingAgent extends MockAgent {
+				override async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
+					return [{ session, chat: URI.parse(shaped), startTime: 1, modifiedTime: 2, summary: 'Listed' }];
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 2, summary: 'Owner' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: primary, order: 0, providerData: 'default-backing' },
+				peers: [], privateDescendants: [],
+			});
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const agent = disposables.add(new ListingAgent('copilot', undefined, undefined, false));
+			registerTestAgentProvider(svc, agent);
+			const internals = svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>>; _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> };
+			await internals._initialProviderMigrations.get(agent.id);
+			await svc.whenCatalogReconciliationIdle();
+			agent.fireDiscoveredChats([{ session, chat: URI.parse(shaped), startTime: 1, modifiedTime: 2, external: false }]);
+			await internals._providerDiscoveryRegistrations.get(agent.id);
+			const listChats = async () => (await svc.listSessions()).find(candidate => isEqual(candidate.session, session))?.chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind }));
+			const listedCold = await listChats();
+			await svc.restoreSession(session);
+			const listedLive = await listChats();
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				listedCold,
+				listedLive,
+				recordedPrimary: snapshot?.header?.defaultChatUri,
+				restoredPrimary: getStateManager(svc).getPrimaryChat(session.toString()),
+				restoredDefaultChat: getStateManager(svc).getSessionState(session.toString())?.defaultChat,
+			}, {
+				listedCold: [{ chat: primary, kind: 'default' }],
+				listedLive: [{ chat: primary, kind: 'default' }],
+				recordedPrimary: primary,
+				restoredPrimary: primary,
+				restoredDefaultChat: primary,
 			});
 		});
 
