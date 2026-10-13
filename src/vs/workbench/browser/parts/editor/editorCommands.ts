@@ -44,7 +44,7 @@ import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
-import { prepareMoveCopyEditors } from './editor.js';
+import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
@@ -969,7 +969,11 @@ function registerCloseEditorCommands() {
 					return; // Resolver can only resolve untyped editors
 				}
 
-				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
+				untypedEditor.options = fillActiveEditorSelection(group, editor, {
+					...untypedEditor.options,
+					...(group.activeEditor === editor ? group.activeEditorPane?.options : undefined),
+					override: editorOverride
+				});
 				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					return;

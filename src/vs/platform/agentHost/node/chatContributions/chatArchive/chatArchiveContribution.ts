@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, isSessionStatusRead, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri, isSessionStatusRead } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
@@ -37,7 +37,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 			|| isDefaultChatUri(dispatched.channel)) {
 			return;
 		}
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(dispatched.channel));
+		const session = URI.parse(dispatched.session);
 		const chat = URI.parse(dispatched.channel);
 		if (dispatched.action.isArchived && !isSessionStatusRead(this._stateManager.getChatState(dispatched.channel)?.status)) {
 			this._stateManager.dispatchServerAction(dispatched.channel, { type: ActionType.ChatIsReadChanged, isRead: true });

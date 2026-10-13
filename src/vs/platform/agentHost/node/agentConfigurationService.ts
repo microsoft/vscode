@@ -117,6 +117,13 @@ export interface IAgentConfigurationService {
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
+	/**
+	 * Maps a session, nested subagent session or registered chat to the
+	 * top-level session that owns its configuration; `undefined` for a chat
+	 * with no recorded owner.
+	 */
+	resolveConfigurationOwner(sessionOrChat: ProtocolURI): ProtocolURI | undefined;
+
 	/** Runtime-resolved sandbox floor for this configuration owner. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
@@ -273,13 +280,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 	}
 
+	resolveConfigurationOwner(sessionOrChat: ProtocolURI): ProtocolURI | undefined {
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._stateManager.getChatOwner(chat))?.toString();
+	}
+
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
-		const owner = resolveAgentHostSession(URI.parse(session)).toString();
-		return this._sessionSandboxPolicies.get(owner);
+		const owner = this.resolveConfigurationOwner(session);
+		return owner === undefined ? undefined : this._sessionSandboxPolicies.get(owner);
 	}
 
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
-		session = resolveAgentHostSession(URI.parse(session)).toString();
+		const owner = this.resolveConfigurationOwner(session);
+		if (owner === undefined) {
+			this._logService.trace(`[AgentConfigurationService] Ignoring sandbox policy for unknown chat: ${session}`);
+			return;
+		}
+		session = owner;
 		this._sessionSandboxPolicies.set(session, policy);
 		this._publishSessionSandboxPolicy(session);
 	}

@@ -71,7 +71,10 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
-import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
@@ -1218,6 +1221,9 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -1250,8 +1256,13 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const link = buildOpenSessionLinkForChatResource(chatResource);
+		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
+		if (this._store.isDisposed) {
+			return;
+		}
+		const link = owner && buildOpenSessionLinkForChat(owner, chatResource);
 		if (!link) {
+			this._logService.trace(`[ChatReferenceAttachmentWidget] No host lists the referenced chat ${chatResource.toString()}`);
 			return;
 		}
 		// The opener returns false when the link cannot be resolved (e.g. the

@@ -9,7 +9,7 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
@@ -55,22 +55,22 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 
 		if (isAhpChatChannel(observed.channel)) {
 			this._stateManager.updateChatTitle(observed.session, observed.channel, observed.action.title);
-			this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-			this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
-			this._persistSessionMetadata(observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
-			this._persistSessionMetadata(observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
+			this._persistSessionMetadata(observed.session, observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+			this._persistSessionMetadata(observed.session, observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+			this._persistSessionMetadata(observed.session, observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
+			this._persistSessionMetadata(observed.session, observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
 			this._titleController.markTitleRenamed(observed.session, observed.channel, observed.action.title);
 			if (isDefaultChatUri(observed.channel)) {
 				this._stateManager.dispatchServerAction(observed.session, observed.action);
-				this._persistSessionMetadata(observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-				this._persistSessionMetadata(observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 				this._titleController.markTitleRenamed(observed.session);
 			}
 			return;
 		}
 
-		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(observed.channel, observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+		this._persistSessionMetadata(observed.channel, observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		this._titleController.markTitleRenamed(observed.channel);
 		this._retitleSoleDefaultChat(observed.channel, observed.action.title);
 	}
@@ -87,10 +87,10 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		}
 		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
 		this._stateManager.updateChatTitle(session, defaultChat, title);
-		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
-		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
-		this._persistSessionMetadata(session, customChatTitleMetadataKey(defaultChat), title);
-		this._persistSessionMetadata(session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionMetadata(session, defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, session, customChatTitleMetadataKey(defaultChat), title);
+		this._persistSessionMetadata(session, session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
 	}
 
 	/**
@@ -138,9 +138,8 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		}
 	}
 
-	private _persistSessionMetadata(session: string, key: string, value: string): void {
-		const owner = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
-		void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(session), { [key]: value }).catch(error =>
-			this._logService.warn(`[SessionTitleContribution] Failed to persist title for ${session}`, error));
+	private _persistSessionMetadata(owner: string, resource: string, key: string, value: string): void {
+		void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(resource), { [key]: value }).catch(error =>
+			this._logService.warn(`[SessionTitleContribution] Failed to persist title for ${resource}`, error));
 	}
 }

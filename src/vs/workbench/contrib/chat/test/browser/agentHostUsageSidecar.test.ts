@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { NullRemoteAgentHostService, RemoteAgentHostConnectionStatus, type IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import type { IActiveSubscriptionInfo } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { agentModelCallMetaKey } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { ActionType, type ActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -22,19 +28,41 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 	const baseDir = URI.file('/user');
 
 	class TestRecorder extends AgentHostUsageRecorder {
-		flush(): Promise<void> { return this.queued('sdk', async () => { }); }
+		async flush(): Promise<void> {
+			await this.whenRecorded();
+			await this.queued('sdk', async () => { });
+		}
 	}
 
-	function setup() {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-		const actions = disposables.add(new Emitter<ActionEnvelope>());
-		const notifications = disposables.add(new Emitter<INotification>());
-		let enabled = true;
-		const recorder = disposables.add(new TestRecorder(baseDir, () => enabled, fileService, new NullLogService(),
-			{ onDidAction: actions.event, onDidNotification: notifications.event }, new NullRemoteAgentHostService()));
-		const fire = (id: string, turnId?: string) => actions.fire({
-			channel: buildDefaultChatUri('copilotcli:/sdk'), serverSeq: 1, origin: undefined,
+	// The host records this default chat for `copilotcli:/sdk`; its URI encodes another session.
+	const defaultChat = buildDefaultChatUri('copilotcli:/encoded');
+	const target: IAgentSessionMetadata = { session: URI.parse('copilotcli:/sdk'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }] };
+
+	/** A host whose session records the test controls, counting each listing. */
+	class FakeHost extends mock<IAgentConnection>() {
+		readonly actions = disposables.add(new Emitter<ActionEnvelope>());
+		readonly notifications = disposables.add(new Emitter<INotification>());
+		override readonly onDidAction = this.actions.event;
+		override readonly onDidNotification = this.notifications.event;
+		listings = 0;
+		constructor(private readonly _listSessions: () => Promise<IAgentSessionMetadata[]> = async () => [target]) {
+			super();
+		}
+		override listSessions(): Promise<IAgentSessionMetadata[]> {
+			this.listings++;
+			return this._listSessions();
+		}
+		override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+			return [];
+		}
+		override getSubscriptionUnmanaged(): undefined {
+			return undefined;
+		}
+	}
+
+	function usage(channel: string, id: string, turnId?: string): ActionEnvelope {
+		return {
+			channel, serverSeq: 1, origin: undefined,
 			action: {
 				type: ActionType.ChatUsage, turnId: 'current-turn',
 				usage: {
@@ -46,11 +74,25 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 					}
 				},
 			},
-		});
-		return { fileService, recorder, fire, disable: () => enabled = false };
+		};
 	}
 
-	test('deduplicates call IDs, preserves exact ownership and respects the debug gate', async () => {
+	function setup(local = new FakeHost(), remote?: FakeHost) {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		let enabled = true;
+		const remoteHosts = remote ? new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConnections = Event.None;
+			override readonly connections = [{ address: 'remote.example:1', name: 'remote', status: RemoteAgentHostConnectionStatus.connected }];
+			override getConnectionByAuthority(): IAgentConnection | undefined { return remote; }
+		}() : new NullRemoteAgentHostService();
+		const recorder = disposables.add(new TestRecorder(baseDir, () => enabled, fileService, new NullLogService(), local, remoteHosts));
+		const fire = (id: string, turnId?: string) => local.actions.fire(usage(defaultChat, id, turnId));
+		const records = async (rawId = 'sdk') => (await readAgentHostUsageRecords(fileService, buildAgentHostUsageUri(baseDir, rawId))).map(record => record.apiCallId);
+		return { fileService, recorder, fire, records, local, disable: () => enabled = false };
+	}
+
+	test('deduplicates call IDs, records under the host-recorded owner of the default chat and respects the debug gate', async () => {
 		const { fileService, recorder, fire, disable } = setup();
 		fire('old', 'old-turn');
 		fire('old', 'old-turn');
@@ -59,13 +101,19 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		fire('disabled');
 		await recorder.flush();
 		const records = await readAgentHostUsageRecords(fileService, buildAgentHostUsageUri(baseDir, 'sdk'));
-		assert.deepStrictEqual(records.map(record => ({
-			version: record.schemaVersion, id: record.apiCallId, turn: record.turnId,
-			correlation: record.correlation, tokens: record.inputTokens, duration: record.durationMs,
-		})), [
-			{ version: 2, id: 'old', turn: 'old-turn', correlation: 'exact', tokens: 10, duration: 123 },
-			{ version: 2, id: 'unknown', turn: undefined, correlation: 'unresolved', tokens: 10, duration: 123 },
-		]);
+		assert.deepStrictEqual({
+			records: records.map(record => ({
+				version: record.schemaVersion, id: record.apiCallId, turn: record.turnId,
+				correlation: record.correlation, tokens: record.inputTokens, duration: record.durationMs,
+			})),
+			encoded: await fileService.exists(buildAgentHostUsageUri(baseDir, 'encoded')),
+		}, {
+			records: [
+				{ version: 2, id: 'old', turn: 'old-turn', correlation: 'exact', tokens: 10, duration: 123 },
+				{ version: 2, id: 'unknown', turn: undefined, correlation: 'unresolved', tokens: 10, duration: 123 },
+			],
+			encoded: false,
+		});
 	});
 
 	test('retains a bounded recent diagnostic window', async () => {
@@ -78,5 +126,54 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		assert.deepStrictEqual({ count: records.length, first: records[0].apiCallId, last: records.at(-1)?.apiCallId }, {
 			count: 1025, first: 'call-1025', last: 'call-2049',
 		});
+	});
+
+	test('records for a target listed among more sessions than the owner cache holds', async () => {
+		const others = Array.from({ length: 1100 }, (_, index): IAgentSessionMetadata => ({ session: URI.parse(`copilotcli:/other-${index}`), startTime: 0, modifiedTime: 0 }));
+		const { recorder, fire, records, local } = setup(new FakeHost(async () => [target, ...others]));
+		fire('first');
+		fire('second');
+		await recorder.flush();
+		assert.deepStrictEqual({ records: await records(), listings: local.listings }, { records: ['first', 'second'], listings: 1 });
+	});
+
+	test('a burst of updates during the first lookup lists the sessions once', async () => {
+		const listed = new DeferredPromise<IAgentSessionMetadata[]>();
+		const { recorder, fire, records, local } = setup(new FakeHost(() => listed.p));
+		for (let index = 0; index < 5; index++) {
+			fire(`burst-${index}`);
+		}
+		await listed.complete([target]);
+		await recorder.flush();
+		assert.deepStrictEqual({ records: await records(), listings: local.listings }, { records: ['burst-0', 'burst-1', 'burst-2', 'burst-3', 'burst-4'], listings: 1 });
+	});
+
+	test('a failing session listing does not stop later records', async () => {
+		let fail = true;
+		const { recorder, fire, records } = setup(new FakeHost(async () => {
+			if (fail) {
+				fail = false;
+				throw new Error('host unavailable');
+			}
+			return [target];
+		}));
+		fire('dropped');
+		fire('recorded');
+		await recorder.flush();
+		assert.deepStrictEqual(await records(), ['recorded']);
+	});
+
+	test('a slow remote host does not block local records', async () => {
+		const stalled = new DeferredPromise<IAgentSessionMetadata[]>();
+		const remote = new FakeHost(() => stalled.p);
+		const { fire, records } = setup(new FakeHost(), remote);
+		remote.actions.fire(usage(defaultChat, 'remote'));
+		fire('local');
+		for (let attempt = 0; attempt < 50 && (await records()).length === 0; attempt++) {
+			await timeout(1);
+		}
+		const local = await records();
+		await stalled.complete([]);
+		assert.deepStrictEqual(local, ['local']);
 	});
 });

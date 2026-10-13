@@ -65,6 +65,8 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -276,11 +278,13 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			_serviceBrand: undefined,
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
-		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+		const chatOwnership = createTestChatOwnershipService(stateManager);
+		services.set(IAgentHostChatOwnershipService, chatOwnership);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -577,7 +581,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 		await runWithFakedTimers({}, async () => {
 			for (const item of cases) {
-				tracker.turnStarted(agent, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+				tracker.turnStarted(agent, item.session, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 				tracker.setCurrentStage(item.session, 'turn', item.stage);
 			}
 			await timeout(TURN_HANG_THRESHOLD_MS);
@@ -630,6 +634,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		await runWithFakedTimers({}, async () => {
 			tracker.turnStarted(
 				diagnosticAgent,
+				session,
 				session,
 				'turn',
 				undefined,
@@ -687,7 +692,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const session = AgentSession.uri('copilotcli', 'diagnostic-error').toString();
 
 		await runWithFakedTimers({}, async () => {
-			tracker.turnStarted(diagnosticAgent, session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(diagnosticAgent, session, session, 'turn', undefined, undefined, 'default', undefined, undefined);
 			tracker.setCurrentStage(session, 'turn', 'provider');
 			await timeout(TURN_HANG_THRESHOLD_MS);
 		});

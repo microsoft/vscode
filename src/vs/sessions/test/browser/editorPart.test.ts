@@ -27,6 +27,60 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 suite('Sessions - EditorPart', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Agents Connected panel rows match chat height without enlarging main or modal editors', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		workbench.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(workbench, 'part editor');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
+		const tab = appendElement(tabs, 'tab active');
+		appendElement(tab, 'tab-fill');
+		appendElement(tab, 'tab-connected-edge');
+		tab.style.width = '120px';
+		const inactive = appendElement(tabs, 'tab');
+		inactive.classList.add('hovered');
+		const inactiveFill = appendElement(inactive, 'tab-fill');
+		inactive.style.width = '120px';
+		const results = [];
+		try {
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				for (const direction of ['ltr', 'rtl']) {
+					workbench.dir = direction;
+					for (const compact of [false, true]) {
+						title.classList.toggle('compact-height', compact);
+						for (const host of ['main', 'agents', 'modal']) {
+							workbench.classList.toggle('agent-sessions-workbench', host !== 'main');
+							editor.classList.toggle('modal-editor-part', host === 'modal');
+							const style = mainWindow.getComputedStyle(tab);
+							results.push({
+								theme, direction, compact, host,
+								rowHeight: row.getBoundingClientRect().height,
+								topInset: mainWindow.getComputedStyle(tab.firstElementChild!).top,
+								tabHeight: style.height,
+								capRadius: mainWindow.getComputedStyle(tab.firstElementChild!).borderTopRightRadius,
+								hoverInsets: [mainWindow.getComputedStyle(inactiveFill).top, mainWindow.getComputedStyle(inactiveFill).bottom],
+							});
+						}
+					}
+				}
+				workbench.classList.remove(theme);
+			}
+			assert.deepStrictEqual(results, results.map(result => ({
+				...result,
+				rowHeight: result.host === 'agents' ? result.compact ? 25 : 29 : result.compact ? 23 : 25,
+				topInset: '0px',
+				tabHeight: `${result.host === 'agents' ? result.compact ? 24 : 28 : result.compact ? 22 : 24}px`,
+				capRadius: '7px',
+				hoverInsets: ['0px', '-1px'],
+			})));
+		} finally {
+			workbench.remove();
+		}
+	});
+
 	test('connected detail tabs keep rounded corners while sharing the single card frame', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
 		for (const [name, value] of Object.entries({
@@ -88,7 +142,7 @@ suite('Sessions - EditorPart', () => {
 									frameRadius: frame.borderRadius,
 									frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
 									framePointerEvents: frame.pointerEvents,
-									capHasTopInset: Math.abs((fill.getBoundingClientRect().top - group.getBoundingClientRect().top) / zoom - 2) < 1 / 32,
+									capAlignedWithFrame: Math.abs(fill.getBoundingClientRect().top - group.getBoundingClientRect().top) < 1 / 32,
 									capBorder: cap.borderTopColor,
 									fillTopBorder: mainWindow.getComputedStyle(fill).borderTopColor,
 									firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
@@ -100,11 +154,11 @@ suite('Sessions - EditorPart', () => {
 									frameRadius: '7px',
 									frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
 									framePointerEvents: 'none',
-									capHasTopInset: true,
+									capAlignedWithFrame: true,
 									capBorder: theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : frameBorder,
 									fillTopBorder: 'rgba(0, 0, 0, 0)',
 									firstBackgroundClip: 'border-box',
-									firstLeftBorder: theme.startsWith('hc-') && !firstActive ? 'rgb(255, 255, 255)' : 'rgba(0, 0, 0, 0)',
+									firstLeftBorder: 'rgba(0, 0, 0, 0)',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
 							}
 
@@ -128,7 +182,7 @@ suite('Sessions - EditorPart', () => {
 									leadingEdge: wrapped,
 									backgroundClip: 'border-box',
 									leftBorder: 'rgba(0, 0, 0, 0)',
-									leftCorner: wrapped ? '0px' : '4px',
+									leftCorner: wrapped ? '0px' : '5px',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
 							}
 						}

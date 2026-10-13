@@ -715,14 +715,23 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const { sessionUri, pluginUri } = await createPluginSession('sampling');
 			await pluginState(sessionUri, pluginUri);
 
+			let sawSamplingConfirmation = false;
 			const result = await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-mcp-sampling',
 				'Call customization_sample exactly once. If sampling is cancelled, reply exactly "sampling cancelled".',
 				2,
+				{
+					approveToolCall: action => {
+						const isSampling = action.options?.some(option => option.id === 'allow-sampling-always') === true;
+						sawSamplingConfirmation ||= isSampling;
+						return !isSampling;
+					},
+				},
 			);
 
+			assert.ok(sawSamplingConfirmation);
 			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-sampling').some(text => text.includes('MCP_SAMPLE:The user cancelled the request.')));
 			assert.ok(result.responseText.trim().endsWith('sampling cancelled'));
 		});

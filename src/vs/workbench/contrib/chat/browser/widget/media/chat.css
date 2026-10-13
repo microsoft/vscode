@@ -4938,8 +4938,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.pending-divider .pending-divider-label {
 	font-size: var(--vscode-chat-font-size-body-xs);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }
 
