@@ -176,7 +176,7 @@ const unnamedSettingVariableName = 'MCP_CONFIG';
  * The environment variable that a setting key migrates to, named like an input. A reference without a
  * usable key, such as `${config:}`, migrates to `MCP_CONFIG`.
  */
-export function getSettingVariableName(key: string): string {
+function getSettingVariableName(key: string): string {
 	return getVariableName(key) ?? unnamedSettingVariableName;
 }
 

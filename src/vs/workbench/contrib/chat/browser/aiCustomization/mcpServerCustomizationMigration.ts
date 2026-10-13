@@ -880,7 +880,8 @@ async function analyzeSourceConfiguration(
 		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 	}
 	const settingVariables = settings.variables.length > 0 ? { settingVariables: settings.variables } : {};
-	if (variables.length > 0 || !settings.resolvable) {
+	// The client never resolves user servers, so a setting it can't resolve only matters for `.vscode/mcp.json` servers.
+	if (variables.length > 0 || (!settings.resolvable && storage === PromptsStorage.local)) {
 		// The client stops at the first input, or fails on a setting it can't resolve, and projects the server as written.
 		return { projection: configuration, migration, ...(variables.length > 0 ? { environmentVariables: variables } : {}), ...settingVariables, projectedAsWritten: true };
 	}
