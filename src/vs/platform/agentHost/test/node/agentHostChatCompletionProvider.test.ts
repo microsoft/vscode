@@ -79,6 +79,10 @@ class FakeStateManager extends AgentHostStateManager {
 		return this._fixtureChatStates.get(chat);
 	}
 
+	override getChatOwner(chat: URI): string | undefined {
+		return this._fixtureChatStates.has(chat) || chat === DEFAULT_CHAT_URI ? SESSION_URI : undefined;
+	}
+
 	override getDefaultChatState(): ChatState | undefined {
 		return this._fixtureChatStates.get(DEFAULT_CHAT_URI);
 	}

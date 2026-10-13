@@ -37,8 +37,8 @@ export class ProjectTemplatesIndex implements IProjectTemplatesIndex {
 	) {
 		const cacheVersion = sanitizeVSCodeVersion(envService.getEditorInfo().version);
 		this.embeddingsCache = useRemoteCache ?
-			instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'projectTemplateEmbeddings', cacheVersion, EmbeddingType.text3small_512, RemoteCacheType.ProjectTemplates)
-			: instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'projectTemplateEmbeddings', cacheVersion, EmbeddingType.text3small_512);
+			instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'projectTemplateEmbeddings', cacheVersion, EmbeddingType.metis_1024_I16_Binary, RemoteCacheType.ProjectTemplates)
+			: instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'projectTemplateEmbeddings', cacheVersion, EmbeddingType.metis_1024_I16_Binary);
 	}
 
 	async updateIndex(): Promise<void> {

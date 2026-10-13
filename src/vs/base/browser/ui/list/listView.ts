@@ -935,19 +935,31 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const insertedItems: IItem<T>[] = [];
+		const insertRows = () => {
+			for (const range of rangesToInsert) {
+				for (let i = range.end - 1; i >= range.start; i--) {
+					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
+				}
+			}
+		};
+		// Measuring new rows can reveal a row that the estimated scroll position would otherwise recycle.
+		const insertBeforeRemove = this.supportDynamicHeights && rangesToInsert.some(range =>
+			this.items.slice(range.start, range.end).some(item => this.shouldProbeDynamicHeight(item)));
 
 		this.cache.transact(() => {
+			if (insertBeforeRemove) {
+				insertRows();
+			}
+
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
 					this.removeItemFromDOM(i, onScroll);
 				}
 			}
 
-			for (const range of rangesToInsert) {
-				for (let i = range.end - 1; i >= range.start; i--) {
-					this.insertItemInDOM(i);
-					insertedItems.push(this.items[i]);
-				}
+			if (!insertBeforeRemove) {
+				insertRows();
 			}
 		});
 
@@ -1743,6 +1755,7 @@ export class ListView<T> implements IListView<T> {
 
 		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
+		row.domNode.dataset.index = String(index);
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
@@ -1791,6 +1804,7 @@ export class ListView<T> implements IListView<T> {
 			measurements.push(measurement);
 
 			row.domNode.style.height = '';
+			row.domNode.dataset.index = String(index);
 			this.rowsContainer.appendChild(row.domNode);
 
 			const renderer = this.renderers.get(item.templateId);

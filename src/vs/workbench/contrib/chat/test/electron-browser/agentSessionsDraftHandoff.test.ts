@@ -15,12 +15,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,11 +28,10 @@ import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../pla
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import product from '../../../../../platform/product/common/product.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -41,7 +40,7 @@ import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionStatus, IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { reviveChatDraft } from '../../common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
@@ -49,27 +48,16 @@ import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType }
 import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { CopilotHarnessIntroductionContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 import { agentsWindowHandoffConfigurationProperties } from '../../browser/agentSessionsConfiguration.js';
+import { IAgentHostEditorActivityService } from '../../electron-browser/agentSessions/agentHostEditorActivity.js';
 
-suite('Agents Window draft handoff and parallel invitation', () => {
+suite('Agents Window draft handoff and Copilot introduction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const titleTreatment = 'chatAgentsParallelWorkBannerTitle';
 	const descriptionTreatment = 'chatAgentsParallelWorkBannerDescription';
 	const introductionCopyTreatment = 'chatCopilotHarnessIntroductionCopy';
 	const introductionButtonsTreatment = 'chatCopilotHarnessIntroductionButtons';
-	const defaultTitle = 'Run agents side by side';
-	const defaultDescription = 'Run multiple tasks in the Agents Window, in one workspace or across projects.';
-	const agentHostSessionTypes = [
-		SessionType.AgentHostCopilot,
-		SessionType.AgentHostClaude,
-		SessionType.AgentHostCodex,
-		'agent-host-custom',
-		'remote-test-copilotcli',
-		'remote-test-claude',
-		'remote-test-codex',
-		'remote-test-custom',
-	];
 
 	function createHarness(options: { transfer?: boolean; reveal?: boolean; running?: boolean; banner?: boolean; introductionMode?: CopilotHarnessIntroductionMode; runningProviderType?: string; handoffDelaySeconds?: number } = {}) {
 		const instantiation = disposables.add(new TestInstantiationService());
@@ -120,6 +108,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const notifications = new Map<string, IChatInputNotification>();
 		let workbenchState = WorkbenchState.FOLDER;
 		let posts = 0;
+		let introductionImpressions = 0;
 		let openReady = Promise.resolve();
 		const calls: IOpenAgentsWindowOptions[] = [];
 		const warnings: string[] = [];
@@ -203,6 +192,9 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
 		instantiation.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async value => { calls.push(value ?? {}); await openReady; } }));
+		instantiation.stub(IAgentHostEditorActivityService, upcastPartial<IAgentHostEditorActivityService>({
+			recordCopilotHarnessIntroductionShown: async () => { introductionImpressions++; },
+		}));
 		instantiation.stub(INotificationService, upcastPartial<INotificationService>({ warn: message => { warnings.push(String(message)); } }));
 		instantiation.stub(IOpenerService, upcastPartial<IOpenerService>({
 			open: async resource => {
@@ -233,8 +225,18 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				return undefined;
 			},
 		}));
+		const notificationContext = (sessionStarted = hasRequests): IChatInputNotificationContext => ({
+			inputUri,
+			sessionType: getChatSessionType(resource),
+			sessionResource: resource,
+			deferredNotificationsEnabled: true,
+			isTransientChat: false,
+			sessionStarted,
+			modelState: { currentModel: undefined, models: [] },
+		});
 		return {
 			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, openedResources, telemetryEvents, widget, inputUri,
+			notificationContext,
 			triggers: telemetryService.triggers,
 			focusWidget: (value: IChatWidget | undefined) => { lastFocusedWidget = value; focused.fire(); },
 			sendMessage: (timestamp = Date.now(), isSystemInitiated = false) => {
@@ -276,25 +278,17 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			get notificationCount() { return notifications.size; },
 			notificationVisible: (sessionStarted = hasRequests) => {
 				const notification = [...notifications.values()].at(-1);
-				return !!notification && (notification.when?.({
-					inputUri,
-					sessionType: getChatSessionType(resource),
-					sessionResource: resource,
-					deferredNotificationsEnabled: true,
-					isTransientChat: false,
-					sessionStarted,
-					modelState: { currentModel: undefined, models: [] },
-				}) ?? true);
+				return !!notification && (notification.when?.(notificationContext(sessionStarted)) ?? true);
 			},
 			get posts() { return posts; },
+			get introductionImpressions() { return introductionImpressions; },
 			set openReady(value: Promise<void>) { openReady = value; },
 			set workbenchState(value: WorkbenchState) {
 				workbenchState = value;
 				workbenchStateChanged.fire(value);
 			},
-			showBanner: () => disposables.add(instantiation.createInstance(AgentsParallelWorkContribution)),
-			showGenericTip: () => disposables.add(instantiation.createInstance(AgentsHandoffInputTipContribution)),
-			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(),
+			showBanner: () => disposables.add(instantiation.createInstance(CopilotHarnessIntroductionContribution)),
+			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(notificationContext()),
 			commitSession: (original: URI, committed: URI) => sessionCommitted.fire({ original, committed }),
 			dismiss: () => {
 				const notification = [...notifications.values()].at(-1);
@@ -312,34 +306,30 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		};
 	}
 
-	test('defines independent experiment settings and an advanced delay, not copy treatments', () => {
+	test('defines unified banner settings and a separate advanced developer preview', () => {
 		const properties = agentsWindowHandoffConfigurationProperties;
-		const delay = properties[ChatConfiguration.AgentsHandoffTipDelaySeconds];
+		const banner = properties[ChatConfiguration.AgentsWindowBannerEnabled];
+		const developer = properties[ChatConfiguration.AgentsWindowBannerDeveloperMode];
+		const reveal = properties[ChatConfiguration.AgentsWindowBannerRevealCurrentSession];
 		const introduction = properties[ChatConfiguration.CopilotHarnessIntroductionMode];
 		assert.deepStrictEqual({
-			keys: Object.keys(properties),
-			settings: Object.values(properties).map(property => ({ type: property.type, default: property.default, experiment: property.experiment })),
+			banner: { default: banner.default, experiment: banner.experiment },
+			developer: { default: developer.default, tags: developer.tags, experiment: Object.hasOwn(developer, 'experiment') },
+			reveal: { type: reveal.type, default: reveal.default, scope: reveal.scope, tags: reveal.tags, experiment: reveal.experiment },
 			introduction: { enum: introduction.enum, tags: introduction.tags },
-			delay: { minimum: delay.minimum, tags: delay.tags },
 		}, {
-			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.CopilotHarnessIntroductionMode, ChatConfiguration.HarnessSwitchFeedbackSurveyEnabled, ChatConfiguration.AgentsHandoffTipDelaySeconds],
-			settings: [
-				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
-				{ type: 'boolean', default: false, experiment: { mode: 'auto' } },
-				{ type: 'string', default: product.quality === 'insider' ? CopilotHarnessIntroductionMode.NewSession : CopilotHarnessIntroductionMode.Off, experiment: { mode: 'auto' } },
-				{ type: 'boolean', default: false, experiment: { mode: 'auto' } },
-				{ type: 'number', default: 5, experiment: { mode: 'auto' } },
-			],
+			banner: { default: false, experiment: { mode: 'auto' } },
+			developer: { default: false, tags: ['experimental', 'advanced'], experiment: false },
+			reveal: { type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, tags: ['experimental', 'advanced'], experiment: { mode: 'auto' } },
 			introduction: {
 				enum: [CopilotHarnessIntroductionMode.Off, CopilotHarnessIntroductionMode.NewSession, CopilotHarnessIntroductionMode.AfterRequest],
 				tags: ['experimental'],
 			},
-			delay: { minimum: 0, tags: ['experimental', 'advanced'] },
 		});
 	});
 
 	for (const surface of ['titleBar', 'chatTitle', 'command', 'workspace', 'chatSession'] as const) {
-		test(`${surface} snapshots the current draft and retains the source`, async () => {
+		test(`${surface} does not transfer a draft without an explicit new-session reveal`, async () => {
 			const h = createHarness();
 			h.input = 'Current prompt at invocation';
 			const originalAttachments = h.attachments;
@@ -356,16 +346,40 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				count: h.calls.length,
 				folder: URI.revive(h.calls[0].folderUri)?.path,
 				draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+				reveal: h.calls[0].reveal,
+				triggers: h.triggers,
 				source: { inputText: h.input, attachments: h.attachments },
 			}, {
 				count: 1, folder: '/source',
-				draft: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
+				draft: undefined, reveal: undefined, triggers: [],
 				source: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
 			});
 		});
 	}
 
-	for (const surface of ['workspaceTitle', 'sessionTitle'] as const) {
+	for (const surface of ['command', 'workspace', 'chatSession'] as const) {
+		test(`${surface} transfers the current draft when explicitly revealing the new-session view`, async () => {
+			const h = createHarness();
+			await h.instantiation.invokeFunction(accessor => {
+				switch (surface) {
+					case 'command': return new OpenAgentsWindowAction().run(accessor, { reveal: 'new' });
+					case 'workspace': return new OpenWorkspaceInAgentsWindowAction().run(accessor, { reveal: 'new' });
+					case 'chatSession': return new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, h.resource);
+				}
+			});
+			assert.deepStrictEqual({
+				reveal: h.calls[0].reveal,
+				draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+				source: { inputText: h.input, attachments: h.attachments },
+			}, {
+				reveal: 'new',
+				draft: { inputText: 'Original prompt', attachments: h.attachments },
+				source: { inputText: 'Original prompt', attachments: h.attachments },
+			});
+		});
+	}
+
+	for (const surface of ['workspace', 'sessionTitle'] as const) {
 		for (const inputState of ['available', 'closed', 'rebound'] as const) {
 			test(`${surface} uses its input instance without falling back to a duplicate chat widget (${inputState})`, async () => {
 				const h = createHarness();
@@ -399,9 +413,9 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				if (inputState === 'rebound') {
 					secondSession = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-another-chat' });
 				}
-				await h.instantiation.invokeFunction(accessor => surface === 'workspaceTitle'
-					? new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, context)
-					: new OpenChatSessionInAgentsWindowAction().run(accessor, context));
+				await h.instantiation.invokeFunction(accessor => surface === 'workspace'
+					? new OpenWorkspaceInAgentsWindowAction().run(accessor, { ...context, reveal: 'new' })
+					: new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, context));
 				assert.deepStrictEqual({
 					contextInput: context.inputUri, inputLookups, resourceLookups,
 					draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
@@ -431,11 +445,11 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			getWidgetByInputUri: uri => isEqual(uri, inputUri) ? second : undefined,
 			getWidgetBySessionResource: () => h.widget,
 		}));
-		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, {
-			$mid: MarshalledId.ChatViewContext, sessionResource: h.resource,
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, {
+			reveal: 'new', sessionResource: h.resource,
 		}));
-		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, h.resource));
-		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }, h.resource));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatTitleBar, reveal: 'new' }));
 		assert.deepStrictEqual(h.calls.map(call => call.draft?.inputText), [
 			'Original prompt', 'Original prompt', 'Last focused draft',
 		]);
@@ -443,27 +457,35 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 
 	for (const transfer of [false, true]) {
 		for (const reveal of [false, true]) {
-			test(`draft transfer is independent of session reveal (transfer=${transfer}, reveal=${reveal})`, async () => {
+			test(`title-bar opens preserve drafts and honor session reveal (transfer=${transfer}, reveal=${reveal})`, async () => {
 				const h = createHarness({ transfer, reveal });
 				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
 				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
 				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
-				assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: URI.revive(call.sessionResource)?.path })), [
-					{ draft: transfer, session: undefined },
+				assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: call.reveal === 'new' ? 'new' : URI.revive(call.reveal)?.path })), [
+					{ draft: false, session: undefined },
 					{ draft: false, session: reveal ? '/persisted' : undefined },
 				]);
 			});
 		}
 	}
 
-	test('preserves explicit draft transfer overrides', async () => {
+	test('requires new-session reveal even for an explicit draft transfer override', async () => {
 		const h = createHarness({ transfer: false, running: false });
 		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, {
 			agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff,
 			transferDraft: true,
 		}, h.resource));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, {
+			agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff,
+			reveal: 'new',
+			transferDraft: true,
+		}, h.resource));
 
-		assert.strictEqual(h.calls[0].draft && reviveChatDraft(h.calls[0].draft).inputText, 'Original prompt');
+		assert.deepStrictEqual(h.calls.map(call => ({ reveal: call.reveal, input: call.draft?.inputText })), [
+			{ reveal: undefined, input: undefined },
+			{ reveal: 'new', input: 'Original prompt' },
+		]);
 	});
 
 	for (const session of [
@@ -477,22 +499,22 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		{ name: 'remote Agent Host', resource: URI.from({ scheme: 'remote-test-claude', path: '/untitled-draft' }), invitation: true },
 	]) {
 		for (const surface of ['view', 'editor'] as const) {
-			test(`transfers unsent drafts but invites only Agent Host chats: ${session.name} in a normal chat ${surface}`, async () => {
+			test(`transfers unsent drafts without inviting from them: ${session.name} in a normal chat ${surface}`, async () => {
 				const h = createHarness();
 				h.resource = session.resource;
 				h.viewContext = surface === 'view' ? { viewId: 'workbench.panel.chat.view' } : {};
 				h.showBanner();
 				const invitationBeforeSend = !!h.notification;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 				h.hasRequests = true;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 				assert.deepStrictEqual({
 					drafts: h.calls.map(call => !!call.draft),
 					invitationBeforeSend,
 					invitationAfterSend: h.notification,
 					source: h.input,
 				}, {
-					drafts: [true, false], invitationBeforeSend: session.invitation, invitationAfterSend: undefined, source: 'Original prompt',
+					drafts: [true, false], invitationBeforeSend: false, invitationAfterSend: undefined, source: 'Original prompt',
 				});
 			});
 		}
@@ -502,9 +524,9 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const h = createHarness({ reveal: true });
 		const targets: IOpenAgentsWindowOptions[] = [
 			{ folderUri: URI.file('/explicit-workspace') },
-			{ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
-			{ folderUri: URI.file('/explicit-workspace'), sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
-			{ folderUri: URI.file('/explicit-workspace'), folderUriIsDefault: true, draft: { inputText: 'Explicit caller draft', attachments: '[]' } },
+			{ reveal: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
+			{ folderUri: URI.file('/explicit-workspace'), reveal: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
+			{ folderUri: URI.file('/explicit-workspace'), folderUriIsDefault: true, reveal: 'new', draft: { inputText: 'Explicit caller draft', attachments: '[]' } },
 		];
 		for (const target of targets) {
 			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, target));
@@ -519,7 +541,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
 		assert.deepStrictEqual({
 			draft: h.calls[0].draft,
-			session: URI.revive(h.calls[0].sessionResource)?.path,
+			session: h.calls[0].reveal === 'new' ? 'new' : URI.revive(h.calls[0].reveal)?.path,
 			invitation: h.notification,
 		}, { draft: undefined, session: '/persisted', invitation: undefined });
 	});
@@ -528,10 +550,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const h = createHarness();
 		const opened = new DeferredPromise<void>();
 		h.openReady = opened.p;
-		const first = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const first = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.input = 'Newer source edit';
 		h.attachments = [];
-		const second = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const second = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		await opened.complete();
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({
@@ -556,7 +578,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			if (!attachments) {
 				h.attachments = [];
 			}
-			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 			results.push({ triggers: h.triggers, transferred: !!h.calls[0].draft });
 		}
 
@@ -572,12 +594,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('does not transfer from hidden AI, inline chat or Quick Chat', async () => {
 		const h = createHarness();
 		h.allowed = false;
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.allowed = true;
 		h.viewContext = { isInlineChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		h.viewContext = { isQuickChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual(h.calls.map(call => call.draft), [undefined, undefined, undefined]);
 	});
 
@@ -587,7 +609,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const model = disposables.add(createTextModel('Unsaved source contents', 'plaintext', undefined, resource));
 		h.models.set(resource, model);
 		h.attachments = [toFileVariableEntry(resource)];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		const draft = h.calls[0].draft && reviveChatDraft(h.calls[0].draft);
 		assert.deepStrictEqual({
 			destination: draft?.attachments.map(entry => ({ kind: entry.kind, text: entry.value })),
@@ -602,7 +624,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('warns and retains the source when an untitled attachment has no loaded model', async () => {
 		const h = createHarness();
 		h.attachments = [toFileVariableEntry(URI.from({ scheme: Schemas.untitled, path: '/Unavailable' }))];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual({ warnings: h.warnings.length, draft: h.calls[0].draft, isDefault: h.calls[0].folderUriIsDefault, attachments: h.attachments.length }, {
 			warnings: 1, draft: undefined, isDefault: true, attachments: 1,
 		});
@@ -611,57 +633,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('reports untransferable context and opens without losing or retargeting a destination draft', async () => {
 		const h = createHarness();
 		h.attachments = [{ kind: 'string', id: 'unresolved', name: 'Context', value: undefined, uri: URI.parse('context:/item'), handle: 7 }];
-		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, { reveal: 'new' }));
 		assert.deepStrictEqual({ warnings: h.warnings.length, draft: h.calls[0].draft, isDefault: h.calls[0].folderUriIsDefault, retained: h.attachments.length }, {
 			warnings: 1, draft: undefined, isDefault: true, retained: 1,
 		});
-	});
-
-	for (const provider of [
-		{ type: SessionType.AgentHostCopilot, invitation: true },
-		{ type: SessionType.AgentHostClaude, invitation: true },
-		{ type: SessionType.AgentHostCodex, invitation: true },
-		{ type: 'remote-test-copilotcli', invitation: true },
-		{ type: SessionType.Local, invitation: false },
-		{ type: SessionType.CopilotCLI, invitation: false },
-		{ type: SessionType.CopilotCloud, invitation: false },
-		{ type: SessionType.Codex, invitation: false },
-		{ type: 'extension-agent', invitation: false },
-	]) {
-		test(`requires an actively running Agent Host provider in the Sessions list: ${provider.type}`, () => {
-			const h = createHarness({ runningProviderType: provider.type });
-			h.showBanner();
-			assert.deepStrictEqual({ shown: !!h.notification, ordinaryTransferEnabled: h.configuration.getValue(ChatConfiguration.OpenInAgentsWindowTransferDraft) }, {
-				shown: provider.invitation, ordinaryTransferEnabled: true,
-			});
-		});
-	}
-
-	test('a non-Agent Host running session does not make an existing draft eligible when an Agent Host later starts', () => {
-		const h = createHarness({ runningProviderType: SessionType.Local });
-		h.showBanner();
-		const nonAgentHost = h.notification;
-		h.runningProviderType = SessionType.AgentHostCopilot;
-		h.focused.fire();
-		const existingDraft = h.notification;
-		h.resource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-next' });
-		const newDraft = !!h.notification;
-		h.runningProviderType = SessionType.CopilotCloud;
-		assert.deepStrictEqual({ nonAgentHost, existingDraft, newDraft, afterAgentHostStops: h.notification }, {
-			nonAgentHost: undefined, existingDraft: undefined, newDraft: true, afterAgentHostStops: undefined,
-		});
-	});
-
-	test('invitation requires a new draft transition while an Agent Host catalog session is actively running', () => {
-		const h = createHarness({ running: false });
-		h.showBanner();
-		h.status = AgentSessionStatus.InProgress;
-		h.focused.fire();
-		const existingDraft = h.notification;
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-second' });
-		const running = !!h.notification;
-		h.status = AgentSessionStatus.NeedsInput;
-		assert.deepStrictEqual({ existingDraft, running, waiting: h.notification }, { existingDraft: undefined, running: true, waiting: undefined });
 	});
 
 	test('switches reactively between introduction experiment modes', async () => {
@@ -704,19 +679,24 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('reports the parallel-work trigger where the invitation would show, whether or not it is enabled', () => {
-		const results = [true, false].map(banner => {
-			const h = createHarness({ banner });
+	for (const introductionMode of [CopilotHarnessIntroductionMode.NewSession, CopilotHarnessIntroductionMode.AfterRequest]) {
+		test(`records only actual harness introduction impressions, once per presentation (${introductionMode})`, async () => {
+			const h = createHarness({ introductionMode });
 			h.showBanner();
-			return { triggers: h.triggers, title: h.notification?.message };
+			await timeout(0);
+			const beforeDisplay = h.introductionImpressions;
+			h.sendMessage();
+			h.showCurrentNotification();
+			h.showCurrentNotification();
+			const firstDisplay = h.introductionImpressions;
+			h.allowed = false;
+			h.allowed = true;
+			h.showCurrentNotification();
+			assert.deepStrictEqual({ beforeDisplay, firstDisplay, laterDisplay: h.introductionImpressions }, {
+				beforeDisplay: 0, firstDisplay: 1, laterDisplay: 2,
+			});
 		});
-
-		const trigger = `config.${ChatConfiguration.AgentsParallelWorkBannerEnabled}`;
-		assert.deepStrictEqual(results, [
-			{ triggers: [trigger, titleTreatment, descriptionTreatment], title: defaultTitle },
-			{ triggers: [trigger], title: undefined },
-		]);
-	});
+	}
 
 	test('logs actual introduction exposure and session materialization once with correlation context', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
@@ -788,7 +768,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('shows only the introduction when its mode and parallel work are both enabled', async () => {
+	test('disabling the introduction does not replace it with an invitation on an empty draft', async () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession });
 		h.showBanner();
 		await timeout(0);
@@ -813,9 +793,9 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				actions: ['Learn More', '$(thumbsup) Got it!'],
 			},
 			parallel: {
-				count: 1,
-				title: 'Run agents side by side',
-				actions: ['Open Agents Window', 'Ignore'],
+				count: 0,
+				title: undefined,
+				actions: undefined,
 			},
 		});
 	});
@@ -978,8 +958,8 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			nextEducation: undefined,
 			enabled: true,
 			updates: [],
-			parallelTitle: 'Run agents side by side',
-			parallelAction: 'Open Agents Window',
+			parallelTitle: undefined,
+			parallelAction: undefined,
 		});
 	});
 
@@ -1106,7 +1086,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			await h.setIntroductionTreatments('current', 'feedback');
 			const notification = h.notification;
 			contribution.dispose();
-			notification?.onDidShow?.();
+			notification?.onDidShow?.(h.notificationContext());
 
 			assert.deepStrictEqual({ notification: h.notification, triggers: h.triggers }, {
 				notification: undefined, triggers: [],
@@ -1228,771 +1208,6 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				actions: 3,
 				updates: [],
 			});
-		});
-	});
-
-	test('keeps the parallel-work invitation for non-Copilot harness drafts', () => {
-		const h = createHarness();
-		h.resource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-draft' });
-		h.showBanner();
-
-		assert.deepStrictEqual({
-			title: h.notification?.message,
-			action: h.notification?.actions[0]?.label,
-		}, {
-			title: 'Run agents side by side',
-			action: 'Open Agents Window',
-		});
-	});
-
-	test('does not replace the empty-workspace setup tip with Copilot harness education', () => {
-		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession });
-		h.workbenchState = WorkbenchState.EMPTY;
-		h.showGenericTip();
-		h.showBanner();
-
-		assert.deepStrictEqual({
-			id: h.notification?.id,
-			title: h.notification?.message,
-			action: h.notification?.actions[0]?.label,
-		}, {
-			id: 'chat.agentsHandoff.openInAgentsWindow',
-			title: 'Copilot isn\'t available without an open folder',
-			action: 'Open in Agents Window',
-		});
-	});
-
-	test('X stays dismissed for this draft through repeated events and copy changes', async () => {
-		const h = createHarness();
-		h.showBanner();
-		h.focused.fire();
-		h.sessionsChanged.fire();
-		const initialPosts = h.posts;
-		h.dismiss();
-		await h.setTreatments('A different title');
-		h.input = 'Typed after dismissal';
-		h.focused.fire();
-		h.sessionsChanged.fire();
-		const dismissed = h.notification;
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
-		const next = h.notification?.message;
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-draft' });
-		assert.deepStrictEqual({ initialPosts, dismissed, next, returned: h.notification }, {
-			initialPosts: 1, dismissed: undefined, next: 'A different title', returned: undefined,
-		});
-	});
-
-	test('Ignore persistently disables invitations for subsequent new chats', async () => {
-		const h = createHarness();
-		h.showBanner();
-		await h.click(1);
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
-		assert.deepStrictEqual({ enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled), notification: h.notification, updates: h.configuration.updates }, {
-			enabled: false, notification: undefined,
-			updates: [{ key: ChatConfiguration.AgentsParallelWorkBannerEnabled, value: false, target: ConfigurationTarget.USER }],
-		});
-	});
-
-	test('does not replace a dismissed parallel invitation with the generic empty-workspace tip', () => {
-		const h = createHarness();
-		h.workbenchState = WorkbenchState.EMPTY;
-		h.showGenericTip();
-		h.showBanner();
-		const invitation = h.notification?.id;
-		h.dismiss();
-		h.sessionsChanged.fire();
-		const dismissed = h.notification;
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-		h.sendMessage(Date.now() - 5000);
-		assert.deepStrictEqual({ invitation, dismissed, persisted: h.notification?.id }, {
-			invitation: 'chat.agentsParallelWork', dismissed: undefined, persisted: 'chat.agentsHandoff.openInAgentsWindow',
-		});
-	});
-
-	test('non-Agent Host activity does not suppress the generic empty-workspace tip', () => {
-		const h = createHarness({ runningProviderType: SessionType.CopilotCloud });
-		h.workbenchState = WorkbenchState.EMPTY;
-		h.showGenericTip();
-		h.showBanner();
-		assert.strictEqual(h.notification?.id, 'chat.agentsHandoff.openInAgentsWindow');
-	});
-
-	test('reports the parallel-work trigger where the invitation replaces the empty-workspace tip, even for a draft it does not invite', () => {
-		const trigger = `config.${ChatConfiguration.AgentsParallelWorkBannerEnabled}`;
-		const results = [true, false].map(banner => {
-			// The draft predates the running session, so it never becomes eligible for the invitation.
-			const h = createHarness({ banner, running: false });
-			h.workbenchState = WorkbenchState.EMPTY;
-			h.showGenericTip();
-			h.showBanner();
-			const beforeRunning = { triggers: h.triggers.filter(name => name === trigger), notification: h.notification?.id };
-			h.status = AgentSessionStatus.InProgress;
-			return { beforeRunning, afterRunning: { triggers: h.triggers.filter(name => name === trigger), notification: h.notification?.id } };
-		});
-
-		const tip = 'chat.agentsHandoff.openInAgentsWindow';
-		assert.deepStrictEqual(results, [
-			{ beforeRunning: { triggers: [], notification: tip }, afterRunning: { triggers: [trigger], notification: undefined } },
-			{ beforeRunning: { triggers: [], notification: tip }, afterRunning: { triggers: [trigger], notification: tip } },
-		]);
-	});
-
-	test('switches between the generic tip and invitation when its experiment changes', async () => {
-		const h = createHarness({ banner: false });
-		h.workbenchState = WorkbenchState.EMPTY;
-		h.showGenericTip();
-		h.showBanner();
-		const initial = h.notification?.id;
-		await h.configuration.updateValue(ChatConfiguration.AgentsParallelWorkBannerEnabled, true);
-		const enabled = h.notification?.id;
-		await h.configuration.updateValue(ChatConfiguration.AgentsParallelWorkBannerEnabled, false);
-		assert.deepStrictEqual({ initial, enabled, disabled: h.notification?.id }, {
-			initial: 'chat.agentsHandoff.openInAgentsWindow',
-			enabled: 'chat.agentsParallelWork',
-			disabled: 'chat.agentsHandoff.openInAgentsWindow',
-		});
-	});
-
-	suite('handoff tip eligibility', () => {
-		for (const sessionType of agentHostSessionTypes) {
-			test(`renders only for the target ${sessionType} session and hands off that session`, async () => {
-				const h = createHarness({ banner: false });
-				h.resource = URI.from({ scheme: sessionType, path: '/persisted' });
-				h.sendMessage(Date.now() - 5000);
-				h.showGenericTip();
-				const notification = h.notification;
-				assert.ok(notification);
-				await h.click(0);
-
-				assert.deepStrictEqual({
-					sessionTypes: notification.sessionTypes,
-					appliesToTarget: isChatInputNotificationApplicableToSession(notification, sessionType, h.resource),
-					appliesToOtherSession: isChatInputNotificationApplicableToSession(notification, sessionType, h.resource.with({ path: '/other-session' })),
-					appliesToExtensionCli: isChatInputNotificationApplicableToSession(notification, SessionType.CopilotCLI, URI.from({ scheme: SessionType.CopilotCLI, path: '/persisted' })),
-					opens: h.calls.map(call => ({ source: call.source, sessionResource: URI.revive(call.sessionResource)?.toString() })),
-				}, {
-					sessionTypes: [sessionType],
-					appliesToTarget: true,
-					appliesToOtherSession: false,
-					appliesToExtensionCli: false,
-					opens: [{ source: 'currentChatHandoff', sessionResource: h.resource.toString() }],
-				});
-			});
-		}
-
-		for (const sessionType of [SessionType.CopilotCLI, SessionType.Local, SessionType.CopilotCloud, SessionType.Codex, 'extension-agent']) {
-			for (const workbenchState of [WorkbenchState.FOLDER, WorkbenchState.EMPTY]) {
-				test(`does not offer a handoff for ${sessionType} in ${workbenchState === WorkbenchState.EMPTY ? 'an empty workspace' : 'a folder'}`, async () => {
-					await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-						const h = createHarness({ banner: false });
-						h.resource = sessionType === SessionType.Local
-							? LocalChatSessionUri.forSession('persisted')
-							: URI.from({ scheme: sessionType, path: '/persisted' });
-						h.workbenchState = workbenchState;
-						h.showGenericTip();
-						h.sendMessage();
-						await timeout(5000);
-						h.focused.fire();
-
-						assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
-					});
-				});
-			}
-		}
-
-		test('removes the handoff when switching to extension-backed Copilot CLI', () => {
-			const h = createHarness({ banner: false });
-			h.resource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/persisted' });
-			h.sendMessage(Date.now() - 5000);
-			h.showGenericTip();
-			const initial = h.notification?.id;
-			h.resource = URI.from({ scheme: SessionType.CopilotCLI, path: '/extension-session' });
-
-			assert.deepStrictEqual({ initial, notification: h.notification }, {
-				initial: 'chat.agentsHandoff.openInAgentsWindow', notification: undefined,
-			});
-		});
-	});
-
-	suite('handoff tip delay', () => {
-		function createTimedHandoff(delaySeconds = DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS) {
-			const h = createHarness({ banner: false, handoffDelaySeconds: delaySeconds });
-			h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-			return h;
-		}
-
-		for (const sessionType of agentHostSessionTypes) {
-			test(`shows after exactly five seconds and hides when ${sessionType} stops running`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-					const h = createTimedHandoff();
-					h.resource = URI.from({ scheme: sessionType, path: '/persisted' });
-					h.showGenericTip();
-					h.sendMessage();
-					const visible = [!!h.notification];
-					await timeout(4999);
-					visible.push(!!h.notification);
-					h.focused.fire();
-					await timeout(1);
-					visible.push(!!h.notification);
-					h.requestInProgress = false;
-					visible.push(!!h.notification);
-
-					assert.deepStrictEqual(visible, [false, false, true, false]);
-				});
-			});
-		}
-
-		test('reports the delay trigger when an eligible request starts and the copy triggers once the tip shows', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.showGenericTip();
-				const beforeMessage = [...h.triggers];
-				h.sendMessage();
-				const whileWaiting = [...h.triggers];
-				await timeout(5001);
-
-				const delayTrigger = `config.${ChatConfiguration.AgentsHandoffTipDelaySeconds}`;
-				assert.deepStrictEqual({ beforeMessage, whileWaiting, afterDelay: h.triggers, visible: !!h.notification }, {
-					beforeMessage: [],
-					whileWaiting: [delayTrigger],
-					afterDelay: [delayTrigger, 'chatAgentsHandoffTipTitle', 'chatAgentsHandoffTipDescription'],
-					visible: true,
-				});
-			});
-		});
-
-		test('does not show for a request that finishes before the deadline', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.sendMessage();
-				h.showGenericTip();
-				await timeout(4999);
-				h.requestInProgress = false;
-				await timeout(10_000);
-
-				assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
-			});
-		});
-
-		for (const messageKind of ['request', 'pending'] as const) {
-			test(`measures from the most recent ${messageKind} message, not the first one`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-					const h = createTimedHandoff();
-					h.sendMessage();
-					h.showGenericTip();
-					await timeout(4000);
-					if (messageKind === 'request') {
-						h.sendMessage();
-					} else {
-						h.queueMessage();
-					}
-					await timeout(1000);
-					const visible = [!!h.notification];
-					await timeout(3999);
-					visible.push(!!h.notification);
-					await timeout(1);
-					visible.push(!!h.notification);
-					h.sendMessage();
-					visible.push(!!h.notification);
-					await timeout(5000);
-					visible.push(!!h.notification);
-
-					assert.deepStrictEqual(visible, [false, false, true, false, true]);
-				});
-			});
-		}
-
-		test('uses the message timestamp rather than when the session is focused', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.sendMessage(Date.now() - 4000);
-				h.showGenericTip();
-				await timeout(999);
-				const before = h.notification;
-				await timeout(1);
-
-				assert.deepStrictEqual({ before, visible: !!h.notification }, { before: undefined, visible: true });
-			});
-		});
-
-		for (const seconds of [0, 0.25, 10]) {
-			test(`honors a configured delay of ${seconds} seconds`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-					const h = createTimedHandoff(seconds);
-					h.sendMessage();
-					h.showGenericTip();
-					const initial = !!h.notification;
-					if (seconds > 0) {
-						await timeout(seconds * 1000 - 1);
-					}
-					const beforeDeadline = !!h.notification;
-					if (seconds > 0) {
-						await timeout(1);
-					}
-
-					assert.deepStrictEqual({ initial, beforeDeadline, atDeadline: !!h.notification }, {
-						initial: seconds === 0, beforeDeadline: seconds === 0, atDeadline: true,
-					});
-				});
-			});
-		}
-
-		test('recalculates a changed delay from the original send time', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.sendMessage();
-				h.showGenericTip();
-				await timeout(2000);
-				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 10);
-				await timeout(3000);
-				const visible = [!!h.notification];
-				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 3);
-				visible.push(!!h.notification);
-				await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, 8);
-				visible.push(!!h.notification);
-				await timeout(2999);
-				visible.push(!!h.notification);
-				await timeout(1);
-				visible.push(!!h.notification);
-
-				assert.deepStrictEqual(visible, [false, true, false, false, true]);
-			});
-		});
-
-		test('switches timers and progress tracking to the newly focused session', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.sendMessage();
-				h.showGenericTip();
-				await timeout(2000);
-				const other = createTimedHandoff();
-				other.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/other-session' });
-				other.sendMessage();
-				h.focusWidget(other.widget);
-				await timeout(3000);
-				const visible = [!!h.notification];
-				h.requestInProgress = false;
-				await timeout(1999);
-				visible.push(!!h.notification);
-				await timeout(1);
-				visible.push(!!h.notification);
-				other.requestInProgress = false;
-				visible.push(!!h.notification);
-
-				assert.deepStrictEqual(visible, [false, false, true, false]);
-			});
-		});
-
-		test('treatment refreshes do not restart the delay', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.sendMessage();
-				h.showGenericTip();
-				await timeout(4000);
-				h.readTreatment = async () => 'Treatment copy';
-				await h.refetchTreatments();
-				await timeout(999);
-				const before = h.notification;
-				await timeout(1);
-
-				assert.deepStrictEqual({ before, title: h.notification?.message, description: h.notification?.description }, {
-					before: undefined, title: 'Treatment copy', description: 'Treatment copy',
-				});
-			});
-		});
-
-		test('only user messages start or reset the delay', async () => {
-			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-				const h = createTimedHandoff();
-				h.showGenericTip();
-				h.sendMessage(Date.now(), true);
-				await timeout(5000);
-				const systemOnly = h.notification;
-				h.sendMessage();
-				await timeout(4000);
-				h.sendMessage(Date.now(), true);
-				await timeout(1000);
-
-				assert.deepStrictEqual({ systemOnly, visible: !!h.notification }, { systemOnly: undefined, visible: true });
-			});
-		});
-
-		for (const action of ['hide', 'disable', 'switch', 'unfocus', 'dispose'] as const) {
-			test(`cancels a pending handoff after ${action}`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-					const h = createTimedHandoff();
-					h.sendMessage();
-					const contribution = h.showGenericTip();
-					await timeout(4000);
-					switch (action) {
-						case 'hide':
-							await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
-							break;
-						case 'disable':
-							h.allowed = false;
-							break;
-						case 'switch':
-							h.resource = LocalChatSessionUri.forSession('other');
-							break;
-						case 'unfocus':
-							h.focusWidget(undefined);
-							break;
-						case 'dispose':
-							contribution.dispose();
-							break;
-					}
-					await timeout(10_000);
-
-					assert.deepStrictEqual({ notification: h.notification, posts: h.posts }, { notification: undefined, posts: 0 });
-				});
-			});
-		}
-
-		for (const invalidDelay of [-1, 'invalid', Number.NaN, Number.POSITIVE_INFINITY]) {
-			test(`logs and uses five seconds for invalid delay ${invalidDelay}`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
-					const h = createTimedHandoff();
-					await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipDelaySeconds, invalidDelay);
-					h.sendMessage();
-					h.showGenericTip();
-					await timeout(4999);
-					const before = h.notification;
-					await timeout(1);
-
-					assert.deepStrictEqual({ before, visible: !!h.notification, warnings: h.treatmentWarnings.length }, {
-						before: undefined, visible: true, warnings: 1,
-					});
-				});
-			});
-		}
-	});
-
-	suite('handoff tip copy treatments', () => {
-		const handoffTitleTreatment = 'chatAgentsHandoffTipTitle';
-		const handoffDescriptionTreatment = 'chatAgentsHandoffTipDescription';
-		const defaultHandoffTitle = 'Continue this session in the Agents Window';
-		const defaultHandoffDescription = 'Get a dedicated, multi-pane view alongside your workspace.';
-
-		function createHandoffHarness() {
-			const h = createHarness({ banner: false });
-			h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-			h.sendMessage(Date.now() - 5000);
-			return h;
-		}
-
-		for (const context of [
-			{ name: 'default', mode: 'default', emptyWorkspace: false, title: defaultHandoffTitle, description: defaultHandoffDescription, action: 'Continue in Agents Window' },
-			{ name: 'custom', mode: 'custom', emptyWorkspace: false, title: defaultHandoffTitle, description: 'Free with your Copilot plan \u2014 get a dedicated, multi-pane view alongside your workspace.', action: 'Give your agent more room?' },
-			{ name: 'empty workspace', mode: 'default', emptyWorkspace: true, title: 'Copilot isn\'t available without an open folder', description: 'Open the Agents Window to start a Copilot session.', action: 'Open in Agents Window' },
-		]) {
-			for (const treatment of [
-				{ name: 'unassigned copy', title: undefined, description: undefined },
-				{ name: 'title only', title: 'Treatment title', description: undefined },
-				{ name: 'body only', title: undefined, description: 'Treatment body' },
-				{ name: 'both strings', title: 'Treatment title', description: 'Treatment body' },
-			]) {
-				test(`reads ${treatment.name} directly from assignments with ${context.name} fallbacks`, async () => {
-					const h = createHandoffHarness();
-					await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, context.mode);
-					if (context.emptyWorkspace) {
-						h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-draft' });
-						h.hasRequests = false;
-						h.workbenchState = WorkbenchState.EMPTY;
-					}
-					h.readTreatment = async name => name === handoffTitleTreatment ? treatment.title : name === handoffDescriptionTreatment ? treatment.description : undefined;
-					h.showGenericTip();
-					await timeout(0);
-
-					assert.deepStrictEqual({
-						queries: h.treatmentNames,
-						title: h.notification?.message,
-						description: h.notification?.description,
-						action: h.notification?.actions[0]?.label,
-						warnings: h.treatmentWarnings,
-					}, {
-						queries: [handoffTitleTreatment, handoffDescriptionTreatment],
-						title: treatment.title ?? context.title,
-						description: treatment.description ?? context.description,
-						action: context.action,
-						warnings: [],
-					});
-				});
-			}
-		}
-
-		test('updates the same session on refetch and restores defaults without reposting unchanged copy', async () => {
-			const h = createHandoffHarness();
-			let title: string | undefined;
-			let description: string | undefined;
-			h.readTreatment = async name => name === handoffTitleTreatment ? title : name === handoffDescriptionTreatment ? description : undefined;
-			h.showGenericTip();
-			await timeout(0);
-			title = 'Updated title';
-			description = 'Updated body';
-			await h.refetchTreatments();
-			const updated = { title: h.notification?.message, description: h.notification?.description };
-			await h.refetchTreatments();
-			h.focused.fire();
-			title = undefined;
-			description = undefined;
-			await h.refetchTreatments();
-			title = defaultHandoffTitle;
-			description = defaultHandoffDescription;
-			await h.refetchTreatments();
-
-			assert.deepStrictEqual({
-				updated, title: h.notification?.message, description: h.notification?.description, posts: h.posts,
-			}, {
-				updated: { title: 'Updated title', description: 'Updated body' },
-				title: defaultHandoffTitle, description: defaultHandoffDescription, posts: 3,
-			});
-		});
-
-		test('assigned copy does not enable a hidden tip', async () => {
-			const h = createHandoffHarness();
-			await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
-			h.readTreatment = async name => name === handoffTitleTreatment ? 'Treatment title' : 'Treatment body';
-			h.showGenericTip();
-			await timeout(0);
-			const hidden = h.notification;
-			await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'default');
-
-			assert.deepStrictEqual({ hidden, title: h.notification?.message, description: h.notification?.description }, {
-				hidden: undefined, title: 'Treatment title', description: 'Treatment body',
-			});
-		});
-
-		for (const action of ['dismiss', 'open', 'mute', 'hide', 'dispose'] as const) {
-			test(`late assignments cannot reshow the tip after ${action}`, async () => {
-				const h = createHandoffHarness();
-				const pending = new DeferredPromise<string | undefined>();
-				h.readTreatment = () => pending.p;
-				const contribution = h.showGenericTip();
-				switch (action) {
-					case 'dismiss':
-						h.dismiss();
-						break;
-					case 'open':
-						await h.click(0);
-						break;
-					case 'mute': {
-						const commandId = h.notification?.mute?.commandId;
-						assert.ok(commandId);
-						await h.instantiation.invokeFunction(accessor => accessor.get(ICommandService).executeCommand(commandId));
-						break;
-					}
-					case 'hide':
-						await h.configuration.updateValue(ChatConfiguration.AgentsHandoffTipMode, 'hidden');
-						break;
-					case 'dispose':
-						contribution.dispose();
-						break;
-				}
-				const posts = h.posts;
-				await pending.complete('Late treatment');
-				await h.refetchTreatments();
-				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/another-session' });
-
-				assert.deepStrictEqual({ notification: h.notification, posts: h.posts, warnings: h.treatmentWarnings }, {
-					notification: undefined, posts, warnings: [],
-				});
-			});
-		}
-	});
-
-	for (const source of ['currentChatHandoff', 'emptyWorkspaceCurrentChatHandoff', 'parallelWorkEmptyChatHandoff'] as const) {
-		test(`opens the Agents window with the ${source} telemetry source`, async () => {
-			const h = createHarness({ banner: source !== 'emptyWorkspaceCurrentChatHandoff' });
-			if (source === 'currentChatHandoff') {
-				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-				h.sendMessage(Date.now() - 5000);
-				h.showGenericTip();
-			} else if (source === 'emptyWorkspaceCurrentChatHandoff') {
-				h.workbenchState = WorkbenchState.EMPTY;
-				h.showGenericTip();
-			} else {
-				h.showBanner();
-			}
-			await h.click(0);
-
-			assert.deepStrictEqual(h.calls.map(call => ({
-				source: call.source,
-				accepted: isAgentsWindowOpenSource(call.source),
-				sessionResource: URI.revive(call.sessionResource)?.toString(),
-				onboardingSessionResource: URI.revive(call.onboardingSessionResource)?.toString(),
-			})), [{
-				source,
-				accepted: true,
-				sessionResource: source === 'currentChatHandoff' ? h.resource.toString() : undefined,
-				onboardingSessionResource: source === 'parallelWorkEmptyChatHandoff' ? 'remote-test-copilotcli:/other-workspace' : undefined,
-			}]);
-		});
-	}
-
-	test('banner uses click-time content and forces transfer while the ordinary setting is off', async () => {
-		const h = createHarness({ transfer: false });
-		h.showBanner();
-		h.input = 'Written after the banner appeared';
-		h.attachments = [{ kind: 'image', id: 'new-image', name: 'New image', value: new Uint8Array([9, 8, 7]) }];
-		await h.click(0);
-		const draft = h.calls[0].draft && reviveChatDraft(h.calls[0].draft);
-		const image = draft?.attachments[0].value;
-		assert.deepStrictEqual({
-			text: draft?.inputText,
-			attachmentIds: draft?.attachments.map(attachment => attachment.id),
-			image: image instanceof Uint8Array ? [...image] : undefined,
-			source: h.calls[0].source,
-			retained: h.input,
-			notification: h.notification,
-		}, {
-			text: h.input, attachmentIds: ['new-image'], image: [9, 8, 7],
-			source: AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff,
-			retained: 'Written after the banner appeared',
-			notification: undefined,
-		});
-	});
-
-	test('banner hands off the click-time running session separately from the draft', async () => {
-		const h = createHarness();
-		h.showBanner();
-		h.runningProviderType = SessionType.AgentHostCodex;
-		await h.click(0);
-
-		assert.deepStrictEqual(h.calls.map(call => ({
-			onboardingSession: URI.revive(call.onboardingSessionResource)?.toString(),
-			openedSession: call.sessionResource,
-			draft: call.draft?.inputText,
-			folder: URI.revive(call.folderUri)?.path,
-		})), [{
-			onboardingSession: `${SessionType.AgentHostCodex}:/other-workspace`,
-			openedSession: undefined,
-			draft: h.input,
-			folder: '/source',
-		}]);
-	});
-
-	for (const change of ['source', 'hidden'] as const) {
-		test(`a stale banner action does not open Agents after its ${change} eligibility changes`, async () => {
-			const h = createHarness();
-			h.showBanner();
-			const action = h.notification?.actions[0];
-			assert.ok(action && action.kind === ChatInputNotificationActionKind.Command);
-			if (change === 'source') {
-				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-			} else {
-				h.allowed = false;
-			}
-			const command = CommandsRegistry.getCommand(action.commandId);
-			assert.ok(command);
-			await h.instantiation.invokeFunction(accessor => command.handler(accessor, ...action.commandArgs ?? []));
-			assert.deepStrictEqual(h.calls, []);
-		});
-	}
-
-	test('invitation respects AI gates and independent title and body treatments', async () => {
-		const h = createHarness();
-		h.allowed = false;
-		h.showBanner();
-		const hidden = h.notification;
-		await h.setTreatments('Experiment title', 'Experiment body');
-		h.allowed = true;
-		assert.deepStrictEqual({
-			hidden,
-			title: h.notification?.message,
-			body: h.notification?.description,
-			actions: h.notification?.actions.map(action => ({ label: action.label, primary: action.primary, tooltip: action.tooltip })),
-			scoped: h.notification?.sessionResources,
-		}, {
-			hidden: undefined, title: 'Experiment title', body: 'Experiment body',
-			actions: [
-				{ label: 'Open Agents Window', primary: true, tooltip: undefined },
-				{ label: 'Ignore', primary: false, tooltip: 'Don\'t Show Again' },
-			],
-			scoped: [h.resource],
-		});
-	});
-
-	for (const scenario of [
-		{ name: 'unassigned copy', title: undefined, description: undefined },
-		{ name: 'title only', title: 'Treatment title', description: undefined },
-		{ name: 'body only', title: undefined, description: 'Treatment body' },
-		{ name: 'both strings', title: 'Treatment title', description: 'Treatment body' },
-	]) {
-		test(`reads copy directly from treatments with localized fallbacks: ${scenario.name}`, async () => {
-			const h = createHarness();
-			h.readTreatment = async name => name === titleTreatment ? scenario.title : name === descriptionTreatment ? scenario.description : undefined;
-			h.showBanner();
-			await timeout(0);
-			assert.deepStrictEqual({
-				queries: h.treatmentNames, title: h.notification?.message, description: h.notification?.description, warnings: h.treatmentWarnings,
-			}, {
-				queries: [titleTreatment, descriptionTreatment, introductionCopyTreatment, introductionButtonsTreatment],
-				title: scenario.title ?? defaultTitle, description: scenario.description ?? defaultDescription, warnings: [],
-			});
-		});
-	}
-
-	test('uses defaults when assignments are removed and does not repost unchanged copy', async () => {
-		const h = createHarness();
-		h.showBanner();
-		await h.setTreatments('Treatment title', 'Treatment body');
-		const posts = h.posts;
-		await h.refetchTreatments();
-		h.focused.fire();
-		const unchanged = h.posts === posts;
-		await h.setTreatments();
-		assert.deepStrictEqual({ unchanged, title: h.notification?.message, description: h.notification?.description }, {
-			unchanged: true, title: defaultTitle, description: defaultDescription,
-		});
-	});
-
-	test('falls back and logs invalid blank treatment strings', async () => {
-		const h = createHarness();
-		h.showBanner();
-		await h.setTreatments('', '   ');
-		assert.deepStrictEqual({ title: h.notification?.message, description: h.notification?.description, warnings: h.treatmentWarnings.length }, {
-			title: defaultTitle, description: defaultDescription, warnings: 2,
-		});
-	});
-
-	test('a failed treatment lookup logs the error without losing default or resolved copy', async () => {
-		const h = createHarness();
-		h.showBanner();
-		h.readTreatment = async () => { throw new Error('Assignment unavailable'); };
-		await h.refetchTreatments();
-		const fallback = h.notification?.message;
-		await h.setTreatments('Resolved title', 'Resolved body');
-		h.readTreatment = async () => { throw new Error('Assignment unavailable'); };
-		await h.refetchTreatments();
-		assert.deepStrictEqual({
-			fallback, title: h.notification?.message, description: h.notification?.description, warnings: h.treatmentWarnings.length,
-		}, { fallback: defaultTitle, title: 'Resolved title', description: 'Resolved body', warnings: 2 });
-	});
-
-	test('a superseded treatment lookup cannot overwrite newer copy', async () => {
-		const h = createHarness();
-		const pending = new DeferredPromise<string | undefined>();
-		h.readTreatment = () => pending.p;
-		h.showBanner();
-		await h.setTreatments('Latest title', 'Latest body');
-		await pending.complete('Stale copy');
-		await timeout(0);
-		assert.deepStrictEqual({ title: h.notification?.message, description: h.notification?.description }, {
-			title: 'Latest title', description: 'Latest body',
-		});
-	});
-
-	test('late treatment results cannot republish an invitation after disposal', async () => {
-		const h = createHarness();
-		const pending = new DeferredPromise<string | undefined>();
-		h.readTreatment = () => pending.p;
-		const contribution = h.showBanner();
-		const posts = h.posts;
-		contribution.dispose();
-		await pending.complete('Late copy');
-		await h.refetchTreatments();
-		assert.deepStrictEqual({ notification: h.notification, posts: h.posts, warnings: h.treatmentWarnings }, {
-			notification: undefined, posts, warnings: [],
 		});
 	});
 });

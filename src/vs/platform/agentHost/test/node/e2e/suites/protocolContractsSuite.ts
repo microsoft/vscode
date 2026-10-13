@@ -12,7 +12,6 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -29,6 +28,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineProtocolContractTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -56,7 +56,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
@@ -957,7 +957,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect excludes actions from channels the client did not restore', async function () {
 		const firstSession = await createSession('reconnect-filter-first');
-		const secondWorkspace = mkdtempSync(join(tmpdir(), 'ahp-reconnect-filter-second-'));
+		const secondWorkspace = createTestDirectory(join(tmpdir(), 'ahp-reconnect-filter-second-'));
 		tempDirs.push(secondWorkspace);
 		const secondSessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
@@ -1214,7 +1214,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	});
 
 	conformanceTest(context, 'createSession seeds a matching active client into session state', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-active-client-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-active-client-create-'));
 		tempDirs.push(workspace);
 		const clientId = `active-client-create-${config.provider}`;
 		const client = await context.connectClient();
@@ -1317,7 +1317,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'a client cannot dispatch a server-only session action', async function () {
 		const victimClientId = `server-action-victim-${config.provider}`;
 		const attacker = await initializeAdditionalClient('server-action-attacker');
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-server-action-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-server-action-'));
 		tempDirs.push(workspace);
 
 		try {

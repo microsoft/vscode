@@ -6,14 +6,15 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -23,6 +24,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
+import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatResponseResource, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
+import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -49,10 +58,16 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
 		const artifacts = observableValue('artifacts', entries);
+		const loading = observableValue('loading', false);
 		const removed: string[] = [];
 		const errors: string[] = [];
+		const chatResource = URI.parse('chat-session://test/images');
+		const chat = observableValue<IChat | undefined>('chat', upcastPartial<IChat>({ resource: chatResource }));
+		const chatModels = observableValue<Iterable<IChatModel>>('chatModels', []);
+		const openedImages: { resource: URI; options: IChatImageCarouselOptions | undefined }[] = [];
+		const openedResources: URI[] = [];
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
@@ -73,7 +88,9 @@ suite('Session Artifacts', () => {
 		});
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'provider:session';
+			override readonly resource = chatResource;
 			override readonly artifacts = artifacts;
+			override readonly loading = loading;
 			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
 			override readonly workspace = workspace;
 		}());
@@ -81,10 +98,10 @@ suite('Session Artifacts', () => {
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
+			chat,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ workspace }) : undefined)),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
 			new class extends mock<IClipboardService>() { }(),
-			new class extends mock<ICommandService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
 				override readonly onDidChangeFormatters = Event.None;
@@ -94,7 +111,7 @@ suite('Session Artifacts', () => {
 				override error(error: string): void { errors.push(error); }
 			}(),
 			new class extends mock<IOpenerService>() {
-				override async open(): Promise<boolean> { return true; }
+				override async open(resource: URI): Promise<boolean> { openedResources.push(resource); return true; }
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
@@ -109,14 +126,38 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
+			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
 				override publicLog2(eventName?: string, data?: unknown): void {
 					telemetryEvents.push({ name: eventName, data });
 				}
 			}(),
+			upcastPartial<IChatService>({ chatModels }),
+			upcastPartial<IChatImageCarouselService>({
+				openCarouselAtResource: async (resource, _data, options) => { openedImages.push({ resource, options }); },
+			}),
 		));
-		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+		return { presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+	}
+
+	function createImageModel(resource: URI, toolCallId = 'image-call') {
+		const invocation = new ChatToolInvocation({
+			invocationMessage: 'Generating images',
+			toolSpecificData: { kind: 'input', rawInput: 'Draw two images', imageGeneration: {} },
+		}, { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, toolCallId, undefined, {});
+		const content: IChatProgressResponseContent[] = [invocation];
+		const response = upcastPartial<IChatResponseModel>({
+			response: upcastPartial<IResponse>({ value: content }),
+			onDidChange: Event.None,
+		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
+		const model = upcastPartial<IChatModel>({
+			sessionResource: resource,
+			onDidChange: Event.None,
+			getRequests: () => requests,
+		});
+		return { model, content, invocation, requests };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -125,6 +166,197 @@ suite('Session Artifacts', () => {
 			references: presentation.referenceSections.read(reader).flatMap(section => section.entries.map(entry => entry.id)),
 		};
 	}
+
+	test('adds generated images to the artifacts pill as the tool completes and opens the originating conversation', async () => {
+		const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model, invocation } = createImageModel(resource);
+		chatModels.set([model], undefined);
+		let entries: readonly IChatPillEntry[] = [];
+		disposables.add(autorun(reader => { entries = presentation.sections.read(reader).flatMap(section => section.entries); }));
+		const before = entries.length;
+		const imageUri = URI.parse('vscode-agent-host://remote/generated-images/result?version=1');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: 'Draw an image',
+				output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }],
+			},
+		});
+		entries[0].open();
+
+		assert.deepStrictEqual({
+			before,
+			images: entries.map(entry => ({ resource: entry.resource, removable: !!entry.promotedAction })),
+			references: presentation.referenceSections.get(),
+			opened: openedImages.map(opened => ({
+				resource: opened.resource,
+				sessionResource: opened.options?.sessionResource,
+				additionalImages: opened.options?.additionalImages?.map(image => ({ uri: image.uri, mimeType: image.mimeType })),
+			})),
+		}, {
+			before: 0,
+			images: [{ resource: imageUri, removable: false }],
+			references: [],
+			opened: [{ resource: imageUri, sessionResource: resource, additionalImages: [{ uri: imageUri, mimeType: 'image/png' }] }],
+		});
+	});
+
+	test('restores embedded images, deduplicates recorded artifacts, and follows the displayed chat', async () => {
+		const { presentation, chat, chatModels, artifacts } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model, content, invocation } = createImageModel(resource);
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'embed', value: 'AQID', mimeType: 'image/png' }] },
+		});
+		content.splice(0, 1, invocation.toJSON());
+		chatModels.set([model], undefined);
+		const restored = presentation.sections.get().flatMap(section => section.entries);
+		const recordedUri = ChatResponseResource.createUri(resource, 'image-call', 0, 'saved-name.png');
+		artifacts.set([{ id: 'recorded', kind: SessionArtifactKind.File, label: 'Recorded Image', uri: recordedUri, isArtifact: true }], undefined);
+		const deduplicated = presentation.sections.get().flatMap(section => section.entries);
+		artifacts.set([], undefined);
+		chat.set(upcastPartial<IChat>({ resource: URI.parse('chat-session://test/another-chat') }), undefined);
+		const otherChat = presentation.sections.get();
+		chat.set(upcastPartial<IChat>({ resource }), undefined);
+
+		assert.deepStrictEqual({
+			restored: restored.map(entry => entry.resource?.path),
+			deduplicated: deduplicated.map(entry => ({ id: entry.id, removable: !!entry.promotedAction })),
+			otherChat,
+			returned: presentation.sections.get().flatMap(section => section.entries.map(entry => entry.id)),
+		}, {
+			restored: ['/tool/image-call/0/generated-image-9ece88a621bd.png'],
+			deduplicated: [{ id: 'recorded', removable: true }],
+			otherChat: [],
+			returned: restored.map(entry => entry.id),
+		});
+	});
+
+	for (const restored of [false, true]) {
+		test(`shows newest response groups first without reversing generated image outputs (${restored ? 'restored' : 'live'})`, async () => {
+			const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+			const resource = chat.get()!.resource;
+			const older = createImageModel(resource, 'older');
+			const newer = createImageModel(resource, 'newer');
+			for (const generation of [older, newer]) {
+				await generation.invocation.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: {
+						input: 'Draw two images',
+						output: [
+							{ type: 'embed', value: 'AQID', mimeType: 'image/png' },
+							{ type: 'embed', value: 'BAUG', mimeType: 'image/png' },
+						],
+					},
+				});
+				if (restored) {
+					generation.content.splice(0, 1, generation.invocation.toJSON());
+				}
+			}
+			older.requests.push(...newer.requests);
+			const chronologicalRequests = older.requests.slice();
+			chatModels.set([older.model], undefined);
+			const entries = presentation.sections.get()[0].entries;
+			entries[0].open();
+
+			assert.deepStrictEqual({
+				images: entries.map(entry => entry.resource?.path),
+				requestOrderPreserved: older.requests.every((request, index) => request === chronologicalRequests[index]),
+				opened: openedImages.map(image => ({
+					path: image.resource.path,
+					collection: image.options?.additionalImages?.map(image => image.uri.path),
+				})),
+			}, {
+				images: [
+					'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+					'/tool/newer/1/generated-image-9db2dff89263.png',
+					'/tool/older/0/generated-image-d61868c3de35.png',
+					'/tool/older/1/generated-image-6840071a8bab.png',
+				],
+				requestOrderPreserved: true,
+				opened: [{
+					path: '/tool/newer/0/generated-image-c82ff7ca77f5.png',
+					collection: [
+						'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+						'/tool/newer/1/generated-image-9db2dff89263.png',
+						'/tool/older/0/generated-image-d61868c3de35.png',
+						'/tool/older/1/generated-image-6840071a8bab.png',
+					],
+				}],
+			});
+		});
+	}
+
+	test('opens generated images normally when the chat carousel is disabled', async () => {
+		const { presentation, chat, chatModels, configurationService, openedImages, openedResources } = createPresentation([]);
+		await configurationService.setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, false);
+		const { model, invocation } = createImageModel(chat.get()!.resource);
+		const uri = URI.file('/generated/image.png');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'ref', uri, mimeType: 'image/png' }] },
+		});
+		chatModels.set([model], undefined);
+		presentation.sections.get()[0].entries[0].open();
+
+		assert.deepStrictEqual({ openedImages, openedResources }, { openedImages: [], openedResources: [uri] });
+	});
+
+	test('groups multiple generated images separately while preserving recorded duplicates and carousel navigation', async () => {
+		const photo = URI.file('/images/inspiration.jpg');
+		const video = URI.file('/images/demo.mp4');
+		const generated = URI.parse('generated-images:/session/result');
+		const { presentation, chat, chatModels, openedImages } = createPresentation([
+			{ id: 'photo', kind: SessionArtifactKind.File, label: 'Inspiration', uri: photo, isArtifact: true },
+			{ id: 'video', kind: SessionArtifactKind.File, label: 'Demo', uri: video, isArtifact: true },
+			{ id: 'recorded-image', kind: SessionArtifactKind.File, label: 'Generated Image', uri: generated, isArtifact: true },
+		]);
+		const resource = chat.get()!.resource;
+		const { model, invocation } = createImageModel(resource);
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: '',
+				output: [
+					{ type: 'ref', uri: generated, mimeType: 'image/jpeg' },
+					{ type: 'embed', value: 'AQID', mimeType: 'image/jpeg' },
+				],
+			},
+		});
+		chatModels.set([model], undefined);
+		const embedded = ChatResponseResource.createUri(resource, 'image-call', 1, 'generated-image-35078300129c.jpg');
+		const sections = presentation.sections.get();
+		sections[0].entries[1].open();
+		sections[1].entries[0].open();
+
+		assert.deepStrictEqual({
+			sections: sections.map(section => ({
+				title: section.title,
+				entries: section.entries.map(entry => ({ uri: entry.resource, removable: !!entry.promotedAction })),
+			})),
+			opened: openedImages.map(image => ({
+				uri: image.resource,
+				collection: image.options?.additionalImages?.map(image => image.uri),
+			})),
+		}, {
+			sections: [
+				{ title: 'Generated Images', entries: [{ uri: generated, removable: true }, { uri: embedded, removable: false }] },
+				{ title: 'Images', entries: [{ uri: photo, removable: true }] },
+				{ title: 'Files', entries: [{ uri: video, removable: true }] },
+			],
+			opened: [
+				{ uri: embedded, collection: [photo, generated, embedded] },
+				{ uri: photo, collection: [photo, generated, embedded] },
+			],
+		});
+	});
 
 	test('reads files as paths and leaves every other location whole', () => {
 		const locations = [
@@ -167,9 +399,9 @@ suite('Session Artifacts', () => {
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -289,14 +521,112 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
+	test('attaches rich GitHub metadata lazily to references without promoting them', () => {
+		let acquisitions = 0;
+		const { presentation } = createPresentation([{
+			id: 'reference',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Related pull request',
+			isArtifact: false,
+			isGitHub: true,
+			link: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+		}], undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => {
+				acquisitions++;
+				return new Promise(() => { });
+			},
+		}));
+
+		const sections = presentation.referenceSections.get();
+		const entry = sections[0].entries[0];
+		assert.deepStrictEqual({
+			acquisitions,
+			sectionTitle: sections[0].title,
+			entryId: entry.id,
+			entryLabel: entry.label,
+			hasDropdownHover: typeof entry.hover?.content === 'function',
+			hasPillHover: typeof entry.pillHover === 'object',
+			hasPrefetch: typeof entry.prefetch === 'function',
+		}, {
+			acquisitions: 0,
+			sectionTitle: 'Pull Requests',
+			entryId: 'reference',
+			entryLabel: 'Related pull request',
+			hasDropdownHover: true,
+			hasPillHover: true,
+			hasPrefetch: true,
+		});
+	});
+
+	test('keeps recorded reference labels and leading IDs when GitHub metadata fails', async () => {
+		const links = [
+			URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			URI.parse('https://github.com/microsoft/vscode/issues/2'),
+		];
+		const { presentation } = createPresentation(links.map((link, index) => ({
+			id: `reference-${index}`, kind: index === 0 ? SessionArtifactKind.PullRequest : SessionArtifactKind.Issue,
+			label: 'Related item', isArtifact: false, isGitHub: true, link,
+		})), undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => { throw new Error('offline'); },
+		}));
+		for (const entry of presentation.referenceSections.get().flatMap(section => section.entries)) {
+			entry.prefetch?.();
+		}
+		await timeout(0);
+		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => ({
+			label: entry.label, badge: entry.badge, badgeBeforeLabel: entry.badgeBeforeLabel,
+		}))), links.map((_, index) => ({ label: 'Related item', badge: `#${index + 1}`, badgeBeforeLabel: true })));
+	});
+
+	test('warms newly recorded references without fetching initial or loading history', async () => {
+		let acquisitions = 0;
+		const reference = (id: string): ISessionArtifact => ({
+			id, kind: SessionArtifactKind.Issue, label: id, isArtifact: false, isGitHub: true,
+			link: URI.parse(`https://github.com/microsoft/vscode/issues/${id}`),
+		});
+		const { artifacts, loading } = createPresentation([reference('1')], undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => { acquisitions++; throw new Error('offline'); },
+		}));
+		await timeout(0);
+		const initial = acquisitions;
+		loading.set(true, undefined);
+		artifacts.set([reference('1'), reference('2')], undefined);
+		loading.set(false, undefined);
+		await timeout(0);
+		const restored = acquisitions;
+		artifacts.set([reference('1'), reference('2'), reference('3')], undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ initial, restored, newReference: acquisitions }, { initial: 0, restored: 0, newReference: 1 });
+	});
+
+	test('promotes recorded pull requests from other repositories when resolving for a chat', () => {
 		const { presentation } = createPresentation([
 			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
 			{ id: 'other-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Other repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/9') },
 		], { owner: 'owner', repo: 'repo' }, undefined, undefined, true);
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
-			artifacts: ['other-repo-pr'],
+			artifacts: [],
+			references: [],
+		});
+	});
+
+	test('does not re-list a pull request recorded by multiple chats as a generic artifact', () => {
+		const pullRequest = URI.parse('https://github.com/owner/repo/pull/1');
+		const { presentation } = createPresentation([
+			{ id: 'peer-artifact', chat: URI.parse('ahp-chat://peer/session'), kind: SessionArtifactKind.PullRequest, label: 'Peer label', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'main-artifact', chat: URI.parse('ahp-chat://default/session'), kind: SessionArtifactKind.PullRequest, label: 'Main label', isArtifact: true, isGitHub: true, link: pullRequest },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1, uri: pullRequest, recordedReferenceId: 'main-artifact' }],
+		});
+
+		assert.deepStrictEqual(visibleEntries(presentation), {
+			artifacts: [],
 			references: [],
 		});
 	});
@@ -470,10 +800,58 @@ suite('Session Artifacts', () => {
 			label: 'Authoritative subject',
 			actionLabels: ['Copy Commit URL'],
 			hoverActionLabels: ['Copy Commit Hash'],
-			hoverClassName: 'sessions-commit-hover compact',
+			hoverClassName: 'chat-pill-hover-content sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			opened: ['commit'],
 			copied: ['abc123', link.toString(true)],
+		});
+	});
+
+	test('keeps commit hover controls stable through rebuilding and refreshes callbacks on reopening', () => {
+		const cache = disposables.add(new ChatPillHoverCache());
+		const opened: string[] = [];
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: false, link, commitHash: 'abc123' };
+		const commits = new Map<string, GitHubCommit>([['commit', {
+			sha: 'abc123', message: 'Authoritative subject', url: link.toString(),
+			author: { login: 'octocat' }, committedAt: '2026-09-22T12:00:00Z',
+		}]]);
+		const build = (scope: string) => buildSessionArtifactSections(
+			[artifact], { ...actions, openExternal: () => opened.push(scope) },
+			labelService, true, new Set(), commits, undefined, undefined, cache,
+		)[0].entries[0].hover!;
+		const render = (hover: NonNullable<IChatPillEntry['hover']>) => {
+			const content = typeof hover.content === 'function' ? hover.content() : undefined;
+			assert.ok(content instanceof HTMLElement);
+			return content;
+		};
+		cache.retain(new Set(['commit']), 'session-1');
+		const first = build('old');
+		const content = render(first);
+		mainWindow.document.body.appendChild(content);
+		disposables.add(toDisposable(() => content.remove()));
+		const control = first.getTabbableElements?.()[0]!;
+		control.focus();
+		const updated = build('new');
+		const whileOpen = {
+			sameContent: render(updated) === content,
+			sameControl: updated.getTabbableElements?.()[0] === control,
+			focusPreserved: mainWindow.document.activeElement === control,
+			controls: updated.getTabbableElements?.().length,
+		};
+		content.remove();
+		render(updated);
+		updated.getTabbableElements?.()[0].click();
+		cache.retain(new Set(['commit']), 'session-2');
+		const otherSession = build('other session');
+		render(otherSession);
+		otherSession.getTabbableElements?.()[0].click();
+		assert.deepStrictEqual({
+			whileOpen, reopenedControls: updated.getTabbableElements?.().length,
+			scopeEvicted: updated !== otherSession, opened,
+		}, {
+			whileOpen: { sameContent: true, sameControl: true, focusPreserved: true, controls: 2 },
+			reopenedControls: 2, scopeEvicted: true, opened: ['new', 'other session'],
 		});
 	});
 
@@ -505,7 +883,7 @@ suite('Session Artifacts', () => {
 			label: 'Resolved commit subject',
 			rowActions: ['Copy Commit URL'],
 			hoverActions: ['Copy Commit Hash'],
-			hoverClassName: 'sessions-commit-hover compact',
+			hoverClassName: 'chat-pill-hover-content sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});
 	});

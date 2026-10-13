@@ -9,15 +9,6 @@ parameters:
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
-    default: false
   - name: VSCODE_BUILD_ONLY
     type: boolean
     default: false
@@ -28,9 +19,6 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
-      VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
-      VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
-      VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   # The CLI is built by the parallel CLI job and mixed into the client below.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
@@ -77,7 +65,7 @@ steps:
   - script: node build/azure-pipelines/common/extract-telemetry.ts
     displayName: Generate lists of telemetry events
 
-  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - script: |
         set -e
         npm run compile --prefix test/smoke
@@ -180,10 +168,7 @@ steps:
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-darwin-package.yml@self
 
-  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
         VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
-        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
-        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
-        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}

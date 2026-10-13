@@ -50,7 +50,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		]);
 	});
 
-	test('only reports capabilities used by the configured sandbox', async () => {
+	test('reports network filtering without a proxy and gates network and denied paths on configuration', async () => {
 		const manager = createStateManager();
 		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
 			supported: true,
@@ -72,8 +72,31 @@ suite('CopilotSandboxDiagnostics', () => {
 			},
 		});
 		assert.deepStrictEqual([unused, readAgentSandboxDiagnostics(manager.getSessionSummary(session)!)], [
-			undefined,
+			['Proxy unsupported.'],
 			['Install slirp4netns.', 'Proxy unsupported.', 'Denied paths unsupported.'],
+		]);
+	});
+
+	test('reports unavailable network filtering and filesystem enumeration from host capabilities without user policy', async () => {
+		const manager = createStateManager();
+		const networkFilteringReason = 'This Windows host cannot run a sandbox proxy. See https://aka.ms/ghcp-sandbox-os-support';
+		const filesystemEnumerationReason = 'This Windows host cannot grant enumerate-only filesystem access. See https://aka.ms/ghcp-sandbox-os-support';
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: true,
+			capabilities: [
+				{ name: 'network', supported: true },
+				{ name: 'network_filtering', supported: false, reason: networkFilteringReason },
+				{ name: 'denied_paths', supported: true },
+				{ name: 'shell', supported: true },
+				{ name: 'filesystem_enumeration', supported: false, reason: filesystemEnumerationReason },
+			],
+		}), manager, new NullLogService()));
+
+		await diagnostics.update({ enabled: true });
+
+		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
+			networkFilteringReason,
+			filesystemEnumerationReason,
 		]);
 	});
 

@@ -642,6 +642,32 @@ suite('git', () => {
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
 			);
 		});
+
+		test('duplicate co-authors (squash merge)', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors([
+					'Fix bug (#123)',
+					'',
+					'* First change',
+					'',
+					'Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>',
+					'',
+					'* Second change',
+					'',
+					'Co-authored-by: Jane Doe <jane@example.com>',
+					'Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>',
+					'',
+					'---------',
+					'',
+					'Co-authored-by: Copilot <223556219+copilot@users.noreply.github.com>',
+					'Co-authored-by: Jane <JANE@example.com>'
+				].join('\n')),
+				[
+					{ name: 'Copilot', email: '223556219+Copilot@users.noreply.github.com' },
+					{ name: 'Jane Doe', email: 'jane@example.com' }
+				]
+			);
+		});
 	});
 
 	suite('splitInChunks', () => {

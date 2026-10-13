@@ -17,9 +17,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -79,6 +81,8 @@ suite('Sessions list toolbar telemetry', () => {
 		session.capabilities.set({ supportsMultipleChats: true }, undefined);
 		const external = createTestSession('External', { isExternal: true }).session;
 		const { harness, telemetryService, contextMenuService } = createHarness([session.session, external]);
+		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, true);
 		const container = harness.createContainer(400, 500);
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => SessionsGrouping.Workspace,

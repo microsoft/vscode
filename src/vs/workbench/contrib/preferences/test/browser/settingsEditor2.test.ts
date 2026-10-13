@@ -16,12 +16,12 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IExtensionGalleryService, IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../../platform/progress/common/progress.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
@@ -37,9 +37,26 @@ import { SettingsTree, SettingsTreeFilter, SettingTreeRenderers } from '../../br
 import { parseQuery, SearchResultIdx, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 import { TOCTree, TOCTreeModel } from '../../browser/tocTree.js';
 import { SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
+import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
+import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 
 suite('SettingsEditor2', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	assert.ok(terminalContribConfiguration);
+	const configurationNode: IConfigurationNode = {
+		id: 'managedEditorPresentationTest',
+		properties: {
+			...Object.fromEntries(Object.entries(terminalContribConfiguration).filter(([, property]) => property.managedSettingsPresentation)),
+			'test.managedGeneric': {
+				type: 'boolean',
+				managedSettingsPresentation: read => read('test.genericPolicy') === false ? false : undefined,
+			},
+		},
+	};
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
 	teardown(() => sinon.restore());
 
@@ -67,6 +84,7 @@ suite('SettingsEditor2', () => {
 				override readonly onDidChangeManagedSettings = managedSettingsChanged.event;
 				override getManagedSettingValue(key: string) { return managedSettings[key]; }
 			}());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 
 			const editor = store.add(instantiationService.createInstance(class extends SettingsEditor2 {
 				override layout(): void { }
@@ -185,7 +203,7 @@ suite('SettingsEditor2', () => {
 		}
 
 		test('resolved sandbox policies refresh policy-filtered results and removal without configuration changes', () => {
-			const keys = [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands];
+			const keys = [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands];
 			const { managedSettings, managedSettingsChanged, read, rebuild } = createEditor('@hasPolicy', false, keys);
 			const initial = read().renderedKeys;
 			managedSettings[COPILOT_SANDBOX_ENABLED_KEY] = true;
@@ -207,8 +225,8 @@ suite('SettingsEditor2', () => {
 				initial, required: { keys: required.renderedKeys, count: required.count },
 				unchangedRebuilds, bypassAllowed, bypassDenied, removed: read().renderedKeys,
 			}, {
-				initial: [], required: { keys, count: '3 Settings Found' },
-				unchangedRebuilds: 1, bypassAllowed: keys.slice(0, 2), bypassDenied: keys, removed: [],
+				initial: [], required: { keys, count: '2 Settings Found' },
+				unchangedRebuilds: 1, bypassAllowed: keys.slice(0, 1), bypassDenied: keys, removed: [],
 			});
 		});
 
@@ -237,6 +255,39 @@ suite('SettingsEditor2', () => {
 				unchangedRebuilds: 1, allowed: [], removed: [],
 			});
 		});
+
+		for (const [key, policyKey, managedValue] of [
+			[AgentSandboxSettingId.AgentSandboxMcpServers, COPILOT_SANDBOX_MCP_SERVERS_KEY, true],
+			[AgentSandboxSettingId.AgentSandboxLspServers, COPILOT_SANDBOX_LSP_SERVERS_KEY, true],
+			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, false],
+			[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, false],
+			['test.managedGeneric', 'test.genericPolicy', false],
+		] as const) {
+			test(`${key} policy changes refresh managed results and unlock when not restricted`, () => {
+				const { managedSettings, managedSettingsChanged, read, rebuild } = createEditor('@hasPolicy', false, [key]);
+				const initial = read().renderedKeys;
+				managedSettings[policyKey] = managedValue;
+				managedSettingsChanged.fire();
+				const required = read();
+				managedSettingsChanged.fire();
+				const unchangedRebuilds = rebuild.callCount;
+				managedSettings[policyKey] = !managedValue;
+				managedSettingsChanged.fire();
+				const optional = read().renderedKeys;
+				managedSettings[policyKey] = managedValue;
+				managedSettingsChanged.fire();
+				delete managedSettings[policyKey];
+				managedSettingsChanged.fire();
+
+				assert.deepStrictEqual({
+					initial, required: { keys: required.renderedKeys, count: required.count },
+					unchangedRebuilds, optional, removed: read().renderedKeys,
+				}, {
+					initial: [], required: { keys: [key], count: '1 Setting Found' },
+					unchangedRebuilds: 1, optional: [], removed: [],
+				});
+			});
+		}
 
 		test('configuration changes do not rebuild assignment-filtered results', async () => {
 			const { assignments, changeConfiguration, rebuild, searchModel } = createEditor();

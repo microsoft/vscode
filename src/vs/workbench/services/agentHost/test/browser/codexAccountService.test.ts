@@ -68,14 +68,27 @@ suite('CodexAccountService', () => {
 		assert.strictEqual(hasSignedInCodexChatGPTAccount(service('error').account), false);
 	});
 
-	test('offers sign-in without claiming an unknown account is signed out', async () => {
-		const accountService = service('unknown');
-		const actions = createCodexAccountMenuActions(accountService);
-		assert.ok(actions[0] instanceof Action);
-		disposables.add(actions[0] as Action);
-		assert.strictEqual(actions[0].label, 'Sign in to ChatGPT');
-		await actions[0].run();
-		assert.strictEqual(accountService.signInCalls, 1);
+	test('keeps the passive unknown account hidden and offers sign-in after resolution', async () => {
+		const signedOut = service('signedOut');
+		const error = service('error');
+		const signedOutActions = createCodexAccountMenuActions(signedOut);
+		const errorActions = createCodexAccountMenuActions(error);
+		disposables.add(signedOutActions[0] as Action);
+		disposables.add(errorActions[0] as Action);
+		await signedOutActions[0].run();
+		await errorActions[0].run();
+
+		assert.deepStrictEqual({
+			unknown: createCodexAccountMenuActions(service('unknown')),
+			signedOut: signedOutActions.map(action => action.label),
+			error: errorActions.map(action => action.label),
+			signInCalls: [signedOut.signInCalls, error.signInCalls],
+		}, {
+			unknown: [],
+			signedOut: ['Sign in to ChatGPT'],
+			error: ['Sign in to ChatGPT'],
+			signInCalls: [1, 1],
+		});
 	});
 
 	test('shows download status instead of sign-in while the Codex binary is downloading', () => {

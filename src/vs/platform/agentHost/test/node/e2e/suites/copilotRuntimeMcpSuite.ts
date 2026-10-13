@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { execFileSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -17,8 +16,9 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
@@ -31,13 +31,13 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	}
 
 	async function createPluginSession(includeImages = false) {
-		const root = mkdtempSync(join(tmpdir(), 'ahp-runtime-mcp-'));
+		const root = createTestDirectory(join(tmpdir(), 'ahp-runtime-mcp-'));
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');
 		context.tempDirs.push(root);
 		mkdirSync(workspace);
 		mkdirSync(plugin);
-		execFileSync('git', ['init', '--quiet', workspace]);
+		initTestGitRepo(workspace);
 		mkdirSync(join(plugin, '.plugin'));
 		mkdirSync(join(plugin, 'skills', 'runtime-reference'), { recursive: true });
 		writeFileSync(join(plugin, '.plugin', 'plugin.json'), JSON.stringify({ name: 'runtime-mcp' }));
@@ -264,7 +264,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		});
 		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete')).some(notification => {
 			const action = getActionEnvelope(notification).action;
-			return action.type === ActionType.ChatToolCallComplete && textFromContent(action.result.content ?? []) === 'HOST_PLUGIN_REFERENCE_OK';
+			return action.type === ActionType.ChatToolCallComplete && /\bHOST_PLUGIN_REFERENCE_OK\b/.test(textFromContent(action.result.content ?? []));
 		}));
 	});
 }

@@ -14,15 +14,6 @@ parameters:
   - name: VSCODE_BUILD_LINUX_SNAP
     type: boolean
     default: false
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
-    default: false
   - name: VSCODE_RUN_CHECKS
     type: boolean
     default: false
@@ -36,9 +27,6 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
-      VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
-      VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
-      VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
@@ -80,7 +68,7 @@ steps:
     - script: node build/azure-pipelines/common/extract-telemetry.ts
       displayName: Generate lists of telemetry events
 
-  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - script: |
         set -e
         npm run compile --prefix test/smoke
@@ -164,13 +152,10 @@ steps:
         VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
         VSCODE_WAIT_FOR_CLI: true
 
-  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: product-build-linux-test.yml@self
       parameters:
         VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
-        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
-        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
-        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-linux-package-finalize.yml@self

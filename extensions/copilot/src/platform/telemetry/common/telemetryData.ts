@@ -6,7 +6,7 @@ import type { TelemetryTrustedValue } from 'vscode';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
-import { RequestId } from '../../networking/common/fetch';
+import { gitHubCopilotRequestTeProperty, RequestId } from '../../networking/common/fetch';
 import { ITelemetryUserConfig, TelemetryEventProperties, TelemetryProperties } from './telemetry';
 
 export class TelemetryData {
@@ -107,8 +107,12 @@ export class TelemetryData {
 			copilotServiceRequestId: requestId.copilotServiceRequestId,
 			serverExperiments: requestId.serverExperiments,
 			deploymentId: requestId.deploymentId,
+			...gitHubCopilotRequestTeProperty(requestId.gitHubCopilotRequestTe),
 		};
-		this.properties = { ...this.properties, ...requestProperties };
+		// Never carry over a value from an earlier request when this one lacks the header.
+		const properties = { ...this.properties };
+		delete properties.gitHubCopilotRequestTe;
+		this.properties = { ...properties, ...requestProperties };
 	}
 
 	private static keysToRemoveFromStandardTelemetry: string[] = [

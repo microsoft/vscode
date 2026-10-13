@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
@@ -198,6 +198,59 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
 			{ uri: enabled.toString(), disabled: false },
 			{ uri: disabled.toString(), disabled: true },
+		]);
+	});
+
+	for (const sessionType of [SessionType.AgentHostCopilot, 'agent-host-claude', 'agent-host-codex', 'remote-devbox-copilotcli']) {
+		test(`adapts only non-default configured locations for ${sessionType}`, async () => {
+			const files = new Map<string, readonly IPromptPath[]>();
+			const expected: { uri: URI; type: PromptsType; source: PromptsStorage }[] = [];
+			for (const type of [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook]) {
+				for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
+					const configured: IPromptPath = {
+						uri: URI.file(`/${storage}/configured/${type}.md`), type, storage,
+						source: storage === PromptsStorage.local ? PromptFileSource.ConfigWorkspace : PromptFileSource.ConfigPersonal,
+					};
+					files.set(`${type}/${storage}`, [
+						configured,
+						{ uri: URI.file(`/${storage}/default/${type}.md`), type, storage, source: PromptFileSource.GitHubWorkspace },
+						{ uri: URI.file(`/${storage}/profile/${type}.md`), type, storage, source: PromptFileSource.UserData },
+					]);
+					if (type !== PromptsType.prompt && type !== PromptsType.hook) {
+						expected.push({ uri: configured.uri, type, source: storage });
+					}
+				}
+			}
+
+			const result = await enumerateLocalCustomizationsForHarness(makePromptsService(files), new FakeSyncProvider(), sessionType, CancellationToken.None, undefined);
+
+			assert.deepStrictEqual(result.map(({ uri, type, source }) => ({ uri, type, source })), expected);
+		});
+	}
+
+	test('deduplicates configured files and preserves sync opt-outs and session filtering', async () => {
+		const enabled = URI.file('/configured/enabled.agent.md');
+		const disabled = URI.file('/configured/disabled.agent.md');
+		const otherHarness = URI.file('/configured/other.agent.md');
+		const configuredFiles: IPromptPath[] = [enabled, disabled, otherHarness].map((uri, index) => ({
+			uri,
+			type: PromptsType.agent,
+			storage: PromptsStorage.local,
+			sessionTypes: index === 2 ? ['claude'] : undefined,
+			source: PromptFileSource.ConfigWorkspace,
+		}));
+		const promptsService = makePromptsService(new Map<string, readonly IPromptPath[]>([
+			[`${PromptsType.agent}/${PromptsStorage.local}`, configuredFiles],
+			[`${PromptsType.agent}/${PromptsStorage.user}`, configuredFiles.map(file => ({ ...file, storage: PromptsStorage.user }))],
+		]));
+
+		const results = await Promise.all([undefined, { includeUserStorage: true }].map(options =>
+			enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(new Set([disabled.toString()])), SessionType.AgentHostCopilot, CancellationToken.None, options)
+		));
+
+		assert.deepStrictEqual(results.map(result => result.map(({ uri, disabled }) => ({ uri, disabled }))), [
+			[{ uri: enabled, disabled: false }, { uri: disabled, disabled: true }],
+			[{ uri: enabled, disabled: false }, { uri: disabled, disabled: true }],
 		]);
 	});
 

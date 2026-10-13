@@ -10,7 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -81,7 +81,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	private _findSessionForLink(resource: URI | string): ISession | undefined {
 		const backendSession = parseOpenSessionLinkUri(resource);
 		return backendSession
-			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService)
+			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService, parseOpenSessionLinkConnectionAuthority(resource))
 			: undefined;
 	}
 
@@ -116,7 +116,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 			reader => {
 				sessionsChanged.read(reader);
 				const session = backendSession
-					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService)
+					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService, parseOpenSessionLinkConnectionAuthority(resource))
 					: undefined;
 				return session ? readSessionState(session, chatId, reader, kind) : undefined;
 			},
@@ -158,12 +158,16 @@ export function findSessionForOpenSessionLink(
 	backendSession: URI,
 	sessionsManagementService: ISessionsManagementService,
 	connectionsService: IAgentHostConnectionsService,
+	connectionAuthority?: string,
 ): ISession | undefined {
 	return sessionsManagementService.getSessions().find(session => {
+		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
+		if (connectionAuthority && identity?.connectionAuthority !== connectionAuthority) {
+			return false;
+		}
 		if (isEqual(session.resource, backendSession)) {
 			return true;
 		}
-		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
 		return !!identity && isEqual(identity.backendSession, backendSession);
 	});
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir, userInfo } from 'os';
 import { join, posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -122,6 +122,50 @@ suite('CapiReplayProxy path normalization', () => {
 			}
 		} finally {
 			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('expands workdir file URI placeholders as file URIs', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-workdir-uri-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const workDir = 'C:\\Temp\\workspace folder';
+		writeFileSync(fixturePath, [
+			'version: 1',
+			'dialect: anthropic',
+			'exchanges:',
+			'  - request:',
+			'      model: claude-sonnet-5',
+			'      system: ${system}',
+			'      messages:',
+			'        - role: user',
+			'          content: attach',
+			'    response:',
+			'      content:',
+			'        - type: tool_use',
+			'          id: toolu_1',
+			'          name: set_workspace',
+			'          input:',
+			'            workspaceFolder: file://${workdir}',
+			'      stopReason: tool_use',
+		].join('\n'));
+		const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', workDir });
+		try {
+			const response = await fetch(`${await replay.start()}/v1/messages`, {
+				method: 'POST',
+				body: JSON.stringify({
+					model: 'claude-sonnet-5',
+					system: 'system',
+					messages: [{ role: 'user', content: 'attach' }],
+				}),
+			});
+			const content = aggregateAnthropicSse(await response.text())?.content;
+			assert.deepStrictEqual(content?.map(block => block.type === 'tool_use' ? block.input : undefined), [{
+				workspaceFolder: URI.file(workDir).toString(),
+			}]);
+			replay.assertNoReplayMismatches();
+		} finally {
+			await replay.stop();
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});

@@ -125,6 +125,21 @@ suite('SessionMcpDiscovery', () => {
 		assert.strictEqual(discovery.definitions, definitions);
 	});
 
+	test('is unsettled while a watcher-triggered rescan or merge is in flight', async () => {
+		await write(primary, { mcpServers: {} });
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		await discovery.refresh();
+		const beforeChange = discovery.isSettled;
+
+		const changed = Event.toPromise(discovery.onDidChange);
+		await write(primary, { mcpServers: { server: { command: 'server' } } });
+		fileService.fire(primary, URI.joinPath(primary, '.mcp.json'), FileChangeType.UPDATED);
+		const whileRescanning = discovery.isSettled;
+		await changed;
+
+		assert.deepStrictEqual({ beforeChange, whileRescanning, afterChange: discovery.isSettled }, { beforeChange: true, whileRescanning: false, afterChange: true });
+	});
+
 	test('removes definitions when a workspace config is deleted', async () => {
 		await write(primary, { mcpServers: { server: { command: 'server' } } });
 		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));

@@ -5,6 +5,7 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import assert from 'assert';
+import { createHash } from 'crypto';
 import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostGitHubTelemetryRouter } from '../../node/agentHostGitHubTelemetryRouter.js';
@@ -138,6 +139,54 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 				measurements: { count: 2 },
 			},
 		]);
+	});
+
+	test('preserves runtime content metadata through compressed engine message routing', async () => {
+		const telemetry = new TestRestrictedTelemetry();
+		const router = new AgentHostGitHubTelemetryRouter(telemetry);
+		const source = notification('engine.messages');
+		const content = Array.from({ length: 1000 }, (_, index) => createHash('sha256').update(String(index)).digest('hex')).join('\n');
+		const messagesJson = JSON.stringify([{
+			role: 'assistant',
+			content,
+			reasoning_text: 'Summary with "quotes" and \u{1F600}',
+			reasoning_opaque: 'opaque',
+			content_metadata: [
+				{ path: '/content', purpose: 'answer', visibility: 'user_visible', format: 'text' },
+				{ path: '/reasoning_text', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+				{ path: '/reasoning_opaque', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+			],
+		}]);
+		source.event.properties.messagesJson = messagesJson;
+
+		await router.route(source, internalContext);
+
+		const properties = telemetry.events[0].properties!;
+		const chunks: string[] = [];
+		for (let index = 1; ; index++) {
+			const chunk = properties[index === 1 ? 'messagesJSONChunk' : `messagesJSONChunk_${index}`];
+			if (chunk === undefined) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		assert.deepStrictEqual({
+			eventCount: telemetry.events.length,
+			destination: telemetry.events[0].destination,
+			rawPrefix: properties.messagesJson,
+			multipleChunks: chunks.length > 1,
+			boundedChunks: chunks.every(chunk => chunk.length <= 8192),
+			reconstructed: zlib.gunzipSync(Buffer.from(chunks.join(''), 'base64')).toString('utf8'),
+			sourceUnchanged: source.event.properties.messagesJson,
+		}, {
+			eventCount: 1,
+			destination: 'enhancedGH',
+			rawPrefix: messagesJson.slice(0, 8192),
+			multipleChunks: true,
+			boundedChunks: true,
+			reconstructed: messagesJson,
+			sourceUnchanged: messagesJson,
+		});
 	});
 
 	test('multiplexes long properties before routing to either sink', async () => {
