@@ -14,6 +14,7 @@ import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewReferences } from '../../../../../platform/browserView/common/browserViewReference.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -26,22 +27,36 @@ import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewW
 suite('BrowserViewWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(reply?: DeferredPromise<IBrowserViewInfo>, replacementReply?: DeferredPromise<IBrowserViewInfo>) {
+	function createService(reply?: DeferredPromise<IBrowserViewInfo>, replacementReply?: DeferredPromise<IBrowserViewInfo>, loadError?: Error) {
 		const disposables = store.add(new DisposableStore());
 		const events = store.add(new Emitter<BrowserViewEvent>());
 		const requested = new DeferredPromise<void>();
 		const replacementRequested = new DeferredPromise<void>();
 		const destroyed: string[] = [];
+		const nativeViews = new Map<string, IBrowserViewInfo>();
+		const references = store.add(new BrowserViewReferences((id, options) => {
+			const view = nativeViews.get(id) ?? info(id, options.presentation ?? BrowserViewPresentation.Listed);
+			nativeViews.set(id, view);
+			return view;
+		}, id => {
+			if (nativeViews.delete(id)) {
+				destroyed.push(id);
+			}
+		}));
 		const creationOptions: IBrowserViewCreateOptions[] = [];
 		const loadedUrls: Array<{ id: string; url: string }> = [];
 		class Source {
 			onDynamicBrowserViewEvent(): Event<BrowserViewEvent> { return events.event; }
 			async updateWindowConfiguration(): Promise<void> { }
-			async destroyBrowserView(id: string): Promise<void> {
-				destroyed.push(id);
+			async acquireBrowserView(id: string, windowId: number, referenceId: string): Promise<void> {
+				references.acquire(id, windowId, referenceId);
+			}
+			async releaseBrowserView(id: string, referenceId: string): Promise<void> {
+				references.release(id, referenceId);
 			}
 			async setBrowserZoomIndex(): Promise<void> { }
-			async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo> {
+			async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions, referenceId: string): Promise<IBrowserViewInfo> {
+				const view = references.getOrCreate(id, options, referenceId);
 				creationOptions.push(options);
 				if (reply) {
 					if (requested.isSettled && replacementReply) {
@@ -49,15 +64,22 @@ suite('BrowserViewWorkbenchService', () => {
 						return replacementReply.p;
 					}
 					void requested.complete();
-					return reply.p;
+					try {
+						return await reply.p;
+					} catch (error) {
+						nativeViews.delete(id);
+						throw error;
+					}
 				}
-				const view = info(id, options.presentation ?? BrowserViewPresentation.Listed);
 				const [serialized, screenshot] = serializeBrowserViewInfo(view);
 				events.fire([{ type: 'created', windowId: 1, data: { info: serialized, initialUrl: options.initialUrl } }, [screenshot]]);
 				return view;
 			}
 			async loadURL(id: string, url: string): Promise<void> {
 				loadedUrls.push({ id, url });
+				if (loadError) {
+					throw loadError;
+				}
 			}
 		}
 		const channel = ProxyChannel.fromService(new Source(), disposables);
@@ -89,7 +111,7 @@ suite('BrowserViewWorkbenchService', () => {
 		if (reply) {
 			events.fire([{ type: 'snapshot', windowId: mainWindow.vscodeWindowId, views: [] }, []]);
 		}
-		return { service, events, creationOptions, loadedUrls, requested, replacementRequested, destroyed };
+		return { service, events, creationOptions, loadedUrls, requested, replacementRequested, nativeViews, destroyed };
 	}
 
 	function info(id: string, presentation = BrowserViewPresentation.Listed): IBrowserViewInfo {
@@ -160,6 +182,27 @@ suite('BrowserViewWorkbenchService', () => {
 		await Promise.resolve();
 	});
 
+	test('publishes a model before notifying consumers that can immediately close its new input', async () => {
+		const { service, events, nativeViews, destroyed } = createService();
+		const view = info('page');
+		nativeViews.set(view.id, view);
+		let modelDisposed = false;
+		store.add(service.onDidChangeBrowserViews(() => {
+			const input = service.getKnownBrowserViews().get(view.id);
+			if (input) {
+				assert.ok(input.model);
+				store.add(input.model.onWillDispose(() => modelDisposed = true));
+				input.dispose();
+			}
+		}));
+		const [serialized, screenshot] = serializeBrowserViewInfo(view);
+		events.fire([{ type: 'created', windowId: 1, data: { info: serialized } }, [screenshot]]);
+		await Promise.resolve();
+		assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, modelDisposed, remaining: nativeViews.size, destroyed }, {
+			known: 0, modelDisposed: true, remaining: 0, destroyed: [view.id],
+		});
+	});
+
 	test('keeps unlisted views out of workbench discovery across hydration and creation events', async () => {
 		const { service, events, creationOptions, loadedUrls } = createService();
 		const restored = info('restored-external', BrowserViewPresentation.Unlisted);
@@ -204,8 +247,8 @@ suite('BrowserViewWorkbenchService', () => {
 			deniedDomains: ['blocked.example.test'],
 		};
 		const input = store.add(await service.createBrowserView({
-			owner: { type: 'user' },
-			session: { scope: BrowserViewStorageScope.Ephemeral },
+			owner: { type: 'agent', sessionId: 'agent-session' },
+			session: { scope: BrowserViewStorageScope.Agent, affinity: 'agent-session' },
 			sandboxNetworkRestrictions,
 		}));
 		assert.deepStrictEqual(creationOptions.map(options => options.sandboxNetworkRestrictions), [sandboxNetworkRestrictions]);
@@ -225,6 +268,18 @@ suite('BrowserViewWorkbenchService', () => {
 		};
 		return { ...result, created, reply, info: view };
 	}
+
+	test('closing before hydration prevents a native creation request', async () => {
+		const { service, events, creationOptions, destroyed } = createService();
+		const input = service.getOrCreateLazy({ id: 'page' });
+		const resolution = input.resolve();
+		input.dispose();
+		events.fire([{ type: 'snapshot', windowId: mainWindow.vscodeWindowId, views: [] }, []]);
+		await assert.rejects(resolution, isCancellationError);
+		assert.deepStrictEqual({ creationOptions, destroyed, known: service.getKnownBrowserViews().size }, {
+			creationOptions: [], destroyed: [], known: 0,
+		});
+	});
 
 	test('does not recreate a closed browser when its creation reply arrives', async () => {
 		const { service, created, requested, reply, info } = createPendingService();
@@ -314,7 +369,7 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	}
 
-	test('transfers late creation cleanup to a lazy replacement', async () => {
+	test('keeps native ownership in a lazy replacement without attaching the abandoned model', async () => {
 		const { service, created, requested, reply, info, destroyed } = createPendingService();
 		const input = service.getOrCreateLazy({ id: info.id });
 		const resolution = input.resolve();
@@ -325,8 +380,9 @@ suite('BrowserViewWorkbenchService', () => {
 		const replacement = service.getOrCreateLazy({ id: info.id });
 		await reply.complete(info);
 		await assert.rejects(resolution, isCancellationError);
-		assert.strictEqual(service.getKnownBrowserViews().get(info.id), replacement);
-		assert.deepStrictEqual(destroyed, []);
+		assert.deepStrictEqual({ input: service.getKnownBrowserViews().get(info.id), model: replacement.model, destroyed }, {
+			input: replacement, model: undefined, destroyed: [],
+		});
 		replacement.dispose();
 		await Promise.resolve();
 		assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, destroyed }, { known: 0, destroyed: [info.id] });
@@ -344,8 +400,61 @@ suite('BrowserViewWorkbenchService', () => {
 		assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, destroyed }, { known: 0, destroyed: [] });
 	});
 
+	test('resolves a lazy replacement from the preserved native view without a second creation event', async () => {
+		const { service, created, requested, reply, info, nativeViews, destroyed } = createPendingService();
+		const input = service.getOrCreateLazy({ id: info.id });
+		const resolution = input.resolve();
+		await requested.p;
+		input.dispose();
+		created.fire({ info });
+		const replacement = service.getOrCreateLazy({ id: info.id });
+		const nativeView = nativeViews.get(info.id);
+		await reply.complete(info);
+		await assert.rejects(resolution, isCancellationError);
+		const model = await replacement.resolve();
+		assert.deepStrictEqual({ attached: replacement.model === model, reused: nativeViews.get(info.id) === nativeView, destroyed }, {
+			attached: true, reused: true, destroyed: [],
+		});
+		replacement.dispose();
+		await Promise.resolve();
+		assert.deepStrictEqual(destroyed, [info.id]);
+	});
+
+	test('releases an external view when the workbench is disposed while its creation reply is pending', async () => {
+		const reply = new DeferredPromise<IBrowserViewInfo>();
+		const { service, requested, nativeViews, destroyed } = createService(reply);
+		const creation = service.createExternalBrowserView('https://example.test/preview');
+		await requested.p;
+		const view = [...nativeViews.values()][0];
+		service.dispose();
+		await reply.complete(view);
+		await assert.rejects(creation, isCancellationError);
+		assert.deepStrictEqual({ remaining: nativeViews.size, destroyed }, { remaining: 0, destroyed: [view.id] });
+	});
+
+	test('workbench shutdown leaves listed native views with the window and cancels late model attachment', async () => {
+		const { service, requested, reply, info, nativeViews, destroyed } = createPendingService();
+		const input = store.add(service.getOrCreateLazy({ id: info.id }));
+		const resolution = input.resolve();
+		await requested.p;
+		service.dispose();
+		await reply.complete(info);
+		await assert.rejects(resolution, isCancellationError);
+		assert.deepStrictEqual({ model: input.model, remaining: [...nativeViews.keys()], destroyed }, {
+			model: undefined, remaining: [info.id], destroyed: [],
+		});
+		input.dispose();
+	});
+
+	test('releases an external view when its initial navigation fails', async () => {
+		const error = new Error('navigation failed');
+		const { service, nativeViews, destroyed } = createService(undefined, undefined, error);
+		await assert.rejects(service.createExternalBrowserView('https://example.test/preview'), candidate => candidate === error);
+		assert.deepStrictEqual({ remaining: nativeViews.size, destroyed: destroyed.length }, { remaining: 0, destroyed: 1 });
+	});
+
 	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {
-		const { service } = createService();
+		const { service, nativeViews, destroyed } = createService();
 		const closed: string[] = [];
 		for (let index = 0; index < 3; index++) {
 			const model = await service.createExternalBrowserView(`https://example.test/canvas-${index}`);
@@ -353,6 +462,8 @@ suite('BrowserViewWorkbenchService', () => {
 			model.dispose();
 			await Promise.resolve();
 		}
-		assert.deepStrictEqual({ closed: closed.length, listed: service.getKnownBrowserViews().size }, { closed: 3, listed: 0 });
+		assert.deepStrictEqual({ closed: closed.length, listed: service.getKnownBrowserViews().size, remaining: nativeViews.size, destroyed: destroyed.length }, {
+			closed: 3, listed: 0, remaining: 0, destroyed: 3,
+		});
 	});
 });

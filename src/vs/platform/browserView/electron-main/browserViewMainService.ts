@@ -28,6 +28,9 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { formatBrowserViewAccessibility } from './browserViewAccessibility.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { BrowserViewReferences } from '../common/browserViewReference.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { LoadReason } from '../../window/electron-main/window.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -60,6 +63,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
+	private readonly references = this._register(new BrowserViewReferences(
+		(id, options) => this._getViewInfo(this.browserViews.get(id) ?? this._createBrowserView(id, options)),
+		id => this.browserViews.deleteAndDispose(id),
+	));
 	private readonly viewEventListeners = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
@@ -91,14 +98,25 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}));
 	}
 
-	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo> {
-		if (this.browserViews.has(id)) {
-			const view = this.browserViews.get(id)!;
-			return this._getViewInfo(view);
+	async acquireBrowserView(id: string, windowId: number, referenceId: string): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (!window?.win || window.win.isDestroyed()) {
+			throw new CancellationError();
 		}
+		const view = this.browserViews.get(id);
+		if (view && view.host.windowId !== windowId) {
+			throw new Error('The browser view belongs to another workbench window.');
+		}
+		this._ensureWindowCloseSubscription(windowId);
+		this.references.acquire(id, windowId, referenceId);
+	}
 
-		const view = this._createBrowserView(id, options);
-		return this._getViewInfo(view);
+	async releaseBrowserView(id: string, referenceId: string): Promise<void> {
+		this.references.release(id, referenceId);
+	}
+
+	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions, referenceId: string): Promise<IBrowserViewInfo> {
+		return this.references.getOrCreate(id, options, referenceId);
 	}
 
 	tryGetBrowserView(id: string): BrowserView | undefined {
@@ -383,7 +401,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			return;
 		}
 		const onWindowGone = Event.any(window.onDidClose, window.onDidDestroy);
-		this._windowCloseSubscriptions.set(windowId, Event.once(onWindowGone)(() => {
+		const subscriptions = new DisposableStore();
+		this._windowCloseSubscriptions.set(windowId, subscriptions);
+		subscriptions.add(window.onWillLoad(event => this.references.clearWindow(windowId, event.reason === LoadReason.RELOAD)));
+		subscriptions.add(Event.once(onWindowGone)(() => {
+			this.references.clearWindow(windowId);
 			this._windowCloseSubscriptions.deleteAndDispose(windowId);
 			this.windowEvents.deleteAndDispose(windowId);
 			if (this._windowConfigurations.delete(windowId)) {
@@ -449,6 +471,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		Event.once(view.onDidClose)(() => {
+			this.references.clear(id);
 			browserSession.remote.release(id);
 			this.browserViews.deleteAndDispose(id);
 		});
