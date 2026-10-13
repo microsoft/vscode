@@ -1650,6 +1650,12 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Hidden });
 		}));
 
+		// xterm's vertical scrollbar is inside the horizontally scrolled content, so CSS hides it
+		// while the output overflows horizontally instead of letting it drift across the output
+		this._register(this._scrollableContainer.onScroll(e => {
+			this.domNode.classList.toggle('chat-terminal-output-container-horizontal-overflow', e.scrollWidth > e.width);
+		}));
+
 		// Track scroll state to enable scroll lock behavior (only for user scrolls)
 		this._register(this._scrollableContainer.onScroll(() => {
 			if (this._isProgrammaticScroll) {

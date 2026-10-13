@@ -118,6 +118,12 @@ const enum ChatTerminalMirrorMetrics {
 	 */
 	MirrorHorizontalPaddingPx = 20,
 	/**
+	 * Width of xterm's vertical scrollbar, which the chat preview shows on hover. The mirror
+	 * leaves `scrollbar.width` unset (setting it also enables the overview ruler), so this is
+	 * xterm's default width.
+	 */
+	MirrorScrollbarWidthPx = 14,
+	/**
 	 * Maximum number of lines for which we compute the max column width.
 	 * Computing max column width iterates the entire buffer, so we skip it
 	 * for large outputs to avoid performance issues.
@@ -169,9 +175,9 @@ function getMirrorDevicePixelRatio(detached: IDetachedTerminalInstance): number 
 
 /**
  * Measures the horizontal space the mirror's DOM chrome takes from the container width by
- * reading the xterm element's computed padding, the same way the panel terminal does. xterm's
- * own scrollbar is hidden in the chat preview, so unlike the panel terminal it takes no
- * space. Returns undefined before the terminal is attached.
+ * reading the xterm element's computed padding and adding the vertical scrollbar's width, the
+ * same way the panel terminal does, so the scrollbar never covers output. Returns undefined
+ * before the terminal is attached.
  */
 function measureMirrorHorizontalChrome(detached: IDetachedTerminalInstance): number | undefined {
 	const element = getMirrorRaw(detached).element;
@@ -179,8 +185,8 @@ function measureMirrorHorizontalChrome(detached: IDetachedTerminalInstance): num
 		return undefined;
 	}
 	const style = getWindow(element).getComputedStyle(element);
-	const chrome = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
-	return isNaN(chrome) ? undefined : Math.max(chrome, 0);
+	const padding = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
+	return isNaN(padding) ? undefined : Math.max(padding, 0) + ChatTerminalMirrorMetrics.MirrorScrollbarWidthPx;
 }
 
 /**

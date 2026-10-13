@@ -1698,6 +1698,20 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.deepStrictEqual({ expandedScans, collapsedScans: scan.callCount }, { expandedScans: 1, collapsedScans: 1 });
 	});
 
+	test('marks horizontal overflow so the xterm vertical scrollbar stays hidden while it would drift', async () => {
+		const section = createSection({ text: 'output' });
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const overflows = [];
+		for (const scrollWidth of [1200, 800]) {
+			scrollable.setScrollDimensions({ width: 800, scrollWidth });
+			overflows.push(section.domNode.classList.contains('chat-terminal-output-container-horizontal-overflow'));
+		}
+
+		assert.deepStrictEqual(overflows, [true, false]);
+	});
+
 	test('keeps the output row cap when reflow does not change the columns', async () => {
 		const section = createSection({ text: 'line\r\n'.repeat(20) });
 		await section.toggle(true);
