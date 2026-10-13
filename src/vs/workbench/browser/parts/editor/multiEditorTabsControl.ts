@@ -2092,7 +2092,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.connectedTabLabels = connected;
 			this.forEachTab((editor, index, tab, widget, label) => this.redrawTabLabel(editor, index, tab, widget, label));
 		}
-		this.layoutModernTabLabels();
 		this.layoutFitTabsWithoutReservedActions();
 
 		// Always first layout tabs with wrapping support even if wrapping
@@ -2100,19 +2099,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
-		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
-		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		if (this.parent.closest('.modern-ui-tabs') && tabsWrapMultiLine !== didTabsWrapMultiLine) {
-			this.layoutModernTabLabels();
-			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {
-				this.doLayoutTabsWrapping(dimensions, true);
-				this.layoutModernTabLabels();
-				tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions, true);
-			} else {
-				tabsWrapMultiLine = remeasuredTabsWrapMultiLine;
-			}
-		}
+		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		const top = this.getTabAtIndex(0)?.offsetTop;
 		const bottom = this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
@@ -2134,17 +2121,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			assertReturnsDefined(this.stickyTabsBackground).style.width = '0px';
 			this.clearConnectedTabClipping();
 		}
-	}
-
-	private layoutModernTabLabels(): void {
-		const modern = !!this.parent.closest('.modern-ui-tabs');
-		this.forEachTab((_editor, _index, tab) => {
-			tab.classList.remove('modern-ui-tab-narrow');
-			tab.style.removeProperty('--connected-tab-min-width');
-			if (modern && !tab.classList.contains('sticky-compact') && !tab.classList.contains('sizing-fit')) {
-				tab.classList.toggle('modern-ui-tab-narrow', tab.offsetWidth < 102);
-			}
-		});
 	}
 
 	private layoutFitTabsWithoutReservedActions(): void {

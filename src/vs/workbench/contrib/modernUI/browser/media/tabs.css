@@ -468,12 +468,6 @@
 	text-overflow: ellipsis;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab.modern-ui-tab-narrow > .tab-label::before,
-.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab.modern-ui-tab-narrow .monaco-icon-label-iconpath,
-.modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab.modern-ui-tab-narrow .monaco-icon-description-container {
-	display: none;
-}
-
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab > .tab-label.monaco-decoration-badge::after {
 	flex-shrink: 0;
 }

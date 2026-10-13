@@ -2235,6 +2235,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentRightInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleControl.layout({

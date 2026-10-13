@@ -31,7 +31,7 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 	});
 	expect(colors).toEqual({
 		capTop: 'rgb(42, 43, 44)',
-		capRadius: '4px',
+		capRadius: '7px',
 		structuralBoundary: '#2a2b2c',
 		themeActiveTop: '#3994bc',
 		shoulder: {
