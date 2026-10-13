@@ -96,7 +96,9 @@ export class InlineEditInputBox extends Disposable {
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, () => {
+		// Refresh non-error messages on every value change, including paste, drop and IME input. This listener
+		// is registered after the input box's own one so it runs after validation, which may hide the message.
+		this._register(DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.INPUT, () => {
 			this._showMessage();
 		}));
 
@@ -108,13 +110,11 @@ export class InlineEditInputBox extends Disposable {
 				}
 
 				const ownerDocument = inputBox.inputElement.ownerDocument;
-				if (!ownerDocument.hasFocus()) {
-					break;
-				} else if (DOM.isActiveElement(inputBox.inputElement)) {
-					return;
-				} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+				if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 					// Keep editing while a context menu of the input box is open
 					await Event.toPromise(this._contextMenuService.onDidHideContextMenu, this._store);
+				} else if (ownerDocument.hasFocus() && DOM.isActiveElement(inputBox.inputElement)) {
+					return;
 				} else {
 					break;
 				}
