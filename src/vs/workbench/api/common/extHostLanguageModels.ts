@@ -28,6 +28,13 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IChatModelDefaultsSnapshot } from '../../contrib/chat/common/chatModelDefaults.js';
+
+function chatDefaultsSnapshot(snapshot: IChatModelDefaultsSnapshot): vscode.LanguageModelChatDefaultsSnapshot {
+	const status = { available: extHostTypes.LanguageModelChatDefaultsStatus.Available, unavailable: extHostTypes.LanguageModelChatDefaultsStatus.Unavailable, unsupported: extHostTypes.LanguageModelChatDefaultsStatus.Unsupported };
+	const source = { scoped: extHostTypes.LanguageModelChatDefaultsSource.Scoped, profile: extHostTypes.LanguageModelChatDefaultsSource.Profile, default: extHostTypes.LanguageModelChatDefaultsSource.Default };
+	return { ...snapshot, status: status[snapshot.status], sources: Object.fromEntries(Object.entries(snapshot.sources).map(([key, value]) => [key, source[value]])) };
+}
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -133,6 +140,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _onDidChangeModelProxyAvailability = new Emitter<void>();
 	readonly onDidChangeModelProxyAvailability = this._onDidChangeModelProxyAvailability.event;
 
+	private readonly _modelIdentifiers = new WeakMap<vscode.LanguageModelChat, string>();
+	private readonly _onDidChangeModelDefaults = new Emitter<{ extension: ExtensionIdentifier; modelId: string; targetId: string }>();
+
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
@@ -151,6 +161,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	dispose(): void {
+		this._onDidChangeModelDefaults.dispose();
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 		this._onDidChangeModelProxyAvailability.dispose();
@@ -158,10 +169,34 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._pendingCancelCTS.dispose();
 	}
 
+	$onChatModelDefaultsChange(extension: ExtensionIdentifier, modelId: string, targetId: string): void {
+		this._onDidChangeModelDefaults.fire({ extension, modelId, targetId });
+	}
+
+	async getChatModelDefaults(extension: IExtensionDescription, model: vscode.LanguageModelChat): Promise<vscode.LanguageModelChatDefaults> {
+		checkProposedApiEnabled(extension, 'languageModelChatDefaults');
+		const modelId = this._modelIdentifiers.get(model);
+		if (!modelId) {
+			throw new Error('Expected a LanguageModelChat returned by VS Code');
+		}
+		const capabilities = await this._proxy.$getChatModelDefaultsCapabilities(extension.identifier, modelId);
+		return Object.freeze({
+			capabilities: Object.freeze({ ...capabilities, requestConfigurationFidelity: false }),
+			onDidChange: Event.map(Event.filter(this._onDidChangeModelDefaults.event, e => e.modelId === modelId && ExtensionIdentifier.equals(e.extension, extension.identifier)), e => ({ targetId: e.targetId })),
+			getTargets: () => this._proxy.$getChatModelDefaultsTargets(extension.identifier, modelId),
+			inspect: async (targetId: string) => chatDefaultsSnapshot(await this._proxy.$inspectChatModelDefaults(extension.identifier, modelId, targetId)),
+			update: async (targetId: string, patch: vscode.LanguageModelChatDefaultsPatch, expectedRevision: string) => {
+				const result = await this._proxy.$updateChatModelDefaults(extension.identifier, modelId, targetId, patch, expectedRevision);
+				const outcomes = { applied: extHostTypes.LanguageModelChatDefaultsOutcome.Applied, conflict: extHostTypes.LanguageModelChatDefaultsOutcome.Conflict, failed: extHostTypes.LanguageModelChatDefaultsOutcome.Failed };
+				return { outcome: outcomes[result.outcome], snapshot: chatDefaultsSnapshot(result.snapshot) };
+			},
+		});
+	}
+
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
 
 		this._languageModelProviders.set(vendor, { extension: extension, provider });
-		this._proxy.$registerLanguageModelProvider(vendor);
+		this._proxy.$registerLanguageModelProvider(vendor, extension.identifier);
 
 		let providerChangeEventDisposable: IDisposable | undefined;
 		if (provider.onDidChangeLanguageModelChatInformation) {
@@ -523,6 +558,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		};
 
+		this._modelIdentifiers.set(apiObject, modelId);
 		Object.freeze(apiObject);
 		return apiObject;
 	}

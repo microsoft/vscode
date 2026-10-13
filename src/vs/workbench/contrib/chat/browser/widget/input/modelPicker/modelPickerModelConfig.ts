@@ -9,6 +9,8 @@ import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../../nls.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { getModelConfigurationChoices, isValidModelConfigurationNumber, promptModelConfigurationNumber, supportsCustomModelConfiguration } from '../../../../common/modelConfigurationChoices.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
@@ -49,6 +51,14 @@ export function setModelConfigValues(
 		configurationEdits.set(configurationAccess, edits = new SequencerByKey<string>());
 	}
 	return edits.queue(model.identifier, async () => {
+		const schema = configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema;
+		for (const [key, value] of Object.entries(values)) {
+			const property = schema?.properties?.[key];
+			if (property?.suggestedValues && (property.readOnly || !supportsCustomModelConfiguration(property)
+				|| typeof value !== 'number' || !isValidModelConfigurationNumber(value, property))) {
+				throw new Error('Model configuration is no longer within the allowed range.');
+			}
+		}
 		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
 			const property = getModelConfigProperty(model, configurationAccess, group);
 			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
@@ -60,6 +70,24 @@ export function setModelConfigValues(
 			onDidChange?.(change.group, change.key, change.fromValue, change.toValue, requestedAt);
 		}
 	});
+}
+
+/** Prompts for a number, then rechecks the live schema before returning the choice. */
+export async function promptCustomModelConfigValue(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	configurationAccess: IModelConfigurationAccess,
+	property: IModelConfigProperty,
+	input: Pick<IQuickInputService, 'input'>,
+): Promise<number | undefined> {
+	const value = await promptModelConfigurationNumber(input, property.schema, property.value);
+	if (value === undefined) {
+		return;
+	}
+	const currentSchema = (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties?.[property.key];
+	if (!currentSchema || currentSchema.readOnly || !supportsCustomModelConfiguration(currentSchema) || !isValidModelConfigurationNumber(value, currentSchema)) {
+		return;
+	}
+	return value;
 }
 
 /**
@@ -77,13 +105,13 @@ export function getModelConfigChoices(
 	property: IModelConfigProperty,
 	formatLabel?: (value: unknown, enumLabel: string | undefined) => string,
 ) {
-	return (property.schema.enum ?? []).map((value, index) => ({
+	return getModelConfigurationChoices(property.schema).map((choice, index) => ({
 		index,
-		value,
-		label: formatLabel ? formatLabel(value, property.schema.enumItemLabels?.[index]) : getModelConfigValueLabel(property.schema, value),
-		description: property.schema.enumDescriptions?.[index],
-		checked: value === property.value,
-		isDefault: value === property.schema.default,
+		value: choice.value,
+		label: formatLabel ? formatLabel(choice.value, choice.label) : getModelConfigValueLabel(property.schema, choice.value),
+		description: choice.description,
+		checked: choice.value === property.value,
+		isDefault: choice.value === property.schema.default,
 		readOnly: !!property.schema.readOnly,
 	}));
 }
@@ -108,7 +136,7 @@ export function getModelConfigProperty(
 	const keys = alias ? [alias] : Object.keys(properties);
 	for (const key of keys) {
 		const schema = properties[key];
-		if (schema.group !== group || !schema.enum?.length) {
+		if (schema.group !== group || (!schema.enum?.length && !supportsCustomModelConfiguration(schema))) {
 			continue;
 		}
 		const saved = Object.hasOwn(currentConfig, key) && (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]));
@@ -127,8 +155,7 @@ export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, val
 	if (value === 'fast' && schema.enum?.includes('efficiency') && !schema.enum.includes('fast')) {
 		return localize('chat.modelPicker.automaticTier', "Automatic");
 	}
-	const index = schema.enum?.indexOf(value) ?? -1;
-	const label = index >= 0 ? schema.enumItemLabels?.[index] : undefined;
+	const label = getModelConfigurationChoices(schema).find(choice => choice.value === value)?.label;
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));
 }
 
@@ -138,6 +165,9 @@ export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, val
  * extended one.
  */
 export function isExtendedContext(property: IModelConfigProperty): boolean {
+	if (supportsCustomModelConfiguration(property.schema)) {
+		return property.value === property.schema.maximum;
+	}
 	const values = property.schema.enum ?? [];
 	return values.length > 1 && property.value === values[values.length - 1];
 }

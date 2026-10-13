@@ -1890,6 +1890,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
+			getChatModelDefaults: model => extHostLanguageModels.getChatModelDefaults(extension, model),
 			selectChatModels: (selector) => {
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
@@ -2318,6 +2319,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelToolExtensionSource: extHostTypes.LanguageModelToolExtensionSource,
 			LanguageModelToolMCPSource: extHostTypes.LanguageModelToolMCPSource,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
+			LanguageModelChatDefaultsStatus: extHostTypes.LanguageModelChatDefaultsStatus,
+			LanguageModelChatDefaultsSource: extHostTypes.LanguageModelChatDefaultsSource,
+			LanguageModelChatDefaultsOutcome: extHostTypes.LanguageModelChatDefaultsOutcome,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
 			LanguageModelPromptTsxPart: extHostTypes.LanguageModelPromptTsxPart,
 			NewSymbolName: extHostTypes.NewSymbolName,

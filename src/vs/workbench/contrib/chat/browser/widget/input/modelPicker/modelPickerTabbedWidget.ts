@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -138,6 +139,7 @@ export class TabbedModelPicker extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -919,6 +921,7 @@ export class TabbedModelPicker extends Disposable {
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
 			openerService: this._openerService,
+			quickInputService: this._quickInputService,
 			isPinned: this._pinnedVariantIds(model.identifier, context).length > 0,
 			organizationDefaultModel: this._getOrganizationDefaultForModel(model, context),
 			externalHeader: true,

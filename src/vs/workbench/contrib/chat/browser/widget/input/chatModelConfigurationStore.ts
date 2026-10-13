@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../../../base/common/actions.js';
+import { localize } from '../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -12,11 +13,14 @@ import { IObservable } from '../../../../../../base/common/observable.js';
 import { AutoTierSourceConfigKey, isAutoModeRoutingTier, isInheritedAutoTier, parseManagedAutoTierDefault, type AutoModeTier } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { COPILOT_AUTO_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, createModelConfigurationActions, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatModelConfigurationPersistence } from '../../../common/chatModelConfigurationPersistence.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
 import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { isValidModelConfigurationNumber, promptModelConfigurationNumber, restrictModelContextBudget, supportsCustomModelConfiguration } from '../../../common/modelConfigurationChoices.js';
 
 /**
  * Per-editor store for model configuration (e.g. context size, thinking effort).
@@ -33,6 +37,8 @@ import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.
  * {@link ILanguageModelsService}. See issue #320393.
  */
 export class ChatModelConfigurationStore extends Disposable implements IModelConfigurationAccess {
+
+	private readonly persistence: ChatModelConfigurationPersistence;
 
 	private readonly _overrides = new Map<string, IStringDictionary<unknown>>();
 	private readonly _preferences = new Map<string, IStringDictionary<unknown>>();
@@ -53,11 +59,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		private readonly isEmpty: () => boolean,
 		private readonly agentHostManagedDefaultScope: IObservable<boolean>,
 		private readonly languageModelsService: ILanguageModelsService,
-		private readonly storageService: IStorageService,
+		storageService: IStorageService,
 		managedSettingsService: IManagedSettingsService,
 		logService: ILogService,
+		private readonly quickInputService?: Pick<IQuickInputService, 'input'>,
 	) {
 		super();
+		this.persistence = new ChatModelConfigurationPersistence(storageService, languageModelsService);
 
 		const readManagedTier = () => {
 			try {
@@ -116,7 +124,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			override = this._resolveConfiguration(modelId, schemaDefaults, bucketEntry ?? globalConfig);
 			this._overrides.set(modelId, override);
 		}
-		return Object.keys(override).length > 0 ? override : undefined;
+		return Object.keys(override).length > 0 ? restrictModelContextBudget(override, this.getModelConfigurationSchema(modelId)) : undefined;
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
@@ -147,7 +155,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// picker wrote straight to the global. `setModelConfiguration` on the
 		// service strips values equal to their schema default, so selecting the
 		// default cleanly clears the global override.
-		await this.languageModelsService.setModelConfiguration(modelId, values);
+		await this.persistence.mirror(modelId, values);
 	}
 
 	/**
@@ -186,8 +194,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// next read. Already-open editors keep their own in-memory snapshot and
 		// are unaffected because nothing listens to storage changes for this key.
 		if (bucket) {
-			bucket[modelId] = stored;
-			this._writeBucket(bucket);
+			this.persistence.writeEntry(this.getStorageKey(), modelId, stored);
 		}
 
 		this._onDidChange.fire(modelId);
@@ -199,12 +206,28 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this.getModelConfigurationSchema(modelId),
 			this.getModelConfiguration(modelId) ?? {},
 			(key, value) => this.setModelConfiguration(modelId, { [key]: value }),
+			this.quickInputService ? async key => {
+				const schema = this.getModelConfigurationSchema(modelId)?.properties?.[key];
+				if (!schema) { return; }
+				const value = await promptModelConfigurationNumber(this.quickInputService!, schema, this.getModelConfiguration(modelId)?.[key]);
+				const current = this.getModelConfigurationSchema(modelId)?.properties?.[key];
+				if (value !== undefined && current && !current.readOnly && supportsCustomModelConfiguration(current) && isValidModelConfigurationNumber(value, current)) {
+					await this.setModelConfiguration(modelId, { [key]: value });
+				}
+			} : undefined,
 		);
 	}
 
 	getModelConfigurationSchema(modelId: string): ILanguageModelConfigurationSchema | undefined {
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const schema = metadata?.configurationSchema;
+		let schema = metadata?.configurationSchema;
+		const context = schema?.properties?.contextSize;
+		const saved = this._overrides.get(modelId)?.contextSize;
+		if (schema && context && supportsCustomModelConfiguration(context) && typeof saved === 'number' && Number.isSafeInteger(saved) && saved > context.maximum!) {
+			schema = { ...schema, properties: { ...schema.properties, contextSize: { ...context,
+				title: localize('chat.context.restricted', "Context (Saved {0}; Available {1})", saved, context.maximum),
+			} } };
+		}
 		const tierSchema = schema?.properties?.tier;
 		const managed = this._managedAutoTier;
 		if (!schema || !tierSchema || !managed || metadata?.id !== 'auto' || !this._usesManagedDefault(metadata.vendor)) {
@@ -252,6 +275,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const filtered = metadata
 			? filterConfigurationToSchema(values, metadata.configurationSchema)
 			: { ...values };
+		const contextProperty = metadata?.configurationSchema?.properties?.contextSize;
+		if (contextProperty && supportsCustomModelConfiguration(contextProperty) && typeof values.contextSize === 'number'
+			&& Number.isSafeInteger(values.contextSize) && values.contextSize > 0) {
+			filtered.contextSize = values.contextSize;
+		}
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
 		if (isAutoModeRoutingTier(filtered.tier)) {
@@ -330,37 +358,6 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	private _readBucket(): { [modelId: string]: IStringDictionary<unknown> } {
-		// Null-prototype dictionary: model identifiers originate from
-		// (extension-contributed) providers, so a key like `__proto__` or
-		// `constructor` must not be read as an inherited member or mutate the
-		// bucket's prototype on write.
-		const result: { [modelId: string]: IStringDictionary<unknown> } = Object.create(null);
-		const raw = this.storageService.get(this.getStorageKey(), StorageScope.APPLICATION);
-		if (!raw) {
-			return result;
-		}
-		try {
-			const parsed = JSON.parse(raw);
-			if (parsed && typeof parsed === 'object') {
-				for (const [modelId, entry] of Object.entries(parsed)) {
-					// Only accept plain-object per-model entries.
-					if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-						result[modelId] = entry as IStringDictionary<unknown>;
-					}
-				}
-			}
-		} catch {
-			// Ignore malformed JSON and fall back to an empty bucket.
-		}
-		return result;
-	}
-
-	private _writeBucket(bucket: { [modelId: string]: IStringDictionary<unknown> }): void {
-		const key = this.getStorageKey();
-		if (Object.keys(bucket).length === 0) {
-			this.storageService.remove(key, StorageScope.APPLICATION);
-		} else {
-			this.storageService.store(key, JSON.stringify(bucket), StorageScope.APPLICATION, StorageTarget.USER);
-		}
+		return this.persistence.readBucket(this.getStorageKey());
 	}
 }

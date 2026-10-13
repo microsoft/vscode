@@ -4223,6 +4223,24 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	hasError?: boolean;
 }
 
+export enum LanguageModelChatDefaultsStatus {
+	Available = 1,
+	Unavailable = 2,
+	Unsupported = 3,
+}
+
+export enum LanguageModelChatDefaultsSource {
+	Scoped = 1,
+	Profile = 2,
+	Default = 3,
+}
+
+export enum LanguageModelChatDefaultsOutcome {
+	Applied = 1,
+	Conflict = 2,
+	Failed = 3,
+}
+
 export enum LanguageModelChatToolMode {
 	Auto = 1,
 	Required = 2

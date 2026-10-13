@@ -54,6 +54,27 @@ function createStubService(global?: IStringDictionary<unknown>): ILanguageModels
 suite('ChatModelConfigurationStore', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a reduced numeric context capacity restricts effective budget without rewriting saved intent', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		const property = { type: 'integer' as const, minimum: 1, maximum: 1_000_000, default: 1_000_000, suggestedValues: [{ value: 200_000 }] };
+		control.setSchema({ properties: { contextSize: property } });
+		const editor = createStore(storage, control.service, () => false);
+		editor.restoreModelConfiguration(MODEL, { contextSize: 500_000 });
+		property.maximum = 300_000; property.default = 300_000;
+		control.fireModelsChanged();
+		const restricted = editor.getModelConfiguration(MODEL);
+		const restored = createStore(storage, control.service, () => false);
+		restored.restoreModelConfiguration(MODEL, { contextSize: 500_000 });
+		assert.deepStrictEqual({ restricted, restored: restored.getModelConfiguration(MODEL), saved: storage.getObject(KEY, StorageScope.APPLICATION, {}), writes: control.setConfigCalls }, {
+			restricted: { contextSize: 300_000 }, restored: { contextSize: 300_000 }, saved: { [MODEL]: { contextSize: 500_000 } }, writes: [],
+		});
+		assert.match(editor.getModelConfigurationSchema(MODEL)?.properties?.contextSize.title ?? '', /Saved 500000; Available 300000/);
+		property.maximum = 1_000_000; property.default = 1_000_000;
+		control.fireModelsChanged();
+		assert.strictEqual(editor.getModelConfiguration(MODEL)?.contextSize, 500_000);
+	});
+
 	test('the production input delegate supplies the active chat and resolved owner to the picker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostConnectionsService, {

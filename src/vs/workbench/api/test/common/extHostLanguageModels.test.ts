@@ -14,7 +14,8 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { MainThreadLanguageModelsShape } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
-import { LanguageModelChatApiType } from '../../common/extHostTypes.js';
+import { LanguageModelChatApiType, LanguageModelChatDefaultsOutcome, LanguageModelChatDefaultsSource, LanguageModelChatDefaultsStatus } from '../../common/extHostTypes.js';
+import { IChatModelDefaultsSnapshot } from '../../../contrib/chat/common/chatModelDefaults.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostLanguageModels reasoning capabilities', () => {
@@ -99,6 +100,48 @@ suite('ExtHostLanguageModels request model resolution', () => {
 		const available = await host.getLanguageModelForRequest(nullExtensionDescription, 'test/available');
 		assert.strictEqual(available.id, 'available');
 		await assert.rejects(host.getLanguageModelForRequest(nullExtensionDescription, 'test/missing'), /test\/missing/);
+	});
+});
+
+suite('ExtHostLanguageModels native defaults', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses only returned models, converts outcomes and scopes invalidations', async () => {
+		const snapshot: IChatModelDefaultsSnapshot = { targetId: 'target', status: 'available', preferences: {},
+			effective: { contextSize: 200_000 }, sources: { contextSize: 'default' }, revision: 'revision' };
+		const proxy: Partial<MainThreadLanguageModelsShape> = {
+			$registerLanguageModelProvider: () => {}, $unregisterProvider: () => {},
+			$selectChatModels: async () => ['test/model'],
+			$getChatModelDefaultsCapabilities: async () => ({ version: 1, scopeAwareDefaults: true, numericSuggestions: true, customNumericValues: true, requestConfigurationFidelity: 'unverified' }),
+			$getChatModelDefaultsTargets: async () => [{ id: 'target', label: 'New Local Chats' }],
+			$inspectChatModelDefaults: async () => snapshot,
+			$updateChatModelDefaults: async (_extension, _model, _target, patch, revision) => {
+				assert.deepStrictEqual({ patch, revision }, { patch: { set: { contextSize: 250_000 } }, revision: 'revision' });
+				return { outcome: 'conflict', snapshot };
+			},
+		};
+		const host = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() {}));
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['languageModelChatDefaults'] as const };
+		store.add(host.registerLanguageModelChatProvider(extension, 'test', {
+			provideLanguageModelChatInformation: async () => [{ id: 'model', name: 'Model', family: 'model', version: '1', maxInputTokens: 1000, maxOutputTokens: 100, capabilities: {} }],
+			provideLanguageModelChatResponse: async () => { throw new Error('No model requests'); }, provideTokenCount: async () => 0,
+		}));
+		await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		const model = (await host.selectLanguageModels(extension, { vendor: 'test' }))[0];
+		await assert.rejects(host.getChatModelDefaults(extension, { ...model }), /returned by/);
+		await assert.rejects(host.getChatModelDefaults(nullExtensionDescription, model), /languageModelChatDefaults/);
+		const defaults = await host.getChatModelDefaults(extension, model);
+		const events: string[] = [];
+		store.add(defaults.onDidChange(event => events.push(event.targetId)));
+		host.$onChatModelDefaultsChange(extension.identifier, 'different', 'ignore');
+		host.$onChatModelDefaultsChange(extension.identifier, 'test/model', 'target');
+		const result = await defaults.update('target', { set: { contextSize: 250_000 } }, 'revision');
+		assert.deepStrictEqual({ targets: await defaults.getTargets(), status: (await defaults.inspect('target')).status,
+			sources: result.snapshot.sources, outcome: result.outcome, fidelity: defaults.capabilities.requestConfigurationFidelity, events }, {
+			targets: [{ id: 'target', label: 'New Local Chats' }], status: LanguageModelChatDefaultsStatus.Available,
+			sources: { contextSize: LanguageModelChatDefaultsSource.Default }, outcome: LanguageModelChatDefaultsOutcome.Conflict,
+			fidelity: false, events: ['target'],
+		});
 	});
 });
 
