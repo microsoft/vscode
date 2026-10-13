@@ -17,14 +17,45 @@ suite('Agent Host OTel managed policy registration', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	let introducedConfigurations: ReturnType<IConfigurationRegistry['getConfigurations']> = [];
+	let excludedPropertiesBeforeImport: ReturnType<IConfigurationRegistry['getExcludedConfigurationProperties']>;
+	let policyConfigurationsBeforeImport: ReturnType<IConfigurationRegistry['getPolicyConfigurations']>;
 
 	suiteSetup(async () => {
 		const configurationsBeforeImport = new Set(registry.getConfigurations());
+		excludedPropertiesBeforeImport = { ...registry.getExcludedConfigurationProperties() };
+		policyConfigurationsBeforeImport = new Map(registry.getPolicyConfigurations());
 		await import('../../common/agentHostStarter.config.contribution.js');
 		introducedConfigurations = registry.getConfigurations().filter(configuration => !configurationsBeforeImport.has(configuration));
 	});
 
-	suiteTeardown(() => registry.deregisterConfigurations(introducedConfigurations));
+	suiteTeardown(() => {
+		registry.deregisterConfigurations(introducedConfigurations);
+
+		// Hidden settings are not removed by deregistration unless experimental.
+		const excludedProperties = registry.getExcludedConfigurationProperties();
+		for (const key of new Set([...Object.keys(excludedProperties), ...Object.keys(excludedPropertiesBeforeImport)])) {
+			if (excludedProperties[key] !== excludedPropertiesBeforeImport[key]) {
+				const previousProperty = excludedPropertiesBeforeImport[key];
+				if (previousProperty === undefined) {
+					delete excludedProperties[key];
+				} else {
+					excludedProperties[key] = previousProperty;
+				}
+			}
+		}
+
+		const policyConfigurations = registry.getPolicyConfigurations();
+		for (const policyName of new Set([...policyConfigurations.keys(), ...policyConfigurationsBeforeImport.keys()])) {
+			if (policyConfigurations.get(policyName) !== policyConfigurationsBeforeImport.get(policyName)) {
+				const previousConfiguration = policyConfigurationsBeforeImport.get(policyName);
+				if (previousConfiguration === undefined) {
+					policyConfigurations.delete(policyName);
+				} else {
+					policyConfigurations.set(policyName, previousConfiguration);
+				}
+			}
+		}
+	});
 
 	class PolicyConfigurationService extends TestConfigurationService {
 		constructor(private readonly policyData: IPolicyData) {
