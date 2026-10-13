@@ -1131,7 +1131,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 							};
 						}),
 						dispose: () => {
-							this._proxy.$releasePasteEdits(this._handle, request.id);
+							const cacheId = edits[0]?._cacheId?.[0];
+							if (typeof cacheId === 'number') {
+								this._proxy.$releasePasteEdits(this._handle, cacheId);
+							}
 						},
 					};
 				} finally {

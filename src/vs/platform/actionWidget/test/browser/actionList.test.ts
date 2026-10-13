@@ -277,6 +277,29 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('keeps leading badges in visual and accessible order when rows resolve or are reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Pull Request'), badge: '#123', badgeBeforeLabel: true }],
+			listOptions: { showFilter: false },
+		});
+		const read = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			return {
+				ariaLabel: row.ariaLabel,
+				order: [...row.children].filter(element => element.classList.contains('title') || element.classList.contains('action-item-badge')).map(element => element.textContent),
+			};
+		};
+		const initial = read();
+		widget.updateItems([{ ...action('Resolved title'), badge: '#123', badgeBeforeLabel: true }]);
+		const resolved = read();
+		widget.updateItems([{ ...action('Ordinary action'), badge: 'New' }]);
+		assert.deepStrictEqual({ initial, resolved, reused: read() }, {
+			initial: { ariaLabel: '#123, Pull Request', order: ['#123', 'Pull Request'] },
+			resolved: { ariaLabel: '#123, Resolved title', order: ['#123', 'Resolved title'] },
+			reused: { ariaLabel: 'Ordinary action, New', order: ['Ordinary action', 'New'] },
+		});
+	});
+
 	test('toolbar labels remain actionable and revert to icons when a row is reused', () => {
 		const selected: string[] = [];
 		let configured = 0;
@@ -688,6 +711,30 @@ suite('ActionListWidget', () => {
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
 
+	for (const { name, preserveHover, remove, expected } of [
+		{ name: 'preserves pending hover through replacement', preserveHover: true, remove: false, expected: 'Updated details' },
+		{ name: 'cancels pending hover when its entry is removed', preserveHover: true, remove: true, expected: '' },
+		{ name: 'cancels pending hover when preservation is disabled', preserveHover: false, remove: false, expected: '' },
+	]) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('entry'), hover: { content: 'Initial details' } }],
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(100);
+			widget.updateItems(remove ? [] : [{ ...action('entry'), hover: { content: 'Updated details' } }], undefined, { preserveHover });
+			await timeout(399);
+			const beforeDelay = panel.textContent;
+			await timeout(1);
+			assert.deepStrictEqual({ beforeDelay, afterDelay: panel.textContent }, { beforeDelay: '', afterDelay: expected });
+		}));
+	}
+
 	for (const count of [1, 3, 30]) {
 		test(`opening ${count} interactive previews stays quiet until intentional hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let rendered = 0;
@@ -897,6 +944,61 @@ suite('ActionListWidget', () => {
 			title: 'Managed by your organization',
 		});
 	});
+
+	test('renders an optional information icon after the standalone toggle label', () => {
+		const label = 'Sandboxing in Dev Container';
+		const title = 'This relaxes the outer container isolation.';
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action(label),
+				hover: { content: title },
+				standaloneToggle: { label, title, checked: true, showInfoIcon: true, onChange: () => { } },
+			}],
+			listOptions: { showFilter: false },
+		});
+		const labelElement = widget.domNode.querySelector('.title');
+		const icon = labelElement?.querySelector('.codicon-info');
+		assert.ok(icon);
+		assert.deepStrictEqual({
+			label: labelElement?.firstChild?.textContent,
+			iconAfterLabel: labelElement?.lastChild === icon,
+			hiddenFromScreenReaders: icon.getAttribute('aria-hidden'),
+			switchDescription: widget.domNode.querySelector('.monaco-switch')?.getAttribute('aria-label'),
+		}, { label, iconAfterLabel: true, hiddenFromScreenReaders: 'true', switchDescription: title });
+
+		widget.updateItems([{
+			...action('Sandboxing for terminal'),
+			standaloneToggle: { label: 'Sandboxing for terminal', checked: true, onChange: () => { } },
+		}]);
+		assert.strictEqual(widget.domNode.querySelector('.action-list-item-toggle-info'), null);
+	});
+
+	for (const fontSize of [13, 16, 18]) {
+		test(`centers the toggle information icon beside its label at ${fontSize}px`, () => {
+			const label = 'Sandboxing in Dev Container';
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action(label),
+					standaloneToggle: { label, checked: true, showInfoIcon: true, onChange: () => { } },
+				}],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.classList.add('action-widget');
+			widget.domNode.style.setProperty('--vscode-fontSize-body1', `${fontSize}px`);
+			widget.domNode.style.font = `${fontSize}px/20px "Segoe UI", sans-serif`;
+			widget.layout(400, 200);
+			const labelElement = widget.domNode.querySelector('.title');
+			const icon = labelElement?.querySelector('.codicon-info');
+			assert.ok(labelElement?.firstChild);
+			assert.ok(icon);
+			const textRange = document.createRange();
+			textRange.selectNodeContents(labelElement.firstChild);
+			const textBounds = textRange.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			const offset = iconBounds.top + iconBounds.height / 2 - textBounds.top - textBounds.height / 2;
+			assert.ok(Math.abs(offset) <= 1, `Information icon is vertically offset by ${offset}px at ${fontSize}px`);
+		});
+	}
 
 	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
 		const selected: string[] = [];
@@ -2377,6 +2479,50 @@ suite('ActionListWidget', () => {
 			layouts,
 		}, { panelVisible: true, layouts: 1 });
 	}));
+
+	test('notifies initially visible rows once when scrolling begins', async () => {
+		const visible: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+				...action(`item-${index}`),
+				onDidBecomeVisible: () => visible.push(`item-${index}`),
+			})),
+			listOptions: { showFilter: false },
+		});
+		widget.layout(47, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 1;
+		await settleLayout();
+		list.scrollTop = 0;
+		await settleLayout();
+		assert.deepStrictEqual(visible, ['item-0', 'item-1']);
+	});
+
+	test('notifies virtualized items when scrolling makes them visible', async () => {
+		const visible: string[] = [];
+		const items = Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+			...action(`item-${index}`),
+			onDidBecomeVisible: () => visible.push(`item-${index}`),
+		}));
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		widget.layout(48, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 240;
+		await settleLayout();
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+		list.scrollTop = 241;
+		list.scrollTop = 242;
+		await settleLayout();
+
+		assert.ok(visible.length > 0);
+		assert.ok(visible.every(id => Number(id.slice('item-'.length)) >= 9));
+		assert.strictEqual(new Set(visible).size, visible.length, 'Already visible rows must not be notified again after metadata or pixel scroll updates');
+	});
 
 	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {
 		const createPanel = (id: string) => {

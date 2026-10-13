@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
-import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -35,6 +35,13 @@ const bundleSequencer = new SequencerByKey<string>();
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
 	description: 'Customization data synced from VS Code',
+}, null, '\t');
+
+const STANDALONE_DISPLAY_NAME = 'VS Code Standalone Customizations';
+
+const STANDALONE_MANIFEST_CONTENT = JSON.stringify({
+	name: STANDALONE_DISPLAY_NAME,
+	description: 'Standalone customizations synced from VS Code',
 }, null, '\t');
 
 /**
@@ -163,6 +170,16 @@ export interface ISyncableMcpServer {
 	readonly enablement: readonly CustomizationEnablement[];
 }
 
+export interface ISyncedCustomizationBundlerOptions {
+	/**
+	 * Bundles standalone customizations: user and workspace skills and agents,
+	 * and the MCP servers that VS Code forwards. The bundle is marked so that a
+	 * host does not deliver its contents as plugin-provided, which lets the
+	 * runtime apply `strictPluginOnlyCustomization` to them.
+	 */
+	readonly standalone?: boolean;
+}
+
 interface IBundleResult {
 	readonly ref: ClientPluginCustomization;
 }
@@ -188,11 +205,16 @@ interface IBundleResult {
  *
  * The bundler computes a content-based nonce so the agent host can
  * skip re-loading when nothing has changed.
+ *
+ * A standalone bundler ({@link ISyncedCustomizationBundlerOptions.standalone})
+ * carries standalone customizations separately from other synced content, so
+ * the host can keep them out of plugin delivery.
  */
 export class SyncedCustomizationBundler extends Disposable {
 
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
+	private readonly _standalone: boolean;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -201,12 +223,14 @@ export class SyncedCustomizationBundler extends Disposable {
 
 	constructor(
 		authority: string,
+		options: ISyncedCustomizationBundlerOptions | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._authority = authority;
+		this._standalone = options?.standalone === true;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
@@ -361,7 +385,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Write the manifest
 		this._throwIfDisposed();
 		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(this._standalone ? STANDALONE_MANIFEST_CONTENT : MANIFEST_CONTENT));
 
 		// Write each source file into the correct plugin directory.
 		for (const entry of fileContents) {
@@ -387,9 +411,9 @@ export class SyncedCustomizationBundler extends Disposable {
 				type: CustomizationType.Plugin,
 				id: customizationId(rootUriString),
 				uri: rootUriString,
-				name: DISPLAY_NAME,
+				name: this._standalone ? STANDALONE_DISPLAY_NAME : DISPLAY_NAME,
 				nonce,
-				_meta: mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : undefined,
+				_meta: this._toMeta(mcpDefaultCwds),
 				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 					kind: CustomizationEnablementKind.Global,
 					enabled: true,
@@ -399,6 +423,16 @@ export class SyncedCustomizationBundler extends Disposable {
 		};
 		this._lastRef = result;
 		return result;
+	}
+
+	private _toMeta(mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined): Record<string, unknown> | undefined {
+		if (!this._standalone && !mcpDefaultCwds) {
+			return undefined;
+		}
+		return {
+			...(this._standalone ? toClientPluginStandaloneMeta() : {}),
+			...(mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : {}),
+		};
 	}
 
 	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {

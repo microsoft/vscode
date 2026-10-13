@@ -4,25 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -31,13 +36,16 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotification } from '../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
-import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, commitAgentHostDebugLogsExport, createHostArtifactStream, exportAgentHostDebugLogs, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IProgressNotificationOptions, IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -137,8 +145,264 @@ suite('prepareAgentHostDebugLogsExport', () => {
 	});
 });
 
+suite('exportAgentHostDebugLogs progress', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setupExport(collection: () => Promise<IAgentHostDebugLogsArtifact>) {
+		const instantiation = disposables.add(new TestInstantiationService());
+		const notifications: INotification[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override notify(notification: INotification) {
+				notifications.push(notification);
+				for (const action of notification.actions?.primary ?? []) {
+					if (isDisposable(action)) {
+						disposables.add(action);
+					}
+				}
+				return super.notify(notification);
+			}
+		};
+		const removed = new DeferredPromise<void>();
+		const cancelHost: string[] = [];
+		let cancel: IProgressNotificationOptions['primaryActions'];
+		let active = false;
+		const messages: string[] = [];
+		instantiation.stub(IAgentHostConnectionsService, {
+			ambientConnection: upcastPartial<IAgentConnection>({
+				collectDebugLogs: collection,
+				cancelDebugLogs: async progressToken => { cancelHost.push(progressToken); },
+			}),
+		});
+		instantiation.stub(IAgentHostService, { clientId: 'local' });
+		instantiation.stub(IRemoteAgentHostService, { connections: [] });
+		const logsHome = URI.file('/logs');
+		instantiation.stub(IWorkbenchEnvironmentService, {
+			logsHome, logFile: URI.file('/logs/window/renderer.log'), windowLogsPath: URI.file('/logs/window'),
+		});
+		instantiation.stub(IFileService, {
+			resolve: async resource => upcastPartial<IFileStatWithMetadata>({ resource, children: [] }),
+			del: async () => { removed.complete(); },
+		});
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(INotificationService, notificationService);
+		instantiation.stub(IClipboardService, new TestClipboardService());
+		instantiation.stub(IChatEntitlementService, { isInternal: false });
+		instantiation.stub(IProgressService, upcastPartial<IProgressService>({
+			withProgress: async (options, task) => {
+				const notificationOptions: IProgressNotificationOptions = { ...options, location: ProgressLocation.Notification };
+				cancel = notificationOptions.primaryActions;
+				active = true;
+				try {
+					return await task({
+						report: step => {
+							if (typeof step.message === 'string') {
+								messages.push(step.message);
+							}
+						}
+					});
+				} finally {
+					active = false;
+				}
+			},
+		}));
+		return { instantiation, removed, cancelHost, notifications, messages, cancel: () => cancel?.[0]?.run(), isActive: () => active, isCancellable: () => cancel?.[0]?.enabled };
+	}
+
+	test('cancels pending host collection immediately and cleans a late artifact', async () => {
+		const collection = new DeferredPromise<IAgentHostDebugLogsArtifact>();
+		const started = new DeferredPromise<void>();
+		const context = setupExport(() => {
+			started.complete();
+			return collection.p;
+		});
+		let saved = false;
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'archive',
+			selectDestination: async () => URI.file('/exports/logs.zip'),
+			save: async () => { saved = true; },
+		});
+		const exported = context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		await started.p;
+		const cancellable = context.isCancellable();
+		context.cancel();
+		await exported;
+		collection.complete(artifactOfSize(10));
+		await context.removed.p;
+		assert.deepStrictEqual({
+			cancellable, active: context.isActive(),
+			cancelledHost: context.cancelHost.length, saved,
+		}, { cancellable: true, active: false, cancelledHost: 1, saved: false });
+	});
+
+	test('dismisses progress immediately when saving has not responded to cancellation yet', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		const saving = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'archive',
+			selectDestination: async () => URI.file('/exports/logs.zip'),
+			save: async () => {
+				started.complete();
+				await saving.p;
+			},
+		});
+		const exported = context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		await started.p;
+		context.cancel();
+		await exported;
+		assert.strictEqual(context.isActive(), false);
+		saving.complete();
+	});
+
+	test('keeps progress active through saving and cleanup', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		let progressActiveDuringSave = false;
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'archive',
+			selectDestination: async () => URI.file('/exports/logs.zip'),
+			save: async (_destination, _files, _artifact, options) => {
+				progressActiveDuringSave = context.isActive();
+				options?.progress.report({ message: 'Saving archive' });
+			},
+		});
+		await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		assert.deepStrictEqual({
+			progressActiveDuringSave,
+			lastMessage: context.messages.at(-1),
+			active: context.isActive(),
+		}, { progressActiveDuringSave: true, lastMessage: 'Cleaning up temporary logs...', active: false });
+	});
+
+	test('awaits the non-cancellable destination commit instead of reporting late cancellation', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		const committing = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'archive',
+			selectDestination: async () => URI.file('/exports/logs.zip'),
+			save: async (_destination, _files, _artifact, options) => {
+				options?.onWillCommit?.();
+				committing.complete();
+				await finish.p;
+			},
+		});
+		const exported = context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		await committing.p;
+		assert.strictEqual(context.isCancellable(), false);
+		context.cancel();
+		await Promise.resolve();
+		assert.strictEqual(context.isActive(), true);
+		finish.complete();
+		await exported;
+		assert.deepStrictEqual({
+			active: context.isActive(),
+			successNotifications: context.notifications.filter(notification => notification.actions?.primary?.length).length,
+		}, { active: false, successNotifications: 1 });
+	});
+
+	test('warns when folder saving returns a partial host export', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'directory',
+			selectDestination: async () => URI.file('/exports/logs'),
+			save: async () => ({ hostSaveError: 'Remote log read failed' }),
+		});
+		await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		assert.strictEqual(context.notifications[0].message, 'Agent Host logs were not fully exported: Remote log read failed');
+	});
+});
+
+suite('commitAgentHostDebugLogsExport', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const directory of [false, true]) {
+		for (const failure of ['none', 'install', 'rollback']) {
+			test(`${directory ? 'folder' : 'ZIP'} commit preserves the previous export on ${failure} failure`, async () => {
+				const logService = new NullLogService();
+				const destination = URI.file('/exports/logs');
+				const staging = URI.file('/exports/staging');
+				const fileService = disposables.add(new FileService(logService));
+				const cancellation = disposables.add(new CancellationTokenSource());
+				let committing = false;
+				const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+					override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+						if (from.path === staging.path) {
+							assert.strictEqual(committing, true);
+							cancellation.cancel();
+							if (failure !== 'none') {
+								throw new Error('Install failed');
+							}
+						} else if (from.path.includes('backup') && failure === 'rollback') {
+							throw new Error('Restore failed');
+						}
+						await super.rename(from, to, options);
+					}
+				}());
+				disposables.add(fileService.registerProvider(Schemas.file, provider));
+				const previous = directory ? URI.joinPath(destination, 'previous.log') : destination;
+				const next = directory ? URI.joinPath(staging, 'next.log') : staging;
+				await fileService.writeFile(previous, VSBuffer.fromString('previous'));
+				await fileService.writeFile(next, VSBuffer.fromString('next'));
+				const committed = commitAgentHostDebugLogsExport(staging, destination, fileService, logService, {
+					token: cancellation.token, progress: { report: () => { } },
+					onWillCommit: () => { committing = true; },
+				});
+				if (failure === 'none') {
+					await committed;
+					const installed = directory ? URI.joinPath(destination, 'next.log') : destination;
+					assert.deepStrictEqual({
+						contents: (await fileService.readFile(installed)).value.toString(),
+						files: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+					}, { contents: 'next', files: ['logs'] });
+				} else if (failure === 'install') {
+					await assert.rejects(committed, /Install failed/);
+					assert.strictEqual((await fileService.readFile(previous)).value.toString(), 'previous');
+					assert.ok(!(await fileService.resolve(URI.file('/exports'))).children?.some(child => child.name.includes('backup')));
+				} else {
+					await assert.rejects(committed, /previous export could not be restored and is preserved at/);
+					const backup = (await fileService.resolve(URI.file('/exports'))).children?.find(child => child.name.includes('backup'));
+					assert.ok(backup);
+					assert.strictEqual((await fileService.readFile(directory ? URI.joinPath(backup.resource, 'previous.log') : backup.resource)).value.toString(), 'previous');
+				}
+			});
+		}
+	}
+});
+
 suite('BrowserAgentHostDebugLogsExportService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cancels a folder export without leaving partial files or replacing an existing destination', async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		await fileService.writeFile(URI.joinPath(destination, 'existing.log'), VSBuffer.fromString('existing'));
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const chunk = new DeferredPromise<IAgentHostDebugLogsChunk>();
+		const saved = service.save(destination, [], {
+			artifact: { ...artifactOfSize(10), kind: 'directory' },
+			readChunk: () => {
+				started.complete();
+				return chunk.p;
+			},
+		}, { token: cancellation.token, progress: { report: () => { } } });
+		await started.p;
+		cancellation.cancel();
+		await assert.rejects(saved, isCancellationError);
+		chunk.complete({ data: VSBuffer.alloc(10), eof: true });
+		assert.deepStrictEqual({
+			files: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+			existing: (await fileService.readFile(URI.joinPath(destination, 'existing.log'))).value.toString(),
+		}, { files: ['logs'], existing: 'existing' });
+	});
 
 	test('uses the configured local folder and falls back when it is unavailable', async () => {
 		const configuredDirectory = URI.file('/configured');
@@ -189,11 +453,115 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			preferredHomeCalls: 1,
 			statUris: [configuredDirectory.toString(), missingDirectory.toString()],
 		});
+
+		test('returns partial-export status when a remote directory-artifact read fails', async () => {
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const instantiation = disposables.add(new TestInstantiationService());
+			instantiation.stub(IFileService, fileService);
+			instantiation.stub(ILogService, logService);
+			instantiation.stub(IConfigurationService, new TestConfigurationService());
+			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+			const destination = URI.file('/exports/logs');
+			const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
+				artifact: { ...artifactOfSize(10), kind: 'directory' },
+				readChunk: async () => { throw new Error('Remote log read failed'); },
+			});
+			assert.deepStrictEqual({
+				result,
+				clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
+			}, { result: { hostSaveError: 'Remote log read failed' }, clientLog: 'client' });
+		});
 	});
 });
 
 suite('createHostArtifactStream', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cancels an unresponsive chunk read', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const requested = new DeferredPromise<void>();
+		const chunk = new DeferredPromise<IAgentHostDebugLogsChunk>();
+		const stream = createHostArtifactStream(artifactOfSize(10), () => {
+			requested.complete();
+			return chunk.p;
+		}, cancellation.token);
+		const result = streamToBuffer(stream);
+		await requested.p;
+		cancellation.cancel();
+		await assert.rejects(result, isCancellationError);
+		chunk.complete({ data: VSBuffer.fromString('0123456789'), eof: true });
+	});
+
+	test('prefetches four chunks and preserves their order', async () => {
+		const size = AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES;
+		const contents = VSBuffer.alloc(size * 6);
+		const pending = new Map<number, DeferredPromise<IAgentHostDebugLogsChunk>>();
+		const prefetched = new DeferredPromise<void>();
+		const stream = createHostArtifactStream(artifactOfSize(contents.byteLength), async position => {
+			if (position === 0) {
+				return { data: contents.slice(0, size), eof: false };
+			}
+			if (position >= size * 5) {
+				return { data: contents.slice(position), eof: true };
+			}
+			const chunk = new DeferredPromise<IAgentHostDebugLogsChunk>();
+			pending.set(position, chunk);
+			if (pending.size === 4) {
+				prefetched.complete();
+			}
+			return chunk.p;
+		});
+		const result = streamToBuffer(stream);
+		await prefetched.p;
+		assert.deepStrictEqual([...pending.keys()], [size, size * 2, size * 3, size * 4]);
+		for (const [position, chunk] of [...pending].reverse()) {
+			contents.buffer.fill(position / size, position, position + size);
+			chunk.complete({ data: contents.slice(position, position + size), eof: false });
+		}
+		assert.deepStrictEqual((await result).buffer, contents.buffer);
+	});
+
+	test('downloads eight chunks in at most half the sequential round-trip time', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const size = AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES;
+			const contents = VSBuffer.alloc(size * 8);
+			const watch = StopWatch.create(false);
+			let activeReads = 0;
+			let maximumActiveReads = 0;
+			const stream = createHostArtifactStream(artifactOfSize(contents.byteLength), async position => {
+				activeReads++;
+				maximumActiveReads = Math.max(maximumActiveReads, activeReads);
+				await timeout(50);
+				activeReads--;
+				return { data: contents.slice(position, position + size), eof: position + size >= contents.byteLength };
+			});
+			assert.strictEqual((await streamToBuffer(stream)).byteLength, contents.byteLength);
+			assert.ok(watch.elapsed() <= 200, `Expected at most 200ms versus 400ms sequential, got ${watch.elapsed()}ms`);
+			assert.ok(maximumActiveReads <= 4, `Expected at most four concurrent reads, got ${maximumActiveReads}`);
+		});
+	});
+
+	test('applies backpressure when the consumer is paused', async () => {
+		const contents = VSBuffer.fromString('abcdefghij');
+		let reads = 0;
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const buffered = new DeferredPromise<void>();
+		const stream = createHostArtifactStream(artifactOfSize(contents.byteLength), async position => {
+			reads++;
+			if (reads === 2) {
+				buffered.complete();
+			}
+			return { data: contents.slice(position, position + 1), eof: position + 1 === contents.byteLength };
+		}, cancellation.token);
+		await buffered.p;
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.strictEqual(reads, 2);
+		assert.strictEqual((await streamToBuffer(stream)).toString(), contents.toString());
+	});
 
 	test('reassembles an artifact delivered over several chunks', async () => {
 		const contents = VSBuffer.fromString('abcdefghij');
@@ -306,7 +674,7 @@ suite('toActiveAgentHostSession', () => {
 suite('collectAgentHostDebugLogs', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive') {
+	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive', missionControlLogsIncluded = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {
@@ -320,7 +688,9 @@ suite('collectAgentHostDebugLogs', () => {
 			...artifactOfSize(hostEntryCount),
 			kind: hostArtifactKind,
 			...(hostArtifactKind === 'directory' ? { resource: URI.file('/staging') } : {}),
-			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: `host-${index}.log`, size: 1 })),
+			entries: Array.from({ length: hostEntryCount }, (_, index) => ({
+				path: missionControlLogsIncluded && index === 0 ? `ahp/mission-control/${ahpFiles.find(file => isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, file.name))!.name}` : `host-${index}.log`, size: 1,
+			})),
 		};
 		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStatWithMetadata>({
 			name,
@@ -412,6 +782,21 @@ suite('collectAgentHostDebugLogs', () => {
 		});
 	});
 
+	for (const missionControlLogsIncluded of [true, false]) {
+		test(`collects Mission Control logs once when host inclusion is ${missionControlLogsIncluded}`, async () => {
+			const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+			const local = ahpFile('local-client', 2);
+			const { result, warnings } = await collectWithFiles([relay, local], 1, 1, false, 'archive', missionControlLogsIncluded);
+			assert.deepStrictEqual({
+				wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => file.path),
+				warnings,
+			}, {
+				wireFiles: [`ahp/${local.name}`, ...missionControlLogsIncluded ? [] : [`ahp/${relay.name}`]],
+				warnings: [],
+			});
+		});
+	}
+
 	for (const hostEntryCount of [0, 990, 1000]) {
 		test(`caps the combined export at 1000 entries with ${hostEntryCount} host artifact entries`, async () => {
 			const { result, warnings } = await collectWithFiles([], hostEntryCount, 1160);
@@ -477,6 +862,37 @@ suite('collectAgentHostDebugLogs', () => {
 			hostCopyFailureReported: true,
 		});
 	});
+
+	for (const sessionScoped of [true, false]) {
+		for (const outcome of ['success', 'missing', 'corrupt'] as const) {
+			test(`preserves Mission Control directory fallback for ${outcome} host copies (sessionScoped=${sessionScoped})`, async () => {
+				const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+				const { result, warnings, instantiationService } = await collectWithFiles([relay], 1, 1, sessionScoped, 'directory', true);
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				for (const file of result.files) {
+					assert.ok(hasKey(file, { resource: true }));
+					await fileService.writeFile(file.resource, VSBuffer.fromString('x'));
+				}
+				const hostPath = `ahp/mission-control/${relay.name}`;
+				if (outcome !== 'missing') {
+					await fileService.writeFile(URI.file(`/staging/${hostPath}`), VSBuffer.fromString(outcome === 'success' ? 'h' : 'corrupt'));
+				}
+				instantiationService.stub(IFileService, fileService);
+				instantiationService.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
+				const service = instantiationService.createInstance(BrowserAgentHostDebugLogsExportService);
+				const destination = URI.from({ scheme: Schemas.inMemory, path: '/exports/logs' });
+				await service.save(destination, result.files, result.hostArtifact);
+				assert.deepStrictEqual({
+					hostSaved: await fileService.exists(URI.joinPath(destination, hostPath)),
+					fallbackSaved: await fileService.exists(URI.joinPath(destination, 'ahp', relay.name)),
+					failureReported: warnings.some(warning => warning.includes('Failed to save Agent Host logs:')),
+				}, { hostSaved: outcome === 'success', fallbackSaved: outcome !== 'success', failureReported: outcome !== 'success' });
+			});
+		}
+	}
 
 	test('keeps process logs ahead of the newest transport history when the combined export reaches the limit', async () => {
 		const ahpFiles = Array.from({ length: 20 }, (_, index) => ahpFile('a', index));

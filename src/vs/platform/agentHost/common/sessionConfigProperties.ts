@@ -95,12 +95,12 @@ export function writeSessionIsolation(property: ISessionConfigProperty | undefin
 export function getAvailableSessionApprovalValues(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): readonly string[] {
 	const offered = (property.schema.enum ?? []).filter((value): value is string => isString(value) && readSessionApprovalLevel(property, value) !== undefined);
 	const available = values.availableApprovalModes;
-	return property.key === 'approvalMode' && schema.properties.availableApprovalModes?.type === 'array' && schema.properties.availableApprovalModes.readOnly === true && Array.isArray(available)
+	return schema.properties.availableApprovalModes?.type === 'array' && schema.properties.availableApprovalModes.readOnly === true && Array.isArray(available)
 		? offered.filter(value => available.includes(value)) : offered;
 }
 
 export function getEffectiveSessionApprovalValue(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): unknown {
-	return property.key === 'approvalMode' && schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
+	return schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
 		? values.effectiveApprovalMode : values[property.key] ?? property.schema.default;
 }
 
@@ -110,7 +110,8 @@ export function isSessionConfigWritable(schema: SessionConfigPropertySchema | un
 
 function getSessionConfigWriteError(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, isNewSession: boolean): string | undefined {
 	const property = schema.properties[key];
-	if (!isSessionConfigWritable(property, isNewSession)
+	// readOnly controls picker edits, not settings-derived values forwarded to the host.
+	if (!property || (!isNewSession && property.sessionMutable !== true)
 		|| (key === 'approvalMode' && Object.hasOwn(schema.properties, SessionConfigKey.AutoApprove))
 		|| ((key === 'target' || key === 'baseBranch') && usesVSCodeWorkspaceProperties(schema))) {
 		return `Session configuration '${key}' is not writable.`;
@@ -130,9 +131,10 @@ export function validateSessionConfigWrite(schema: SessionConfigSchema, values: 
 	}
 }
 
-/** Retains advertised writable values without inventing defaults or renaming aliases. */
+/** Retains advertised inputs without inventing defaults, renaming aliases, or forwarding approval reports. */
 export function filterSessionConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined, isNewSession = true): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) =>
-		value !== undefined && !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
+		value !== undefined && !((key === 'availableApprovalModes' || key === 'effectiveApprovalMode') && schema.properties[key]?.readOnly)
+		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
 	));
 }

@@ -463,6 +463,13 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				: stateWithoutChangesets;
 		}
 
+		case ActionType.ChatCanvasesChanged: {
+			const { canvases: _omit, ...stateWithoutCanvases } = state;
+			return action.canvases
+				? { ...stateWithoutCanvases, canvases: action.canvases }
+				: stateWithoutCanvases;
+		}
+
 		// ── Working Directories ───────────────────────────────────────────────
 
 		case ActionType.ChatWorkingDirectorySet: {
@@ -931,6 +938,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatDraftChanged:
 			return { ...state, draft: action.draft };
+
+		case ActionType.ChatIsReadChanged:
+			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsRead, action.isRead) };
 
 		case ActionType.ChatIsArchivedChanged:
 			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived) };

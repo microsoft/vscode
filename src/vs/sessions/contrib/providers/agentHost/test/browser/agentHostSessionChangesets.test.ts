@@ -22,6 +22,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
@@ -29,7 +30,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -48,9 +49,45 @@ import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
 import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'edit', 'delete', 'rename'] as const) {
+		test(`preserves file labels and opaque snapshot addresses for ${kind} changes`, () => {
+			const beforeFile = kind === 'create' ? undefined : URI.file('/repo/original.ts');
+			const afterFile = kind === 'delete' ? undefined : URI.file(kind === 'rename' ? '/repo/renamed.ts' : '/repo/original.ts');
+			const beforeContent = URI.parse('opaque-content://store/a1?revision=1');
+			const afterContent = URI.parse('opaque-content://store/b2?revision=2');
+			const file: ChangesetFile = {
+				id: 'changed-file',
+				edit: {
+					before: beforeFile && { uri: beforeFile.toString(), content: { uri: beforeContent.toString() } },
+					after: afterFile && { uri: afterFile.toString(), content: { uri: afterContent.toString() } },
+				},
+			};
+			const mapUri: AgentHostUriMapper = (uri, options) => options?.contentRef
+				? toAgentHostContentUri(uri, 'remote', options.fileUri)
+				: toAgentHostUri(uri, 'remote');
+			const change = changesetFileToChange(file, mapUri, true)!;
+
+			assert.deepStrictEqual({
+				file: change.uri.path,
+				before: change.originalUri?.path,
+				after: change.modifiedUri?.path,
+				beforeContent: change.originalUri && fromAgentHostUri(change.originalUri).toString(),
+				afterContent: change.modifiedUri && fromAgentHostUri(change.modifiedUri).toString(),
+			}, {
+				file: (afterFile ?? beforeFile)!.path,
+				before: beforeFile?.path,
+				after: afterFile?.path,
+				beforeContent: beforeFile && beforeContent.toString(),
+				afterContent: afterFile && afterContent.toString(),
+			});
+		});
+	}
 
 	// Fixtures mirror what `changesetFileToChange` produces: an
 	// `IChatSessionFileChange2` whose `uri` always identifies the file (even for
@@ -682,7 +719,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
 		const absentCatalogue = current;
@@ -979,7 +1016,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -996,7 +1033,7 @@ suite('AgentHostSessionChangesets', () => {
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
-				resource: URI.parse(parseRequiredSessionUriFromChatUri(chatUri)).toString(),
+				resource: URI.parse(requireMintedTestChatOwner(chatUri)).toString(),
 			}],
 			chatSubscriptions: [
 				{ component: StateComponents.Chat, resource: chatUri.toString() },

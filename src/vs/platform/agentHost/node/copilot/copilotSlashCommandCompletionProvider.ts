@@ -15,6 +15,7 @@ import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matches
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
+import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 
@@ -28,6 +29,7 @@ const PLUGIN_MARKETPLACE_COMPLETION_CACHE_TTL_MS = 30_000;
  * retrieve runtime slash command metadata and apply feature gating.
  */
 export interface ICopilotSlashCommandSessionInfo {
+	ownsSession?(session: string): boolean;
 	/**
 	 * Whether the experimental rubber duck critic subagent is enabled via
 	 * the agent host config. When provided and `false`, `/rubber-duck` is hidden.
@@ -75,7 +77,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
+		if (!(this._sessionInfo.ownsSession?.(params.channel) ?? (AgentSession.provider(params.channel) === this.copilotcliId))) {
 			return [];
 		}
 		const sessionId = AgentSession.id(params.channel);
@@ -340,7 +342,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const completionItems: CompletionItem[] = [];
 		const addedAliases = new Set<string>();
 
-		for (const command of runtimeCommands) {
+		for (const runtimeCommand of runtimeCommands) {
+			const command = runtimeCommand.name === 'sandbox' && runtimeCommand.kind === 'builtin' ? copilotSandboxPolicyCommand : runtimeCommand;
 			if (!command.name) {
 				continue;
 			}
@@ -351,7 +354,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				// Already surfaced by the generic skill-completion provider.
 				continue;
 			}
-			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
+			if (command !== copilotSandboxPolicyCommand && (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias)))) {
 				continue;
 			}
 			// Config-action commands (permission/mode toggles) are surfaced below

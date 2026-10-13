@@ -22,8 +22,9 @@ import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
@@ -268,6 +269,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			gitStateService,
 			gitHubService,
 			logService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		const session = 'copilot:/pr-status';
@@ -288,7 +290,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherFolder = 'file:///other';
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -323,7 +325,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const firstPeer = buildChatUri(session, 'first-peer');
 		const secondPeer = buildChatUri(session, 'second-peer');
-		stateManager.addChat(session, firstPeer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -336,7 +338,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		}
 		publishedStateKeys.length = 0;
 
-		stateManager.addChat(session, secondPeer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer), { workingDirectories: [otherFolder] });
 		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
 		stateManager.removeChat(session, firstPeer);
 		await pump();

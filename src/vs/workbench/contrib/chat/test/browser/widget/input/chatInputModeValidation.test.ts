@@ -51,6 +51,7 @@ import { ChatInputPart, IChatModeChangeEvent } from '../../../../browser/widget/
 import { ChatMode, IChatMode, IChatModes } from '../../../../common/chatModes.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 
 class TestPolicyConfigurationService extends ConfigurationService {
 	constructor(
@@ -122,6 +123,7 @@ suite('ChatInputPart mode validation', () => {
 			accountPolicyGateService,
 			configurationService,
 			agentService: { get hasToolsAgent() { return configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled); } },
+			chatSessionsService: { getCustomAgentTargetForSessionType: () => Target.GitHubCopilot },
 			_currentModeObservable: currentMode,
 			_currentLanguageModel: observableValue('currentLanguageModel', undefined),
 			_currentChatModesObservable: observableValue('currentChatModes', modes),
@@ -186,6 +188,24 @@ suite('ChatInputPart mode validation', () => {
 			});
 		});
 	}
+
+	test('clears an agent scoped to the previous harness', () => {
+		const scopedMode = upcastPartial<IChatMode>({
+			...customMode,
+			sessionTypes: ['remote-agent-host-test-copilotcli'],
+		});
+		const harness = createInput(scopedMode);
+		const checkModeInSessionPool = Reflect.get(ChatInputPart.prototype, 'checkModeInSessionPool') as (this: ChatInputPart, sessionType: string) => void;
+
+		checkModeInSessionPool.call(harness.input, 'local');
+
+		assert.deepStrictEqual({ ...harness.snapshot(), writes: harness.persistedModes }, {
+			currentMode: 'agent',
+			persistedMode: 'test-custom-agent',
+			agentEnabled: true,
+			writes: [],
+		});
+	});
 
 	test('preserves Agent when constructed while the refresh gate is already active', () => {
 		const harness = createInput(ChatMode.Agent, refreshGate, false);

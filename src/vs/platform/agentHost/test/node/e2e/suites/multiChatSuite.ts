@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,7 +17,6 @@ import {
 	isAhpChatChannel,
 	MessageAttachmentKind,
 	MessageKind,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ROOT_STATE_URI,
 	SessionStatus,
@@ -30,7 +29,10 @@ import {
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { requireMintedTestChatOwner } from '../../../common/mintedChatUri.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -47,7 +49,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-multichat-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-multichat-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(
 			context.client,
@@ -103,7 +105,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			action: { type: ActionType.SessionTitleChanged, title },
 		});
 		if (isAhpChatChannel(channel)) {
-			const session = parseRequiredSessionUriFromChatUri(channel);
+			const session = requireMintedTestChatOwner(channel);
 			await context.client.waitForNotification(n => {
 				if (!isActionNotification(n, 'session/chatUpdated') || getActionEnvelope(n).channel !== session) {
 					return false;
@@ -119,19 +121,19 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		}
 	}
 
-	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats): void {
+	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats, profile: AgentHostTestProfile = 'pr'): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
 		const providerReplayEnabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
-		(enabled && providerReplayEnabled ? test : test.skip)(title, function () {
+		(enabled && providerReplayEnabled && (profile === 'pr' || getAgentHostTestProfile() === 'full') ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
 	}
 
-	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc): void {
-		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc, profile: AgentHostTestProfile = 'pr'): void {
+		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled, profile);
 	}
 
 	function assertPeerFileReadResult(turnId: string, expected: RegExp): void {
@@ -312,7 +314,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual({ turns: state.turns, activeTurn: state.activeTurn, status: state.status }, {
 			turns: [],
 			activeTurn: undefined,
-			status: SessionStatus.Idle,
+			status: SessionStatus.Idle | SessionStatus.IsRead,
 		});
 	}, config.supportsMultipleChats);
 
@@ -355,14 +357,23 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(!peers.includes(first) && peers.includes(second));
 	}, config.supportsMultipleChats);
 
-	conformanceTest(context, 'recreating a disposed peer chat starts empty', async function () {
-		const { sessionUri } = await createSession('recreate');
-		const peer = await createPeer(sessionUri, 'peer');
+	conformanceTest(context, 'a replacement peer chat starts empty after disposing a populated peer', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('replace');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Original Peer');
+		const originalTurnCount = (await chatState(peer)).turns.length;
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
 
-		await createPeer(sessionUri, 'peer');
+		const replacement = await createPeer(sessionUri, 'replacement');
 
-		assert.deepStrictEqual((await chatState(peer)).turns, []);
+		assert.deepStrictEqual({
+			originalTurnCount,
+			chats: (await sessionState(sessionUri)).chats.map(chat => chat.resource),
+			turns: (await chatState(replacement)).turns,
+		}, {
+			originalTurnCount: 1,
+			chats: [defaultChatUri, replacement],
+			turns: [],
+		});
 	}, config.supportsMultipleChats);
 
 	conformanceTest(context, 'renaming a peer chat updates its catalog title', async function () {
@@ -723,7 +734,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 		assert.match(response, /PEER_NESTED_READ/);
 		assertPeerFileReadResult('peer-read-nested', /PEER_NESTED_READ/);
-	});
+	}, 'full');
 
 	peerFileOperationTest('peer chat creates a file in the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('create-file');
@@ -773,7 +784,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-nested-create', `Run exactly this shell command, with no modifications: \`${peerNestedCommand}\`. Then reply with exactly "created".`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_NESTED');
-	}, context.portableShellToolReplayEnabled);
+	}, context.portableShellToolReplayEnabled, 'full');
 
 	peerFileOperationTest('peer chat handles a missing workspace file without an error', async function () {
 		const { sessionUri, workspace } = await createSession('missing-file');

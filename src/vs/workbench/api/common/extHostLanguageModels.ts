@@ -197,6 +197,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, configuration: options.configuration }, token) ?? [];
+		if (this._languageModelProviders.get(vendor) !== data) {
+			return [];
+		}
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -458,7 +461,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (userSelectedModelId) {
 			const model = await this.getLanguageModelByIdentifier(extension, userSelectedModelId);
 			if (!model) {
-				throw new Error(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
+				throw extHostTypes.LanguageModelError.NotFound(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
 			}
 			return model;
 		}

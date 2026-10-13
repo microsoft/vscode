@@ -255,9 +255,15 @@ export class AgentHostAuthenticationRecovery {
 
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
+		const logService = accessor.get(ILogService);
+		if (options.renewAuthentication) {
+			await options.renewAuthentication(resource);
+			throwIfAuthenticationStale(options);
+			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
+			return;
+		}
 		const authenticationService = accessor.get(IAuthenticationService);
 		const commandService = accessor.get(ICommandService);
-		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
@@ -374,6 +380,7 @@ async function resolveAuthenticationSessionForResource(
 	logService: ILogService,
 	logPrefix: string,
 	rejectedSession: RejectedAuthenticationSession | null = null,
+	preferredSessionId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	const requestedSet = new Set(scopes);
@@ -411,7 +418,8 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession) &&
+			(!preferredSessionId || session.id === preferredSessionId));
 		if (exactSession) {
 			return {
 				kind: 'resolved',
@@ -430,10 +438,18 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
+		const preferredAccountId = preferredSessionId
+			? allSessions.find(session => session.id === preferredSessionId)?.account.id
+			: undefined;
+		if (preferredSessionId && !preferredAccountId) {
+			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
+			continue;
+		}
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
+			if (!isAuthenticationSessionCandidate(session, rejectedSession) ||
+				preferredAccountId && session.account.id !== preferredAccountId) {
 				continue;
 			}
 			const sessionScopes = new Set(session.scopes);
@@ -472,7 +488,11 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
+	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
+	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;
+	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -742,6 +762,7 @@ async function resolveSessionForProtectedResource(
 		logService,
 		options.logPrefix,
 		rejectedSession,
+		options.preferredSessionId,
 	);
 	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
 		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
@@ -891,7 +912,7 @@ async function forceAuthenticationInteractively(
 /** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
 export function autoAuthenticateMcpServer(
 	accessor: ServicesAccessor,
-	connection: IAgentConnection,
+	connection: Pick<IAgentConnection, 'authenticate'>,
 	agentHost: { readonly scheme: string; readonly authority: string },
 	serverName: string,
 	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,

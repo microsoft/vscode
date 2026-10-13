@@ -29,13 +29,15 @@ import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls,
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
@@ -265,6 +267,7 @@ suite('AgentHostGitStateService', () => {
 			sessionDataService,
 			configurationService,
 			options?.telemetryService ?? NullTelemetryService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		const runEvents: string[] = [];
@@ -294,7 +297,7 @@ suite('AgentHostGitStateService', () => {
 		};
 	}
 
-	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; artifacts?: readonly ISessionArtifact[]; isolation?: 'folder' | 'worktree'; baseBranch?: string; createNewBranch?: boolean; createdAt?: number }): void {
+	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; artifacts?: readonly ISessionArtifact[]; isolation?: 'folder' | 'worktree'; baseBranch?: string; pullRequestUrl?: string; createdAt?: number }): void {
 		const summary: SessionSummary = {
 			resource: SESSION,
 			provider: 'mock',
@@ -307,14 +310,14 @@ suite('AgentHostGitStateService', () => {
 		};
 		// `restoreSession` materializes the session in `ready` lifecycle so the
 		// persistence path (which skips `creating` sessions) actually runs.
-		stateManager.restoreSession(summary, []);
+		stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 		if (options?.isolation) {
 			stateManager.setSessionConfig(SESSION, {
 				schema: { type: 'object', properties: {} },
 				values: {
 					[SessionConfigKey.Isolation]: options.isolation,
 					...(options.baseBranch ? { [SessionConfigKey.Branch]: options.baseBranch } : {}),
-					...(options.createNewBranch !== undefined ? { [SessionConfigKey.WorktreeCreateNewBranch]: options.createNewBranch } : {}),
+					...(options.pullRequestUrl !== undefined ? { [SessionConfigKey.PullRequestUrl]: options.pullRequestUrl } : {}),
 				},
 			});
 		}
@@ -328,6 +331,67 @@ suite('AgentHostGitStateService', () => {
 			stateManager.setSessionMeta(SESSION, withSessionArtifacts(stateManager.getSessionState(SESSION)?._meta, options.artifacts));
 		}
 	}
+
+	test('isolated main-chat Git state does not replace the aggregate original folder branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		const worktree = 'file:///wd.worktrees/isolated';
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [WORKING_DIRECTORY] });
+		await h.service.setFolderGitState(SESSION, [worktree], { branchName: 'isolated' });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: worktree });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: worktree });
+		h.setGitResult({ branchName: 'isolated', uncommittedChanges: 1 });
+		await h.service.refreshSessionGitState(main, URI.parse(worktree));
+		h.setGitResult({ branchName: 'main', uncommittedChanges: 2 });
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		assert.deepStrictEqual({
+			aggregate: readSessionGitState(h.stateManager.getSessionSummary(SESSION)?._meta),
+			chat: h.service.getSessionGitState(main),
+			peer: h.service.getSessionGitState(peer),
+			queriedDirectories: h.gitCalls,
+			sessionFolder: resolveGitHubStateFolder(h.stateManager, SESSION).workingDirectory,
+			mainIsSessionFolder: resolveGitHubStateFolder(h.stateManager, main).isSessionFolder,
+			peerIsSessionFolder: resolveGitHubStateFolder(h.stateManager, peer).isSessionFolder,
+			mergeOwner: resolveAgentMergeOwningChat(h.stateManager, SESSION, getWorkingDirectoryKey(WORKING_DIRECTORY), undefined),
+			persistedAggregate: JSON.parse((await h.db.getMetadata(META_GIT_STATE))!),
+			persisted: JSON.parse((await h.db.getMetadata(META_GIT_DATA_STATE))!)[getWorkingDirectoryScopeId([worktree])],
+		}, {
+			aggregate: { branchName: 'main', uncommittedChanges: 2 },
+			chat: { branchName: 'isolated', uncommittedChanges: 1 },
+			peer: { branchName: 'main', uncommittedChanges: 2 },
+			queriedDirectories: [worktree, WORKING_DIRECTORY],
+			sessionFolder: WORKING_DIRECTORY,
+			mainIsSessionFolder: false,
+			peerIsSessionFolder: true,
+			mergeOwner: peer,
+			persistedAggregate: { branchName: 'main', uncommittedChanges: 2 },
+			persisted: { branchName: 'isolated', uncommittedChanges: 1 },
+		});
+	}));
+
+	test('single-chat workspace replacement refreshes the worktree while retaining repository identity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, project: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		const worktree = 'file:///wd.worktrees/isolated';
+		const main = buildDefaultChatUri(SESSION);
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectoryReplaced, directory: WORKING_DIRECTORY, replacement: worktree });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: worktree });
+		h.setGitResult({ branchName: 'isolated' });
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		await h.service.refreshSessionGitState(main, undefined);
+		assert.deepStrictEqual({
+			project: h.stateManager.getSessionSummary(SESSION)?.project?.uri,
+			session: h.service.getSessionGitState(SESSION),
+			chat: h.service.getSessionGitState(main),
+			directories: h.gitCalls,
+			mainIsSessionFolder: resolveGitHubStateFolder(h.stateManager, main).isSessionFolder,
+		}, {
+			project: WORKING_DIRECTORY, session: { branchName: 'isolated' }, chat: { branchName: 'isolated' },
+			directories: [worktree, worktree], mainIsSessionFolder: true,
+		});
+	}));
 
 	test('seeds the materialized worktree branch while preserving known git state', () => {
 		const h = createHarness();
@@ -487,7 +551,7 @@ suite('AgentHostGitStateService', () => {
 			workingDirectory: WORKING_DIRECTORY,
 			gitState: sessionGitState,
 		});
-		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat), { workingDirectories: ['file:///chat'] });
 
 		const before = h.service.getSessionGitState(chat);
 		h.setGitResult(chatGitState);
@@ -549,9 +613,9 @@ suite('AgentHostGitStateService', () => {
 		const cachedGitState: ISessionGitState = { branchName: 'cached-feature', baseBranchName: 'main' };
 		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
-		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
-		h.stateManager.addChat(SESSION, sameFolderChat, { workingDirectories: ['file:///chat'] });
-		h.stateManager.addChat(SESSION, otherFolderChat, { workingDirectories: ['file:///other'] });
+		h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat), { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, sameFolderChat, creationTimeChatStorageResource(SESSION, sameFolderChat), { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, otherFolderChat, creationTimeChatStorageResource(SESSION, otherFolderChat), { workingDirectories: ['file:///other'] });
 		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, cachedGitState));
 
 		assert.deepStrictEqual({
@@ -577,7 +641,7 @@ suite('AgentHostGitStateService', () => {
 		const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'release' };
 		const scopeId = getWorkingDirectoryScopeId([WORKING_DIRECTORY]);
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: sessionGitState });
-		h.stateManager.addChat(SESSION, peer);
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer));
 		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, peerGitState));
 
 		assert.deepStrictEqual({
@@ -601,8 +665,8 @@ suite('AgentHostGitStateService', () => {
 			gitState: { branchName: 'session-feature', baseBranchName: 'main' },
 			gitHubState: sessionGitHubState,
 		});
-		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///other'] });
-		h.stateManager.addChat(SESSION, sameScopeChat, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat), { workingDirectories: ['file:///other'] });
+		h.stateManager.addChat(SESSION, sameScopeChat, creationTimeChatStorageResource(SESSION, sameScopeChat), { workingDirectories: [WORKING_DIRECTORY] });
 		h.setGitResult({ branchName: 'chat-feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'tools' });
 		h.setPullRequest('chat-feature', createTestPullRequest(7, { url: 'https://github.com/contoso/tools/pull/7' }));
 
@@ -638,7 +702,7 @@ suite('AgentHostGitStateService', () => {
 			gitState: { branchName: 'session-feature', baseBranchName: 'main' },
 			gitHubState: { owner: 'microsoft', repo: 'vscode' },
 		});
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerFolder] });
 		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
 		h.setPullRequest('peer-feature', createTestPullRequest(9, { url: 'https://github.com/contoso/tools/pull/9' }));
 
@@ -668,7 +732,7 @@ suite('AgentHostGitStateService', () => {
 			workingDirectory: WORKING_DIRECTORY,
 			createdAt: 600_000,
 		});
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerFolder] });
 		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
 		h.setPullRequest('peer-feature', createTestPullRequest(9, { url: 'https://github.com/contoso/tools/pull/9', createdAt: new Date(1_000).toISOString() }));
 
@@ -747,8 +811,8 @@ suite('AgentHostGitStateService', () => {
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 		const firstChat = buildChatUri(SESSION, 'first');
 		const secondChat = buildChatUri(SESSION, 'second');
-		h.stateManager.addChat(SESSION, firstChat, { workingDirectories: ['file:///first'] });
-		h.stateManager.addChat(SESSION, secondChat, { workingDirectories: ['file:///second'] });
+		h.stateManager.addChat(SESSION, firstChat, creationTimeChatStorageResource(SESSION, firstChat), { workingDirectories: ['file:///first'] });
+		h.stateManager.addChat(SESSION, secondChat, creationTimeChatStorageResource(SESSION, secondChat), { workingDirectories: ['file:///second'] });
 
 		await Promise.all([
 			h.service.setSessionGitHubState(firstChat, { owner: 'contoso', repo: 'first' }),
@@ -771,7 +835,7 @@ suite('AgentHostGitStateService', () => {
 		});
 		const peerDirectory = 'file:///peer';
 		const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/1';
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerDirectory] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerDirectory] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		h.setPullRequest('feature', createTestPullRequest(1, { url: pullRequestUrl }));
@@ -830,7 +894,7 @@ suite('AgentHostGitStateService', () => {
 		const peer = buildChatUri(SESSION, 'peer');
 		const peerDirectory = 'file:///peer';
 		const url = 'https://github.com/microsoft/vscode/pull/1';
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerDirectory] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerDirectory] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		h.setPullRequest('feature', createTestPullRequest(1, { url }));
@@ -865,7 +929,7 @@ suite('AgentHostGitStateService', () => {
 		const artifact = pullRequestArtifactForChat(1, peer);
 		const first = createHarness({ autoAttachPullRequests: false });
 		seedSession(first.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [artifact] });
-		first.stateManager.addChat(SESSION, peer, { workingDirectories: [workingDirectory] });
+		first.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [workingDirectory] });
 		await first.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		first.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 
@@ -874,7 +938,7 @@ suite('AgentHostGitStateService', () => {
 
 		const restored = createHarness({ autoAttachPullRequests: false, database: first.db });
 		seedSession(restored.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [artifact] });
-		restored.stateManager.addChat(SESSION, peer, { workingDirectories: [workingDirectory] });
+		restored.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [workingDirectory] });
 		await restored.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		restored.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		restored.setPullRequest('feature', createTestPullRequest(1, { url }));
@@ -909,7 +973,7 @@ suite('AgentHostGitStateService', () => {
 		const peer = buildChatUri(SESSION, 'peer');
 		const url = pullRequestArtifact(1).link;
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [pullRequestArtifactForChat(1, peer)] });
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: ['file:///peer'] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		h.setPullRequest('feature', createTestPullRequest(1, { url }));
@@ -945,7 +1009,7 @@ suite('AgentHostGitStateService', () => {
 		const peer = buildChatUri(SESSION, 'peer');
 		const url = 'https://github.com/microsoft/vscode/pull/1';
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [pullRequestArtifactForChat(1, peer)] });
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: ['file:///peer'] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		await h.service.associateRecordedPullRequest(peer, url);
@@ -971,7 +1035,7 @@ suite('AgentHostGitStateService', () => {
 		const peer = buildChatUri(SESSION, 'peer');
 		const urls = [pullRequestArtifact(1).link, pullRequestArtifact(2).link];
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [pullRequestArtifactForChat(1, peer), pullRequestArtifactForChat(2, peer)] });
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: ['file:///peer'] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		const before = await h.service.associateRecordedPullRequests(peer, urls);
@@ -1008,7 +1072,7 @@ suite('AgentHostGitStateService', () => {
 			workingDirectory: WORKING_DIRECTORY,
 			artifacts: [pullRequestArtifactForChat(1, defaultChat), pullRequestArtifactForChat(2, peer)],
 		});
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [WORKING_DIRECTORY] });
 		await h.service.setSessionGitHubState(defaultChat, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		h.setPullRequest('feature', createTestPullRequest(2, { url: urls[1] }));
@@ -1054,7 +1118,7 @@ suite('AgentHostGitStateService', () => {
 			workingDirectory: WORKING_DIRECTORY,
 			artifacts: [pullRequestArtifactForChat(1, defaultChat), pullRequestArtifactForChat(2, peer)],
 		});
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [WORKING_DIRECTORY] });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		await h.db.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([
 			{
@@ -1110,7 +1174,7 @@ suite('AgentHostGitStateService', () => {
 			workingDirectory: WORKING_DIRECTORY,
 			artifacts: [pullRequestArtifactForChat(1, defaultChat), pullRequestArtifactForChat(1, peer)],
 		});
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [WORKING_DIRECTORY] });
 		await h.service.setSessionGitHubState(defaultChat, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 
@@ -1144,7 +1208,7 @@ suite('AgentHostGitStateService', () => {
 		const peer = buildChatUri(SESSION, 'peer');
 		const url = pullRequestArtifact(1).link;
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [pullRequestArtifactForChat(1, peer)] });
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: ['file:///peer'] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		await h.service.associateRecordedPullRequests(peer, [url]);
@@ -1168,7 +1232,7 @@ suite('AgentHostGitStateService', () => {
 		const h = createHarness({ autoAttachPullRequests: false });
 		const peer = buildChatUri(SESSION, 'peer');
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, artifacts: [pullRequestArtifactForChat(1, peer)] });
-		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: ['file:///peer'] });
 		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		h.setPullRequest('feature', createTestPullRequest(1));
@@ -1187,7 +1251,7 @@ suite('AgentHostGitStateService', () => {
 		const chat = buildChatUri(SESSION, 'peer');
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
-		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat), { workingDirectories: ['file:///chat'] });
 		h.setGitResult(chatGitState);
 		await h.service.refreshSessionGitState(chat, undefined);
 
@@ -1210,14 +1274,84 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
 	}));
 
-	test('uses the persisted base branch when the selected branch is checked out directly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+			gitState: { branchName: 'agents/original', baseBranchName: 'release-A' },
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: replacement });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: replacement });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
+
+		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		await h.service.refreshSessionGitState(main, undefined);
+		await h.service.refreshSessionGitState(peer, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({
+			resolved,
+			directories: h.gitCalls,
+			baseBranches: h.gitBaseBranches,
+		}, {
+			resolved: ['main', 'release-A', 'release-A'],
+			directories: [replacement, WORKING_DIRECTORY, WORKING_DIRECTORY],
+			baseBranches: ['main', 'release-A', 'release-A'],
+		});
+	}));
+
+	test('uses the destination base after clearing a moved peer baseline without changing its sibling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [replacement] });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, '');
+
+		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
+	}));
+
+	test('uses the persisted pull request base branch for a pull request session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
 			project: 'file:///repo',
 			isolation: 'worktree',
 			baseBranch: 'feature/pr',
-			createNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+		});
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
+		h.setGitResult({ branchName: 'feature/pr', baseBranchName: 'main' });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+	}));
+
+	test('uses the persisted base branch when a worktree checked out its configured branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		// Pull request sessions created before `pullRequestUrl` existed configured the head branch itself.
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo',
+			isolation: 'worktree',
+			baseBranch: 'feature/pr',
+			gitState: { branchName: 'feature/pr', baseBranchName: 'feature/pr' },
 		});
 		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
 		h.setGitResult({ branchName: 'feature/pr', baseBranchName: 'main' });
@@ -1567,7 +1701,7 @@ suite('AgentHostGitStateService', () => {
 					const peer = buildChatUri(SESSION, 'peer');
 					const peerFolder = 'file:///peer';
 					seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
-					h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+					h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerFolder] });
 					await h.service.setSessionGitHubState(peer, peerGitHubState);
 					h.setGitResult(peerGitState);
 
@@ -1607,7 +1741,7 @@ suite('AgentHostGitStateService', () => {
 				gitHubState: sessionGitHubState,
 				artifacts: [pullRequestArtifact(1), pullRequestArtifact(2)],
 			});
-			h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+			h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer), { workingDirectories: [peerFolder] });
 			await h.service.setSessionGitHubState(peer, peerGitHubState);
 			h.setGitResult(peerGitState);
 			h.setPullRequest('session-feature', createTestPullRequest(1, { state: 'closed' }));
