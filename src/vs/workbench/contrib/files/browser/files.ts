@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { OpenEditor, ISortOrderConfiguration } from '../common/files.js';
 import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier } from '../../../common/editor.js';
@@ -23,6 +24,9 @@ export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
+	readonly onDidChangeItemDecorations: Event<URI[]>;
+
+	checkSymbolicLinkDecorations(items: ExplorerItem[]): void;
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren?: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
