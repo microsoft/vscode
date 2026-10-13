@@ -34,7 +34,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		@IChatMLFetcher chatMLFetcher: IChatMLFetcher,
 		@ITokenizerProvider tokenizerProvider: ITokenizerProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _copilotConfigurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService experimentService: IExperimentationService,
 		@IChatWebSocketManager chatWebSocketService: IChatWebSocketManager,
 		@ILogService logService: ILogService
@@ -45,7 +45,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 			chatMLFetcher,
 			tokenizerProvider,
 			instantiationService,
-			_copilotConfigurationService,
+			configurationService,
 			experimentService,
 			chatWebSocketService,
 			logService
@@ -64,7 +64,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		if (!this._copilotAuthService.copilotToken?.isNoAuthUser) {
 			return true;
 		}
-		return !!this._copilotConfigurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl);
+		return !!this._configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl);
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {
