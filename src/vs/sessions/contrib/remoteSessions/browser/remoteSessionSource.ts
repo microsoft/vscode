@@ -32,6 +32,8 @@ export interface IRemoteSessionChat {
 export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly depth: number;
 	readonly origin: IRemoteSessionOrigin | undefined;
+	/** The source session's advertised default chat; see {@link getAdvertisedDefaultChat}. */
+	readonly defaultChat: string | undefined;
 }
 
 export function assertRemoteSessionCaller(resource: URI): void {
@@ -132,7 +134,7 @@ export async function resolveRemoteSessionSource(
 		if (!chatResource || !parseChatUri(chatResource)) {
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));
 		}
-		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state) };
+		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), defaultChat };
 	} catch (error) {
 		throw failure ?? error;
 	} finally {
