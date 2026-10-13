@@ -1407,6 +1407,17 @@ describe('TaskApiBackend', () => {
 		expect(client.listCalls).toEqual([]);
 	});
 
+	it('resolves an exact task without repository details when the repository lookup fails', async () => {
+		const client = new FakeTaskApiClient();
+		const task = { ...makeTask([]), id: 'exact', repository: { id: 42 }, agent_collaborators: [{ slug: 'copilot-developer' }] };
+		vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getRepositoryById = async () => { throw new Error('rate limited'); };
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+		const resolved = await backend.fetchSession('exact');
+		expect({ id: resolved.taskId, repo: resolved.repo }).toEqual({ id: 'exact', repo: undefined });
+	});
+
 	it.each([true, false])('fetchSessionList excludes sandbox and local environments when isAgentSessionsWorkspace=%s', async isAgentSessionsWorkspace => {
 		const task = {
 			...makeTask([], 'in_progress'),

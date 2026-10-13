@@ -315,8 +315,12 @@ export class TaskApiBackend implements CloudAgentBackend {
 		if (task.id !== taskId || !isCloudCodingAgentTask(task)) {
 			throw new Error(l10n.t('Task {0} is not a Copilot cloud session.', taskId));
 		}
+		const repositoryId = task.repository?.id;
 		const repo = parseRepoFromTaskUrl(task.html_url)
-			?? (task.repository?.id === undefined ? undefined : await this._octoKitService.getRepositoryById(task.repository.id, {}));
+			?? (repositoryId === undefined ? undefined : await this._octoKitService.getRepositoryById(repositoryId, {}).catch(e => {
+				this._logService.warn(`Failed to resolve repository ${repositoryId} for task ${task.id}: ${e}`);
+				return undefined;
+			}));
 		return taskToSessionData(task, repo);
 	}
 
