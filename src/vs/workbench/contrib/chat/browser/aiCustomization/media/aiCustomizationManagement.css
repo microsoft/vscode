@@ -979,6 +979,27 @@ per-word capitalization does not survive translation. */
 	margin: 0 0 6px 0;
 }
 
+.ai-customization-list-widget .section-title-header .section-title-actions,
+.mcp-list-widget .section-title-header .section-title-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
+.mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
+	width: auto;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button,
+.mcp-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	padding: 0;
+}
+
 .ai-customization-list-widget .section-title-header .section-title-back-slot,
 .mcp-list-widget .section-title-header .section-title-back-slot {
 	display: flex;
@@ -993,6 +1014,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title {
+	flex: 1;
+	min-width: 0;
 	font-size: var(--vscode-fontSize-heading2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0;
