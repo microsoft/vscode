@@ -453,7 +453,7 @@ suite('CodexAgent createChat', () => {
 			multipleChats: agent.getDescriptor().capabilities?.multipleChats,
 			agentHostCapabilities: agent.agentHostCapabilities,
 		}, {
-			multipleChats: { fork: true, sideChat: true, initialTitle: true, forkWithInitialMessage: true },
+			multipleChats: { fork: true, sideChat: true },
 			agentHostCapabilities: { workspaceConversion: true },
 		});
 	});

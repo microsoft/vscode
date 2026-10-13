@@ -152,19 +152,21 @@ export class SlashCommandCompletions extends Disposable {
 
 				const sessionResource = widget.viewModel.model.sessionResource;
 				const sessionType = getChatSessionType(sessionResource);
-				let promptForkSupported = false;
-				if (isAgentHostBackedWidget(widget) && slashCommands.some(command => command.completionVariants?.some(variant => variant.label === '/fork prompt <prompt>'))) {
+				let forkSupported = false;
+				if (isAgentHostBackedWidget(widget) && slashCommands.some(command => command.command === 'fork')) {
 					try {
-						promptForkSupported = (await this.chatSessionsService.getOrCreateChatSession(sessionResource, _token))
-							.supportsForkWithInitialMessage?.() === true;
+						forkSupported = !!(await this.chatSessionsService.getOrCreateChatSession(sessionResource, _token)).forkSession;
 					} catch (error) {
-						this.logService.error(error, 'Failed to determine whether the chat session supports forking with an initial message');
+						this.logService.error(error, 'Failed to determine whether the chat session supports forking');
 					}
 				}
 
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							if (isAgentHostBackedWidget(widget) && c.command === 'fork' && !forkSupported) {
+								return false;
+							}
 							// silent commands are client-side only... so they're not "attaching anything"
 							// so this check can be scoped to when the command _does_ attach something before
 							// checking if the widget supports attachments at all
@@ -189,7 +191,6 @@ export class SlashCommandCompletions extends Disposable {
 							const withSlash = `/${c.command}`;
 							const variants = isAgentHostBackedWidget(widget)
 								? (c.completionVariants ?? [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }])
-									.filter(variant => variant.label !== '/fork prompt <prompt>' || promptForkSupported)
 								: [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }];
 							return variants.map((variant, variantIndex) => {
 								const prefix = variant.insertText.trimEnd();

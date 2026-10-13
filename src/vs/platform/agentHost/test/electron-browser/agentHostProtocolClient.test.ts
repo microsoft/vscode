@@ -1569,25 +1569,24 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
-		test('preserves initial-message rejection cause data', async () => {
+		test('preserves chat creation failure data', async () => {
 			const { client, transport } = createClient();
 			const resultPromise = client.createChat(sessionUri, chatUri, {
 				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
 			});
 			const data = {
 				chat: chatUri.toString(),
-				cause: { code: AhpErrorCodes.PermissionDenied, message: 'Attachment access denied', data: { uri: 'file:///workspace/private.png' } },
 			};
 
 			transport.fireMessage({
 				jsonrpc: '2.0',
 				id: 1,
-				error: { code: AhpErrorCodes.InitialMessageRejected, message: 'Initial message rejected', data },
+				error: { code: AhpErrorCodes.AlreadyExists, message: 'Chat already exists', data },
 			});
 
 			await assertRemoteProtocolError(resultPromise, {
-				code: AhpErrorCodes.InitialMessageRejected,
-				message: 'Initial message rejected',
+				code: AhpErrorCodes.AlreadyExists,
+				message: 'Chat already exists',
 				data,
 			});
 		});

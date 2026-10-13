@@ -6717,13 +6717,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!capabilities.supportsMultipleChats) {
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
 		}
-		const canSetInitialTitle = this._agentCapabilities.get()?.get(cached.agentProvider)?.multipleChats?.initialTitle === true;
+		if (!this._agentCapabilities.get()?.get(cached.agentProvider)?.multipleChats?.fork) {
+			throw new Error(`Session '${sessionId}' does not support forking`);
+		}
 
-		// Prompt-bearing forks must use the Chat Sessions provider's existing
-		// fork callback. It captures and prepares the source composer exactly
-		// once, then asks the host to create and accept the first message as one
-		// operation. The legacy bare/named path below intentionally remains on
-		// the Sessions provider's direct transport behavior.
+		// The Chat Sessions provider prepares the source composer and starts the fork's first turn in one request.
 		if (options?.initialMessage) {
 			this._keepSessionStateAlive(cached.sessionId);
 			const forked = await this._chatSessionsService.forkChatSession(
@@ -6765,7 +6763,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await connection.createChat(sessionUri, chatUri, {
 			model: selectedModel,
 			fork: { source: sourceBackendUri, turnId },
-			...(canSetInitialTitle && options?.title !== undefined ? { title: options.title } : {}),
+			...(options?.title?.trim() ? { title: options.title } : {}),
 		});
 
 		const chat = await waitForState(

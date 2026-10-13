@@ -90,19 +90,7 @@ export interface CreateChatParams extends BaseParams {
 	channel: URI;
 	/** Chat URI (client-chosen, e.g. `ahp-chat:/<uuid>`). */
 	chat: URI;
-	/**
-	 * Optional initial message for the new chat.
-	 *
-	 * This existing field remains ungated, including for legacy fork requests.
-	 * A client that needs the stronger composed fork-and-message guarantees MUST
-	 * require both {@link MultipleChatsCapability.fork} and
-	 * {@link MultipleChatsCapability.forkWithInitialMessage}. For that
-	 * capability-backed operation, a host that has created the fork but can
-	 * definitely not accept this message MUST return `InitialMessageRejected`
-	 * (-32012) with the created chat URI and underlying rejection cause. A
-	 * successful `null` result confirms message acceptance, not completion of
-	 * the message's model turn.
-	 */
+	/** Optional initial message for the new chat. */
 	initialMessage?: Message;
 	/**
 	 * Optional source chat and source turn.
@@ -132,18 +120,7 @@ export interface CreateChatParams extends BaseParams {
 	 * {@link AgentCapabilities.multipleWorkingDirectories}.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * Client-selected initial display title for the new chat.
-	 *
-	 * Clients MUST NOT supply this field unless the selected agent advertises
-	 * {@link MultipleChatsCapability.initialTitle}.
-	 *
-	 * A server honoring this field MUST trim leading and trailing whitespace.
-	 * If the result is empty, it MUST treat the field as absent and choose its
-	 * normal initial title. Otherwise, it MUST preserve the remaining text
-	 * exactly: it MUST NOT collapse internal whitespace, strip quotes or
-	 * punctuation, or truncate it. The protocol defines no maximum title length.
-	 */
+	/** Client-selected initial display title for the new chat. */
 	title?: string;
 }
 

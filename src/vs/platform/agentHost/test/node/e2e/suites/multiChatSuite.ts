@@ -283,14 +283,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			multipleChats: !!agent?.capabilities?.multipleChats,
 			fork: agent?.capabilities?.multipleChats?.fork ?? false,
 			sideChat: agent?.capabilities?.multipleChats?.sideChat ?? false,
-			initialTitle: agent?.capabilities?.multipleChats?.initialTitle ?? false,
-			forkWithInitialMessage: agent?.capabilities?.multipleChats?.forkWithInitialMessage ?? false,
 		}, {
 			multipleChats: config.supportsMultipleChats,
 			fork: config.supportsChatFork,
 			sideChat: config.supportsSideChats ?? false,
-			initialTitle: config.supportsInitialTitle,
-			forkWithInitialMessage: config.supportsForkWithInitialMessage ?? false,
 		});
 	});
 
@@ -566,8 +562,6 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 	conformanceTest(context, 'titled peer chat publishes its title in the first notification and snapshots', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('titled-peer');
-		const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		const agent = (root.snapshot!.state as RootState).agents.find(agent => agent.provider === config.provider);
 		await driveTurn(defaultChatUri, 'titled-peer-source', '/rename Fork Source', 1);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		context.client.clearReceived();
@@ -594,12 +588,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const chat = initialChat.snapshot!.state as ChatState;
 
 		assert.deepStrictEqual({
-			initialTitleCapability: agent?.capabilities?.multipleChats?.initialTitle,
 			chatAdded: { resource: chatAdded.resource, title: chatAdded.title },
 			sessionChat: sessionChat && { resource: sessionChat.resource, title: sessionChat.title },
 			chatSnapshot: { snapshotResource: initialChat.snapshot!.resource, resource: chat.resource, title: chat.title },
 		}, {
-			initialTitleCapability: true,
 			chatAdded: { resource: peer, title: 'Named peer .' },
 			sessionChat: { resource: peer, title: 'Named peer .' },
 			chatSnapshot: { snapshotResource: peer, resource: peer, title: 'Named peer .' },
@@ -669,13 +661,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			.find(message => message.text === '/rename Initial Message Title');
 
 		assert.deepStrictEqual({
-			capability: true,
 			snapshotAfterPublication: initialChat.snapshot!.fromSeq > chatAddedEnvelope.serverSeq,
 			firstPublishedTitle: chatAdded.summary.title,
 			initialTurnCount,
 			initialAttachment: initialTurnMessage?.attachments?.map(attachment => attachment.label),
 		}, {
-			capability: config.supportsForkWithInitialMessage ?? false,
 			snapshotAfterPublication: true,
 			firstPublishedTitle: 'Explicit Fork Title',
 			initialTurnCount: 1,
@@ -696,7 +686,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			+ (repeatedState.activeTurn?.message.text === '/rename Initial Message Title' ? 1 : 0),
 			1,
 		);
-	}, config.supportsMultipleChats && config.supportsChatFork && (config.supportsForkWithInitialMessage ?? false));
+	}, config.supportsMultipleChats && config.supportsChatFork);
 
 	providerTest('peer chat completes a simple turn', async function () {
 		const { sessionUri } = await createSession('peer-turn');

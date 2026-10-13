@@ -95,8 +95,6 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export interface IAgentCreateChatInitialMessageContext {
 	readonly clientId: string;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
-	/** The caller requested the capability-backed fork-and-message operation. */
-	readonly capabilityBackedFork: boolean;
 }
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';

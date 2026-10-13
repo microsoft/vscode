@@ -134,7 +134,7 @@ import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat } from './agentHostPeerChatStore.js';
 import { migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
-import { IAgentHostTurnService } from './agentHostTurnService.js';
+import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -5484,20 +5484,14 @@ export class AgentService extends Disposable implements IAgentService {
 		if (initialMessage && initialMessage.origin?.kind !== MessageKind.User) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message must have user origin.');
 		}
-		// `initialMessage` remains a legacy, ungated protocol field. The
-		// capability only attests the stronger composed-operation guarantees, so
-		// derive those guarantees from the provider that actually owns this chat.
-		const capabilityBackedInitialFork = initialMessageContext?.capabilityBackedFork === true
-			&& initialMessage !== undefined
-			&& providerOptions.fork !== undefined
-			&& provider.getDescriptor().capabilities?.multipleChats?.forkWithInitialMessage === true;
+		const initialFork = initialMessage !== undefined && providerOptions.fork !== undefined;
 		if (chat.toString() === this._defaultChatUri(session) && initialMessage && initialMessageContext) {
-			if (capabilityBackedInitialFork) {
+			if (initialFork) {
 				await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
 					this._throwIfInitialForkTargetExists(sessionKey, chat);
 				});
 			}
-			await this._acceptInitialMessage(sessionKey, chat, initialMessage, { ...initialMessageContext, capabilityBackedFork: capabilityBackedInitialFork });
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, initialMessageContext);
 			return;
 		}
 		if (!this._supportsChats(provider)) {
@@ -5583,7 +5577,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// serialized catalog path, so a rejected repeat cannot rewrite an
 				// existing target's local-turn metadata.
 				const persistForkedLocalTurns = () => this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns!, turnIdMapping);
-				if (capabilityBackedInitialFork) {
+				if (initialFork) {
 					persistForkedLocalTurnsAfterDuplicateCheck = persistForkedLocalTurns;
 				} else {
 					persistForkedLocalTurns();
@@ -5612,7 +5606,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
-			if (capabilityBackedInitialFork) {
+			if (initialFork) {
 				this._throwIfInitialForkTargetExists(sessionKey, chat);
 			}
 			if (this._workspaceConversionService.isPending(this._defaultChatUri(session), true)
@@ -5733,7 +5727,7 @@ export class AgentService extends Disposable implements IAgentService {
 			);
 		}
 		if (initialMessage && initialMessageContext) {
-			await this._acceptInitialMessage(sessionKey, chat, initialMessage, { ...initialMessageContext, capabilityBackedFork: capabilityBackedInitialFork });
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, initialMessageContext);
 		}
 
 	}
@@ -5753,21 +5747,25 @@ export class AgentService extends Disposable implements IAgentService {
 			startedAt: new Date().toISOString(),
 			message,
 		};
+		let rewritten: ChatTurnStartedAction;
 		try {
-			const rewritten = await this._rewriteUserMessageAttachments(session, action, context.clientId, true);
-			const rejection = this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext);
-			if (rejection) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, rejection.message, rejection);
-			}
+			rewritten = await this._rewriteUserMessageAttachments(session, action, context.clientId, true);
 		} catch (error) {
-			if (!context.capabilityBackedFork) {
+			let turn: IDeferredAgentHostTurn;
+			try {
+				turn = this._turnService.beginDeferredTurnMessage(chat, message);
+			} catch {
 				throw error;
 			}
-			const cause = error instanceof ProtocolError
-				? { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) }
-				: { code: JSON_RPC_INTERNAL_ERROR, message: toErrorMessage(error) };
-			throw new ProtocolError(AhpErrorCodes.InitialMessageRejected, cause.message, { chat: chat.toString(), cause });
+			if (!this._turnService.failDeferredTurnMessage(chat, turn, {
+				errorType: 'attachmentPreparationFailed',
+				message: toErrorMessage(error),
+			})) {
+				this._logService.info(`[AgentService] The initial turn for ${chat.toString()} ended before its attachment failure could be reported.`);
+			}
+			return;
 		}
+		this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext);
 	}
 
 	/**

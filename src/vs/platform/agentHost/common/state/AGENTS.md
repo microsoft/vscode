@@ -27,12 +27,7 @@ The generated protocol includes the Changesets model:
 
 ### Current targeted backport
 
-The generated copy intentionally carries `CreateChatParams.title` and
-`MultipleChatsCapability.initialTitle` on top of the `.ahp-version` source
-commit `6eec1b91`. Syncing that commit without the canonical fields removes
-them and breaks current consumers. Until the recorded pin advances to an AHP
-commit containing these fields, preserve or reapply this generated delta when
-syncing.
+The generated copy intentionally carries the optional `CreateChatParams.title` on top of the `.ahp-version` source commit `6eec1b91`. Until the recorded pin advances to an AHP commit containing this field, preserve or reapply this generated delta when syncing. Neither titles nor initial messages require an additional capability; source-based creation still uses the existing `fork` and `sideChat` capabilities.
 
 A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
 compatibility deltas: deprecated `SessionChatSummary.archived` and
@@ -40,14 +35,7 @@ compatibility deltas: deprecated `SessionChatSummary.archived` and
 
 ### Initial-message transport delta
 
-The pinned generated protocol includes `CreateChatParams.initialMessage` and
-the associated `InitialMessageRejected` typed error data. Host-facing
-`IAgentCreateChatRequestOptions.initialMessage` is deliberately not part of
-provider creation options: the host creates the provider chat first, then
-processes the message through its normal client-aware admission path. Protocol
-clients serialize a supplied initial message unchanged except that a missing
-message `model` or `agent` inherits the corresponding request option. Do not
-add top-level `model` or `agent` fields to `CreateChatParams`.
+Host-facing `IAgentCreateChatRequestOptions.initialMessage` uses the existing `CreateChatParams.initialMessage` field and is deliberately not part of provider creation options: the host creates the provider chat first, then processes the message through its normal client-aware admission path. Message failures appear in the target chat's turn state rather than a special creation RPC error. Protocol clients serialize a supplied initial message unchanged except that a missing message `model` or `agent` inherits the corresponding request option. Do not add top-level `model` or `agent` fields to `CreateChatParams`.
 
 ## Adding optional fields to existing types
 

@@ -65,7 +65,7 @@ import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type Comp
 import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -787,8 +787,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
-	readonly forkSession: IChatSession['forkSession'];
-	readonly supportsForkWithInitialMessage: NonNullable<IChatSession['supportsForkWithInitialMessage']>;
+	get forkSession(): IChatSession['forkSession'] {
+		return this._supportsFork() ? this._forkSession : undefined;
+	}
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
 	prepareForClientTools: IChatSession['prepareForClientTools'];
@@ -810,7 +811,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		historySubagentObservations: IDisposable,
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
-		private readonly _supportsForkWithInitialMessage: () => boolean,
+		private readonly _supportsFork: () => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -865,8 +866,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		// current active turn at call time and dispatches ChatTurnCancelled.
 		this.interruptActiveResponseCallback = async () => interruptActiveResponse();
 
-		this.forkSession = this._forkSession;
-		this.supportsForkWithInitialMessage = this._supportsForkWithInitialMessage;
 		this.renameSession = this._renameSession;
 	}
 
@@ -1843,8 +1842,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 				() => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
-					return agent?.capabilities?.multipleChats?.fork === true
-						&& agent.capabilities.multipleChats.forkWithInitialMessage === true;
+					return agent?.capabilities?.multipleChats?.fork === true;
 				},
 			);
 		} catch (err) {
@@ -5947,18 +5945,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!agentInfo?.capabilities?.multipleChats?.fork) {
 			throw new Error(`Provider ${this._config.provider} does not support forking`);
 		}
-		if (options?.initialMessage && !agentInfo.capabilities.multipleChats.forkWithInitialMessage) {
-			// Do not fall back to a create-then-send sequence: that loses the
-			// host-owned acceptance and correlation guarantees for prompt forks.
-			throw new Error(localize('agentHost.forkInitialMessageUnsupported', "This Agent Host does not support starting a fork with a prompt."));
-		}
-
 		const sessionUri = backendSession.toString();
 		const rawSessionState = this._getRawSessionState(sessionUri);
 		if (!rawSessionState) {
 			throw new Error(`Cannot fork: session state is not hydrated for ${sessionUri}`);
 		}
-		const supportsInitialTitle = agentInfo.capabilities.multipleChats.initialTitle === true;
 		// Fork the chat the gesture came from — a peer chat when the resource
 		// carries a chat fragment, else the session's default chat.
 		const sourceChat = this._resolveChatUriFromState(sessionResource, rawSessionState);
@@ -6007,26 +5998,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			await this._config.connection.createChat(backendSession, forkedChat, {
 				model: lastTurnModelSelection(protocolState),
 				fork: { source: URI.parse(sourceChat), turnId },
-				...(supportsInitialTitle && options?.title !== undefined ? { title: options.title } : {}),
+				...(options?.title?.trim() ? { title: options.title } : {}),
 				...(initialMessage ? { initialMessage } : {}),
 			});
 		} catch (error) {
-			if (initialMessage && error instanceof ProtocolError) {
-				if (error.code === -32012) {
-					const data: { chat?: unknown; cause?: unknown } | undefined = typeof error.data === 'object' && error.data !== null ? error.data : undefined;
-					const cause: { code?: unknown; message?: unknown } | undefined = typeof data?.cause === 'object' && data.cause !== null ? data.cause : undefined;
-					if (typeof data?.chat === 'string'
-						&& typeof cause?.code === 'number'
-						&& typeof cause.message === 'string'
-						&& data.chat === forkedChat.toString()) {
-						throw new ChatSessionForkError('rejected', forkedResource, error);
-					}
-					throw new ChatSessionForkError('unknown', forkedResource, error);
-				}
-				throw error;
-			}
-			if (initialMessage) {
-				throw new ChatSessionForkError('unknown', forkedResource, error);
+			const failedBeforeCreation = error instanceof ProtocolError && (
+				error.code === AhpErrorCodes.AlreadyExists
+				|| error.code === JsonRpcErrorCodes.InvalidParams
+				|| error.code === AhpErrorCodes.SessionNotFound
+				|| error.code === AhpErrorCodes.ProviderNotFound
+			);
+			// Other RPC failures can arrive after the target was created.
+			if (initialMessage && !failedBeforeCreation) {
+				throw new ChatSessionForkError(forkedResource, error);
 			}
 			throw error;
 		}
@@ -6049,7 +6033,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// frontend target even when catalog hydration/navigation cannot finish.
 			// The outcome is deliberately unknown: do not restore or resend it.
 			if (initialMessage) {
-				throw new ChatSessionForkError('unknown', forkedResource, error);
+				throw new ChatSessionForkError(forkedResource, error);
 			}
 			throw error;
 		}

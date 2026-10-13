@@ -58,7 +58,7 @@ registerAction2(class extends ForkConversationAction {
 				}
 			} catch (error) {
 				if (options?.initialMessage) {
-					throw new ChatSessionForkError('unknown', newChat.resource, error);
+					throw new ChatSessionForkError(newChat.resource, error);
 				}
 				throw error;
 			}
@@ -80,10 +80,7 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			// A rejected initial prompt is recovered through the base action after
-			// the host has already created a peer chat. It is not a top-level
-			// session, so opening it through the legacy session path would wait for
-			// a session row that will never appear.
+			// Inspect a prompt fork's peer directly instead of waiting for a top-level session row.
 			const forkedChat = options?.initialMessage
 				? sessionsManagementService.getSessionForChatResource(forkedSessionResource)
 				: undefined;

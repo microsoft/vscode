@@ -10600,8 +10600,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('forkChat sends a supported initial title and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } } as AgentInfo]);
+		test('forkChat sends an optional title with only fork support and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-fork');
 			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
@@ -10669,6 +10669,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 				targetModel: undefined,
 			});
 		}));
+
+		test('forkChat requires the same fork capability for bare, named, and prompt forks', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: false } } }]);
+			let promptForks = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				chatSessionsService: {
+					forkChatSession: async () => {
+						promptForks++;
+						throw new Error('Unexpected prompt fork');
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-disabled');
+			for (const options of [undefined, { title: 'Named fork' }, { initialMessage: { text: 'Prompt' } }]) {
+				await assert.rejects(provider.forkChat(session.sessionId, session.resource, 'turn-1', options), /does not support forking/);
+			}
+			assert.deepStrictEqual({ creates: agentHost.createdChats.length, promptForks }, { creates: 0, promptForks: 0 });
+		});
 
 		test('forkChat retains a prompt-bearing fork without overwriting its hydrated input state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const rawId = 'multi-fork-prompt-input-state';
@@ -10762,7 +10780,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 
 		test('forkChat preserves the built-in agent default for bare and named forks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } } as AgentInfo]);
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const inputStates: Partial<IChatModelInputState>[] = [];
 			const provider = createProvider(disposables, agentHost, undefined, {
 				acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
@@ -10789,7 +10807,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			]);
 		}));
 
-		test('forkChat omits an unsupported initial title and returns the host-generated peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat returns the host-generated peer title when an older host ignores the requested title', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-fork-no-title');
@@ -10812,7 +10830,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				title: call?.options?.title,
 				forkedTitle: forked.title.get(),
 			}, {
-				title: undefined,
+				title: 'Ignored title',
 				forkedTitle: 'Host-generated fork',
 			});
 		}));

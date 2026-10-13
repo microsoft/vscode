@@ -16,7 +16,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -45,7 +45,7 @@ class TestForkConversationAction extends ForkConversationAction {
 suite('ForkConversationAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('rebases and deduplicates recovered fork prompt variables', () => {
+	test('rebases and deduplicates fork prompt variables', () => {
 		const variables = getChatSessionInitialMessageVariables({
 			text: 'prompt',
 			textOffset: 13,
@@ -68,18 +68,14 @@ suite('ForkConversationAction', () => {
 		]);
 	});
 
-	test('retains target identity and original cause for rejected and unknown prompt forks', () => {
+	test('retains target identity and original cause for unknown prompt forks', () => {
 		const target = URI.parse('contributed:/source#fork');
-		const cause = new Error('initial message rejected');
-		const rejected = new ChatSessionForkError('rejected', target, cause);
-		const unknown = new ChatSessionForkError('unknown', target, cause);
+		const cause = new Error('connection lost');
+		const error = new ChatSessionForkError(target, cause);
 		assert.deepStrictEqual({
-			target: rejected.target,
-			kind: rejected.kind,
-			cause: rejected.cause,
-			unknownKind: unknown.kind,
-			unknownCause: unknown.cause,
-		}, { target, kind: 'rejected', cause, unknownKind: 'unknown', unknownCause: cause });
+			target: error.target,
+			cause: error.cause,
+		}, { target, cause });
 	});
 
 	test('offers three fork presentations and preserves prompt syntax and offsets', async () => {
@@ -160,10 +156,53 @@ suite('ForkConversationAction', () => {
 			instantiationService.invokeFunction(accessor => action.run(accessor, source, { initialMessage: { text: 'new prompt' } })),
 			error => {
 				assert.ok(error instanceof ChatSessionForkError);
-				assert.deepStrictEqual({ kind: error.kind, target: error.target, cause: error.cause, creations, openings }, { kind: 'unknown', target, cause, creations: 1, openings: 1 });
+				assert.deepStrictEqual({ target: error.target, cause: error.cause, creations, openings }, { target, cause, creations: 1, openings: 1 });
 				return true;
 			},
 		);
+	});
+
+	test('offers target inspection for an unknown transport outcome without restoring or resending the prompt', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const source = URI.parse('agent-host-copilot:/source');
+		const target = source.with({ fragment: 'fork' });
+		const failure = new ChatSessionForkError(target, new Error('connection lost'));
+		const choices: IPromptChoice[] = [];
+		const opens: URI[] = [];
+		let creations = 0;
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				choices.push(...args[2]);
+				return super.prompt(...args);
+			}
+		}());
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getContentProviderSchemes: () => [source.scheme],
+			forkChatSession: async () => {
+				creations++;
+				throw failure;
+			},
+		}));
+		const action = new class extends ForkConversationAction {
+			protected override async _openForkedSession(_instantiationService: IInstantiationService, _source: URI, target: URI): Promise<void> {
+				opens.push(target);
+			}
+		};
+		await assert.rejects(
+			instantiationService.invokeFunction(accessor => action.run(accessor, source, { initialMessage: { text: 'new prompt' } })),
+			error => error === failure,
+		);
+		const beforeInspection = [...opens];
+		await choices[0]?.run();
+
+		assert.deepStrictEqual({ beforeInspection, choices: choices.map(choice => choice.label), creations, opens }, {
+			beforeInspection: [],
+			choices: ['Inspect Target'],
+			creations: 1,
+			opens: [target],
+		});
 	});
 
 	test('trims only the fork slash command title', async () => {

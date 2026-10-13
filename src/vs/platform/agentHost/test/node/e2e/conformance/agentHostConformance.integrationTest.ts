@@ -50,7 +50,6 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 	planModeStyle: 'session-state',
 	supportsMultipleChats: true,
 	supportsInitialTitle: true,
-	supportsForkWithInitialMessage: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
 };

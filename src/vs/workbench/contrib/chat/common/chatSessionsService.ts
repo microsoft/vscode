@@ -531,14 +531,11 @@ export interface IChatSessionForkOptions {
 }
 
 /**
- * A provider-neutral fork failure with the client resource selected before the
- * create request was issued. `rejected` proves that the target chat exists and
- * its initial message was not accepted; `unknown` deliberately makes no such
- * claim and must never be retried automatically.
+ * A fork with an unknown outcome and a client-selected target to inspect.
+ * The initial message must never be retried automatically.
  */
 export class ChatSessionForkError extends Error {
 	constructor(
-		readonly kind: 'rejected' | 'unknown',
 		readonly target: URI,
 		override readonly cause: unknown,
 	) {
@@ -611,14 +608,6 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
-	/**
-	 * Whether the currently connected provider supports the composed,
-	 * host-owned fork-and-initial-message operation. This is deliberately a
-	 * getter so callers consult the current connection descriptor rather than
-	 * caching capability state.
-	 */
-	supportsForkWithInitialMessage?: () => boolean;
-
 	/**
 	 * Renames the session.
 	 * @param title The new title for the session.

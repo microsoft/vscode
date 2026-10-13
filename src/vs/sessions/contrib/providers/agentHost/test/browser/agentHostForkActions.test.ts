@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ForkConversationActionId } from '../../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
@@ -54,9 +54,15 @@ suite('Agent Host fork actions', () => {
 		const forkCalls: { kind: string; source: URI; requestId: string | undefined }[] = [];
 		const forkOptions: { readonly title?: string }[] = [];
 		const opens: { kind: string; resource: URI; options?: IOpenSessionOptions & { referenceChatResource?: URI; referenceSessionId?: string } }[] = [];
+		const recoveryChoices: IPromptChoice[] = [];
 
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				recoveryChoices.push(...args[2]);
+				return super.prompt(...args);
+			}
+		}());
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined }));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			getSession: () => upcastPartial<IChatModel>({
@@ -104,7 +110,7 @@ suite('Agent Host fork actions', () => {
 			message: { text: 'second', parts: [] },
 		});
 		return {
-			source, sourceChat, forkChat, forkCalls, forkOptions, opens, started, activeSession, onDidChangeSessions,
+			source, sourceChat, forkChat, forkCalls, forkOptions, opens, recoveryChoices, started, activeSession, onDidChangeSessions,
 			setForkGate: (gate: Promise<void>) => forkGate = gate,
 			setForkAvailable: (available: boolean) => {
 				forkAvailable = available;
@@ -198,17 +204,25 @@ suite('Agent Host fork actions', () => {
 		assert.deepStrictEqual(harness.forkOptions, [{ title: '  Exact fork title  ' }]);
 	});
 
-	test('opens a rejected initial-prompt peer through the parent session chat path', async () => {
+	test('inspects an unknown prompt fork through the parent chat without automatically reopening or resending', async () => {
 		const harness = createHarness(true, true);
-		harness.setForkError(new ChatSessionForkError('rejected', harness.forkChat.resource, new Error('rejected')));
+		harness.setForkError(new ChatSessionForkError(harness.forkChat.resource, new Error('connection lost')));
 
-		await assert.rejects(harness.run(false, true, undefined, { text: 'recover this prompt' }));
+		await assert.rejects(harness.run(false, true, undefined, { text: 'inspect before resending' }));
+		const beforeInspection = [...harness.opens];
+		await harness.recoveryChoices[0]?.run();
 
-		assert.deepStrictEqual(harness.opens, [{
-			kind: 'chat',
-			resource: harness.forkChat.resource,
-			options: undefined,
-		}]);
+		assert.deepStrictEqual({
+			beforeInspection,
+			choices: harness.recoveryChoices.map(choice => choice.label),
+			forks: harness.forkCalls,
+			opens: harness.opens,
+		}, {
+			beforeInspection: [],
+			choices: ['Inspect Target'],
+			forks: [{ kind: 'chat', source: harness.sourceChat.resource, requestId: 'request-2' }],
+			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: undefined }],
+		});
 	});
 
 	test('uses the last reported request when /fork runs while the source is streaming', async () => {

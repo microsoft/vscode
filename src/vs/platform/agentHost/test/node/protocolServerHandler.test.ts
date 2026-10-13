@@ -5339,16 +5339,14 @@ suite('ProtocolServerHandler', () => {
 				result: (resp as { result: null }).result,
 				options: agentService.createdChats[0].options,
 				clientId: agentService.createdChats[0].initialMessageContext?.clientId,
-				capabilityBackedFork: agentService.createdChats[0].initialMessageContext?.capabilityBackedFork,
 			}, {
 				result: null,
 				options: { initialMessage: message },
 				clientId: 'client-initial-message',
-				capabilityBackedFork: false,
 			});
 		});
 
-		test('createChat keeps a legacy fork initial message ungated at protocol ingress', async () => {
+		test('createChat accepts a fork initial message without a separate capability', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-legacy-fork-initial-message');
 			transport.sent.length = 0;
@@ -5366,14 +5364,12 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({
 				result: (resp as { result: null }).result,
 				options: agentService.createdChats[0].options,
-				candidateComposedFork: agentService.createdChats[0].initialMessageContext?.capabilityBackedFork,
 			}, {
 				result: null,
 				options: {
 					initialMessage: message,
 					fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
 				},
-				candidateComposedFork: true,
 			});
 		});
 

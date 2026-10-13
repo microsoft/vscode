@@ -9281,6 +9281,43 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores an initial message rejected by admission without resending it', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(sessionDatabase);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const first = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(first, agent);
+			const session = await first.createSession({ provider: 'copilot' });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			first.addSubscriber(session, 'client');
+			getStateManager(first).dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			await first.createChat(session, chat, {
+				initialMessage: { text: 'rejected initial prompt', origin: { kind: MessageKind.User } },
+			}, {
+				clientId: 'client',
+				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+			});
+			await waitForCondition(async () => (await sessionDatabase.getPersistedTurns()).some(record => record.kind === 'failed'), 'rejected initial turn should be persisted');
+			first.dispose();
+
+			const restarted = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			registerTestAgentProvider(restarted, agent);
+			await restarted.restoreSession(session);
+			const turns = getStateManager(restarted).getChatState(chat.toString())?.turns;
+			assert.deepStrictEqual({
+				turns: turns?.map(turn => ({
+					text: turn.message.text,
+					state: turn.state,
+					errors: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).map(part => part.error.errorType),
+				})),
+				sends: agent.sendMessageCalls.length,
+			}, {
+				turns: [{ text: 'rejected initial prompt', state: TurnState.Error, errors: ['archived'] }],
+				sends: 0,
+			});
+		});
+
 		function getStartupTestInternals(service: AgentService) {
 			return service as unknown as {
 				_migrateLegacyEnabledSnapshot: boolean | undefined;
@@ -23911,7 +23948,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -23935,7 +23972,6 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				clientId: 'initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
 			});
 			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'Expected exactly one initial fork message to be sent');
 
@@ -23950,12 +23986,12 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('legacy fork initial message remains accepted without the composed-operation capability', async () => {
+		test('fork initial message only requires ordinary fork support', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -23971,7 +24007,6 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				clientId: 'legacy-initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
 			});
 			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'Expected the legacy initial fork message to be sent');
 
@@ -23986,48 +24021,56 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('legacy fork initial message preserves an attachment rejection without composed correlation', async () => {
+		test('fork initial message admission failure remains an error on the created turn', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).seedDefaultChatTurns(session.toString(), [
 				{ id: 'source-turn', state: TurnState.Complete, message: { text: 'history', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
 			]);
-			const cause = new ProtocolError(AhpErrorCodes.PermissionDenied, 'Legacy attachment access denied', { request: { uri: 'file:///legacy-missing.txt' } });
-			const clientResourceReader = service as unknown as {
-				_readClientResource: AgentService['_readClientResource'];
-			};
-			clientResourceReader._readClientResource = async () => {
-				throw cause;
-			};
+			service.addSubscriber(session, 'initial-message-client');
+			getStateManager(service).dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			const peer = URI.parse(buildChatUri(session, 'admission-rejected-peer'));
 
-			await assert.rejects(() => service.createChat(session, URI.parse(buildChatUri(session, 'legacy-attachment-rejected-peer')), {
+			await service.createChat(session, peer, {
 				fork: { source: session, turnId: 'source-turn' },
 				initialMessage: {
 					text: 'continue from here',
 					origin: { kind: MessageKind.User },
-					attachments: [{ type: MessageAttachmentKind.Resource, label: 'legacy-missing.txt', uri: URI.file('/legacy-missing.txt').toString() }],
 				},
 			}, {
 				clientId: 'legacy-initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
-			}), error => error === cause);
+			});
 
-			assert.strictEqual(agent.sendMessageCalls.length, 0);
+			const state = getStateManager(service).getChatState(peer.toString());
+			const turn = state?.turns.at(-1);
+			assert.deepStrictEqual({
+				messages: state?.turns.map(turn => turn.message.text),
+				state: turn?.state,
+				errors: turn?.responseParts.filter(part => part.kind === ResponsePartKind.Error).map(part => part.error.errorType),
+				activeTurn: state?.activeTurn,
+				sends: agent.sendMessageCalls.length,
+			}, {
+				messages: ['history', 'continue from here'],
+				state: TurnState.Error,
+				errors: ['archived'],
+				activeTurn: undefined,
+				sends: 0,
+			});
 		});
 
-		test('capability-backed initial fork rejects existing default and catalog peer targets without sending', async () => {
+		test('initial fork rejects existing default and catalog peer targets without sending', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -24040,7 +24083,6 @@ suite('AgentService (node dispatcher)', () => {
 			const context = {
 				clientId: 'initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
 			};
 			const options = {
 				fork: { source: session, turnId: 'source-turn' },
@@ -24052,7 +24094,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.sendMessageCalls.length, 0);
 		});
 
-		test('concurrent capability-backed initial forks persist local turns and send only for the winner', async () => {
+		test('concurrent initial forks persist local turns and send only for the winner', async () => {
 			let providerCreates = 0;
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<void> {
@@ -24060,7 +24102,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -24085,7 +24127,6 @@ suite('AgentService (node dispatcher)', () => {
 			const context = {
 				clientId: 'initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
 			};
 
 			const outcomes = await Promise.allSettled([
@@ -24111,12 +24152,12 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('fork initial attachment preparation rejection preserves the protocol cause after chat publication', async () => {
+		test('fork initial attachment preparation failure creates an errored turn without rejecting chat creation', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot', {
-				multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true },
+				multipleChats: { fork: true },
 			}));
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -24133,7 +24174,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const peer = URI.parse(buildChatUri(session, 'attachment-rejected-peer'));
 
-			await assert.rejects(() => service.createChat(session, peer, {
+			await service.createChat(session, peer, {
 				fork: { source: session, turnId: 'source-turn' },
 				initialMessage: {
 					text: 'continue from here',
@@ -24143,22 +24184,69 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				clientId: 'initial-message-client',
 				telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-				capabilityBackedFork: true,
-			}), error => error instanceof ProtocolError
-				&& error.code === AhpErrorCodes.InitialMessageRejected
-				&& (error.data as { chat?: string; cause?: { code?: number; message?: string; data?: unknown } }).chat === peer.toString()
-				&& (error.data as { cause?: { code?: number; message?: string; data?: unknown } }).cause?.code === AhpErrorCodes.PermissionDenied
-				&& (error.data as { cause?: { code?: number; message?: string; data?: unknown } }).cause?.message === cause.message
-				&& (error.data as { cause?: { code?: number; message?: string; data?: unknown } }).cause?.data === cause.data);
+			});
 
+			const state = stateManager.getChatState(peer.toString());
+			const turn = state?.turns.at(-1);
 			assert.deepStrictEqual({
-				chatRetained: !!stateManager.getChatState(peer.toString()),
+				messages: state?.turns.map(turn => turn.message.text),
+				state: turn?.state,
+				errors: turn?.responseParts.filter(part => part.kind === ResponsePartKind.Error).map(part => part.error),
+				activeTurn: state?.activeTurn,
 				sends: agent.sendMessageCalls.length,
 			}, {
-				chatRetained: true,
+				messages: ['history', 'continue from here'],
+				state: TurnState.Error,
+				errors: [{ errorType: 'attachmentPreparationFailed', message: cause.message }],
+				activeTurn: undefined,
 				sends: 0,
 			});
 		});
+
+		for (const existingTurn of ['active', 'cancelled deferred'] as const) {
+			test(`initial attachment failure preserves its cause with an existing ${existingTurn} turn`, async () => {
+				const agent = disposables.add(new MockAgent('copilot'));
+				registerTestAgentProvider(service, agent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const chat = URI.parse(buildDefaultChatUri(session));
+				const turnService = (service as unknown as { _turnService: AgentService['_turnService'] })._turnService;
+				let deferred: ReturnType<typeof turnService.beginDeferredTurnMessage> | undefined;
+				if (existingTurn === 'cancelled deferred') {
+					deferred = turnService.beginDeferredTurnMessage(chat, { text: 'existing request', origin: { kind: MessageKind.User } });
+					getStateManager(service).dispatchServerAction(chat.toString(), {
+						type: ActionType.ChatTurnCancelled, turnId: deferred.turnId, duration: 0,
+					});
+				} else {
+					getStateManager(service).dispatchServerAction(chat.toString(), {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'already-running',
+						startedAt: new Date().toISOString(),
+						message: { text: 'existing request', origin: { kind: MessageKind.User } },
+					});
+				}
+				const cause = new Error('attachment could not be read');
+				const clientResourceReader = service as unknown as { _readClientResource: AgentService['_readClientResource'] };
+				clientResourceReader._readClientResource = async () => { throw cause; };
+
+				await assert.rejects(service.createChat(session, chat, {
+					initialMessage: {
+						text: 'new request',
+						origin: { kind: MessageKind.User },
+						attachments: [{ type: MessageAttachmentKind.Resource, label: 'missing', uri: 'file:///missing.txt' }],
+					},
+				}, {
+					clientId: 'client',
+					telemetryContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+				}), error => error === cause);
+				assert.deepStrictEqual({
+					active: getStateManager(service).getChatState(chat.toString())?.activeTurn?.id,
+					sends: agent.sendMessageCalls.length,
+				}, { active: existingTurn === 'active' ? 'already-running' : undefined, sends: 0 });
+				if (deferred) {
+					turnService.failDeferredTurnMessage(chat, deferred, { errorType: 'cancelled', message: 'cancelled' });
+				}
+			});
+		}
 
 		test('fork publishes an explicit normalized title without automatic refinement', async () => {
 			const sessionData = createPerSessionDataService();

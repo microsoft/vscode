@@ -3125,7 +3125,7 @@ suite('CopilotAgent', () => {
 					provider: 'copilotcli',
 					displayName: 'Copilot',
 					description: 'Copilot SDK agent running in the local agent host process',
-					capabilities: { multipleChats: { fork: true, sideChat: true, initialTitle: true, forkWithInitialMessage: true } },
+					capabilities: { multipleChats: { fork: true, sideChat: true } },
 				},
 				agentHostCapabilities: { workspaceConversion: true },
 			});
@@ -3147,8 +3147,8 @@ suite('CopilotAgent', () => {
 				scriptedMockDefault: scriptedMockAgent.getDescriptor().capabilities,
 				explicitOldHost: oldHostAgent.getDescriptor().capabilities,
 			}, {
-				mockDefault: { multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true } },
-				scriptedMockDefault: { multipleChats: { fork: true, initialTitle: true, forkWithInitialMessage: true } },
+				mockDefault: { multipleChats: { fork: true } },
+				scriptedMockDefault: { multipleChats: { fork: true } },
 				explicitOldHost: { multipleChats: { fork: true } },
 			});
 		} finally {

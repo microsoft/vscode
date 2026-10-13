@@ -89,7 +89,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// to invoke it. TODO: rework the prompt for Claude conventions.
 	supportsMultipleChats: true,
 	supportsInitialTitle: true,
-	supportsForkWithInitialMessage: true,
 	supportsChatFork: true,
 	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
 	// so a provider fork silently starts with fresh context.

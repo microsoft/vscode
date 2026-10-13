@@ -600,7 +600,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('documents qualified named fork behavior on persistent chat surfaces', () => {
+	test('documents optional fork titles and ordinary initial-prompt errors on persistent chat surfaces', () => {
 		const keybindingService = new MockKeybindingService();
 		const getForkHelp = (type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', isSessionsWindow = false) => {
 			const help = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
@@ -608,8 +608,7 @@ suite('Chat Accessibility Help', () => {
 				forkCapableAgentHostChat: help.includes('In a fork-capable Agent Host chat'),
 				commandWithTitle: help.includes('type /fork followed by a title'),
 				sameSessionPeerChat: help.includes('new forked chat alongside the current chat in the same Agent Host session'),
-				supportedHost: help.includes('When the connected Agent Host supports named forks, the new chat uses that title'),
-				unnamedForkHostFallback: help.includes('Agent Hosts that support forking but not named titles use their normal title for the forked chat'),
+				optionalTitle: help.includes('The requested title is sent to the host; older hosts may use their own title'),
 				immediateBareFork: help.includes('Accepting /fork from slash-command completion creates a bare forked chat immediately'),
 				titleTemplate: help.includes('Select the /fork title template to insert /fork'),
 				promptTemplate: help.includes('select /fork prompt to insert /fork prompt'),
@@ -617,7 +616,9 @@ suite('Chat Accessibility Help', () => {
 				hintsAreNotInput: help.includes('The title and prompt hints are suggestions and are not part of your input.'),
 				submitPromptInFork: help.includes('Send /fork prompt followed by a prompt to create the fork and submit that prompt in the new chat'),
 				emptyPromptFallback: help.includes('An empty prompt creates an ordinary fork'),
-				unsupportedPrompt: help.includes('prompt template is unavailable when the connected Agent Host does not support submitting the initial message with the fork'),
+				sharedForkCapability: help.includes('All fork variants require the connected Agent Host to support forking'),
+				initialPromptError: help.includes('If the initial prompt fails, the new chat opens with an ordinary error response'),
+				unknownOutcome: help.includes('use Inspect Target in the notification before sending the prompt again; the prompt is not automatically restored or resent'),
 				insertToTitle: help.includes('To add a title, type or insert the command instead'),
 				doesNotDescribeNewSession: !help.includes('new session') && !help.includes('fork an Agent Host session'),
 			};
@@ -626,8 +627,7 @@ suite('Chat Accessibility Help', () => {
 			forkCapableAgentHostChat: true,
 			commandWithTitle: true,
 			sameSessionPeerChat: true,
-			supportedHost: true,
-			unnamedForkHostFallback: true,
+			optionalTitle: true,
 			immediateBareFork: true,
 			titleTemplate: true,
 			promptTemplate: true,
@@ -635,7 +635,9 @@ suite('Chat Accessibility Help', () => {
 			hintsAreNotInput: true,
 			submitPromptInFork: true,
 			emptyPromptFallback: true,
-			unsupportedPrompt: true,
+			sharedForkCapability: true,
+			initialPromptError: true,
+			unknownOutcome: true,
 			insertToTitle: true,
 			doesNotDescribeNewSession: true,
 		};
@@ -643,8 +645,7 @@ suite('Chat Accessibility Help', () => {
 			forkCapableAgentHostChat: false,
 			commandWithTitle: false,
 			sameSessionPeerChat: false,
-			supportedHost: false,
-			unnamedForkHostFallback: false,
+			optionalTitle: false,
 			immediateBareFork: false,
 			titleTemplate: false,
 			promptTemplate: false,
@@ -652,7 +653,9 @@ suite('Chat Accessibility Help', () => {
 			hintsAreNotInput: false,
 			submitPromptInFork: false,
 			emptyPromptFallback: false,
-			unsupportedPrompt: false,
+			sharedForkCapability: false,
+			initialPromptError: false,
+			unknownOutcome: false,
 			insertToTitle: false,
 			doesNotDescribeNewSession: true,
 		};

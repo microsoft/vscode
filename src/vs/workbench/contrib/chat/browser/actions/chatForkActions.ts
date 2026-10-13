@@ -14,13 +14,12 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSessionForkOptions, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionForkError, IChatSessionForkOptions, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
@@ -305,7 +304,7 @@ export class ForkConversationAction extends Action2 {
 						await open();
 					} catch (error) {
 						if (options?.initialMessage) {
-							throw new ChatSessionForkError('unknown', forkedItem.resource, error);
+							throw new ChatSessionForkError(forkedItem.resource, error);
 						}
 						throw error;
 					}
@@ -331,58 +330,13 @@ export class ForkConversationAction extends Action2 {
 			return;
 		}
 		if (error instanceof ChatSessionForkError) {
-			if (error.kind === 'rejected') {
-				try {
-					await this._openForkedSession(instantiationService, sourceSessionResource, error.target, options);
-				} catch (openError) {
-					await instantiationService.invokeFunction(accessor => accessor.get(ILogService).error('Failed to open rejected fork target', openError));
-				}
-				let restored = false;
-				await instantiationService.invokeFunction(async accessor => {
-					const widget = accessor.get(IChatWidgetService).getWidgetBySessionResource(error.target);
-					if (widget && widget.getInput() === '' && widget.input.attachmentModel.getAttachmentIDs().size === 0) {
-						widget.setInput(options.initialMessage!.text);
-						await widget.input.restoreAttachments(getChatSessionInitialMessageVariables(options.initialMessage!));
-						restored = true;
-					}
-				});
-				await instantiationService.invokeFunction(accessor => {
-					if (restored) {
-						accessor.get(INotificationService).error(localize('chat.forkInitialMessageRejected', "The fork was created, but its initial prompt was not accepted. It has been restored in the new chat."));
-						return;
-					}
-					const initialMessage = options.initialMessage!;
-					const variables = getChatSessionInitialMessageVariables(initialMessage);
-					accessor.get(INotificationService).prompt(
-						Severity.Error,
-						localize('chat.forkInitialMessageRejectedKept', "The fork was created, but its initial prompt was not accepted."),
-						[{
-							label: localize('chat.fork.restoreInitialPrompt', "Restore Prompt"),
-							keepOpen: true,
-							run: async () => {
-								await this._openForkedSession(instantiationService, sourceSessionResource, error.target, options);
-								await instantiationService.invokeFunction(async restoreAccessor => {
-									const targetWidget = restoreAccessor.get(IChatWidgetService).getWidgetBySessionResource(error.target);
-									if (targetWidget && targetWidget.getInput() === '' && targetWidget.input.attachmentModel.getAttachmentIDs().size === 0) {
-										targetWidget.setInput(initialMessage.text);
-										await targetWidget.input.restoreAttachments(variables);
-									} else {
-										restoreAccessor.get(INotificationService).warn(localize('chat.fork.restoreInitialPromptTargetBusy', "Clear the target chat draft before restoring this prompt."));
-									}
-								});
-							}
-						}]
-					);
-				});
-			} else {
-				await instantiationService.invokeFunction(accessor => {
-					accessor.get(INotificationService).prompt(
-						Severity.Warning,
-						localize('chat.forkInitialMessageUnknown', "The fork request outcome is unknown. Inspect the target before sending the prompt again."),
-						[{ label: localize('chat.fork.inspectTarget', "Inspect Target"), run: () => this._openForkedSession(instantiationService, sourceSessionResource, error.target, options) }]
-					);
-				});
-			}
+			await instantiationService.invokeFunction(accessor => {
+				accessor.get(INotificationService).prompt(
+					Severity.Warning,
+					localize('chat.forkInitialMessageUnknown', "The fork request outcome is unknown. Inspect the target before sending the prompt again."),
+					[{ label: localize('chat.fork.inspectTarget', "Inspect Target"), run: () => this._openForkedSession(instantiationService, sourceSessionResource, error.target, options) }]
+				);
+			});
 			return;
 		}
 		await instantiationService.invokeFunction(accessor => {

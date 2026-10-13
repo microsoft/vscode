@@ -1880,7 +1880,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					: {
 						clientId: _client.clientId,
 						telemetryContext: _client.telemetryContext,
-						capabilityBackedFork: source?.kind === ChatSourceKind.Fork,
 					},
 			);
 			return null;

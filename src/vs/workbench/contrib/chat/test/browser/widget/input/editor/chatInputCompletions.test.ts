@@ -509,7 +509,7 @@ suite('SlashCommandCompletions fork variants', () => {
 		lastToken: CancellationToken | undefined;
 
 		constructor(
-			private readonly supportsForkWithInitialMessage: boolean,
+			private readonly supportsFork: boolean,
 			private readonly lookupError?: Error,
 		) {
 			super();
@@ -525,7 +525,7 @@ suite('SlashCommandCompletions fork variants', () => {
 				throw this.lookupError;
 			}
 			return upcastPartial<IChatSession>({
-				supportsForkWithInitialMessage: () => this.supportsForkWithInitialMessage,
+				forkSession: this.supportsFork ? async () => { throw new Error('Not implemented'); } : undefined,
 			});
 		}
 	}
@@ -580,7 +580,7 @@ suite('SlashCommandCompletions fork variants', () => {
 		return { suggestions: result.suggestions, model };
 	}
 
-	test('offers all fork variants for agent host sessions that support an initial message', async () => {
+	test('offers all fork variants for agent host sessions that support forking', async () => {
 		const chatSessionsService = new ForkCompletionChatSessionsService(true);
 		const { suggestions, model } = await provideSuggestions(true, [forkCommand], chatSessionsService);
 
@@ -683,13 +683,10 @@ suite('SlashCommandCompletions fork variants', () => {
 		}
 	});
 
-	test('offers only legacy fork variants when the agent host does not support an initial message', async () => {
+	test('offers no fork variants when the agent host does not support forking', async () => {
 		const { suggestions } = await provideSuggestions(true, [forkCommand], new ForkCompletionChatSessionsService(false));
 
-		assert.deepStrictEqual(suggestions.map(suggestion => suggestion.label), [
-			{ label: '/fork', description: 'Fork this chat' },
-			{ label: '/fork <title>', description: 'Fork this chat' },
-		]);
+		assert.deepStrictEqual(suggestions, []);
 	});
 
 	test('uses the original slash command completion outside agent host sessions', async () => {
@@ -702,7 +699,7 @@ suite('SlashCommandCompletions fork variants', () => {
 		assert.strictEqual(chatSessionsService.lookupCount, 0);
 	});
 
-	test('does not query capabilities when no command has a fork prompt variant', async () => {
+	test('does not query capabilities when no fork command is available', async () => {
 		const chatSessionsService = new ForkCompletionChatSessionsService(true);
 		const { suggestions } = await provideSuggestions(true, [{
 			command: 'review',
@@ -716,27 +713,21 @@ suite('SlashCommandCompletions fork variants', () => {
 		]);
 	});
 
-	test('preserves legacy variants when the capability lookup is cancelled', async () => {
+	test('offers no fork variants when the capability lookup is cancelled', async () => {
 		const chatSessionsService = new ForkCompletionChatSessionsService(false);
 		const cancellationTokenSource = new CancellationTokenSource();
 		cancellationTokenSource.cancel();
 		const { suggestions } = await provideSuggestions(true, [forkCommand], chatSessionsService, cancellationTokenSource.token);
 
 		assert.strictEqual(chatSessionsService.lastToken, cancellationTokenSource.token);
-		assert.deepStrictEqual(suggestions.map(suggestion => suggestion.label), [
-			{ label: '/fork', description: 'Fork this chat' },
-			{ label: '/fork <title>', description: 'Fork this chat' },
-		]);
+		assert.deepStrictEqual(suggestions, []);
 		cancellationTokenSource.dispose();
 	});
 
-	test('preserves legacy variants when the capability lookup fails', async () => {
+	test('offers no fork variants when the capability lookup fails', async () => {
 		const { suggestions } = await provideSuggestions(true, [forkCommand], new ForkCompletionChatSessionsService(false, new Error('lookup failed')));
 
-		assert.deepStrictEqual(suggestions.map(suggestion => suggestion.label), [
-			{ label: '/fork', description: 'Fork this chat' },
-			{ label: '/fork <title>', description: 'Fork this chat' },
-		]);
+		assert.deepStrictEqual(suggestions, []);
 	});
 });
 

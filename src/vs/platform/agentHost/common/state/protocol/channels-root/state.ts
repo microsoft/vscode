@@ -150,26 +150,6 @@ export interface MultipleChatsCapability {
 	 * time. Side-chat support always implies multi-chat support.
 	 */
 	sideChat?: boolean;
-	/**
-	 * The agent honors {@link CreateChatParams.title} as the chat's first
-	 * published title and does not replace it through automatic title generation.
-	 * A later explicit rename is still allowed. When absent or `false`, clients
-	 * MUST omit `title` when calling `createChat`.
-	 */
-	initialTitle?: boolean;
-	/**
-	 * The agent supports the stronger composed fork-and-initial-message
-	 * operation. Clients relying on its preserved client context, definite
-	 * acceptance or rejection result, and prompt-aware naming context MUST
-	 * require this and {@link MultipleChatsCapability.fork} to be `true`.
-	 * The naming context is available to the host's normal strategy at its
-	 * normal time; it does not guarantee title generation.
-	 *
-	 * This attestation applies only to the stronger combined operation. It does
-	 * not reject or otherwise change existing ungated `initialMessage` requests,
-	 * including legacy fork requests on third-party hosts.
-	 */
-	forkWithInitialMessage?: boolean;
 }
 
 /**
