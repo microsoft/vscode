@@ -1429,6 +1429,33 @@ suite('Async', () => {
 			assert.strictEqual(await async.firstParallel([], v => v === 2, 4), 4);
 		});
 
+		test('rejects when the predicate throws for a single result', async () => {
+			const error = new Error('predicate failed');
+			await assert.rejects(async.firstParallel([Promise.resolve(1)], () => {
+				throw error;
+			}), err => err === error);
+		});
+
+		test('rejects when the predicate throws for the last result', async () => {
+			const error = new Error('predicate failed');
+			await assert.rejects(async.firstParallel([Promise.resolve(1), Promise.resolve(2)], value => {
+				if (value === 2) {
+					throw error;
+				}
+				return false;
+			}), err => err === error);
+		});
+
+		test('rejects a predicate error before returning the default', async () => {
+			const error = new Error('predicate failed');
+			await assert.rejects(async.firstParallel([Promise.resolve(1), Promise.resolve(2)], value => {
+				if (value === 1) {
+					throw error;
+				}
+				return false;
+			}, 4), err => err === error);
+		});
+
 		test('cancels', async () => {
 			let ct1: CancellationToken;
 			const p1 = async.createCancelablePromise(async (ct) => {
