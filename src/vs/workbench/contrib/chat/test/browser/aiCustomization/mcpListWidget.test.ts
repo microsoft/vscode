@@ -48,6 +48,7 @@ import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
 	createBuiltinActiveSessionMcpEntries,
+	createProviderMcpEntries,
 	createInstalledMcpServerDetailInput,
 	getActiveSessionServerLifecycleAction,
 	getActiveSessionServerPresentation,
@@ -79,11 +80,13 @@ import {
 	hasSameMcpMembership,
 	preserveMcpEntryOrder,
 	shouldLoadMcpGallerySnapshot,
+	shouldShowLegacyMcpGallery,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -355,6 +358,83 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('creates receipt-only MCP entries without duplicating configured servers', () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'githubFeed',
+			identifier: 'urn:air:api.mcp.github.com:com.figma.mcp:mcp',
+			displayName: 'Figma MCP Server',
+			description: 'Use Figma design context.',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			icon: URI.parse('https://example.test/figma.png'),
+		};
+		const installations = [
+			{
+				installationId: 'figma-installation',
+				resource,
+				state: { kind: 'installed' as const, target: { kind: 'mcp' as const, name: 'com.figma.mcp/mcp' } },
+			},
+			{
+				installationId: 'duplicate-figma-installation',
+				resource,
+				state: { kind: 'installed' as const, target: { kind: 'mcp' as const, name: 'com.figma.mcp/mcp' } },
+			},
+			{
+				installationId: 'configured-installation',
+				resource: { ...resource, identifier: 'configured', displayName: 'Configured' },
+				state: { kind: 'installed' as const, target: { kind: 'mcp' as const, name: 'configured-server' } },
+			},
+			{
+				installationId: 'missing-installation',
+				resource: { ...resource, identifier: 'missing', displayName: 'Missing' },
+				state: { kind: 'missing' as const, target: { kind: 'mcp' as const, name: 'missing-server' } },
+			},
+		];
+
+		const entries = createProviderMcpEntries(installations, ['configured-server'], 'figma');
+		const detail = createInstalledMcpServerDetailInput(entries[0]);
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({
+				rowKey: getMcpRowKey(entry),
+				group: getMcpEntryGroup(entry),
+				id: entry.id,
+				name: entry.name,
+				label: entry.label,
+				description: entry.description,
+			})),
+			detail: {
+				id: detail.id,
+				name: detail.name,
+				label: detail.label,
+				icon: detail.icon,
+				installState: detail.installState,
+				config: detail.config,
+			},
+			noQueryMatch: createProviderMcpEntries(installations, ['configured-server'], 'slack'),
+		}, {
+			entries: [{
+				rowKey: 'provider:figma-installation',
+				group: 'user',
+				id: 'figma-installation',
+				name: 'com.figma.mcp/mcp',
+				label: 'Figma MCP Server',
+				description: 'Use Figma design context.',
+			}],
+			detail: {
+				id: 'provider:figma-installation',
+				name: 'com.figma.mcp/mcp',
+				label: 'Figma MCP Server',
+				icon: URI.parse('https://example.test/figma.png'),
+				installState: McpServerInstallState.Installed,
+				config: undefined,
+			},
+			noQueryMatch: [],
+		});
+	});
+
 	test('observes Connector changes only while the experiment is enabled', () => {
 		let enabled = false;
 		const changes = disposables.add(new Emitter<void>());
@@ -511,6 +591,11 @@ suite('mcpListWidget', () => {
 				cardScrollableNode: document.createElement('div'),
 				cardDisposables: { clear() { } },
 				updateMcpTreeEmptyState: () => { },
+				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace() {
+						return { id: 'test', folders: [] };
+					}
+				}(),
 			});
 			const renderMcpTree = Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void;
 			renderMcpTree.call(widget);
@@ -529,6 +614,58 @@ suite('mcpListWidget', () => {
 			bothGroupsPopulated: ['User', 'Workspace'],
 			userEmpty: ['User', 'Workspace'],
 		});
+	});
+
+	test('splits workspace MCP sections in multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const folders: IWorkspaceFolder[] = [
+			{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) },
+			{ uri: secondUri, name: 'Second', index: 1, toResource: path => URI.joinPath(secondUri, path) },
+		];
+		const createEntry = (id: string, folder: IWorkspaceFolder): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: {
+				id,
+				local: {
+					scope: LocalMcpServerScope.Workspace,
+					mcpResource: folder.toResource('.vscode/mcp.json'),
+				} as IWorkbenchLocalMcpServer,
+			} as IWorkbenchMcpServer,
+		});
+		type TreeNode = {
+			readonly element: { readonly type: string; readonly label?: string };
+			readonly children?: readonly { readonly element: IMcpInstalledEntry }[];
+		};
+		let renderedChildren: readonly TreeNode[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renderedChildren = children ?? [] },
+			installedEntries: [createEntry('first', folders[0]), createEntry('second', folders[1])].map(entry => ({ entry })),
+			isGalleryDiscoveryEnabled: () => true,
+			getAvailableGalleryServers: () => [],
+			cardScrollableNode: document.createElement('div'),
+			cardDisposables: { clear() { } },
+			updateMcpTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return { id: 'test', folders };
+				}
+				override getWorkspaceFolder(resource: URI) {
+					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+				}
+			}(),
+		});
+
+		(Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void).call(widget);
+
+		assert.deepStrictEqual(renderedChildren.map(group => ({
+			label: group.element.label,
+			servers: group.children?.map(child => child.element.type === 'server-item' ? child.element.server.id : ''),
+		})), [
+			{ label: 'User', servers: [] },
+			{ label: 'First', servers: ['first'] },
+			{ label: 'Second', servers: ['second'] },
+		]);
 	});
 
 	test('groups externally discovered MCP servers by configuration target rather than as built-in', () => {
@@ -817,23 +954,27 @@ suite('mcpListWidget', () => {
 			provenance({ source: 'builtin' }),
 			provenance({ source: 'builtin', sourcePluginName: 'computer-use' }),
 			provenance({ source: 'managed', displayName: 'Linear' }),
+			provenance({ source: 'account' }),
 			provenance({ source: 'plugin', sourcePluginName: 'acme' }),
 			provenance({ source: 'plugin' }),
 			provenance({ source: 'user' }),
 			provenance({ source: 'workspace' }),
 			provenance({ hostConfiguration }),
 			provenance({ source: 'managed', hostConfiguration }),
+			provenance({ source: 'account', hostConfiguration }),
 			provenance({}),
 		], [
 			'Built-in: Copilot',
 			'Built-in plugin: computer-use',
 			'Managed by Copilot',
+			'Signed-in account',
 			'Plugin: acme',
 			undefined,
 			'User configuration',
 			'Workspace configuration',
 			'Agent host configuration',
 			'Managed by Copilot',
+			'Signed-in account',
 			undefined,
 		]);
 	});
@@ -878,6 +1019,7 @@ suite('mcpListWidget', () => {
 			explain({ name: 'github-mcp-server', source: 'builtin' }),
 			explain({ name: 'computer-use', source: 'builtin', sourcePluginName: 'computer-use' }),
 			explain({ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear' }),
+			explain({ name: 'workiq', source: 'account' }),
 			explain({ name: 'github-mcp-server', source: 'user', controllingSettingId: 'chat.agentHost.githubMcpServer.enabled' }),
 			explain({ name: 'workspace-server', source: 'workspace' }),
 			explain({ name: 'plugin-server', source: 'plugin', sourcePluginName: 'acme' }),
@@ -887,6 +1029,7 @@ suite('mcpListWidget', () => {
 			{ message: builtinMessage },
 			{ message: builtinMessage },
 			{ message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' },
+			{ message: 'Your signed-in account provides this server, so its definition can\'t be viewed or edited.' },
 			undefined,
 			undefined,
 			undefined,
@@ -1007,6 +1150,16 @@ suite('mcpListWidget', () => {
 			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
 			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
 		], [false, true, false, false, false]);
+	});
+
+	test('legacy Available retains the MCP Gallery until Marketplace visibility is enabled', () => {
+		const configuration = (enabled: boolean | undefined) => ({
+			getValue: () => enabled,
+		}) as unknown as IConfigurationService;
+		assert.deepStrictEqual(
+			[undefined, false, true].map(enabled => shouldShowLegacyMcpGallery(configuration(enabled))),
+			[true, true, false],
+		);
 	});
 
 	test('does not restart management gallery search when Discover owns MCP discovery', () => {

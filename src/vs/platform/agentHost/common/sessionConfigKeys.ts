@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObject } from '../../../base/common/types.js';
+
 /**
  * Well-known keys used in the agent-host configuration value bag.
  *
@@ -87,9 +89,21 @@ export function omitTransientSessionConfigValues<T>(values: Record<string, T>): 
 	return result;
 }
 
-/** Persists confirmed sandbox enablement rather than a pending or rejected selection. */
-export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined): Record<string, unknown> {
+/** Persists confirmed sandbox enablement, retaining the stored selection until runtime confirmation is available. */
+export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined, persistedValues?: string): Record<string, unknown> {
 	const result = omitTransientSessionConfigValues(values);
+	if (appliedSandboxEnabled === undefined && persistedValues !== undefined) {
+		const persisted: unknown = JSON.parse(persistedValues);
+		if (!isObject(persisted)) {
+			throw new Error('Invalid persisted session config values');
+		}
+		const selection = (persisted as Record<string, unknown>)[SessionConfigKey.SandboxEnabled];
+		if (selection === 'on' || selection === 'off') {
+			appliedSandboxEnabled = selection === 'on';
+		} else if (selection !== undefined && selection !== 'default') {
+			throw new Error('Invalid persisted sandbox selection');
+		}
+	}
 	if (appliedSandboxEnabled === undefined) {
 		delete result[SessionConfigKey.SandboxEnabled];
 	} else {

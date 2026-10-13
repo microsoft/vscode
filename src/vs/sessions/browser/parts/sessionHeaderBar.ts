@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatCompositeBar.css';
+import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
@@ -28,12 +29,18 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
+import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
 	readonly chat: IObservable<IChat | undefined>;
 	readonly actionsTargetChat?: boolean;
 	readonly activateChatGroup?: () => void;
+}
+
+export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
+	const closeActionIndex = primaryActions.findIndex(action => action.id === CLOSE_CHAT_COMMAND_ID || action.id === CLOSE_SESSION_COMMAND_ID);
+	return closeActionIndex === -1 ? primaryActions.length : closeActionIndex;
 }
 
 /**
@@ -142,6 +149,7 @@ export class SessionHeaderBar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._menuActionArgs },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
@@ -299,12 +307,14 @@ export class SessionHeaderBar extends Disposable {
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		// Metadata is surfaced above the chat input, so the title keeps the
 		// read/unread status indicator.
+		// The title shows the active chat, so its read state must too: the session's
+		// own `isRead` aggregates all chats and would show another peer chat's unread state.
+		const activeChat = activeChatObservable.read(reader);
 		const status = session.status.read(reader);
-		const isRead = session.isRead.read(reader);
+		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		const activeChat = activeChatObservable.read(reader);
 		if (!activeChat) {
 			this._activeChat = undefined;
 			this._titleTextEl.textContent = this._getUntitledTitle(reader);
@@ -497,6 +507,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));

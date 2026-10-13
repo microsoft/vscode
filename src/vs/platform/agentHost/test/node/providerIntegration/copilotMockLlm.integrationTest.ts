@@ -175,7 +175,9 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const extensionDir = join(workspaceDir, '.github', 'extensions', 'proof-canvas');
 		await mkdir(extensionDir, { recursive: true });
 		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { writeFileSync } from 'node:fs';
 import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
 let session;
 let requestedAgent = false;
 session = await joinSession({
@@ -290,6 +292,7 @@ session = await joinSession({
 				openCanvasSucceeded: openCanvasComplete.result.success,
 				canvas: { instanceId: canvas.instanceId, url: canvas.url },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
+				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
 					message: providerTurnStarted.message,
 					response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
@@ -298,6 +301,7 @@ session = await joinSession({
 				openCanvasSucceeded: true,
 				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
+				extensionEnvironment: { copilotHome: join(suiteHome, '.copilot') },
 				providerTurn: {
 					message: {
 						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,

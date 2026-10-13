@@ -74,6 +74,15 @@ suite('Edit Telemetry', () => {
 			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat', provider: 'copilotcli' },
 			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false, sourceRequestId: undefined, chatSessionId: undefined, provider: undefined },
 		]);
+		const ids = { agentSessionId: 'owner', chatSessionId: 'agent-host-copilotcli:/owner#peer', sourceRequestId: 'source-turn' };
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, ...ids, acceptanceMethod: 'accept', isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeRejected({ ...baseData, ...ids, rejectionMethod: 'reject', isAgentHostSession: true });
+		assert.deepStrictEqual(sentTelemetry.slice(-2).map(event => ({
+			eventName: event.eventName,
+			agentSessionId: event.data?.agentSessionId,
+			chatSessionId: event.data?.chatSessionId,
+			sourceRequestId: event.data?.sourceRequestId,
+		})), ['editTelemetry.codeAccepted', 'editTelemetry.codeRejected'].map(eventName => ({ eventName, ...ids })));
 	});
 
 	test('1', async () => runWithFakedTimers({}, async () => {

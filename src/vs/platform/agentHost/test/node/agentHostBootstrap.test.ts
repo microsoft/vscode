@@ -29,7 +29,7 @@ import { IAgentHostReviewService } from '../../common/agentHostReviewService.js'
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -141,6 +141,7 @@ suite('agentHostBootstrap', () => {
 		foundation.stateManager.createSession({
 			resource: session, provider: 'copilot', title: 'Policy', status: SessionStatus.Idle,
 			createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
 		foundation.stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		managedSettings.setClientPermissions('client', { ask: ['Shell'] });

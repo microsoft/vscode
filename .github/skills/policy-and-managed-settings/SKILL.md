@@ -28,9 +28,7 @@ Follow the matching guide:
 - [Pre-1.133 permission-policy migration](./legacy-permission-policy.md)
 - [Agent Host policy support and migration readiness](./policy-support-maintenance.md)
 
-Use the support-maintenance guide when changing policy classifications,
-applied-requirement predicates, or admin migration-readiness diagnostics. It
-applies when reviewing an existing control as well as when adding a new one.
+Use the support-maintenance guide when changing policy classifications, applied-requirement predicates, or admin migration-readiness diagnostics. It applies when reviewing an existing control as well as when adding a new one.
 
 General rules:
 

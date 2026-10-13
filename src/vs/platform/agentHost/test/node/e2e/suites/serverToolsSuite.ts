@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync } from 'fs';
+import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -33,6 +33,7 @@ import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, re
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IServerToolTestSession {
 	readonly sessionUri: string;
@@ -111,7 +112,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-server-tools-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
 		if (config.provider === 'codex' && context.isLinux) {
 			// Concurrent Codex 0.153.0 starts can race cleanup of synthetic sandbox mount targets.

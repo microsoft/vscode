@@ -7,6 +7,7 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -124,6 +125,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async setMetadata(key: string, value: string): Promise<void> {
 		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);
+	}
+
+	async updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
+		await this.setMetadata(key, update(this._metadata.get(key)));
 	}
 
 	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
@@ -651,6 +656,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getBranch: async () => undefined,
 		getRefs: async () => [],
 		getBranches: async () => [],
+		hasGitRoot: () => constObservable(undefined),
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },

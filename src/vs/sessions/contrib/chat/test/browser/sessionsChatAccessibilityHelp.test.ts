@@ -29,7 +29,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
@@ -57,6 +56,44 @@ suite('SessionsChatAccessibilityHelp', () => {
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 		}, { back: true, forward: true, singletonViews: true });
+	});
+
+	test('documents repo-less Cloud chats in the harness picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+	});
+
+	test('documents background sandbox waking and connection feedback on input', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			backgroundWake: content.includes('By default, opening a cloud sandbox conversation connects or wakes its environment in the background.'),
+			optOut: content.includes('Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead.'),
+			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
+			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
+			neverSends: content.includes('Connecting never sends your draft automatically.'),
+			silentRefresh: content.includes('Previously loaded conversations refresh silently.'),
+			refreshAction: content.includes('Use Tab to reach Refresh and press Enter or Space to retry loading recorded messages without restarting the session or waking its environment.'),
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
 	});
 
 	test('documents layout density only on desktop', () => {
@@ -141,10 +178,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
-				missionControl: content.includes('Mission Control'),
-			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
+				githubEnvironment: content.includes('GitHub environment'),
+				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+			}, {
+				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+			});
 		});
 	}
 
@@ -262,7 +305,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				submenuChoices: content.includes('Current choices are checked inside the submenus'),
 				viewActions: content.includes('Compact View and Collapse All Groups are available from the Sessions More Actions menu'),
-				applicationDefaults: content.includes('In Local and on remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
+				applicationDefaults: content.includes('On This Computer and remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
 				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
@@ -456,6 +499,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
+			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
+			imageBatch: content.includes('Multiple image-generation calls in a response share one batch preview'),
+			batchKeyboard: content.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
+			selectedImageBorder: content.includes('The selected thumbnail has a highlighted border'),
+			imageConfirmationFirst: content.includes('start only when the tool executes, after any required confirmation'),
+			imagePreparation: content.includes('stay hidden while the model assembles the tool arguments'),
+			responsiveImagePreview: content.includes('The thumbnail row follows the selected preview\'s size'),
+			noEmptyImagePreview: content.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
+			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
+			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
@@ -463,6 +517,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 			immediateRemoval: content.includes('Removal is immediate'),
 		}, {
 			recordedArtifactsAndReferences: true,
+			generatedImages: true,
+			imageBatch: true,
+			batchKeyboard: true,
+			selectedImageBorder: true,
+			imageConfirmationFirst: true,
+			imagePreparation: true,
+			responsiveImagePreview: true,
+			noEmptyImagePreview: true,
+			countsBelowThumbnails: true,
+			imageNavigation: true,
+			transcriptImages: true,
 			singleItemActions: true,
 			copyActions: true,
 			persistence: true,
@@ -567,6 +632,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
 				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
+				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark All as Read.'),
 				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
 				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
 				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),
@@ -574,6 +640,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: true,
 				menuAvailability: true,
 				sessionListAction: true,
+				markNestedSessionsRead: true,
 				pinHelp: expectedGroupCloseHelp,
 				groupCloseHelp: expectedGroupCloseHelp,
 				lastGroupCloseHelp: expectedGroupCloseHelp,
@@ -687,13 +754,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
-		const pickerDisabledContent = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-		await configuration.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
-			pickerDisabled: pickerDisabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
 			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
@@ -724,7 +788,6 @@ suite('SessionsChatAccessibilityHelp', () => {
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
-			pickerDisabled: false,
 			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
 			cancelSetup: true,

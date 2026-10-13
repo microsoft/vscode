@@ -18,7 +18,7 @@ import type { CanvasState } from '../../common/state/protocol/channels-canvas/st
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
-import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
 import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -98,19 +98,29 @@ const automationRunUri = 'ahp-automation-run:/test-run';
 suite('resolveAgentHostSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves peer chats and folder changeset owners to their containing session', () => {
+	test('resolves chats through recorded ownership and folder changeset owners to their containing session', () => {
 		const peer = buildChatUri(sessionUri, 'peer');
+		const unknown = buildChatUri(sessionUri, 'unknown');
+		const recordedOwner = 'copilot:/recorded-owner';
 		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
 		const terminal = buildNonPtyShellTerminalUri(sessionUri, sessionUri, peer, 'tool');
+		const owners = new Map([[peer, recordedOwner]]);
+		const getChatOwner = (chat: string) => owners.get(chat);
 
 		assert.deepStrictEqual({
-			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
-			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
-			terminal: resolveAgentHostSession(URI.parse(terminal)).toString(),
+			peer: resolveAgentHostSession(URI.parse(peer), getChatOwner)?.toString(),
+			unknown: resolveAgentHostSession(URI.parse(unknown), getChatOwner)?.toString(),
+			folder: resolveAgentHostSession(URI.parse(folderOwner), getChatOwner)?.toString(),
+			terminal: resolveAgentHostSession(URI.parse(terminal), getChatOwner)?.toString(),
+			peerChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(peer, 'turn-1')), getChatOwner)?.toString(),
+			unknownChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(unknown, 'turn-1')), getChatOwner)?.toString(),
 		}, {
-			peer: sessionUri,
+			peer: recordedOwner,
+			unknown: undefined,
 			folder: sessionUri,
 			terminal: sessionUri,
+			peerChangeset: recordedOwner,
+			unknownChangeset: undefined,
 		});
 	});
 
@@ -120,7 +130,7 @@ suite('resolveAgentHostSession', () => {
 		const remote = canvas.with({ authority: 'another-host' });
 		assert.deepStrictEqual({
 			owner: parseCanvasChatUri(canvas)?.toString(),
-			session: resolveAgentHostSession(canvas).toString(),
+			session: resolveAgentHostSession(canvas, owner => owner === chat.toString() ? sessionUri : undefined)?.toString(),
 			remoteOwner: parseCanvasChatUri(remote),
 			extraPath: parseCanvasChatUri(canvas.with({ path: canvas.path + '/extra' })),
 			query: parseCanvasChatUri(canvas.with({ query: 'source=other' })),

@@ -155,8 +155,6 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 		},
 		getModelPickerOptions(): ISessionModelPickerOptions {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: true,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 			};

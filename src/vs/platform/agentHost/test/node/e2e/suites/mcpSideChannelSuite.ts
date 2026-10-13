@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import type { CallToolResult as IToolResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
@@ -22,6 +22,7 @@ import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const { CallToolResultSchema }: Pick<typeof import('@modelcontextprotocol/sdk/types.js'), 'CallToolResultSchema'> = nodeRequire('@modelcontextprotocol/sdk/types.js');
@@ -143,7 +144,7 @@ export function defineMcpSideChannelTests(context: IAgentHostE2ETestContext): vo
 	}
 
 	async function withServer(prefix: string, run: (session: IMcpSession) => Promise<void>): Promise<void> {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-mcp-channel-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-mcp-channel-'));
 		context.tempDirs.push(workspace);
 		const calls = join(workspace, 'calls.jsonl');
 		const reads = join(workspace, 'reads.jsonl');

@@ -1,6 +1,6 @@
 # Mission Control remaining gaps
 
-Only outstanding work and intentionally deferred limitations belong here. [Security requirement coverage](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) provides the implementation and test references; [operation and configuration](./MISSION_CONTROL.md) describes usage.
+Only outstanding work and intentionally deferred limitations belong here. [Security requirement coverage](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) provides the implementation and test references; [operation and configuration](./MISSION_CONTROL.md) describes usage. [Gaps, explained](./MISSION_CONTROL_GAPS_EXPLAINED.md) describes each open item in plain language and compares it with Copilot Host and the Copilot app.
 
 ## Validation and release gaps
 
@@ -16,7 +16,6 @@ No code-design decision from the maintainer is currently blocking these items. M
 
 | Remaining gap | Current limitation | Help needed from the maintainer |
 | --- | --- | --- |
-| Authoritative credential expiry and live authorization lapse | GitHub's expiration header is not consumed; authenticated lanes do not lose observation/steering/MCP authorization at that deadline, and no integrated targeted lapse notification exists. Caller-provided expiry and relay-ticket renewal are not substitutes. | Scope decision: whether this is required for the continuing-development merge or explicitly deferred with the shared credential work. Security S04. |
 | Durable per-session mirror opt-out | Sharing is enabled for the entire host; there is no persisted per-session choice suppressing AHP/SDK/lifecycle publication after cold resume. | Product decision: whether host-wide consent is sufficient for this increment or per-session opt-out must precede merge. Security S30. |
 | Enterprise endpoint coherence and disclosure | MC independently defaults to dotcom rather than the configured GitHub identity origin; deliberate cross-host content residency and identity provenance are not explicitly surfaced. | Scope decision on enterprise support for this increment; supported topology/endpoint access is needed for deployment validation. Security S15. |
 | Independent host-local policy and quotas | Fixed transport bounds do not enforce operator-owned session/repository restrictions or configurable active-session/spawn quotas. Reporting device policy to MC does not provide independent enforcement against a compromised MC signer. | Applicability decision for this user-local increment. Security S17/S28. |

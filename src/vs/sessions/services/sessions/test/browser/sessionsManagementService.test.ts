@@ -223,7 +223,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override getSessionTypes(_folderUri: URI): ISessionType[] { return [...this.sessionTypes]; }
 	override async renameChat(): Promise<void> { }
 	override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: { kind: 'notRequested' }, modelTarget: undefined }; }
-	override getModelPickerOptions(): ISessionModelPickerOptions { return { useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }; }
+	override getModelPickerOptions(): ISessionModelPickerOptions { return { showUnavailableFeatured: false, showManageModelsAction: false }; }
 	override readonly onDidChangeModels = Event.None;
 	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
 	override async archiveSession(): Promise<void> { }
@@ -5636,6 +5636,7 @@ suite('SessionsManagementService', () => {
 			stubSession({ sessionId: 'new-session', providerId: 'test' }),
 			stubSession({ sessionId: 'automation-quick-chat', providerId: 'test' }),
 			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-quick-chat-fresh', providerId: 'test' }),
 		];
 		const deleted: string[] = [];
 		const createOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
@@ -5678,10 +5679,11 @@ suite('SessionsManagementService', () => {
 
 		const firstAutomationSession = service.createAutomationSession(folderUri, { sessionTemplate });
 		const capturedConfiguration = await service.getAutomationSessionConfiguration(firstAutomationSession);
-		service.createNewSession(folderUri);
+		service.createNewSession(folderUri, { sessionTemplate });
 		service.createAutomationQuickChat({ sessionTemplate });
 		service.discardAutomationSession(firstAutomationSession);
 		service.createAutomationSession(folderUri);
+		service.createAutomationQuickChat();
 		service.discardAutomationSession();
 
 		assert.deepStrictEqual({
@@ -5695,12 +5697,13 @@ suite('SessionsManagementService', () => {
 			automationSession: undefined,
 			capturedConfiguration: { sessionTemplate },
 			createOptions: [
+				{ metadata: undefined, automationConfiguration: { sessionTemplate }, isAutomationDraft: true },
 				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
-				{ metadata: undefined },
-				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
-				{ metadata: undefined },
+				{ metadata: undefined, automationConfiguration: { sessionTemplate }, isAutomationDraft: true },
+				{ metadata: undefined, isAutomationDraft: true },
+				{ metadata: undefined, isAutomationDraft: true },
 			],
-			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
+			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement', 'automation-quick-chat-fresh'],
 		});
 	});
 

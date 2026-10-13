@@ -66,7 +66,6 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, 65],
 			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],
 			[AgentSandboxSettingId.AgentSandboxMacFileSystem, 80],
-			[AgentSandboxSettingId.AgentSandboxWindowsFileSystem, 90],
 		] as const;
 		assert.deepStrictEqual(
 			Object.entries(terminalChatAgentToolsConfiguration)
@@ -120,7 +119,6 @@ suite('Terminal chat agent tools configuration', () => {
 			legacy: [
 				AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 				AgentSandboxSettingId.AgentSandboxMacFileSystem,
-				AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 			].map(key => {
 				const legacy = terminalChatAgentToolsConfiguration[key];
 				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings, legacy.deprecated];
@@ -132,7 +130,7 @@ suite('Terminal chat agent tools configuration', () => {
 			default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
 			restricted: true,
 			additionalProperties: false,
-			legacy: Array.from({ length: 3 }, () => [
+			legacy: Array.from({ length: 2 }, () => [
 				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
 		});

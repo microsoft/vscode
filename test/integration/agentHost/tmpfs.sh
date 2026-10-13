@@ -18,6 +18,13 @@ cleanup() {
 	if [[ "$MOUNTED" == true ]]; then
 		if ! sudo -n umount -- "$TEST_TMPDIR"; then
 			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
+			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
+			if sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR" >&2; then
+				:
+			else
+				local diagnostic_status=$?
+				echo "Agent Host tmpfs holder diagnostics exited with status $diagnostic_status; the unmount failure remains fatal." >&2
+			fi
 			exit 1
 		fi
 	fi
