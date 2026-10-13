@@ -19,6 +19,7 @@ import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { chatUriFormatOf } from '../../../../../platform/agentHost/common/agentHostChatMinting.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { isNativeAgentHost } from '../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
@@ -6937,7 +6938,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (backendResource) {
 			return URI.parse(backendResource);
 		}
-		if (!isNativeAgentHost(this.connection?.initializeResult.get())) {
+		// Only a shaped (or not yet advertised) default chat lets a source chat be rebuilt from its id; opaque chat URIs cannot be derived.
+		if (!isNativeAgentHost(this.connection?.initializeResult.get()) || chatUriFormatOf(defaultChat) === 'opaque') {
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
 		if (sourceChat.fragment) {
