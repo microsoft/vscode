@@ -80,6 +80,14 @@ const OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID = 'sessions.automations.openRunOn
 const AutomationRunHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationRunHasExternalResource', false);
 const AutomationRunCanStopContext = new RawContextKey<boolean>('sessionsAutomationRunCanStop', false);
 const AutomationRunStoppingContext = new RawContextKey<boolean>('sessionsAutomationRunStopping', false);
+const AutomationRunCanArchiveContext = new RawContextKey<boolean>('sessionsAutomationRunCanArchive', true);
+
+function canArchiveAutomationSession(session: ISession, reader?: IReader): boolean {
+	const terminal = (status: SessionStatus) => status === SessionStatus.Completed || status === SessionStatus.Error;
+	return terminal(session.status.read(reader))
+		&& terminal(session.mainChat.read(reader).status.read(reader))
+		&& session.chats.read(reader).every(chat => terminal(chat.status.read(reader)));
+}
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
@@ -1491,6 +1499,7 @@ class AutomationHistorySection extends Disposable {
 					[AutomationRunHasExternalResourceContext.key, run?.externalResource !== undefined],
 					[AutomationRunCanStopContext.key, run?.externalResource !== undefined && this.automationService.canStopRun?.(run) === true],
 					[AutomationRunStoppingContext.key, run !== undefined && this.stoppingRuns.read(reader).has(run.id)],
+					[AutomationRunCanArchiveContext.key, !run?.externalResource || canArchiveAutomationSession(session, reader)],
 				];
 			},
 		}));
@@ -1618,6 +1627,9 @@ class AutomationHistorySection extends Disposable {
 						const session = resource && this.sessionsManagementService.getSession(resource);
 						if (!session) {
 							throw new Error(localize('automationRunSessionUnavailable', "The cloud session is not available yet. Try again or open it on GitHub."));
+						}
+						if (!canArchiveAutomationSession(session)) {
+							throw new Error(localize('automationRunArchiveActive', "Wait for the cloud run to finish before marking it as done. Use Stop to cancel it."));
 						}
 						await this.sessionsManagementService.archiveSession(session);
 					} catch (error) {
@@ -1748,6 +1760,10 @@ class AutomationHistorySection extends Disposable {
 				await this.stopRunSession(session, this.getAutomationName(run), action);
 				return true;
 			case ARCHIVE_SESSION_COMMAND_ID:
+				if (run.externalResource && !canArchiveAutomationSession(session)) {
+					await this.dialogService.info(localize('automationRunArchiveActive', "Wait for the cloud run to finish before marking it as done. Use Stop to cancel it."));
+					return true;
+				}
 				await this.sessionsManagementService.archiveSession(session);
 				return true;
 			default:
@@ -2299,15 +2315,17 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 1,
 			when: SessionSupportsRenameContext,
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
 			command: {
 				id: ARCHIVE_SESSION_COMMAND_ID,
 				title: archivePresentation.archive.title,
+				icon: archivePresentation.archive.icon,
+				precondition: AutomationRunCanArchiveContext,
 			},
-			group: '1_edit',
+			group: menu === Menus.AutomationsHistoryItem ? 'navigation' : '1_edit',
 			order: 2,
 			when: SessionIsArchivedContext.negate(),
-		}),
+		})),
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
 			command: {
 				id: UNARCHIVE_SESSION_COMMAND_ID,

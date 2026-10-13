@@ -754,6 +754,33 @@ suite('AutomationsCardsWidget', () => {
 		}, { opened: [external.externalResource!.toString()], stopped: [external.id], localCancels: 0, archived: [sessionsManagementService.session.sessionId] });
 	});
 
+	test('cloud Done actions stay disabled until both projected and backing conversation states are terminal', async () => {
+		const { widget, automationService, sessionsManagementService, contextMenuService } = setup('done');
+		automationService.setAutomations([automation()]);
+		const external = run({ status: 'running', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		const states: boolean[] = [];
+		for (const [runStatus, chatStatus] of [
+			['running', SessionStatus.InProgress],
+			['running', SessionStatus.NeedsInput],
+			['completed', SessionStatus.InProgress],
+			['completed', SessionStatus.Completed],
+		] as const) {
+			sessionsManagementService.sessionStatus.set(chatStatus, undefined);
+			automationService.setRuns([{ ...external, status: runStatus }]);
+			await waitForSessionActions();
+			dispatchContextMenu(widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item')!);
+			const delegate = contextMenuService.delegate!;
+			const archive = delegate.getActions().find(action => action.label === 'Mark as Done')!;
+			states.push(archive.enabled);
+			if (!archive.enabled) {
+				await delegate.actionRunner!.run(archive, delegate.getActionsContext?.());
+			}
+			delegate.onHide?.(false);
+		}
+		assert.deepStrictEqual({ states, archived: sessionsManagementService.archived.length, cancelled: sessionsManagementService.cancelCurrentRequestCalls },
+			{ states: [false, false, false, true], archived: 0, cancelled: 0 });
+	});
+
 	test('local follow-up progress and completion override stale cloud history without losing unread state', async () => {
 		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
