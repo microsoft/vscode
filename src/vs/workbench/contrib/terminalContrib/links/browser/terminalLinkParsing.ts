@@ -216,15 +216,15 @@ const linkWithSuffixBracketSegment = '(?:\\([^\\s\\|<>()\\[\\]\\\\/]+\\)|\\[\\[[
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character. A path may also start with a whole
-// bracket segment followed by a separator or the end of the path, such as `(group)/page.tsx` or
-// `(group)`.
-const linkWithSuffixPathCharacters = new RegExp(`(?<path>(?:file:\\/\\/\\/)?(?:${linkWithSuffixBracketSegment}(?=[\\\\/]|$)|[^\\s\\|<>\\[\\({])[^\\s\\|<>]*)$`);
+// bracket segment followed by a separator, a query string or the end of the path, such as
+// `(group)/page.tsx` or `(group)`.
+const linkWithSuffixPathCharacters = new RegExp(`(?<path>(?:file:\\/\\/\\/)?(?:${linkWithSuffixBracketSegment}(?=[\\\\/?]|$)|[^\\s\\|<>\\[\\({])[^\\s\\|<>]*)$`);
 
 /**
  * Matches whole bracket segments inside a path, these are part of the path so they should not
  * produce an extra link starting after their opening bracket.
  */
-const linkWithSuffixBracketSegmentInPath = new RegExp(`(?<=^|[\\\\/])${linkWithSuffixBracketSegment}(?=[\\\\/]|$)`, 'g');
+const linkWithSuffixBracketSegmentInPath = new RegExp(`(?<=^|[\\\\/])${linkWithSuffixBracketSegment}(?=[\\\\/?]|$)`, 'g');
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
@@ -381,18 +381,18 @@ enum RegexPathConstants {
 
 /**
  * Brackets are only part of a path when they wrap a whole segment: the segment starts at a
- * separator or the start of the path, and ends at a separator, a space or the end of the line.
- * This keeps text such as `./prog(main+0x5c)`, `~/app(main) $` and `(WARN)./foo` linking only the
- * path next to the brackets.
+ * separator or the start of the path, and ends at a separator or where the path ends (a space, a
+ * query string or the end of the line). A segment may be a run of groups such as `(a)[b]`. This
+ * keeps text such as `./prog(main+0x5c)`, `~/app(main) $` and `(WARN)./foo` linking only the path
+ * next to the brackets.
  */
 function bracketSegmentClauses(contents: string, separator: string, pathCharacter: string) {
-	const parentheses = `(?:\\(${contents}\\))+`;
 	const any = `(?:\\(${contents}\\)|\\[\\[${contents}\\]\\]|\\[${contents}\\])+`;
-	const end = `(?=${separator}|\\s|$)`;
+	const end = `(?:(?=${separator})|(?!${pathCharacter}))`;
 	return {
-		// Directly after a separator; square brackets are already allowed path characters there.
-		// Path characters can include separators, so this is checked with a lookbehind.
-		afterSeparator: `(?<=${separator})${parentheses}${end}`,
+		// Directly after a separator. Path characters can include separators, so this is checked
+		// with a lookbehind.
+		afterSeparator: `(?<=${separator})${any}${end}`,
 		// At the start of a relative path, not directly after another path character or closing
 		// bracket, so a run like `(a)(a)(a)` is only tried from its first bracket
 		start: `(?<!${pathCharacter}|[\\)\\]])${any}(?=${separator})`,
@@ -406,7 +406,7 @@ const winBracketSegment = bracketSegmentClauses(RegexPathConstants.WinBracketSeg
  * A regex that matches non-Windows paths, such as `/foo`, `~/foo`, `./foo`, `../foo` and
  * `foo/bar`.
  */
-const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|' + unixBracketSegment.start + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + '|' + unixBracketSegment.afterSeparator + ')+)+)';
+const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|' + unixBracketSegment.start + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + unixBracketSegment.afterSeparator + '|' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 /**
  * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:`,
@@ -418,7 +418,7 @@ export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
  * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`
  * and `foo\bar`.
  */
-const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|' + winBracketSegment.start + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + '|' + winBracketSegment.afterSeparator + ')+)+)';
+const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|' + winBracketSegment.start + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + winBracketSegment.afterSeparator + '|' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
 /**
  * A regex clause that matches the known single-character prefixes used in git diffs.
