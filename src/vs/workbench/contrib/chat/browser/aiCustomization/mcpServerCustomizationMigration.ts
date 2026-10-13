@@ -187,7 +187,7 @@ export class McpServerCustomizationMigrator {
 			if (oauth) {
 				let hasSecret: boolean;
 				try {
-					hasSecret = await hasOAuthClientSecret(oauth, server.projectedConfiguration, this.secretStorageService);
+					hasSecret = await hasOAuthClientSecret(oauth, rawConfiguration, this.secretStorageService);
 				} catch (error) {
 					excluded(McpServerCustomizationMigrationFailureReason.SourceUnavailable, toError(error));
 					continue;
@@ -369,7 +369,7 @@ async function migrateGroup(
 		if (candidate.oauth) {
 			let hasSecret: boolean;
 			try {
-				hasSecret = await hasOAuthClientSecret(candidate.oauth, candidate.projectedConfiguration, secretStorageService);
+				hasSecret = await hasOAuthClientSecret(candidate.oauth, sourceServers[candidate.name], secretStorageService);
 			} catch {
 				reject(candidate, McpServerCustomizationMigrationFailureReason.SourceUnavailable);
 				continue;
@@ -644,18 +644,20 @@ function getTargetConfiguration(candidate: IMcpServerCustomizationMigrationCandi
 }
 
 /**
- * Whether VS Code stores a client secret for an OAuth client, read with the key that the *Set Client
- * Secret* code lens and VS Code's sign-in use. The destination has no way to use the secret.
+ * Whether VS Code stores a client secret for an OAuth client. The destination has no way to use the secret.
+ * The *Set Client Secret* code lens keys the secret by the URL as written in the source, before any
+ * variable in it is resolved, so the key is read from the source entry rather than from the projection.
  */
 async function hasOAuthClientSecret(
 	oauth: IMcpServerCustomizationMigrationOAuthClient,
-	projectedConfiguration: IMcpServerConfiguration,
+	rawConfiguration: unknown,
 	secretStorageService: ISecretStorageService,
 ): Promise<boolean> {
-	if (projectedConfiguration.type !== McpServerType.REMOTE) {
+	const rawUrl = isJsonObject(rawConfiguration) ? rawConfiguration.url : undefined;
+	if (typeof rawUrl !== 'string' || !rawUrl) {
 		return false;
 	}
-	const serverUrl = URI.parse(projectedConfiguration.url).toString(true);
+	const serverUrl = URI.parse(rawUrl).toString(true);
 	return !!await secretStorageService.get(mcpOAuthClientSecretStorageKey(serverUrl, oauth.clientId));
 }
 

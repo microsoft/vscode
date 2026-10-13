@@ -658,6 +658,43 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
+	test('reads the client secret with the source URL, as the Set Client Secret code lens does', async () => {
+		const root = URI.file('/oauth-secret-variable-url');
+		const fileService = createFileService();
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const rawUrl = 'https://${env:MCP_HOST}/mcp';
+		// The code lens keys the secret by the URL as written, while the projection resolves its variables.
+		const key = mcpOAuthClientSecretStorageKey(URI.parse(rawUrl).toString(true), 'client');
+		const content = JSON.stringify({ servers: { demo: { url: rawUrl, oauth: { clientId: 'client' } } } });
+		const folders = [{ uri: root, name: 'oauth-secret-variable-url', index: 0 }];
+		const results = [];
+		for (const storedBeforePlanning of [true, false]) {
+			const secretStorageService = createSecretStorageService();
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(content));
+			if (storedBeforePlanning) {
+				await secretStorageService.set(key, 'secret');
+			}
+			const migrator = createMigrator(fileService, folders, { MCP_HOST: 'example.com' }, undefined, secretStorageService);
+			const plan = await migrator.createPlan({
+				servers: [oauthSupport(root, 'demo', 'https://example.com/mcp')],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [root]);
+			await secretStorageService.set(key, 'secret');
+			const result = await migrator.migrate(plan.candidates);
+			results.push({
+				exclusions: plan.exclusions.map(exclusion => exclusion.reason),
+				failures: result.failures.map(failure => failure.reason),
+				sourceUnchanged: (await fileService.readFile(sourceUri)).value.toString() === content,
+				targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ exclusions: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], failures: [], sourceUnchanged: true, targetExists: false },
+			{ exclusions: [], failures: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], sourceUnchanged: true, targetExists: false },
+		]);
+	});
+
 	test('keeps other unsupported properties blocked even with removable metadata', async () => {
 		const root = URI.file('/unsupported');
 		const fileService = createFileService();
