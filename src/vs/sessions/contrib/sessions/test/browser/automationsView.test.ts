@@ -783,7 +783,7 @@ suite('AutomationsCardsWidget', () => {
 			{ states: [false, false, false, true], toolbarDisabled: [true, true, true, false], archived: 0, cancelled: 0 });
 	});
 
-	test('local follow-up progress and completion override stale cloud history without losing unread state', async () => {
+	test('local follow-up progress overrides stale history but completion waits for authoritative history', async () => {
 		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
@@ -812,7 +812,10 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([{ ...external, status: 'running' }]);
 		lastRequest.set(upcastPartial<IChatRequestModel>({ timestamp: requestedAt, response: upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: completedAt }) }), undefined);
 		running.set(false, undefined);
+		const waitingForHistory = accessibleProvider.provideContent().includes('Daily review, Running, started');
+		automationService.setRuns([{ ...external, status: 'completed', updatedAt: new Date(completedAt).toISOString(), completedAt: new Date(completedAt).toISOString() }]);
 		assert.deepStrictEqual({
+			waitingForHistory,
 			inProgress, unreadDuringFollowUp,
 			accessibleWhileRunning,
 			runningTime, runningTimeMatchesAria,
@@ -821,7 +824,7 @@ suite('AutomationsCardsWidget', () => {
 			accessibleAfterCompletion: accessibleProvider.provideContent().includes('Daily review, Completed, started'),
 			completed: !widget.element.querySelector('.session-item.in-progress'),
 			unreadAfter: isMarkAllReadVisible(widget), read: sessionsManagementService.isRead.get(),
-		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, runningTime: '1 hr ago', runningTimeMatchesAria: true, completedTime: '1 min ago', completedTimeMatchesAria: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
+		}, { waitingForHistory: true, inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, runningTime: '1 hr ago', runningTimeMatchesAria: true, completedTime: '1 min ago', completedTimeMatchesAria: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
 	});
 
 	test('pending confirmation projects needs input while requestInProgress is false', () => {
@@ -3479,7 +3482,7 @@ suite('AutomationsCardsWidget', () => {
 		);
 	});
 
-	test('accessible local progress clears stale descriptions and errors and reports input and failures', () => {
+	test('accessible local progress clears stale descriptions only while active', () => {
 		const external = run({
 			status: 'failed', updatedAt: '2026-01-01T00:00:00Z',
 			errorMessage: 'old failure', statusDescription: 'Old remote status',
@@ -3508,11 +3511,48 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			running: active.includes('Daily review, Running, started'),
 			needsInput: waiting.includes('Daily review, Needs input, started'),
-			failed: failed.includes('Daily review, Failed, started'),
-			error: failed.includes('Error: New local failure'),
-			stale: [active, waiting, failed].some(value => value.includes('old failure') || value.includes('Old remote status')),
-		}, { running: true, needsInput: true, failed: true, error: true, stale: false });
+			remoteStatus: failed.includes('Daily review, Old remote status, started'),
+			error: failed.includes('Error: old failure'),
+			staleWhileActive: [active, waiting].some(value => value.includes('old failure') || value.includes('Old remote status')),
+		}, { running: true, needsInput: true, remoteStatus: true, error: true, staleWhileActive: false });
 	});
+
+	for (const remoteStatus of ['failed', 'running'] as const) {
+		test(`a normally completed local stream cannot change authoritative ${remoteStatus} history into success`, () => {
+			const { widget, automationService, chatModels } = setup();
+			const history = run({
+				status: remoteStatus, updatedAt: '2026-01-01T00:00:00Z',
+				...(remoteStatus === 'failed' ? { errorMessage: 'Failed to launch agent', completedAt: '2026-01-01T00:00:00Z' } : {}),
+				externalResource: URI.parse('https://github.com/owner/private/tasks/exact'),
+			});
+			const model = upcastPartial<IChatModel>({
+				sessionResource: SESSION_RESOURCE, requestInProgress: constObservable(false), requestNeedsInput: constObservable(undefined),
+				lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({
+					response: upcastPartial<IChatResponseModel>({
+						isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-01T00:00:02Z'),
+						result: {},
+					}),
+				})),
+				onDidChange: Event.None, getRequests: () => [],
+			});
+			chatModels.set([model], undefined);
+			automationService.setAutomations([automation()]);
+			automationService.setRuns([history]);
+			const content = buildAutomationsAccessibleContent([automation()], [history], 'ready', [], [], 'ready', [model]);
+			const row = widget.element.querySelector('.automations-run-session-list .session-item')!;
+			assert.deepStrictEqual({
+				projectionUnchanged: automationRunWithLocalProgress(history, [model]) === history,
+				visualStatus: row.textContent?.replace(/\s/g, ' ').includes(remoteStatus === 'failed' ? 'Failed' : 'Running on GitHub'),
+				accessibleStatus: content.includes(`Daily review, ${remoteStatus === 'failed' ? 'Failed' : 'Running'}, started`),
+				accessibleError: content.includes('Error: Failed to launch agent'),
+				falseSuccess: content.includes('Daily review, Completed, started'),
+			}, {
+				projectionUnchanged: true,
+				visualStatus: true,
+				accessibleStatus: true, accessibleError: remoteStatus === 'failed', falseSuccess: false,
+			});
+		});
+	}
 
 	test('accessible history ignores cancelled, older, unrelated and non-cloud local progress', () => {
 		const external = run({

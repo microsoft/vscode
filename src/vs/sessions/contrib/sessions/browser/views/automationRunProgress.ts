@@ -25,19 +25,6 @@ export function automationRunWithLocalProgress(run: IAutomationRun, models: Iter
 				...(request ? { updatedAt: new Date(request.timestamp).toISOString() } : {}),
 			};
 		}
-		const response = model.lastRequestObs.read(reader)?.response;
-		if (response?.isComplete && !response.isCanceled && response.completionTimestamp !== undefined
-			&& response.completionTimestamp > Date.parse(run.updatedAt ?? run.completedAt ?? run.startedAt)) {
-			return {
-				...run,
-				status: response.result?.errorDetails ? 'failed' : 'completed',
-				updatedAt: new Date(response.completionTimestamp).toISOString(),
-				completedAt: new Date(response.completionTimestamp).toISOString(),
-				needsInput: false,
-				statusDescription: undefined,
-				errorMessage: response.result?.errorDetails?.message,
-			};
-		}
 		break;
 	}
 	return run;
