@@ -5356,8 +5356,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (childChatUri === undefined) {
 				// The host registers restored subagent chats lazily. Restore must not wait for it: the tracker below
 				// follows the session catalog and enriches the pill once the chat appears.
+				// A late child that is already settled is deferred like one registered at restore.
 				this._logService.trace(`[AgentHost] Deferred history enrichment for subagent call ${toolCallId} until the host registers its chat`);
-				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity };
+				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity: true };
 			}
 			if (parentPart.kind === 'toolInvocationSerialized' && parentPart.toolSpecificData?.kind === 'subagent') {
 				parentPart.toolSpecificData.chatResource = childChatUri;
