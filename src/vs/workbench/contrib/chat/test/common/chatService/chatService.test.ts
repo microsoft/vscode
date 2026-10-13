@@ -8,7 +8,7 @@ import { IManagedSettingsService, NullManagedSettingsService } from '../../../..
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -3639,6 +3639,265 @@ suite('ChatService', () => {
 
 			return { resource, provided, resolutionCount: () => resolutions };
 		}
+
+		async function waitForRequestCount(model: IChatModel, count: number): Promise<void> {
+			if (model.getRequests().length >= count) {
+				return;
+			}
+			await Event.toPromise(Event.filter(model.onDidChange, () => model.getRequests().length >= count));
+		}
+
+		async function waitForResponse(model: IChatModel, requestId: string, response: string): Promise<void> {
+			const hasResponse = () => model.getRequests().find(request => request.id === requestId)?.response?.response.toString() === response;
+			while (!hasResponse()) {
+				await timeout(0);
+			}
+		}
+
+		test('large history replay yields to the event loop and restores every turn', async () => {
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource } = setupRemoteProvider({ history });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const partiallyRestoredRequests = ref.object.getRequests().length;
+			await waitForResponse(ref.object, 'request-99', 'Response 99');
+
+			assert.deepStrictEqual({
+				replayWasPartial: partiallyRestoredRequests > 0 && partiallyRestoredRequests < 100,
+				requests: ref.object.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]),
+			}, {
+				replayWasPartial: true,
+				requests: Array.from({ length: 100 }, (_, index) => [`request-${index}`, `Prompt ${index}`, `Response ${index}`]),
+			});
+		});
+
+		test('cancelling the only cooperative history replay consumer disposes the partially restored model', async () => {
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource } = setupRemoteProvider({ history });
+			const service = createChatService();
+			const cts = testDisposables.add(new CancellationTokenSource());
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token);
+			assert.ok(ref);
+			const disposed = Event.toPromise(ref.object.onDidDispose);
+			cts.cancel();
+			await disposed;
+			await service.waitForModelDisposals();
+
+			assert.strictEqual(service.getSession(resource), undefined);
+		});
+
+		test('a concurrent caller keeps cooperative history replay alive when the first caller cancels', async () => {
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource, resolutionCount } = setupRemoteProvider({ history });
+			const service = createChatService();
+			const firstCancellation = testDisposables.add(new CancellationTokenSource());
+			const first = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, firstCancellation.token);
+			const second = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(first);
+			assert.ok(second);
+			testDisposables.add(second);
+
+			firstCancellation.cancel();
+			await waitForResponse(second.object, 'request-99', 'Response 99');
+
+			assert.deepStrictEqual({
+				requests: second.object.getRequests().length,
+				resolutions: resolutionCount(),
+				sameModel: first.object === second.object,
+			}, {
+				requests: 100,
+				resolutions: 1,
+				sameModel: true,
+			});
+		});
+
+		test('an error during cooperative history replay disposes all partial model references', async () => {
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource } = setupRemoteProvider({ history });
+			const service = createChatService();
+			const first = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			const second = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(first);
+			assert.ok(second);
+			const disposed = Event.toPromise(first.object.onDidDispose);
+			stub(first.object as ChatModel, 'acceptResponseProgress').throws(new Error('replay failed'));
+
+			await disposed;
+			await service.waitForModelDisposals();
+
+			assert.deepStrictEqual({
+				model: service.getSession(resource),
+				firstReferences: service.getChatModelReferenceDebugInfo().totalReferences,
+			}, {
+				model: undefined,
+				firstReferences: 0,
+			});
+		});
+
+		test('history changes emitted during cooperative replay are applied after the initial history', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			changes.fire([
+				...history,
+				{ type: 'request', id: 'request-100', prompt: 'Prompt 100', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Response 100') }], participant: remoteScheme },
+			]);
+			await waitForResponse(ref.object, 'request-100', 'Response 100');
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]).at(-1), ['request-100', 'Response 100']);
+		});
+
+		test('server requests emitted during cooperative replay are applied before current progress', async () => {
+			const starts = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progress = observableValue<IChatProgress[]>('progress', []);
+			const isComplete = observableValue('isComplete', false);
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			const { resource } = setupRemoteProvider({
+				history,
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: starts.event,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			starts.fire({ id: 'server-request', prompt: 'Server request' });
+			progress.set([{ kind: 'markdownContent', content: new MarkdownString('Server response') }], undefined);
+			await waitForRequestCount(ref.object, 101);
+			isComplete.set(true, undefined);
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]).at(-1), ['server-request', 'Server request', 'Server response']);
+		});
+
+		test('large live history refreshes yield while preserving the model', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', id: 'request-0', prompt: 'Prompt 0', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Response 0') }], participant: remoteScheme },
+				],
+				onDidChangeHistory: changes.event,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 1);
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+
+			changes.fire(history);
+			await timeout(0);
+			const requestsAfterFirstSlice = ref.object.getRequests().length;
+			await waitForResponse(ref.object, 'request-99', 'Response 99');
+
+			assert.deepStrictEqual({
+				refreshWasPartial: requestsAfterFirstSlice > 1 && requestsAfterFirstSlice < 100,
+				requests: ref.object.getRequests().length,
+				sameModel: service.getSession(resource) === ref.object,
+			}, {
+				refreshWasPartial: true,
+				requests: 100,
+				sameModel: true,
+			});
+		});
+
+		test('server requests wait for a sliced live history refresh before consuming progress', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const starts = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progress = observableValue<IChatProgress[]>('progress', []);
+			const isComplete = observableValue('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', id: 'request-0', prompt: 'Prompt 0', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Response 0') }], participant: remoteScheme },
+				],
+				onDidChangeHistory: changes.event,
+				onDidStartServerRequest: starts.event,
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 1);
+			const history: IChatSessionHistoryItem[] = [];
+			for (let index = 0; index < 100; index++) {
+				history.push(
+					{ type: 'request', id: `request-${index}`, prompt: `Prompt ${index}`, participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Response ${index}`) }], participant: remoteScheme },
+				);
+			}
+			changes.fire(history);
+			starts.fire({ id: 'server-request', prompt: 'Server request' });
+			progress.set([{ kind: 'markdownContent', content: new MarkdownString('Server response') }], undefined);
+			await waitForResponse(ref.object, 'server-request', 'Server response');
+			isComplete.set(true, undefined);
+			await waitForResponse(ref.object, 'request-99', 'Response 99');
+
+			assert.deepStrictEqual({
+				active: ref.object.hasActiveRequest.get(),
+				requests: ref.object.getRequests().slice(-2).map(request => [request.id, request.response?.response.toString()]),
+			}, {
+				active: false,
+				requests: [
+					['request-99', 'Response 99'],
+					['server-request', 'Server response'],
+				],
+			});
+		});
 
 		test('an in-progress streamed session keeps its model until the provided session completes', async () => {
 			// Agent Host sessions complete their in-flight turn when they are
