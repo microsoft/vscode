@@ -28,7 +28,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceBrowseSectionPresentation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -1618,12 +1618,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseStatus.textContent = '';
 		const curatedSections = this.curatedSections?.filter(section => section.items.length > 0);
 		if (curatedSections?.length) {
-			for (const section of curatedSections) {
+			for (let index = 0; index < curatedSections.length; index++) {
+				const section = curatedSections[index];
 				this.renderBrowseSection(
 					section.title,
 					section.items.map(item => this.resolveCuratedResource(item)),
 					undefined,
-					section.presentation,
+					index === 0,
 				);
 			}
 		} else {
@@ -1634,7 +1635,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
 					leading,
 					undefined,
-					'hero',
+					true,
 				);
 			}
 			const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
@@ -1645,7 +1646,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			for (const group of groups) {
 				const items = this.catalogItems.filter(item => getCatalogType(item) === group.type && !leadingIds.has(getCustomizationMarketplaceResourceKey(item))).slice(0, leadingBrowseItemCount);
 				if (items.length) {
-					this.renderBrowseSection(group.label, items, group.type, 'compact');
+					this.renderBrowseSection(group.label, items, group.type, false);
 				}
 			}
 		}
@@ -1704,10 +1705,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} : resource;
 	}
 
-	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, presentation: CustomizationMarketplaceBrowseSectionPresentation): void {
+	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
-		section.classList.add(presentation);
-		section.classList.toggle('featured', presentation === 'hero');
+		section.classList.toggle('featured', elevated);
 		const header = DOM.append(section, $('.customization-discovery-section-header'));
 		DOM.append(header, $('h3.customization-discovery-section-title')).textContent = label;
 		if (type) {

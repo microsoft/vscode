@@ -132,12 +132,9 @@ export interface ICustomizationMarketplacePage {
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
-export type CustomizationMarketplaceBrowseSectionPresentation = 'hero' | 'compact' | 'list';
-
 export interface ICustomizationMarketplaceBrowseSection {
 	readonly id: string;
 	readonly title: string;
-	readonly presentation: CustomizationMarketplaceBrowseSectionPresentation;
 	readonly items: readonly ICustomizationMarketplaceResource[];
 }
 
