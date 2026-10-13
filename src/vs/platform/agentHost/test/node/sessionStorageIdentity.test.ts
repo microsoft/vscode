@@ -24,10 +24,12 @@ import { createTestAgentService, getTestAgentStateManager, registerTestAgentProv
 import { MockAgent } from './mockAgent.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
-import { SessionStorageIdentity } from '../../node/sessionStorageIdentity.js';
+import { SessionStorageIdentity, storedChatUri } from '../../node/sessionStorageIdentity.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, MessageAttachmentKind, type Message } from '../../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, MessageAttachmentKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type Message, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { StringSHA1 } from '../../../../base/common/hash.js';
+import { uuidFromSha1 } from '../../common/agentHostChatIdentity.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -157,7 +159,7 @@ suite('Session storage identity compatibility', () => {
 				assert.deepStrictEqual({
 					identity: db.identity.toStorage(session.toString()),
 					registrations: (await db.raw.listSessionV2Registrations()).map(row => row.session),
-					markers: await db.raw.readStorageIdentityMetadata(),
+					markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 					draft: draft?.text,
 					directory: modern.getSessionDataDir(peer).toString(),
 				}, {
@@ -185,7 +187,7 @@ suite('Session storage identity compatibility', () => {
 				registered,
 				tombstoned: await next.isSessionTombstoned(session),
 				identity: next.identity.toStorage(session),
-				markers: await next.raw.readStorageIdentityMetadata(),
+				markers: await next.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 				registrations: await next.listSessionV2Registrations(),
 			}, { registered: false, tombstoned: true, identity: session, markers: [], registrations: [] });
 		});
@@ -200,7 +202,7 @@ suite('Session storage identity compatibility', () => {
 		assert.deepStrictEqual({
 			registered,
 			tombstoned: await db.raw.isSessionTombstoned('copilotcli:/deleted'),
-			markers: await db.raw.readStorageIdentityMetadata(),
+			markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 		}, { registered: false, tombstoned: true, markers: [] });
 	});
 
@@ -220,7 +222,7 @@ suite('Session storage identity compatibility', () => {
 		assert.deepStrictEqual({
 			tombstoned: await db.isSessionTombstoned(session.toString()),
 			identity: db.identity.toStorage(session.toString()),
-			markers: await db.raw.readStorageIdentityMetadata(),
+			markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 			registrations: (await db.raw.listSessionV2Registrations()).map(row => row.session),
 		}, { tombstoned: true, identity: session.toString(), markers: [], registrations: [] });
 	});
@@ -488,7 +490,7 @@ suite('Session storage identity compatibility', () => {
 		const next = await database();
 		assert.deepStrictEqual({
 			claims: results.map(result => result.status).sort(),
-			identities: (await next.raw.readStorageIdentityMetadata()).length,
+			identities: (await next.raw.readStorageIdentityMetadata('sessionStorageIdentity:')).length,
 			storage: ['copilotcli:/claimed', 'claude:/claimed'].filter(uri => next.identity.toRuntime(uri) === 'ahp-session:/claimed').length,
 		}, { claims: ['fulfilled', 'rejected'], identities: 1, storage: 1 });
 	});
@@ -723,7 +725,7 @@ suite('Session storage identity compatibility', () => {
 				await agent.chats.createChat(URI.parse(buildDefaultChatUri(backing)), backing);
 				registerTestAgentProvider(service, agent);
 				await service.listSessions();
-				const markers = await db.raw.readStorageIdentityMetadata();
+				const markers = await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:');
 				const registrations = await db.raw.listSessionV2Registrations();
 				service.dispose();
 				failingStat.restore();
@@ -836,4 +838,282 @@ suite('Session storage identity compatibility', () => {
 			});
 		}
 	}
+	suite('opaque chats', () => {
+		const session = 'ahp-session:/opaque';
+		const storageSession = 'copilotcli:/opaque';
+		const defaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+		const peer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';
+		const subagent = 'ahp-chat:/33333333-3333-4333-8333-333333333333';
+		const nested = 'ahp-chat:/44444444-4444-4444-8444-444444444444';
+		const clientChosen = 'ahp-chat:/x/y';
+		const oldPeer = buildChatUri(session, 'old');
+		const stored = {
+			defaultChat: buildDefaultChatUri(storageSession),
+			peer: buildChatUri(storageSession, '22222222-2222-4222-8222-222222222222'),
+			subagent: buildSubagentChatUri(storageSession, 'call/1'),
+			nested: buildSubagentChatUri(storageSession, 'call/2'),
+			clientChosen: buildChatUri(storageSession, uuidFromSha1(clientChosen)),
+			oldPeer: buildChatUri(storageSession, 'old'),
+		};
+
+		async function compatibilitySession() {
+			const db = await database();
+			await db.prepareSessionStorage(session, 'copilotcli');
+			await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			db.recordChatStorageIdentity(session, defaultChat, { kind: 'default', generation: undefined });
+			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			db.recordChatStorageIdentity(session, subagent, { kind: 'subagent', toolCallId: 'call/1' });
+			db.recordChatStorageIdentity(session, nested, { kind: 'subagent', toolCallId: 'call/2' });
+			db.recordChatStorageIdentity(session, clientChosen, { kind: 'peer' });
+			db.recordChatStorageIdentity(session, oldPeer, { kind: 'peer' });
+			return db;
+		}
+
+		function payloadChats(value: string): string[] | undefined {
+			const decoded = decodeAgentHostCatalogPayloadData(value);
+			return decoded.ok ? decoded.value.chats.map(chat => chat.uri) : undefined;
+		}
+
+		function turn(id: string): Turn {
+			return {
+				id, state: TurnState.Complete, usage: undefined,
+				message: {
+					text: `see ${peer}`, origin: { kind: MessageKind.User },
+					attachments: [{ type: MessageAttachmentKind.Chat, label: 'Peer', resource: peer }],
+					_meta: toAgentMessageDelegationMeta({ sourceSession: session, sourceChat: oldPeer }),
+				},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed, toolCallId: 'call/1', toolName: 'task', displayName: 'Task', invocationMessage: 'Task',
+						success: true, pastTenseMessage: 'Task', confirmed: ToolCallConfirmationReason.NotNeeded,
+						_meta: { subagentChatUri: subagent, opaque: peer },
+						content: [{ type: ToolResultContentType.Subagent, resource: subagent, title: 'Worker' }, { type: ToolResultContentType.Text, text: nested }],
+					},
+				}],
+			};
+		}
+
+		test('records exactly the opaque chats of a compatibility session and reload them after restart', async () => {
+			const db = await compatibilitySession();
+			db.recordChatStorageIdentity('ahp-session:/native', 'ahp-chat:/55555555-5555-4555-8555-555555555555', { kind: 'peer' });
+			await db.close();
+			const next = await database();
+			const recorded = (await next.raw.readStorageIdentityMetadata('chatStorageIdentity:')).map(entry => ({ key: entry.key, value: JSON.parse(entry.value) }));
+			assert.deepStrictEqual({
+				recorded: recorded.sort((a, b) => a.key.localeCompare(b.key)),
+				storage: [defaultChat, peer, subagent, nested, clientChosen, oldPeer].map(chat => next.identity.toStorage(chat)),
+				runtime: Object.values(stored).map(chat => next.identity.toRuntime(chat)),
+			}, {
+				recorded: [defaultChat, peer, subagent, nested, clientChosen].map(chat => ({ key: `chatStorageIdentity:${chat}`, value: { runtime: chat, storage: next.identity.toStorage(chat) } })).sort((a, b) => a.key.localeCompare(b.key)),
+				storage: Object.values(stored),
+				runtime: [defaultChat, peer, subagent, nested, clientChosen, oldPeer],
+			});
+		});
+
+		test('every store holds only the shaped spelling and reads back the runtime chat', async () => {
+			const db = await compatibilitySession();
+			const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+			const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
+			const origin = JSON.stringify({ kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'call/1' });
+
+			await db.replaceSessionChatCatalog(session, [
+				{ chat: peer, order: 0, origin: JSON.stringify({ kind: ChatOriginKind.Fork, chat: defaultChat, turnId: 'turn' }) },
+				{ chat: oldPeer, order: 1 },
+			], undefined);
+			const catalogPayload: AgentHostCatalogData = {
+				modifiedTime: 2, summary: 'Conversation', isRead: true, isArchived: false, workingDirectories: [],
+				chats: [{ uri: defaultChat, order: 0, kind: 'default' }, { uri: peer, order: 1, kind: 'peer' }, { uri: oldPeer, order: 2, kind: 'peer' }],
+			};
+			const encoded = encodeAgentHostCatalogPayload(catalogPayload);
+			assert.ok(encoded.ok);
+			await db.upsertSessionV2({
+				session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, verified: true,
+				payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+			}, undefined);
+			const sessionRef = modern.openDatabase(URI.parse(session));
+			await sessionRef.object.setMetadataValues({
+				[`customChatTitle:${peer}`]: 'Peer title',
+				'agentHost.chatOrigin': origin,
+				'peerChatBacking': subagent,
+			});
+			await sessionRef.object.setMetadataValuesAndCatalogSyncSnapshot({}, {
+				sessionGeneration: 'generation', sourceRevision: 1, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, state: 'pending',
+				payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+			});
+			sessionRef.dispose();
+			const peerRef = modern.openDatabase(URI.parse(peer));
+			await peerRef.object.setChatDraft(URI.parse(peer), { text: 'draft', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Chat, label: 'Worker', resource: subagent }] });
+			await peerRef.object.createTurn('turn');
+			await peerRef.object.setTurnDelegation('turn', JSON.stringify({ sourceSession: session, sourceChat: peer, sourceTurnId: 'source' }));
+			await peerRef.object.insertPersistedTurn({ kind: 'local', turnId: 'turn', chatUri: peer, anchorTurnId: undefined, payload: JSON.stringify(turn('turn')) });
+			peerRef.dispose();
+
+			const oldSession = old.openDatabase(URI.parse(storageSession));
+			const oldPeerRef = old.openDatabase(URI.parse(stored.peer));
+			const storedRows = {
+				sessionChats: (await db.raw.getSessionChatCatalog(storageSession))?.chats.map(chat => [chat.chat, chat.origin]),
+				catalogPayload: payloadChats((await db.raw.getSessionV2(storageSession))!.payload),
+				metadata: [await oldSession.object.getMetadata(`customChatTitle:${stored.peer}`), await oldSession.object.getMetadata('agentHost.chatOrigin'), await oldSession.object.getMetadata('peerChatBacking')],
+				catalogSyncSnapshot: payloadChats((await oldSession.object.getCatalogSyncSnapshot())?.payload ?? ''),
+				draft: (await oldPeerRef.object.getChatDraft(URI.parse(stored.peer)))?.attachments,
+				localTurn: (await oldPeerRef.object.getPersistedTurns()).map(record => [record.chatUri, JSON.parse(record.payload)]),
+				delegation: JSON.parse((await oldPeerRef.object.getTurnDelegations()).get('turn')!),
+				directories: [peer, subagent, clientChosen, oldPeer].map(chat => modern.getSessionDataDir(URI.parse(chat)).toString()),
+			};
+			oldSession.dispose();
+			oldPeerRef.dispose();
+			const storedTurn = turn('turn');
+			const expectedStoredTurn: Turn = {
+				...storedTurn,
+				message: {
+					...storedTurn.message,
+					attachments: [{ type: MessageAttachmentKind.Chat, label: 'Peer', resource: stored.peer }],
+					_meta: toAgentMessageDelegationMeta({ sourceSession: storageSession, sourceChat: stored.oldPeer }),
+				},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						...(storedTurn.responseParts[0] as ToolCallResponsePart).toolCall,
+						_meta: { subagentChatUri: stored.subagent, opaque: peer },
+						content: [{ type: ToolResultContentType.Subagent, resource: stored.subagent, title: 'Worker' }, { type: ToolResultContentType.Text, text: nested }],
+					} as ToolCallResponsePart['toolCall'],
+				}],
+			};
+			assert.deepStrictEqual(storedRows, {
+				sessionChats: [[stored.peer, JSON.stringify({ kind: ChatOriginKind.Fork, chat: stored.defaultChat, turnId: 'turn' })], [stored.oldPeer, undefined]],
+				catalogPayload: [stored.defaultChat, stored.peer, stored.oldPeer],
+				metadata: ['Peer title', JSON.stringify({ kind: ChatOriginKind.Tool, chat: stored.peer, toolCallId: 'call/1' }), stored.subagent],
+				catalogSyncSnapshot: [stored.defaultChat, stored.peer, stored.oldPeer],
+				draft: [{ type: MessageAttachmentKind.Chat, label: 'Worker', resource: stored.subagent }],
+				localTurn: [[stored.peer, JSON.parse(JSON.stringify(expectedStoredTurn))]],
+				delegation: { sourceSession: storageSession, sourceChat: stored.peer, sourceTurnId: 'source' },
+				directories: [stored.peer, stored.subagent, stored.clientChosen, stored.oldPeer].map(chat => old.getSessionDataDir(URI.parse(chat)).toString()),
+			});
+
+			await db.close();
+			const next = await database();
+			const restored = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, next.identity);
+			const restoredSession = restored.openDatabase(URI.parse(session));
+			const restoredPeer = restored.openDatabase(URI.parse(peer));
+			assert.deepStrictEqual({
+				sessionChats: (await next.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
+				catalogPayload: (await next.getSessionV2(session))?.payload,
+				owner: (await next.findCentralChatOwners([peer])).get(peer)?.ownerSession,
+				metadata: [await restoredSession.object.getMetadata(`customChatTitle:${peer}`), await restoredSession.object.getMetadata('peerChatBacking')],
+				draft: (await restoredPeer.object.getChatDraft(URI.parse(peer)))?.attachments,
+				localTurn: (await restoredPeer.object.getPersistedTurns()).map(record => [record.chatUri, record.payload]),
+			}, {
+				sessionChats: [peer, oldPeer],
+				catalogPayload: encoded.value.payload,
+				owner: session,
+				metadata: ['Peer title', subagent],
+				draft: [{ type: MessageAttachmentKind.Chat, label: 'Worker', resource: subagent }],
+				localTurn: [[peer, JSON.stringify(turn('turn'))]],
+			});
+			restoredSession.dispose();
+			restoredPeer.dispose();
+		});
+
+		test('a normalized catalog written in the storage spelling reads its opaque chats back', async () => {
+			const db = await compatibilitySession();
+			// A future native writer of this session keeps its normalized catalog in the storage spelling.
+			const normalized = await db.raw.registerChatCatalogV2(storageSession, {
+				defaultChat: { chat: stored.defaultChat, order: 0 },
+				peers: [{ chat: stored.peer, order: 1 }],
+				privateDescendants: [{ chat: stored.subagent, parentChat: stored.peer, origin: JSON.stringify({ kind: ChatOriginKind.Tool, chat: stored.peer, toolCallId: 'call/1' }) }],
+			});
+			assert.deepStrictEqual(normalized, { status: 'applied', catalogRevision: 1 });
+			assert.deepStrictEqual({
+				storedHeader: (await db.raw.readSessionRegistrations()).normalizedCatalogs,
+				header: (await db.readSessionRegistrations()).normalizedCatalogs,
+				chats: [(await db.readChatV2(session, peer)).chat?.chat, (await db.readChatV2(session, subagent)).chat?.parentChat],
+				owner: (await db.findCentralChatOwners([subagent])).get(subagent)?.ownerSession,
+			}, {
+				storedHeader: [{ session: storageSession, defaultChatUri: stored.defaultChat }],
+				header: [{ session, defaultChatUri: defaultChat }],
+				chats: [peer, peer],
+				owner: session,
+			});
+		});
+
+		test('a peer keeps its canonical uuid in storage and any other chat URI gets a stable uuid from its SHA-1', () => {
+			const codec = new SessionStorageIdentity();
+			codec.add({ runtime: session, storage: storageSession, provider: 'copilotcli' });
+			const withQuery = `${peer}?one`;
+			for (const chat of [peer, clientChosen, withQuery]) {
+				codec.addChat({ runtime: chat, storage: storedChatUri(storageSession, chat, { kind: 'peer' }) });
+			}
+			const storage = [peer, clientChosen, withQuery].map(chat => codec.toStorage(chat));
+			assert.deepStrictEqual({
+				storage,
+				runtime: storage.map(chat => codec.toRuntime(chat)),
+				sha: [uuidFromSha1(clientChosen), uuidFromSha1(withQuery)],
+			}, {
+				storage: [
+					buildChatUri(storageSession, '22222222-2222-4222-8222-222222222222'),
+					buildChatUri(storageSession, 'a28e6494-36dc-538a-acde-27b9e4f28c3b'),
+					buildChatUri(storageSession, uuidFromSha1(withQuery)),
+				],
+				runtime: [peer, clientChosen, withQuery],
+				sha: ['a28e6494-36dc-538a-acde-27b9e4f28c3b', '7c7fdd3e-2691-5f99-bad5-6c649ab2cfd7'],
+			});
+		});
+
+		test('chats without a record keep shaped directories or use the hash of their complete URI', () => {
+			const data = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, new SessionStorageIdentity());
+			const base = URI.joinPath(URI.file(directory), 'agentSessionData');
+			const opaque = 'ahp-chat:/55555555-5555-4555-8555-555555555555';
+			const sha = (value: string) => { const hash = new StringSHA1(); hash.update(value); return hash.digest(); };
+			assert.deepStrictEqual([opaque, clientChosen, oldPeer, session].map(chat => data.getSessionDataDir(URI.parse(chat)).toString()), [
+				URI.joinPath(base, `chat-${sha(opaque)}`).toString(),
+				URI.joinPath(base, `chat-${sha(clientChosen)}`).toString(),
+				URI.joinPath(base, `old-${oldPeer.slice('ahp-chat://old/'.length)}`).toString(),
+				URI.joinPath(base, 'opaque').toString(),
+			]);
+		});
+
+		test('a chat whose record never landed surfaces in its shaped runtime spelling after restart', async () => {
+			const db = await database();
+			await db.prepareSessionStorage(session, 'copilotcli');
+			const write = stub(db.raw, 'setStorageIdentityMetadata').callsFake(() => new Promise<void>(() => { }));
+			store.add(toDisposable(() => write.restore()));
+			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+			const ref = modern.openDatabase(URI.parse(peer));
+			await ref.object.setChatDraft(URI.parse(peer), { text: 'draft', origin: { kind: MessageKind.User } });
+			ref.dispose();
+			await modern.whenIdle();
+			// The host stops before the record lands.
+			const next = await database();
+			const restored = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, next.identity);
+			const shaped = URI.parse(buildChatUri(session, '22222222-2222-4222-8222-222222222222'));
+			const restoredRef = restored.openDatabase(shaped);
+			assert.deepStrictEqual({
+				runtime: next.identity.toRuntime(stored.peer),
+				draft: (await restoredRef.object.getChatDraft(shaped))?.text,
+				records: await next.raw.readStorageIdentityMetadata('chatStorageIdentity:'),
+			}, { runtime: shaped.toString(), draft: 'draft', records: [] });
+			restoredRef.dispose();
+		});
+
+		test('a recreated default chat keeps its generation in storage and a deleted chat forgets its record', async () => {
+			const db = await database();
+			await db.prepareSessionStorage(session, 'copilotcli');
+			db.recordChatStorageIdentity(session, defaultChat, { kind: 'default', generation: 'regenerated' });
+			db.recordChatStorageIdentity(session, peer, { kind: 'peer' });
+			await db.deleteChatStorageIdentity(peer);
+			await db.close();
+			const next = await database();
+			assert.deepStrictEqual({
+				defaultChat: next.identity.toStorage(defaultChat),
+				peer: next.identity.toStorage(peer),
+				records: (await next.raw.readStorageIdentityMetadata('chatStorageIdentity:')).map(entry => entry.key),
+			}, {
+				defaultChat: `${buildDefaultChatUri(storageSession)}?generation=regenerated`,
+				peer,
+				records: [`chatStorageIdentity:${defaultChat}`],
+			});
+		});
+	});
 });

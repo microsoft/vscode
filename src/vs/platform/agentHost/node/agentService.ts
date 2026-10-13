@@ -5560,6 +5560,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._supportsChats(provider)) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
 		}
+		this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
 		// When forking, resolve the source chat's turns up to the fork point and
 		// mint fresh turn IDs for the new chat. The agent uses the mapping to
 		// remap per-turn data in the forked chat; the seeded turns make
@@ -5741,6 +5742,7 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					try {
 						await this._sessionDataService.deleteSessionData(chat);
+						await this._orchestratorDatabase.deleteChatStorageIdentity(chat.toString());
 					} catch (rollbackError) {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
@@ -5888,6 +5890,8 @@ export class AgentService extends Disposable implements IAgentService {
 							this._catalogChatsFromState(state, this._requireDefaultChat(sessionKey)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
+					// Last: locating the chat's data needs its storage spelling until the data is gone.
+					await this._orchestratorDatabase.deleteChatStorageIdentity(chatKey);
 					ancillaryCleanupSucceeded = true;
 				} finally {
 					if (membershipRemoved) {
@@ -5930,6 +5934,7 @@ export class AgentService extends Disposable implements IAgentService {
 							this._catalogChatsFromState(state, this._requireDefaultChat(session)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
+					await this._orchestratorDatabase.deleteChatStorageIdentity(chatKey);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to repair ancillary state for removed chat ${chatKey}`, error);
 				}
@@ -6011,9 +6016,11 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
+			const generation = await this._sessionRegistry.isTombstoned(session) ? generateUuid() : undefined;
 			const defaultChatUri = URI.parse(buildDefaultChatUri(session)).with({
-				query: await this._sessionRegistry.isTombstoned(session) ? `generation=${generateUuid()}` : '',
+				query: generation !== undefined ? `generation=${generation}` : '',
 			});
+			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
 			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
 			created = {
@@ -7008,6 +7015,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			traceStage('deleteSessionData');
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
+			for (const chat of new Set([...chatsToDelete.map(chat => chat.toString()), ...sessionChats.map(chat => chat.resource)])) {
+				await this._orchestratorDatabase.deleteChatStorageIdentity(chat);
+			}
 			traceStage('removeSessionWorktree');
 			await this._worktree.removeSessionWorktree(sessionId, worktree);
 			this._changesetCoordinator.onSessionDisposed(session.toString());
@@ -10159,6 +10169,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Normalized catalogs retain their private lifecycle metadata, including the parent edge.
 	 */
 	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
+		if (e.parent) {
+			this._orchestratorDatabase.recordChatStorageIdentity(e.session.toString(), e.chat.toString(), { kind: 'subagent', toolCallId: e.parent.toolCallId });
+		}
 		// A spawned chat is brand new, so its storage follows the creation-time rule.
 		this._stateManager.addChat(e.session.toString(), e.chat.toString(), creationTimeChatStorageResource(e.session.toString(), e.chat.toString(), this._defaultChat(e.session)), {
 			...(e.title !== undefined ? { title: e.title } : {}),

@@ -131,13 +131,13 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 	}
 
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
-		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri) });
+		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;
 	}
 
 	async getPersistedTurns(...[]: Parameters<ISessionDatabase['getPersistedTurns']>): ReturnType<ISessionDatabase['getPersistedTurns']> {
 		const result = await this.raw.getPersistedTurns();
-		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri) }));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
 	}
 
 	async deletePersistedTurns(...[turnIds]: Parameters<ISessionDatabase['deletePersistedTurns']>): ReturnType<ISessionDatabase['deletePersistedTurns']> {
