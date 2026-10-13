@@ -123,8 +123,7 @@ export class WebviewViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		// An id is needed for the webview parent flow to, which is used to
-		// detect that focus inside the webview belongs to this view
+		// The parent-flow id must exist before the webview is laid out for focus detection.
 		if (!container.id) {
 			container.id = `webview-view-container-${generateUuid()}`;
 		}
