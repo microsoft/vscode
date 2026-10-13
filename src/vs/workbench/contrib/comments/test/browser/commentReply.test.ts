@@ -9,6 +9,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -36,7 +37,7 @@ suite('CommentReply', () => {
 		const onDidChangeInput = store.add(new Emitter<CommentInput | undefined>());
 		sinon.stub(editor, 'onDidBlurEditorWidget').value(onDidBlurEditorWidget.event);
 		sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
-		instantiationService.stubInstance(SimpleCommentEditor, editor);
+		instantiationService.stubInstance<ICodeEditor>(SimpleCommentEditor, editor);
 		instantiationService.stub(ITextModelService, {
 			createModelReference: async () => ({
 				object: new class extends mock<IResolvedTextEditorModel>() {
@@ -48,7 +49,7 @@ suite('CommentReply', () => {
 		instantiationService.stub(ICommentService, {
 			getCommentController: () => undefined,
 			setActiveEditingCommentThread: () => { },
-			setActiveCommentAndThread: () => { }
+			setActiveCommentAndThread: async () => { }
 		});
 		instantiationService.stub(IMenuService, new TestMenuService());
 		instantiationService.stub(IContextMenuService, {});
