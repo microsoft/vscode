@@ -34,12 +34,15 @@ import { ProjectBoardChatActions } from '../../browser/projectBoardChatActions.j
 suite('ProjectBoardChatActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup() {
+	function setup(toolConfirmationCarousel = false) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IViewDescriptorService, { onDidChangeLocation: Event.None });
 		instantiation.stub(IConfigurationService, new TestConfigurationService({
 			editor: { fontFamily: 'monospace' },
-			chat: { editor: { fontSize: 12, fontFamily: 'default', fontWeight: 'normal', wordWrap: 'on' } },
+			chat: {
+				editor: { fontSize: 12, fontFamily: 'default', fontWeight: 'normal', wordWrap: 'on' },
+				tools: { confirmationCarousel: { enabled: toolConfirmationCarousel } },
+			},
 		}));
 		instantiation.stub(IChatService, new MockChatService());
 		instantiation.stub(IChatAgentService, store.add(instantiation.createInstance(ChatAgentService)));
@@ -97,6 +100,18 @@ suite('ProjectBoardChatActions', () => {
 		assert.deepStrictEqual(IChatToolInvocation.executionConfirmedOrDenied(h.tool), { type: ToolConfirmKind.UserAction, selectedButton: 'session', selectedButtonKind: ConfirmationOptionKind.Approve });
 		assert.strictEqual(h.focusCount, 0, 'Board approval must not focus another chat window');
 		assert.strictEqual(canRunProjectBoardAction(widget.source, h.tool), false);
+	});
+
+	test('PB-20 board approvals remain visible while the chat widget owns a confirmation carousel', () => {
+		const h = setup(true);
+		h.model.acceptResponseProgress(h.request, h.tool);
+		const widget = h.create();
+		const part = widget.element.querySelector<HTMLElement>('.chat-tool-invocation-part')!;
+		assert.notStrictEqual(mainWindow.getComputedStyle(part).display, 'none');
+		assert.notStrictEqual(part.getAttribute('aria-hidden'), 'true');
+		assert.ok(part.getBoundingClientRect().height > 0, 'The actual shared approval must be visible, not merely present in the DOM');
+		assert.ok(widget.element.querySelector('.monaco-button-dropdown'));
+		assert.strictEqual(h.focusCount, 0);
 	});
 
 	test('PB-20 stale or ineligible tool actions do not approve and input updates preserve controls', () => {

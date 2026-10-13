@@ -370,6 +370,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	 */
 	private defersConfirmationToCarousel(): boolean {
 		return !this.context.inToolConfirmationCarousel
+			&& !this.context.renderToolConfirmationsInline
 			&& isCarouselToolConfirmation(this.toolInvocation)
 			&& !!this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)
 			&& !!this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource);
