@@ -1571,7 +1571,7 @@ suite('McpServerCustomizationMigration', () => {
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const servers = {
 			// VS Code can't resolve an unset or structured setting, so it projects the server as written.
-			unresolvedLocal: { command: 'node', args: ['--name=${config:mcp.unset}'], env: { OPTIONS: '${config:mcp.object}', TOKEN: '${env:TOKEN}' } },
+			unresolvedLocal: { command: 'node', args: ['--name=${config:mcp.unset}', '--unnamed=${config:}'], env: { OPTIONS: '${config:mcp.object}', TOKEN: '${env:TOKEN}' } },
 			unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${config:mcp.unset}' } },
 			// VS Code resolves these to text, but only strings and numbers are carried over, and a value with a
 			// variable would be resolved by VS Code but not by the destination.
@@ -1615,7 +1615,7 @@ suite('McpServerCustomizationMigration', () => {
 			target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
 		}, {
 			candidates: [
-				['unresolvedLocal', [['MCP_UNSET', ''], ['MCP_OBJECT', '']]],
+				['unresolvedLocal', [['MCP_UNSET', ''], ['MCP_CONFIG', ''], ['MCP_OBJECT', '']]],
 				['unresolvedRemote', [['MCP_UNSET', '']]],
 				['resolvedLocal', [['MCP_FLAG', ''], ['MCP_ARRAY', ''], ['MCP_VARIABLE', ''], ['MCP_REFERENCE', '']]],
 				['resolvedRemote', [['MCP_FLAG', ''], ['MCP_VARIABLE', ''], ['MCP_BRACE', 'a}b']]],
@@ -1625,7 +1625,8 @@ suite('McpServerCustomizationMigration', () => {
 			source: { servers: {} },
 			target: {
 				mcpServers: {
-					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}'], env: { OPTIONS: '${MCP_OBJECT}', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_OBJECT: '' }, tools: ['*'] },
+					// A reference without a setting name migrates to an empty `MCP_CONFIG`.
+					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '${MCP_OBJECT}', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '', MCP_OBJECT: '' }, tools: ['*'] },
 					// Like an input without a default, an empty value is not written as a default.
 					unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${MCP_UNSET}' }, tools: ['*'] },
 					resolvedLocal: { type: 'local', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
@@ -1640,7 +1641,8 @@ suite('McpServerCustomizationMigration', () => {
 		const root = URI.file('/settings-excluded');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const servers = {
-			emptyKey: { command: 'node', args: ['${config:}'] },
+			// A reference without a setting name migrates to `MCP_CONFIG`, as does `mcp.config`.
+			unnamedCollision: { command: 'node', args: ['${config:}', '${config:mcp.config}'] },
 			// The same file reads `API_KEY` from the environment.
 			environmentCollision: { command: 'node', args: ['${config:api.key}'], env: { OTHER: '${env:API_KEY}' } },
 			inputCollision: { command: 'node', args: ['${config:region}', '${input:region}'] },
@@ -1669,6 +1671,7 @@ suite('McpServerCustomizationMigration', () => {
 			'mcp.port': 8080,
 			'mcp.long': 'value',
 			'mcp.dir': '/tmp',
+			'mcp.config': 'value',
 		});
 		const names = Object.keys(servers);
 		const migrator = createMigrator(fileService, [{ uri: root, name: 'settings-excluded', index: 0 }], undefined, configurationService);
@@ -1681,7 +1684,7 @@ suite('McpServerCustomizationMigration', () => {
 		const result = await migrator.migrate(names.map(name => candidate(root, name)));
 
 		const expected = [
-			['emptyKey', McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue],
+			['unnamedCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
 			['environmentCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
 			['inputCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
 			['settingCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],

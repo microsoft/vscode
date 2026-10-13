@@ -895,10 +895,10 @@ async function analyzeSourceConfiguration(
 /**
  * Reads the current value of each setting that a server references, in the scope of the folder that
  * VS Code resolves the server's variables in, so it is the value VS Code substitutes today. Only a
- * string or a number is carried over. Any other setting, whether unset, structured or a boolean, becomes
- * an empty variable, as does a value containing a variable, which VS Code resolves while the destination
- * would not. `resolvable` is whether VS Code can resolve every setting, which it can't when one is unset
- * or structured.
+ * string or a number is carried over. Any other setting, whether unset, unnamed, structured or a boolean,
+ * becomes an empty variable, as does a value containing a variable, which VS Code resolves while the
+ * destination would not. `resolvable` is whether VS Code can resolve every setting, which it can't when
+ * one is unset, unnamed or structured.
  */
 async function getSettingVariables(
 	settingKeys: ReadonlySet<string>,
@@ -918,7 +918,8 @@ async function getSettingVariables(
 		} catch {
 			resolvable = false;
 		}
-		const rawValue = services.configurationService.getValue<unknown>(key, folder ? { resource: folder.uri } : {});
+		// Without a key, `getValue` would return every setting.
+		const rawValue = key ? services.configurationService.getValue<unknown>(key, folder ? { resource: folder.uri } : {}) : undefined;
 		const value = typeof rawValue === 'string' || typeof rawValue === 'number' ? String(rawValue) : '';
 		variables.push({ key, name, value: hasConfigurationVariable(value) || hasEnvVarReferences(value) ? '' : value });
 	}
@@ -1062,9 +1063,9 @@ function rewriteEnvironmentVariables(
 					: withDefault(offset, input.name, defaultValue, McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault);
 			}
 			if (variable.name === 'config') {
-				const setting = variable.arg !== undefined ? settings.get(variable.arg) : undefined;
+				const setting = settings.get(variable.arg ?? '');
 				if (!setting) {
-					failures.push(McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue);
+					failures.push(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 					return variable.id;
 				}
 				rewritten = true;
@@ -1103,7 +1104,7 @@ function rewriteEnvironmentVariables(
 		const env = configuration.env ? Object.fromEntries(Object.entries(configuration.env).map(([name, value]) => [name, typeof value === 'string' ? rewrite(value) : value])) : {};
 		const declared = declareEnvironmentVariables(env, [
 			...variables.map(input => ({ name: input.name, value: input.declaration.default ?? '', invalidValue: McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault })),
-			...settingVariables.map(setting => ({ name: setting.name, value: setting.value, invalidValue: McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue })),
+			...settingVariables.map(setting => ({ name: setting.name, value: setting.value, invalidValue: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration })),
 		]);
 		if (typeof declared === 'string') {
 			failures.push(declared);

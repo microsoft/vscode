@@ -184,8 +184,6 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	UnsupportedVariable = 'unsupportedVariable',
 	/** An input's default cannot be written to the destination, or a `pickString` default is not one of its options. */
 	UnsupportedInputDefault = 'unsupportedInputDefault',
-	/** A `${config:}` reference names no setting. */
-	UnsupportedSettingValue = 'unsupportedSettingValue',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',
 	/** An existing destination cannot be read or parsed as a supported MCP configuration document. */

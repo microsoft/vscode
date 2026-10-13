@@ -146,15 +146,14 @@ function getSourceFileReferences(sourceFile: IMcpSourceFile): IMcpSourceFileRefe
 	const inputIds = new Set<string>();
 	const settingKeys = new Set<string>();
 	for (const variable of getConfigurationVariables(sourceFile.servers)) {
-		if (variable.arg === undefined) {
+		if (variable.name === 'config') {
+			settingKeys.add(variable.arg ?? '');
+		} else if (variable.arg === undefined) {
 			continue;
-		}
-		if (variable.name === 'env') {
+		} else if (variable.name === 'env') {
 			environmentVariableNames.add(variable.arg.toUpperCase());
 		} else if (variable.name === 'input') {
 			inputIds.add(variable.arg);
-		} else if (variable.name === 'config') {
-			settingKeys.add(variable.arg);
 		}
 	}
 	return { environmentVariableNames, inputIds, settingKeys };
@@ -167,7 +166,18 @@ function getSourceFileReferences(sourceFile: IMcpSourceFile): IMcpSourceFileRefe
 function hasVariableNameCollision(name: string, own: { readonly kind: 'input' | 'config'; readonly id: string }, references: IMcpSourceFileReferences): boolean {
 	return references.environmentVariableNames.has(name)
 		|| [...references.inputIds].some(other => (own.kind !== 'input' || other !== own.id) && getVariableName(other) === name)
-		|| [...references.settingKeys].some(other => (own.kind !== 'config' || other !== own.id) && getVariableName(other) === name);
+		|| [...references.settingKeys].some(other => (own.kind !== 'config' || other !== own.id) && getSettingVariableName(other) === name);
+}
+
+/** The variable name used for a `${config:}` reference that names no setting. */
+const unnamedSettingVariableName = 'MCP_CONFIG';
+
+/**
+ * The environment variable that a setting key migrates to, named like an input. A reference without a
+ * usable key, such as `${config:}`, migrates to `MCP_CONFIG`.
+ */
+export function getSettingVariableName(key: string): string {
+	return getVariableName(key) ?? unnamedSettingVariableName;
 }
 
 /**
@@ -200,8 +210,9 @@ export function getMigratedVariables(inputIds: ReadonlySet<string>, sourceFile: 
 
 /**
  * The environment variable that each setting a server references through `${config:key}` migrates to,
- * named after its key, such as `MCP_COMMAND` for `mcp.command`. Like an input, a setting must not map
- * to the same variable as a different setting, input or `${env:}` reference in the same file.
+ * named after its key, such as `MCP_COMMAND` for `mcp.command`, or `MCP_CONFIG` without a key. Like an
+ * input, a setting must not map to the same variable as a different setting, input or `${env:}`
+ * reference in the same file.
  */
 export function getMigratedSettingNames(settingKeys: ReadonlySet<string>, sourceFile: IMcpSourceFile): { readonly key: string; readonly name: string }[] | McpServerCustomizationMigrationFailureReason {
 	const settings: { readonly key: string; readonly name: string }[] = [];
@@ -210,11 +221,7 @@ export function getMigratedSettingNames(settingKeys: ReadonlySet<string>, source
 	}
 	const references = getSourceFileReferences(sourceFile);
 	for (const key of settingKeys) {
-		const name = getVariableName(key);
-		if (!name) {
-			// Without a key, VS Code can't resolve the setting either.
-			return McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue;
-		}
+		const name = getSettingVariableName(key);
 		if (hasVariableNameCollision(name, { kind: 'config', id: key }, references)) {
 			return McpServerCustomizationMigrationFailureReason.VariableNameCollision;
 		}
