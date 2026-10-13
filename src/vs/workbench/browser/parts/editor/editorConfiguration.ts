@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
+import { diffEditorLanguageAssociationsSettingId, diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorLanguageAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, markdownDefaultEditorAgentsWindowSettingId, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -72,6 +72,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
 	private editorAssociationsConfigurationNode: IConfigurationNode | undefined;
 	private diffEditorAssociationsConfigurationNode: IConfigurationNode | undefined;
+	private editorLanguageAssociationsConfigurationNode: IConfigurationNode | undefined;
+	private diffEditorLanguageAssociationsConfigurationNode: IConfigurationNode | undefined;
 	private editorLargeFileConfirmationConfigurationNode: IConfigurationNode | undefined;
 
 	constructor(
@@ -200,6 +202,42 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			}
 		};
 
+		// Registers setting for editorLanguageAssociations
+		const oldEditorLanguageAssociationsConfigurationNode = this.editorLanguageAssociationsConfigurationNode;
+		this.editorLanguageAssociationsConfigurationNode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				[editorLanguageAssociationsSettingId]: {
+					type: 'object',
+					markdownDescription: localize('editor.editorLanguageAssociations', "Configure language IDs to default editors (for example `\"markdown\": \"vscode.markdown.preview.editor\"`). These apply to all files of that language unless overridden by a more specific `workbench.editorAssociations` glob pattern."),
+					patternProperties: {
+						'.*': {
+							type: 'string',
+							enum: binaryEditorCandidates,
+						}
+					}
+				}
+			}
+		};
+
+		// Registers setting for diffEditorLanguageAssociations
+		const oldDiffEditorLanguageAssociationsConfigurationNode = this.diffEditorLanguageAssociationsConfigurationNode;
+		this.diffEditorLanguageAssociationsConfigurationNode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				[diffEditorLanguageAssociationsSettingId]: {
+					type: 'object',
+					markdownDescription: localize('editor.diffEditorLanguageAssociations', "Configure language IDs to default editors for diff views (for example `\"markdown\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorLanguageAssociations` for diffs."),
+					patternProperties: {
+						'.*': {
+							type: 'string',
+							enum: binaryEditorCandidates,
+						}
+					}
+				}
+			}
+		};
+
 		// Registers setting for large file confirmation based on environment
 		const oldEditorLargeFileConfirmationConfigurationNode = this.editorLargeFileConfirmationConfigurationNode;
 		this.editorLargeFileConfirmationConfigurationNode = {
@@ -221,6 +259,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 				this.defaultBinaryEditorConfigurationNode,
 				this.editorAssociationsConfigurationNode,
 				this.diffEditorAssociationsConfigurationNode,
+				this.editorLanguageAssociationsConfigurationNode,
+				this.diffEditorLanguageAssociationsConfigurationNode,
 				this.editorLargeFileConfirmationConfigurationNode
 			],
 			remove: coalesce([
@@ -228,6 +268,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 				oldDefaultBinaryEditorConfigurationNode,
 				oldEditorAssociationsConfigurationNode,
 				oldDiffEditorAssociationsConfigurationNode,
+				oldEditorLanguageAssociationsConfigurationNode,
+				oldDiffEditorLanguageAssociationsConfigurationNode,
 				oldEditorLargeFileConfirmationConfigurationNode
 			])
 		});

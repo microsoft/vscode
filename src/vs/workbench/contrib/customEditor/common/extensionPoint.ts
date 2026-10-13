@@ -74,6 +74,10 @@ const customEditorsContributionSchema = {
 						type: 'string',
 						description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
 					},
+					language: {
+						type: 'string',
+						description: nls.localize('contributes.selector.language', 'Language ID that the custom editor is enabled for.'),
+					},
 				}
 			}
 		},
@@ -140,7 +144,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const customEditors = manifest.contributes?.customEditors || [];
+		const customEditors = (manifest.contributes?.customEditors || []) as ICustomEditorsExtensionPoint[];
 		if (!customEditors.length) {
 			return { data: { headers: [], rows: [] }, dispose: () => { } };
 		}
@@ -148,15 +152,22 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 		const headers = [
 			nls.localize('customEditors view type', "View Type"),
 			nls.localize('customEditors priority', "Priority"),
-			nls.localize('customEditors filenamePattern', "Filename Pattern"),
+			nls.localize('customEditors selector', "Selector"),
 		];
 
 		const rows: IRowData[][] = customEditors
 			.map(customEditor => {
+				const selectorLabel = customEditor.selector.map(x => {
+					if (x.filenamePattern && x.language) {
+						return `${x.filenamePattern} (${x.language})`;
+					}
+					return x.filenamePattern ?? x.language ?? '*';
+				}).join(', ');
+
 				return [
 					customEditor.viewType,
 					renderPriority(customEditor.priority),
-					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
+					selectorLabel
 				];
 			});
 

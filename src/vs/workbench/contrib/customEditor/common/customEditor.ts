@@ -36,8 +36,8 @@ export interface ICustomEditorService {
 	readonly models: ICustomEditorModelManager;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
+	getAllCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection;
+	getContributedCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
@@ -93,6 +93,7 @@ export const enum CustomEditorDiffEditorLayout {
 
 export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
+	readonly language?: string;
 }
 
 export type CustomEditorPriorityInfo = Omit<RegisteredEditorPriorityInfo, 'merge'>;
@@ -121,8 +122,15 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 		this.selector = descriptor.selector;
 	}
 
-	matches(resource: URI): boolean {
-		return this.selector.some(selector => selector.filenamePattern && globMatchesResource(selector.filenamePattern, resource));
+	matches(resource: URI, languageId?: string): boolean {
+		return this.selector.some(selector => {
+			if (!selector.filenamePattern && !selector.language) {
+				return false;
+			}
+			const matchesFilename = selector.filenamePattern ? globMatchesResource(selector.filenamePattern, resource) : true;
+			const matchesLanguage = selector.language ? (languageId !== undefined && selector.language === languageId) : true;
+			return matchesFilename && matchesLanguage;
+		});
 	}
 }
 

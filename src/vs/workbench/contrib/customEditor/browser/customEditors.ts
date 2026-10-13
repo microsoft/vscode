@@ -169,12 +169,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		for (const contributedEditor of this._contributedEditors) {
 			for (const globPattern of contributedEditor.selector) {
-				if (!globPattern.filenamePattern) {
+				if (!globPattern.filenamePattern && !globPattern.language) {
 					continue;
 				}
 
 				this._editorResolverDisposables.add(this.editorResolverService.registerEditor(
-					globPattern.filenamePattern,
+					globPattern.filenamePattern ?? '*',
 					{
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
@@ -182,7 +182,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						priority: contributedEditor.priority,
 					},
 					{
-						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
+						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false),
+						language: globPattern.language,
 					},
 					{
 						createEditorInput: ({ resource, label }, group) => {
@@ -335,8 +336,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return this._contributedEditors.get(viewType);
 	}
 
-	public getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
-		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource));
+	public getContributedCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection {
+		const lang = languageId ?? this.editorResolverService.getEffectiveLanguageId(resource) ?? undefined;
+		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource, lang));
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
@@ -346,10 +348,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 
-	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
+	public getAllCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection {
+		const lang = languageId ?? this.editorResolverService.getEffectiveLanguageId(resource) ?? undefined;
 		return new CustomEditorInfoCollection([
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
-			...this.getContributedCustomEditors(resource).allEditors,
+			...this.getContributedCustomEditors(resource, lang).allEditors,
 		]);
 	}
 
@@ -408,11 +411,20 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
-		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
-			return;
+		const sameExtension = extname(oldResource).toLowerCase() === extname(newResource).toLowerCase();
+		if (sameExtension) {
+			// Even with the same extension, a path-based files.associations rule can change the
+			// effective language (e.g. src/file.txt → docs/file.txt). Only skip if language is
+			// also unchanged — otherwise a newly matching language-targeted editor would be missed.
+			const oldLang = this.editorResolverService.getEffectiveLanguageId(oldResource);
+			const newLang = this.editorResolverService.getEffectiveLanguageId(newResource);
+			if (oldLang === newLang) {
+				return;
+			}
 		}
 
-		const possibleEditors = this.getAllCustomEditors(newResource);
+		const langId = this.editorResolverService.getEffectiveLanguageId(newResource) ?? undefined;
+		const possibleEditors = this.getAllCustomEditors(newResource, langId);
 
 		// See if we have any non-optional custom editor for this resource
 		if (!possibleEditors.allEditors.some(editor => editor.priority.editor !== RegisteredEditorPriority.option)) {
