@@ -216,7 +216,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				return [marketplace, unavailableMarketplace];
 			},
 			add: async () => marketplace,
-			queryMarketplace: async (_marketplace, options) => {
+			queryMarketplace: async (_session, _marketplace, options) => {
 				queries.push(options);
 				return {
 					items: [{
