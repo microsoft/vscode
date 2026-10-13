@@ -176,9 +176,9 @@ suite('openSessionLink', () => {
 		const encoded = 'copilotcli:/encoded';
 		const defaultChat = buildDefaultChatUri(encoded);
 		assert.deepStrictEqual({
-			defaultChat: buildOpenSessionLinkForChat(owner, defaultChat, defaultChat),
-			peerChat: buildOpenSessionLinkForChat(owner, buildChatUri(encoded, 'peer1'), defaultChat),
-			bareSession: buildOpenSessionLinkForChat(owner, owner, defaultChat),
+			defaultChat: buildOpenSessionLinkForChat(owner, defaultChat, defaultChat, undefined),
+			peerChat: buildOpenSessionLinkForChat(owner, buildChatUri(encoded, 'peer1'), defaultChat, undefined),
+			bareSession: buildOpenSessionLinkForChat(owner, owner, defaultChat, undefined),
 		}, {
 			defaultChat: 'agent-host-session://copilotcli/abc-123',
 			peerChat: 'agent-host-session://copilotcli/abc-123?chat=peer1',
@@ -192,16 +192,42 @@ suite('openSessionLink', () => {
 		const recreatedDefault = URI.parse(buildDefaultChatUri(owner)).with({ query: 'generation=1' }).toString();
 		const defaultIdPeer = buildDefaultChatUri(owner);
 		assert.deepStrictEqual({
-			nonShapedDefault: buildOpenSessionLinkForChat(owner, nonShapedDefault, nonShapedDefault),
-			recreatedDefault: buildOpenSessionLinkForChat(owner, recreatedDefault, recreatedDefault),
+			nonShapedDefault: buildOpenSessionLinkForChat(owner, nonShapedDefault, nonShapedDefault, undefined),
+			recreatedDefault: buildOpenSessionLinkForChat(owner, recreatedDefault, recreatedDefault, undefined),
 			// The link format reads the `default` chat id as the default chat, so this peer has no link.
-			defaultIdPeer: buildOpenSessionLinkForChat(owner, defaultIdPeer, recreatedDefault),
-			peer: buildOpenSessionLinkForChat(owner, buildChatUri(owner, 'peer1'), nonShapedDefault),
+			defaultIdPeer: buildOpenSessionLinkForChat(owner, defaultIdPeer, recreatedDefault, undefined),
+			peer: buildOpenSessionLinkForChat(owner, buildChatUri(owner, 'peer1'), nonShapedDefault, undefined),
 		}, {
 			nonShapedDefault: 'agent-host-session://copilotcli/abc-123',
 			recreatedDefault: 'agent-host-session://copilotcli/abc-123',
 			defaultIdPeer: undefined,
 			peer: 'agent-host-session://copilotcli/abc-123?chat=peer1',
+		});
+	});
+
+	test('buildOpenSessionLinkForChat qualifies the link with the owning connection', () => {
+		const owner = 'copilotcli:/abc-123';
+		const defaultChat = buildChatUri(owner, 'main');
+		const connectionAuthority = 'remote.example__1';
+		const links = {
+			defaultChat: buildOpenSessionLinkForChat(owner, defaultChat, defaultChat, connectionAuthority),
+			peer: buildOpenSessionLinkForChat(owner, buildChatUri(owner, 'peer1'), defaultChat, connectionAuthority),
+			bareSession: buildOpenSessionLinkForChat(owner, owner, defaultChat, connectionAuthority),
+		};
+		assert.deepStrictEqual({
+			links,
+			parsed: Object.values(links).map(link => link && { session: parseOpenSessionLinkUri(link)?.toString(), chat: parseOpenSessionLinkChatId(link), connectionAuthority: parseOpenSessionLinkConnectionAuthority(link) }),
+		}, {
+			links: {
+				defaultChat: 'agent-host-session://copilotcli/abc-123?connectionAuthority=remote.example__1',
+				peer: 'agent-host-session://copilotcli/abc-123?connectionAuthority=remote.example__1&chat=peer1',
+				bareSession: 'agent-host-session://copilotcli/abc-123?connectionAuthority=remote.example__1',
+			},
+			parsed: [
+				{ session: owner, chat: undefined, connectionAuthority },
+				{ session: owner, chat: 'peer1', connectionAuthority },
+				{ session: owner, chat: undefined, connectionAuthority },
+			],
 		});
 	});
 

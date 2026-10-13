@@ -2293,7 +2293,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resource: hostResource.with({ scheme: 'agent-host-copilotcli' }).toString(),
 			chats: [['', defaultChat.toString()], [peerChat.toString(), peerChat.toString()]],
 			// Opaque chats link into the session that advertises them.
-			links: [buildOpenSessionLinkForChat(hostResource, defaultChat, defaultChat), buildOpenSessionLinkForChat(hostResource, peerChat, defaultChat)],
+			links: [buildOpenSessionLinkForChat(hostResource, defaultChat, defaultChat, undefined), buildOpenSessionLinkForChat(hostResource, peerChat, defaultChat, undefined)],
 			sessionIsRead: false,
 			chatReadState: [true, false],
 		});
