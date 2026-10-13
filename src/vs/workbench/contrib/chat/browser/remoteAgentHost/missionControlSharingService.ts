@@ -185,7 +185,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 					return undefined;
 				}
 				const canonical = await this._fileService.realpath(drive);
-				if (canonical?.authority) {
+				if (canonical?.fsPath.replace(/\\/g, '/').startsWith('//')) {
 					this._logService.info('[Mission Control] Excluding a network-backed drive from local filesystem sharing', drive.toString());
 					return undefined;
 				}

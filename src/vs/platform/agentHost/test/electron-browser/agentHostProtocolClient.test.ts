@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readAgentHostFileSystemRoots } from '../../common/meta/agentHostFileSystemRootsMeta.js';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -3813,6 +3814,37 @@ suite('AgentHostProtocolClient', () => {
 				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [], _meta: meta },
 			});
 			await connectPromise;
+		}
+
+		for (const recovery of ['replay', 'snapshot', 'freshInitialize'] as const) {
+			test(`refreshes cached filesystem root hints for picker consumers after ${recovery}`, async () => {
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 4 });
+				const initialMeta = { 'vscode.agentHost': true, 'vscode.fileSystemRoots': ['file:///C:/'] };
+				await completeHandshake(transports[0], client.connect(), initialMeta);
+				const observedRoots = () => readAgentHostFileSystemRoots(client.initializeResult.get()).map(root => root.toString());
+				const observations = [observedRoots()];
+				for (const meta of [{ 'vscode.fileSystemRoots': ['file:///C:/', 'file:///D:/'] }, {}]) {
+					const { transport, request } = await beginRecovery(client, transports);
+					if (recovery === 'freshInitialize') {
+						transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'forgotten client' } });
+						const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+						transport.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [], _meta: { 'vscode.agentHost': true, ...meta } } });
+					} else {
+						transport.fireMessage({
+							jsonrpc: '2.0', id: request.id,
+							result: recovery === 'replay'
+								? { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: meta }
+								: { type: ReconnectResultType.Snapshot, snapshots: [], _meta: meta },
+						});
+					}
+					await waitForConnectedWithin(client);
+					observations.push(observedRoots());
+				}
+				assert.deepStrictEqual({ observations, nativeCapability: client.initializeResult.get()?._meta?.['vscode.agentHost'] }, {
+					observations: [['file:///c%3A/'], ['file:///c%3A/', 'file:///d%3A/'], []],
+					nativeCapability: true,
+				});
+			});
 		}
 
 		test('refreshes the brokered ticket before opening a replacement transport', async () => {

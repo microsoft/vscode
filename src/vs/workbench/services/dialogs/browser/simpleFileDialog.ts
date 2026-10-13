@@ -254,8 +254,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return undefined;
 		}
 		const newOptions: IOpenDialogOptions = objects.deepClone(options);
-		newOptions.defaultUri = defaultUri;
-		return newOptions;
+		return {
+			...newOptions,
+			defaultUri,
+			navigationRoots: newOptions.navigationRoots?.map(root => URI.revive(root)),
+		};
 	}
 
 	private remoteUriFrom(path: string, hintUri?: URI): URI {

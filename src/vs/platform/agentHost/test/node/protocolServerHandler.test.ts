@@ -4170,10 +4170,10 @@ suite('ProtocolServerHandler', () => {
 				reconnectedRoots: readAgentHostFileSystemRoots(reconnected).map(uri => uri.path),
 				contentError: errorCode(active, 4), passiveError: errorCode(passive, 2), identityError: errorCode(unauthenticated, 2),
 			}, {
-				reads: [file.path], writes: [file.path], defaultDirectory: URI.file(home).toString(),
+				reads: [URI.parse(file.toString()).path], writes: [URI.parse(file.toString()).path], defaultDirectory: URI.file(home).toString(),
 				fileContent: 'updated',
-				roots: [URI.file(root).path],
-				reconnectedRoots: [URI.file(root).path],
+				roots: [URI.parse(URI.file(root).toString()).path],
+				reconnectedRoots: [URI.parse(URI.file(root).toString()).path],
 				contentError: AhpErrorCodes.PermissionDenied, passiveError: JsonRpcErrorCodes.InvalidRequest, identityError: AHP_AUTH_REQUIRED,
 			});
 		} finally {

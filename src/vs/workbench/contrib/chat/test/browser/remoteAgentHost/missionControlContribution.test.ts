@@ -300,7 +300,7 @@ suite('Mission Control sharing service', () => {
 				}
 				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
 			},
-			realpath: async resource => resource.path === '/Z:/' ? URI.parse('file://server/share/') : resource,
+			realpath: async resource => resource.path === '/Z:/' ? resource.with({ path: '\\\\server\\share\\' }) : resource,
 		});
 		await sharing.setEnabled(true);
 		assert.deepStrictEqual({ options: calls[0].options, statRequests, createdFolders }, {

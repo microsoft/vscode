@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getAgentHostFileSystemRootsMeta, readAgentHostFileSystemRoots } from '../../../common/meta/agentHostFileSystemRootsMeta.js';
+import { getAgentHostFileSystemRootsMeta, readAgentHostFileSystemRoots, refreshAgentHostFileSystemRootsMeta } from '../../../common/meta/agentHostFileSystemRootsMeta.js';
 
 suite('Agent Host filesystem root metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,5 +23,21 @@ suite('Agent Host filesystem root metadata', () => {
 			[], [], [], ['/'], [], [], [], [], [], ['/C:/', '/D:/'], [],
 		]);
 		assert.deepStrictEqual(readAgentHostFileSystemRoots(undefined), []);
+	});
+
+	test('refresh replaces or removes navigation roots while preserving initialize-only capabilities', () => {
+		const previous = { 'vscode.agentHost': true, 'vscode.fileSystemRoots': ['file:///C:/'] };
+		const peers = [
+			{ _meta: { 'vscode.fileSystemRoots': ['file:///D:/'], 'copilot.keepAliveTimeoutMs': 900_000 } },
+			{ _meta: {} },
+			{},
+			{ _meta: { 'vscode.fileSystemRoots': ['file:///D:/', 'https://host/'] } },
+		];
+		assert.deepStrictEqual(peers.map(peer => refreshAgentHostFileSystemRootsMeta(previous, peer)), [
+			{ 'vscode.agentHost': true, 'vscode.fileSystemRoots': ['file:///d%3A/'], 'copilot.keepAliveTimeoutMs': 900_000 },
+			{ 'vscode.agentHost': true },
+			{ 'vscode.agentHost': true },
+			{ 'vscode.agentHost': true },
+		]);
 	});
 });

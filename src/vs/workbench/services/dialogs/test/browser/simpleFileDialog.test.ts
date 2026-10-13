@@ -21,6 +21,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
+import { IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 
 suite('SimpleFileDialog', () => {
 
@@ -63,13 +64,17 @@ suite('SimpleFileDialog', () => {
 			URI.file('/'),
 		];
 		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
-			options: { navigationRoots: roots },
+			scheme: home.scheme,
+			fileService: { hasProvider: () => true },
 			isWindows: true, separator: '\\', scopedAuthority: 'windows',
 			_showDotFiles: false,
 			createBackItem: async () => undefined,
 		}) as {
+			options: IOpenDialogOptions;
+			getOptions(options: IOpenDialogOptions): IOpenDialogOptions;
 			createItems(folder: IFileStat, currentFolder: URI, token: CancellationToken): Promise<{ label: string; uri: URI; isNavigationRoot?: boolean }[]>;
 		};
+		dialog.options = dialog.getOptions({ defaultUri: home, navigationRoots: roots });
 		const folder = upcastPartial<IFileStat>({ resource: home, isDirectory: true, children: [] });
 		const items = await dialog.createItems(folder, home, CancellationToken.None);
 		assert.deepStrictEqual(items.map(item => ({ label: item.label, path: item.uri.path, navigation: item.isNavigationRoot })), [

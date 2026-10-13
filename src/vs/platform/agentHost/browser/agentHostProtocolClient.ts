@@ -17,6 +17,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
+import { refreshAgentHostFileSystemRootsMeta } from '../common/meta/agentHostFileSystemRootsMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -1056,6 +1057,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 			this._lastReadTime = Date.now();
 			this._resetLivenessTimers();
+			const initializeResult = this._initializeResult.get();
+			if (!freshInitialize && initializeResult) {
+				this._initializeResult.set({
+					...initializeResult,
+					_meta: refreshAgentHostFileSystemRootsMeta(initializeResult._meta, result),
+				}, undefined);
+			}
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			this._startRelayKeepAlive(result._meta ?? this._initializeResult.get()?._meta);
 			gate.complete();

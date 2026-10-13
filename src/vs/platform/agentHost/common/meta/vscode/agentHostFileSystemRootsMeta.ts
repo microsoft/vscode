@@ -42,3 +42,10 @@ export function getAgentHostFileSystemRootsMeta(roots: readonly URI[]): Record<s
 	const values = [...new Set(roots.filter(isFileSystemRoot).map(root => root.toString()))];
 	return values.length ? { [fileSystemRootsMetaKey]: values } : {};
 }
+
+/** Refreshes navigation hints without discarding initialize-only capabilities. */
+export function refreshAgentHostFileSystemRootsMeta(previous: Record<string, unknown> | undefined, peer: { readonly _meta?: Record<string, unknown> }): Record<string, unknown> {
+	const meta = { ...previous, ...peer._meta };
+	delete meta[fileSystemRootsMetaKey];
+	return { ...meta, ...getAgentHostFileSystemRootsMeta(readAgentHostFileSystemRoots(peer)) };
+}

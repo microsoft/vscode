@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { readAgentHostFileSystemRoots, getAgentHostFileSystemRootsMeta } from './vscode/agentHostFileSystemRootsMeta.js';
+export { readAgentHostFileSystemRoots, getAgentHostFileSystemRootsMeta, refreshAgentHostFileSystemRootsMeta } from './vscode/agentHostFileSystemRootsMeta.js';
