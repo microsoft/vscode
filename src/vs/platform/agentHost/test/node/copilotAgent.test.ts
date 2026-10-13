@@ -8,6 +8,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { readAgentImageModels } from '../../common/meta/agentImageModels.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { constants as fsConstants } from 'fs';
@@ -641,6 +642,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	imageModels: Awaited<ReturnType<CopilotModelsList>>['imageModels'];
 	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
@@ -722,12 +724,14 @@ class TestCopilotClient implements ITestCopilotClient {
 				this.modelListRequests.push(params);
 				const gate = this.modelListGates.shift() ?? this.modelListGate;
 				const models = this.modelListResponses.shift() ?? this._models;
+				const imageModels = this.imageModels;
 				const error = this.modelListErrors.shift();
+				this.modelListStarted?.complete();
 				await gate;
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo) };
+				return { models: models.map(toSdkModelInfo), ...(imageModels !== undefined ? { imageModels } : {}) };
 			}
 		},
 		plugins: {
@@ -747,6 +751,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly sessionListRequests: Parameters<CopilotClient['rpc']['sessions']['list']>[0][] = [];
 	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
+	modelListStarted: DeferredPromise<void> | undefined;
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
@@ -1689,6 +1694,28 @@ suite('CopilotAgent', () => {
 			}, { fresh: undefined, restored: 'off', fork: undefined, mutable: true });
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('image consent is a mutable preview session setting preserved by resume and forks', async () => {
+		const { agent } = createTestAgentContext(disposables, { productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' } });
+		const { agent: stable } = createTestAgentContext(disposables, { productService: { ...TEST_PRODUCT_SERVICE, quality: 'stable' } });
+		try {
+			const key = SessionConfigKey.ImageGenerationEnabled;
+			const fresh = await agent.resolveChatConfig({});
+			const restored = await agent.resolveChatConfig({ config: { [key]: false } });
+			const stableConfig = await stable.resolveChatConfig({ config: { [key]: true } });
+			assert.deepStrictEqual({
+				fresh: fresh.values[key],
+				restored: restored.values[key],
+				inherited: agent.getInheritedChatConfig(restored.values)?.[key],
+				type: restored.schema.properties[key].type,
+				mutable: restored.schema.properties[key].sessionMutable,
+				stable: stableConfig.schema.properties[key].sessionMutable,
+			}, { fresh: true, restored: false, inherited: false, type: 'boolean', mutable: true, stable: true });
+		} finally {
+			await disposeAgent(agent);
+			await disposeAgent(stable);
 		}
 	});
 
@@ -9281,6 +9308,33 @@ suite('CopilotAgent', () => {
 			}
 		}
 
+		for (const quality of ['stable', 'insider'] as const) {
+			test(`the image setting overrides ${quality} defaults and republishes the cached catalog live`, async () => {
+				const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+				client.imageModels = [{ id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
+				const initial = quality === 'stable';
+				const { agent, configurationService } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					productService: { ...TEST_PRODUCT_SERVICE, quality },
+					rootConfig: { [CopilotCliConfigKey.ImageGeneration]: initial },
+				});
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.some(model => model.id === 'chat-model'));
+					const calls = client.modelListRequests.length;
+					for (const enabled of [initial, !initial, initial]) {
+						configurationService.updateRootConfig({ [CopilotCliConfigKey.ImageGeneration]: enabled });
+						const models = await waitForState(agent.models, models => models.some(model => model.id === 'chat-model'
+							&& (readAgentImageModels(model) !== undefined) === enabled));
+						assert.deepStrictEqual(readAgentImageModels(models.find(model => model.id === 'chat-model')!), enabled ? client.imageModels : undefined);
+					}
+					assert.strictEqual(client.modelListRequests.length, calls);
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('enables the built-in GitHub MCP server by default and removes its environment variable when disabled', async () => {
 			const enabledClient = new TestCopilotClient([]);
 			const { agent: enabledAgent } = createTestAgentContext(disposables, { copilotClient: enabledClient });
@@ -9979,6 +10033,146 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+	});
+
+	for (const quality of ['stable', 'insider', undefined] as const) {
+		test(`publishes image models only as an auxiliary preview catalog (${quality ?? 'development'})`, async () => {
+			const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+			client.imageModels = [
+				{ id: 'image-one', name: 'Image One', supportedOperations: ['generate', 'edit'], isDefault: true, availability: 'available' },
+				{ id: 'image-two', name: 'Image Two', supportedOperations: ['generate'], isDefault: false, availability: 'available' },
+			];
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				productService: { ...TEST_PRODUCT_SERVICE, quality },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const models = await waitForState(agent.models, models => models.some(model => model.id === 'chat-model'));
+				assert.deepStrictEqual({
+					chatIds: models.map(model => model.id),
+					imageModels: readAgentImageModels(models[0]),
+				}, {
+					chatIds: ['chat-model'],
+					imageModels: quality === 'stable' ? undefined : client.imageModels,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('image catalog is withdrawn immediately when credentials change, before new availability resolves', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		client.imageModels = [{ id: 'old-account-image', name: 'Old Account Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+		});
+		const gate = new DeferredPromise<void>();
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			await agent.refreshModels();
+			assert.deepStrictEqual(readAgentImageModels(agent.models.get()[0]), client.imageModels);
+			client.modelListGate = gate.p;
+			client.imageModels = [];
+			await agent.authenticate('https://api.github.com', 'token-b');
+			assert.deepStrictEqual(agent.models.get().map(model => ({
+				id: model.id, images: readAgentImageModels(model),
+			})), [{ id: 'chat-model', images: undefined }]);
+			gate.complete();
+			await agent.refreshModels();
+			assert.deepStrictEqual(readAgentImageModels(agent.models.get()[0]), []);
+		} finally {
+			gate.complete();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('a failed availability refresh withdraws images but retains the existing chat-model catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		client.imageModels = [{ id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+		});
+		const retryGate = new DeferredPromise<void>();
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			assert.deepStrictEqual(readAgentImageModels(agent.models.get()[0]), client.imageModels);
+			client.modelListErrors.push(new Error('Image availability refresh failed'));
+			client.modelListGate = retryGate.p;
+			client.modelListGates.push(Promise.resolve());
+			await agent.refreshModels();
+			assert.deepStrictEqual(agent.models.get().map(model => ({
+				id: model.id, images: readAgentImageModels(model),
+			})), [{ id: 'chat-model', images: undefined }]);
+		} finally {
+			retryGate.complete();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('a deferred Enterprise restart cannot advertise the previous account image catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		client.imageModels = [{ id: 'account-a-image', name: 'Account A Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
+		const endpointService = createTestGitHubEndpointService('https://example.ghe.com');
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client, gitHubEndpointService: endpointService,
+			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+		});
+		let hasActiveTurn = true;
+		try {
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'account-a-token');
+			await agent.refreshModels();
+			assert.deepStrictEqual(readAgentImageModels(agent.models.get()[0]), client.imageModels);
+			setDefaultSessionStub(agent, 'enterprise-image-turn', {
+				get hasActiveTurn() { return hasActiveTurn; },
+				usesStaticGitHubToken: false,
+				updateGitHubCredentials: async () => { throw new Error('unexpected credential update'); },
+				dispose() { },
+			} satisfies ICredentialUpdateSession);
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'account-b-token');
+			await agent.refreshModels();
+			assert.deepStrictEqual({
+				images: agent.models.get().map(readAgentImageModels),
+				clientStops: client.stopCallCount,
+			}, { images: [undefined], clientStops: 0 });
+		} finally {
+			hasActiveTurn = false;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('an in-flight catalog cannot reappear after credential rejection', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		client.imageModels = [{ id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+		});
+		const gate = new DeferredPromise<void>();
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			client.modelListStarted = new DeferredPromise<void>();
+			client.modelListGate = gate.p;
+			const refresh = agent.refreshModels();
+			await client.modelListStarted.p;
+			agent['_handleCopilotSessionAuthRequired']();
+			assert.strictEqual(readAgentImageModels(agent.models.get()[0]), undefined);
+			gate.complete();
+			await refresh;
+			assert.strictEqual(readAgentImageModels(agent.models.get()[0]), undefined);
+			client.modelListGate = undefined;
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			assert.deepStrictEqual(readAgentImageModels(agent.models.get()[0]), client.imageModels);
+		} finally {
+			gate.complete();
+			await disposeAgent(agent);
+		}
 	});
 
 	test('models include billing multiplier metadata when SDK provides it', async () => {

@@ -14,6 +14,7 @@ import { IConfigurationService, IConfigurationValue } from '../../../../../platf
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { isImageGenerationEnabledByDefault } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -33,6 +34,10 @@ const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfig
 suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('image generation defaults on in Insiders and development but off in Stable', () => {
+		assert.deepStrictEqual(['stable', 'insider', undefined].map(isImageGenerationEnabledByDefault), [false, true, true]);
+	});
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);

@@ -1406,6 +1406,27 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	for (const success of [false, true]) {
+		test(`restores image usage independently of result success (${success})`, async () => {
+			const usage = { requestId: 'charged-image', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } };
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Generate an image.' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'image', toolName: 'image_generation' } },
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'image', success,
+						toolUsage: { ...usage, model: 'image-model' },
+						...(success ? { result: { content: 'Generated image.' } } : { error: { message: 'Image decoding failed.' } }),
+					},
+				},
+			]));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part.toolCall._meta?.['vscode.imageGeneration'], { requestedModel: { id: 'image-model' }, usage });
+		});
+	}
+
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

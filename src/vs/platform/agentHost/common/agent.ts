@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -1058,11 +1059,12 @@ export interface IAgentModelInfo {
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
  * auto-approval, subagent session creation, steering acknowledgment, and
- * host-owned model-call telemetry) remain as discriminated non-action signals.
+ * host-owned model-call telemetry and chat billing) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentCanvasSignal
+	| IAgentChatUsageSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
@@ -1095,6 +1097,13 @@ export interface IAgentCanvasSignal {
 	readonly chat: URI;
 	readonly resource: URI;
 	readonly state: CanvasState;
+}
+
+/** Publishes a chat's aggregate billing without changing any turn's usage or content. */
+export interface IAgentChatUsageSignal {
+	readonly kind: 'chat_usage';
+	readonly chat: URI;
+	readonly usage: IAgentChatUsage;
 }
 
 /** Reports one completed upstream model response for host-owned turn telemetry. */

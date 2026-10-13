@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
@@ -24,6 +24,11 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';
@@ -130,14 +135,16 @@ suite('ModelPicker automation toolbar', () => {
 suite('ModelPicker controls', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('exposes the rendered picker and its existing operations without a session', () => {
+	function createControls(session: IObservable<IActiveSession | undefined> = constObservable(undefined), provider?: ISessionsProvider) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None });
+		instantiationService.stub(ISessionsProvidersService, 'getProvider', () => provider);
 		const modelPickers = new NewChatModelPickerService();
 		const selectedModels: string[] = [];
 		let opens = 0;
 		let disposed = 0;
-		instantiationService.stub(ISessionContext, new SessionContext(constObservable(undefined)));
+		instantiationService.stub(ISessionContext, new SessionContext(session));
 		instantiationService.stub(ISessionModelSelection, {
 			state: constObservable(EMPTY_MODEL_SELECTION_STATE),
 			selectModel: id => { selectedModels.push(id); return true; },
@@ -163,6 +170,12 @@ suite('ModelPicker controls', () => {
 			dispose: () => disposed++,
 		});
 		const picker = disposables.add(instantiationService.createInstance(ModelPicker, constObservable(false)));
+		return { picker, modelPickers, selectedModels, get opens() { return opens; }, get disposed() { return disposed; } };
+	}
+
+	test('exposes the rendered picker and its existing operations without a session', () => {
+		const rig = createControls();
+		const { picker, modelPickers, selectedModels } = rig;
 		const control = modelPickers.activePicker;
 		assert.ok(control);
 		const beforeRender = control.getDomNode();
@@ -177,11 +190,60 @@ suite('ModelPicker controls', () => {
 		picker.dispose();
 
 		assert.deepStrictEqual({
-			beforeRender, firstMatches, secondMatches, opens, switched, selectedModels, disposed,
+			beforeRender, firstMatches, secondMatches, opens: rig.opens, switched, selectedModels, disposed: rig.disposed,
 			activePicker: modelPickers.activePicker,
 		}, {
 			beforeRender: undefined, firstMatches: true, secondMatches: true, opens: 1, switched: true,
 			selectedModels: ['vendor/model'], disposed: 1, activePicker: undefined,
 		});
+	});
+
+	test('the Images control persists the scoped session preference without selecting a chat model', async () => {
+		const key = SessionConfigKey.ImageGenerationEnabled;
+		const config: ResolveSessionConfigResult = {
+			schema: { type: 'object', properties: { [key]: { type: 'boolean', title: 'Image Generation', default: true, sessionMutable: true } } },
+			values: { [key]: true },
+		};
+		const changed = disposables.add(new Emitter<string>());
+		const resolving = observableValue('resolving', false);
+		const writes: { session: string; property: string; value: unknown }[] = [];
+		const sessionConfig: ISessionConfigProvider = {
+			onDidChangeSessionConfig: changed.event,
+			getSessionConfig: () => config,
+			getCreateSessionConfig: () => ({}),
+			isSessionConfigResolving: () => resolving,
+			setSessionConfigValue: async (session, property, value) => {
+				writes.push({ session, property, value });
+				config.values[property] = value;
+				changed.fire(session);
+			},
+		};
+		const provider = new class extends mock<ISessionsProvider>() {
+			override readonly id = 'opaque-provider';
+			override readonly sessionConfig = sessionConfig;
+		}();
+		const session = new class extends mock<IActiveSession>() {
+			override readonly sessionId = 'opaque-owner';
+			override readonly providerId = provider.id;
+		}();
+		const active = observableValue<IActiveSession | undefined>('active', session);
+		const rig = createControls(active, provider);
+		const delegate = Reflect.get(rig.picker, '_delegate') as IModelPickerDelegate;
+		const control = delegate.imageGeneration!;
+		let changes = 0;
+		disposables.add(control.onDidChange(() => changes++));
+		assert.deepStrictEqual(control.getState(), { enabled: true, readOnly: false });
+		await control.setEnabled(false);
+		assert.deepStrictEqual(control.getState(), { enabled: false, readOnly: false });
+		assert.strictEqual(changes, 1);
+		assert.deepStrictEqual(writes, [{ session: session.sessionId, property: key, value: false }]);
+		resolving.set(true, undefined);
+		assert.deepStrictEqual(control.getState(), { enabled: false, readOnly: true });
+		await assert.rejects(() => control.setEnabled(true), /Canceled/);
+		active.set(undefined, undefined);
+		assert.strictEqual(control.getState(), undefined);
+		await assert.rejects(() => control.setEnabled(true), /Canceled/);
+		assert.deepStrictEqual(rig.selectedModels, []);
+		assert.strictEqual(writes.length, 1);
 	});
 });

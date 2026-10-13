@@ -12,6 +12,7 @@
 - Source precedence is feature-specific, not a universal "VS Code first" rule. Some readers select by key presence even when malformed; others fall back when there is no usable result. Preserve the owning reader's contract; do not merge fields from competing representations.
 - Preserve unrelated and unknown metadata during writes and round trips. Explicit `false`, zero, and empty values must not be treated as absent.
 - Metadata is not permission to infer unrelated semantics: tool origin does not classify an operation, output chunks are not arguments, model-call cost is not turn cost, and context occupancy is not quota. Internal visibility hides the request row, not the response.
+- Image charges come from the runtime-owned completion usage, never arbitrary tool-result JSON. Missing billing is unavailable, not zero; image-token consumption must not become chat context occupancy after restore. Upfront picker rates require a provider catalog contract, not rates inferred from a completed call.
 - Compatibility presentation must remain client-side. Do not synthesize protocol state or change execution, permissions, or visibility to imitate another client's rendering.
 - Session configuration `readOnly` governs picker editability, not settings-derived values forwarded to the host. Forwarding still validates the schema and session mutability; see [sessionConfigProperties.ts](../sessionConfigProperties.ts).
 

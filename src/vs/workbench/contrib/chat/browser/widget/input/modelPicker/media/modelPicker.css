@@ -781,16 +781,33 @@
 	pointer-events: auto;
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model {
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) {
 	padding-top: var(--vscode-spacing-size60);
 	padding-bottom: var(--vscode-spacing-size60);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model > .codicon:first-child {
+.action-widget .chat-model-picker-tabbed .chat-model-picker-image-unavailable .title {
+	color: var(--vscode-disabledForeground);
+}
+
+.action-widget .chat-model-picker-tabbed .chat-model-picker-image-model .action-list-item-toolbar .action-item .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+}
+
+.action-widget .chat-model-picker-tabbed .chat-model-picker-image-model .action-list-item-toolbar .action-label::after {
+	content: none;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) > .codicon:first-child {
 	height: var(--vscode-spacing-size200);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail {
+.action-widget .chat-model-picker-tabbed .monaco-list-row:is(.chat-model-picker-routing-model, .chat-model-picker-image-model, .chat-model-picker-image-off) .detail {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
@@ -1112,6 +1129,25 @@
 .chat-model-card-pricing-caption {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
+}
+
+.chat-image-model-details {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-image-model-details .chat-model-card-section-title {
+	color: var(--vscode-foreground);
+}
+
+.chat-image-model-details p {
+	margin: var(--vscode-spacing-size40) 0 0;
+}
+
+.chat-image-model-id {
+	display: block;
+	margin-top: var(--vscode-spacing-size40);
+	overflow-wrap: anywhere;
 }
 
 .chat-model-card-pricing-row {

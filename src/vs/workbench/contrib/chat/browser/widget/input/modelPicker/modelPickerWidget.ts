@@ -237,6 +237,9 @@ export class ModelPickerWidget extends Disposable {
 				this._renderLabel();
 			}));
 		}
+		if (this._delegate.imageGeneration) {
+			this._register(this._delegate.imageGeneration.onDidChange(() => this._tabbedPicker.value?.refresh()));
+		}
 	}
 
 	setCompact(compact: IObservable<boolean>): void {
@@ -670,6 +673,7 @@ export class ModelPickerWidget extends Disposable {
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 		this._showTabbedPicker(anchorElement, {
+			imageGeneration: this._delegate.imageGeneration,
 			workflow: this._delegate.workflow,
 			models,
 			selectedModelId: this._selectedModel?.identifier,

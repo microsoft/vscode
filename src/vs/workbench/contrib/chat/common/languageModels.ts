@@ -24,6 +24,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import type { IImageToolModel as ILanguageModelImageModel } from '../../../../platform/agentHost/common/meta/agentImageModels.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -246,6 +247,8 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 	};
 }
 
+export type { ILanguageModelImageModel };
+
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 
@@ -271,6 +274,8 @@ export interface ILanguageModelChatMetadata {
 	readonly cacheCost?: number;
 	readonly cacheWriteCost?: number;
 	readonly outputCost?: number;
+	/** The provider's auxiliary image catalog, displayed separately and never selected for chat. */
+	readonly imageModels?: readonly ILanguageModelImageModel[];
 	readonly longContextInputCost?: number;
 	readonly longContextCacheCost?: number;
 	readonly longContextCacheWriteCost?: number;

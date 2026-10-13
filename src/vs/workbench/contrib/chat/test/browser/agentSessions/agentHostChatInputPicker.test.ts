@@ -250,11 +250,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
 		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
 		const permissionPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.AutoApprove));
+		const imagePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.ImageGenerationEnabled));
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = sessionResource;
 		}();
-		modePicker['_initialResolved'] = permissionPicker['_initialResolved'] = { sessionResource, result: config };
+		modePicker['_initialResolved'] = permissionPicker['_initialResolved'] = imagePicker['_initialResolved'] = { sessionResource, result: config };
 		const modeContainer = dom.$('div');
 		const permissionContainer = dom.$('div');
 		modePicker.render(modeContainer);
@@ -270,7 +271,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				override readonly config = config;
 				override _meta: Record<string, unknown> | undefined;
 			}();
-			for (const picker of [modePicker, permissionPicker]) {
+			for (const picker of [modePicker, permissionPicker, imagePicker]) {
 				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
 					override readonly value = state;
 				}();
@@ -281,8 +282,30 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, imagePicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
+
+	test('the unrendered boolean controller writes typed values to the owning remote session', async () => {
+		const rig = setup();
+		const key = SessionConfigKey.ImageGenerationEnabled;
+		assert.strictEqual(rig.imagePicker.getBooleanState(), undefined);
+		rig.config.schema.properties[key] = { type: 'boolean', title: 'Image Generation', default: true, sessionMutable: true };
+		rig.config.values[key] = true;
+		const writes: { channel: string; action: unknown }[] = [];
+		const remote = new class extends mock<IAgentConnection>() {
+			override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void { writes.push({ channel, action }); }
+		}();
+		rig.setSession(URI.parse('agent-host-remote:/opaque-client'), URI.parse('copilot:/opaque-owner'), remote);
+		assert.deepStrictEqual(rig.imagePicker.getBooleanState(), { enabled: true, readOnly: false });
+		await rig.imagePicker.setBooleanValue(false);
+		assert.deepStrictEqual(writes, [{
+			channel: 'copilot:/opaque-owner', action: { type: ActionType.SessionConfigChanged, config: { [key]: false } },
+		}]);
+		assert.deepStrictEqual(rig.dispatches, []);
+		rig.config.schema.properties[key].readOnly = true;
+		assert.deepStrictEqual(rig.imagePicker.getBooleanState(), { enabled: true, readOnly: true });
+		assert.strictEqual(isGenericConfigPickerProperty(key, rig.config.schema.properties[key], true), false);
+	});
 
 	test('native approval bindings restrict combined choices and write the original host key', async () => {
 		const rig = setup();

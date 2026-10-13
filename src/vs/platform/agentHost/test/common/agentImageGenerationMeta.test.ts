@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
+import { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, parseImageGenerationToolUsage, readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { getToolCallDurationMs, readToolCallMeta, readToolCallPresentation, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ToolCallConfirmationReason, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { readAgentImageModels, readCopilotImageModels, withAgentImageModels, type IImageToolModel } from '../../common/meta/agentImageModels.js';
 
 suite('Image generation tool metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +60,34 @@ suite('Image generation tool metadata', () => {
 		})), Array.from({ length: 4 }, () => ({ requestedModel: { id: 'image-preview' } })));
 	});
 
+	test('preserves reported usage, including zero billing, without retaining internal data', () => {
+		const usage = {
+			requestId: 'operation',
+			inputTokens: 21, outputTokens: 196, totalTokens: 217,
+			copilotUsage: { totalNanoAiu: 0 },
+		};
+		const image = { requestedModel: { id: 'another-host/image:model' }, usage };
+		assert.deepStrictEqual(readImageGenerationToolMetadata({
+			_meta: {
+				[imageGenerationToolMetaKey]: {
+					...image,
+					usage: { ...usage, accounting: { sequence: 1 }, quotaSnapshots: {}, prompt: 'not display metadata' },
+				},
+			},
+		}), image);
+	});
+
+	test('missing and invalid billing never becomes a zero-cost operation', () => {
+		for (const totalNanoAiu of [undefined, null, -1, NaN, Infinity, '0']) {
+			assert.deepStrictEqual(parseImageGenerationToolUsage({
+				requestId: 'operation',
+				inputTokens: -1, outputTokens: 1.5, totalTokens: Number.MAX_SAFE_INTEGER + 1,
+				copilotUsage: { totalNanoAiu },
+			}), { requestId: 'operation' });
+		}
+		assert.deepStrictEqual([undefined, null, [], {}, { requestId: ' ' }].map(parseImageGenerationToolUsage), Array(5).fill(undefined));
+	});
+
 	test('image metadata selects the VS Code convention before tool-name fallbacks', () => {
 		const values = [{ requestedModel: { id: 'remote-provider/image:preview' } }, { requestedModel: { id: '' } }];
 		const presentations = values.map(value => readToolCallPresentation({
@@ -76,5 +106,71 @@ suite('Image generation tool metadata', () => {
 			invocationMessage: 'Running grep',
 			pastTenseMessage: 'Tool finished',
 		})));
+	});
+
+	test('the auxiliary image catalog round trips independently of chat pricing', () => {
+		const model = { id: 'another-host/model', provider: 'remote', name: 'Remote model' };
+		const images: readonly IImageToolModel[] = [
+			{ id: 'opaque/image:first', name: 'First Image', supportedOperations: ['generate', 'edit'], isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0 } },
+			{ id: 'opaque/image:second', name: 'Second Image', supportedOperations: ['generate'], isDefault: false },
+		];
+		const meta = withAgentImageModels({ inputCost: 0 }, images);
+		assert.deepStrictEqual({
+			roundTrip: readAgentImageModels({ ...model, _meta: JSON.parse(JSON.stringify(meta)) }),
+			runtime: readCopilotImageModels({ models: [model], imageModels: images }),
+			chatPricing: readAgentModelPricingMeta({ ...model, _meta: meta }),
+			absent: readAgentImageModels({ ...model, _meta: undefined }),
+			olderRuntime: readCopilotImageModels({ models: [model] }),
+			emptyCatalog: readAgentImageModels({ _meta: withAgentImageModels(undefined, []) }),
+		}, {
+			roundTrip: images, runtime: images, chatPricing: { inputCost: 0 },
+			absent: undefined, olderRuntime: undefined, emptyCatalog: [],
+		});
+	});
+
+	test('image catalogs validate entries and preserve opaque IDs without inventing models or prices', () => {
+		const image = { id: 'external:opaque/image', name: 'External Image', supportedOperations: ['edit', 'edit', 'future-operation'], isDefault: false };
+		const invalid = [null, 1, {}, { ...image, id: ' ' }, { ...image, name: 1 }, { ...image, supportedOperations: [] }, { ...image, isDefault: 'true' }];
+		assert.deepStrictEqual({
+			invalidCatalog: readAgentImageModels({ _meta: { 'vscode.imageModels': 'invalid' } }),
+			models: readCopilotImageModels({ imageModels: [...invalid, image, image] }),
+		}, {
+			invalidCatalog: undefined,
+			models: [{ id: image.id, name: image.name, supportedOperations: ['edit'], isDefault: false }],
+		});
+
+		test('unavailable defaults survive the metadata round trip without fabricated operations or pricing', () => {
+			const image: IImageToolModel = {
+				id: 'runtime:default', name: 'Runtime Default', isDefault: true, availability: 'unavailable', supportedOperations: [],
+			};
+			assert.deepStrictEqual(readAgentImageModels({ _meta: withAgentImageModels(undefined, [image]) }), [image]);
+			assert.deepStrictEqual(readCopilotImageModels({
+				imageModels: [
+					{ ...image, availability: 'future-value' },
+					{ ...image, availability: 'available' },
+					image,
+				]
+			}), [image]);
+		});
+	});
+
+	test('invalid or missing image pricing is never replaced with a free image quote', () => {
+		const image = { id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true };
+		for (const pricing of [
+			undefined, null, {}, [],
+			{ batchSize: 0, textInputPrice: 1 },
+			{ batchSize: -1, textInputPrice: 1 },
+			{ batchSize: 1.5, textInputPrice: 1 },
+			{ batchSize: Number.MAX_SAFE_INTEGER + 1, textInputPrice: 1 },
+			{ batchSize: 1, textInputPrice: -1 },
+			{ batchSize: 1, textInputPrice: Infinity },
+			{ batchSize: 1, textInputPrice: Number.MAX_VALUE },
+			{ batchSize: 1, textInputPrice: '0' },
+		]) {
+			assert.deepStrictEqual(readCopilotImageModels({ imageModels: [{ ...image, pricing }] }), [image]);
+		}
+		assert.deepStrictEqual(readCopilotImageModels({
+			imageModels: [{ ...image, pricing: { batchSize: 1_000_000, textInputPrice: 0, textOutputPrice: -1 } }],
+		}), [{ ...image, pricing: { batchSize: 1_000_000, textInputPrice: 0 } }]);
 	});
 });

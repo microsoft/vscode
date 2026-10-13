@@ -19,6 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { CopilotImageGenerationEnabledSettingId } from '../../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewDelegate, IContextViewService } from '../../../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
@@ -119,6 +120,9 @@ suite('TabbedModelPicker', () => {
 	function createPicker(options: {
 		models?: ILanguageModelChatMetadataAndIdentifier[];
 		access?: IModelConfigurationAccess;
+		imageGeneration?: ITabbedModelPickerContext['imageGeneration'];
+		imagesEnabled?: boolean;
+		isUBB?: boolean;
 		details?: string;
 		cacheWarm?: boolean;
 		contextViewLayer?: number;
@@ -170,7 +174,7 @@ suite('TabbedModelPicker', () => {
 				const result = super.inspect<T>(key);
 				return this.managed && key === ChatConfiguration.DefaultModel ? { ...result, policyValue: result.value } : result;
 			}
-		}({ [ChatConfiguration.DefaultModel]: options.policyDefault ?? options.userDefault });
+		}({ [ChatConfiguration.DefaultModel]: options.policyDefault ?? options.userDefault, [CopilotImageGenerationEnabledSettingId]: options.imagesEnabled ?? true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(IContextViewService, contextView);
@@ -218,11 +222,12 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
+			imageGeneration: options.imageGeneration,
 			workflow: options.workflow,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
-			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
+			configurationAccess: access, isUBB: options.isUBB ?? false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
@@ -262,6 +267,365 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
+
+	test('Images lists only the runtime default and opens details on older hosts without switching chat models', () => {
+		const imageModels = [
+			{ id: 'image-first', name: 'First Image', supportedOperations: ['generate', 'edit'] as const, isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0 } },
+			{ id: 'image-second', name: 'Second Image', supportedOperations: ['edit'] as const, isDefault: false },
+		];
+		const result = createPicker({ models: models.map(model => ({ ...model, metadata: { ...model.metadata, imageModels } })), cacheWarm: true });
+		result.popup.style.setProperty('--vscode-spacing-size200', '20px');
+		result.popup.style.setProperty('--vscode-spacing-size160', '16px');
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		const rows = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-image-model'));
+		assert.deepStrictEqual(rows.map(row => ({
+			name: row.querySelector('.title')?.textContent,
+			role: row.getAttribute('role'),
+			checked: row.getAttribute('aria-checked'),
+		})), [
+			{ name: 'First Image', role: 'menuitem', checked: null },
+		]);
+		for (const row of rows) {
+			const rowBounds = row.getBoundingClientRect();
+			const title = element(row, '.title').getBoundingClientRect();
+			const detail = element(row, '.detail').getBoundingClientRect();
+			assert.ok(title.top >= rowBounds.top && detail.bottom <= rowBounds.bottom,
+				JSON.stringify({ rowTop: rowBounds.top, rowBottom: rowBounds.bottom, titleTop: title.top, detailBottom: detail.bottom }));
+		}
+		rows[0].click();
+		assert.deepStrictEqual({
+			visible: result.picker.isVisible,
+			name: result.popup.querySelector('.chat-model-card-name')?.textContent,
+			modelId: result.popup.querySelector('.chat-image-model-id')?.textContent,
+			pricing: Array.from(result.popup.querySelectorAll('.chat-model-card-pricing-row'), row => [
+				row.querySelector('.chat-model-card-pricing-label')?.textContent,
+				row.querySelector('.chat-model-card-pricing-value')?.textContent,
+			]),
+			missingRatePlaceholder: result.popup.textContent?.includes('Not Reported'),
+			pricingToggle: result.popup.querySelector('.chat-model-card-pricing-toggle')?.textContent,
+			pricingExpanded: result.popup.querySelector('.chat-model-card-pricing-toggle')?.getAttribute('aria-expanded'),
+			hasCacheHint: !!result.popup.querySelector('.chat-model-picker-configuration-hint'),
+			selections: result.selections,
+		}, {
+			visible: true, name: 'First Image', modelId: 'image-first',
+			pricing: [['Text Input', '500'], ['Text Output', '0']],
+			missingRatePlaceholder: false, pricingToggle: 'Pricing details', pricingExpanded: 'false', hasCacheHint: false, selections: [],
+		});
+		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-image-model').length, 1);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-image-model').length, 0);
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('image choices have clear descriptions and compact accessible details without overlapping the model name', () => {
+		const result = createPicker({
+			imageGeneration: {
+				onDidChange: Event.None,
+				getState: () => ({ enabled: false, readOnly: false }),
+				setEnabled: async () => { },
+			},
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, imageModels: [
+						{ id: 'image', name: 'GPT Image 2.5 Sunburst', supportedOperations: ['generate', 'edit'], isDefault: true },
+					]
+				}
+			})),
+		});
+		result.popup.style.setProperty('--vscode-spacing-size200', '20px');
+		result.popup.style.setProperty('--vscode-spacing-size160', '16px');
+		result.popup.style.setProperty('--vscode-spacing-size240', '24px');
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		const off = element(result.popup, '.chat-model-picker-image-off');
+		const image = element(result.popup, '.chat-model-picker-image-model');
+		assert.strictEqual(element(off, '.detail').textContent, 'The image generation tool won\'t be called.');
+		assert.ok(off.getAttribute('aria-label')?.includes('The image generation tool won\'t be called.'));
+		assert.strictEqual(element(image, '.detail').textContent, 'Generate and edit images');
+		assert.ok(image.classList.contains('chat-model-picker-badge-preview'));
+		assert.strictEqual(element(image, '.action-item-badge').textContent, 'Preview');
+		assert.strictEqual(image.querySelector('.codicon-file-media'), null);
+		assert.ok(!image.textContent?.includes('Default'));
+		assert.ok(!image.textContent?.toLowerCase().includes('not reported'));
+		const details = element(image, '[role="button"][aria-label^="GPT Image 2.5 Sunburst Details"]');
+		details.focus();
+		assert.strictEqual(details.textContent, '');
+		assert.ok(details.classList.contains('codicon-info'));
+		assert.strictEqual(details.getAttribute('aria-haspopup'), 'dialog');
+		assert.ok(element(image, '.title').getBoundingClientRect().right <= details.getBoundingClientRect().left);
+		for (const row of [off, image]) {
+			assert.ok(element(row, '.detail').getBoundingClientRect().bottom <= row.getBoundingClientRect().bottom);
+		}
+		details.click();
+		assert.strictEqual(result.popup.querySelector('.chat-model-card-name')?.textContent, 'GPT Image 2.5 Sunburst');
+		assert.strictEqual(result.popup.querySelector('.chat-model-card-badge')?.textContent, 'Preview');
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-card-pricing-row').length, 0);
+		assert.ok(!result.popup.textContent?.includes('Not Reported'));
+		assert.ok(result.popup.textContent?.includes('Actual usage and cost are shown after each image tool call.'));
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('image pricing uses the text-model disclosure and shares its expanded state', () => {
+		const result = createPicker({
+			isUBB: true,
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, inputCost: 4, outputCost: 8,
+					imageModels: [{ id: 'preview-image', name: 'Preview Image', isDefault: true, supportedOperations: ['generate'], pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0 } }],
+				}
+			})),
+		});
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		openDetails(result.popup, 'Preview Image');
+		const toggle = element(result.popup, '.chat-model-card-pricing-toggle');
+		const body = element(result.popup, '.chat-model-card-pricing-body');
+		assert.strictEqual(toggle.getAttribute('aria-expanded'), 'false');
+		assert.strictEqual(body.inert, true);
+		assert.strictEqual(toggle.getAttribute('aria-controls'), body.id);
+		toggle.click();
+		assert.strictEqual(toggle.getAttribute('aria-expanded'), 'true');
+		assert.strictEqual(body.inert, false);
+		assert.ok(body.classList.contains('expanded'));
+		assert.deepStrictEqual(Array.from(body.querySelectorAll('.chat-model-card-pricing-row'), row => row.textContent), ['Text Input500', 'Text Output0']);
+		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+		openDetails(result.popup, 'First');
+		const textToggle = element(result.popup, '.chat-model-card-pricing-toggle');
+		assert.strictEqual(textToggle.getAttribute('aria-expanded'), 'true');
+		textToggle.click();
+		goBack(result.popup);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		openDetails(result.popup, 'Preview Image');
+		assert.strictEqual(element(result.popup, '.chat-model-card-pricing-toggle').getAttribute('aria-expanded'), 'false');
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('Off and the runtime default select image generation independently of the chat model', async () => {
+		let enabled = false;
+		const writes: boolean[] = [];
+		const enabledSet = new DeferredPromise<void>();
+		const imageGeneration: NonNullable<ITabbedModelPickerContext['imageGeneration']> = {
+			onDidChange: Event.None,
+			getState: () => ({ enabled, readOnly: false }),
+			setEnabled: async value => { enabled = value; writes.push(value); if (value) { await enabledSet.complete(); } },
+		};
+		const result = createPicker({
+			imageGeneration,
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, imageModels: [
+						{ id: 'server-owned:next-default', name: 'New Default', supportedOperations: ['generate'], isDefault: true, availability: 'available' },
+					]
+				}
+			})),
+		});
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		assert.deepStrictEqual(Array.from(result.popup.querySelectorAll('[role="menuitemradio"]'), row => ({
+			label: row.querySelector('.title')?.textContent, checked: row.getAttribute('aria-checked'),
+		})), [{ label: 'Off', checked: 'true' }, { label: 'New Default', checked: 'false' }]);
+		element(result.popup, '.chat-model-picker-image-model').click();
+		await enabledSet.p;
+		result.picker.refresh();
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-model').getAttribute('aria-checked'), 'true');
+		openDetails(result.popup, 'New Default');
+		assert.strictEqual(result.popup.querySelector('.chat-image-model-id')?.textContent, 'server-owned:next-default');
+		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
+		element(result.popup, '[role="menuitemradio"]:not(.chat-model-picker-image-model)').click();
+		assert.strictEqual(enabled, false);
+		assert.deepStrictEqual(writes, [true, false]);
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('an unavailable default selects Off and cannot be selected even with enabled consent', () => {
+		const writes: boolean[] = [];
+		const result = createPicker({
+			imageGeneration: {
+				onDidChange: Event.None,
+				getState: () => ({ enabled: true, readOnly: false }),
+				setEnabled: async value => { writes.push(value); },
+			},
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, imageModels: [
+						{ id: 'server-default', name: 'Server Default', supportedOperations: [], isDefault: true, availability: 'unavailable' },
+					]
+				}
+			})),
+		});
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		const row = element(result.popup, '.chat-model-picker-image-model');
+		assert.ok(row.classList.contains('chat-model-picker-image-unavailable'));
+		assert.ok(row.getAttribute('aria-label')?.includes('Not Available'));
+		assert.ok(row.textContent?.includes('Not Available'));
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-off').getAttribute('aria-checked'), 'true');
+		row.click();
+		assert.deepStrictEqual(writes, []);
+		assert.strictEqual(result.popup.querySelector('.chat-model-card-name'), null);
+		openDetails(result.popup, 'Server Default');
+		assert.strictEqual(result.popup.querySelector('.chat-model-card-name')?.textContent, 'Server Default');
+		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
+		element(result.popup, '[role="menuitemradio"]:not(.chat-model-picker-image-model)').click();
+		assert.deepStrictEqual(writes, [false]);
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('an image catalog arriving while the picker is open adds its tab and revocation removes it', () => {
+		const result = createPicker();
+		assert.strictEqual(result.popup.querySelector('[aria-label="Images"]'), null);
+		const catalogModels = models.map(model => ({ ...model, metadata: { ...model.metadata, imageModels: [] } }));
+		result.picker.refresh(catalogModels);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		assert.ok(result.popup.textContent?.includes('No image models are available for this account.'));
+		result.picker.refresh(models);
+		assert.strictEqual(result.popup.querySelector('[aria-label="Images"]'), null);
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('the Images setting hides the tab and applies live without changing chat selection', async () => {
+		const result = createPicker({
+			imagesEnabled: false,
+			imageGeneration: { onDidChange: Event.None, getState: () => ({ enabled: true, readOnly: false }), setEnabled: async () => { } },
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, imageModels: [
+						{ id: 'available-image', name: 'Available Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' },
+					]
+				}
+			})),
+		});
+		assert.strictEqual(result.popup.querySelector('[aria-label="Images"]'), null);
+		for (const enabled of [true, false, true]) {
+			await result.configurationService.setUserConfiguration(CopilotImageGenerationEnabledSettingId, enabled);
+			result.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === CopilotImageGenerationEnabledSettingId,
+			}));
+			assert.strictEqual(!!result.popup.querySelector('[aria-label="Images"]'), enabled);
+			if (enabled) {
+				element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+				assert.strictEqual(element(result.popup, '.chat-model-picker-image-model').getAttribute('aria-checked'), 'true');
+				assert.strictEqual(element(result.popup, '.chat-model-picker-image-off').getAttribute('aria-checked'), 'false');
+			}
+		}
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('access changes select the default only when the user has not chosen Off', () => {
+		let enabled = true;
+		const imageModels = (availability: 'available' | 'unavailable') => models.map(model => ({
+			...model, metadata: {
+				...model.metadata, imageModels: [
+					{ id: 'image', name: 'Image', supportedOperations: ['generate'] as const, isDefault: true, availability },
+				]
+			}
+		}));
+		const result = createPicker({
+			imageGeneration: { onDidChange: Event.None, getState: () => ({ enabled, readOnly: false }), setEnabled: async value => { enabled = value; } },
+			models: imageModels('unavailable'),
+		});
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-off').getAttribute('aria-checked'), 'true');
+		result.picker.refresh(imageModels('available'));
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-model').getAttribute('aria-checked'), 'true');
+		enabled = false;
+		result.picker.refresh(imageModels('unavailable'));
+		result.picker.refresh(imageModels('available'));
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-off').getAttribute('aria-checked'), 'true');
+		assert.strictEqual(element(result.popup, '.chat-model-picker-image-model').getAttribute('aria-checked'), 'false');
+	});
+
+	test('catalog withdrawal retains Off without fabricating an unavailable model', () => {
+		const writes: boolean[] = [];
+		const result = createPicker({
+			imageGeneration: {
+				onDidChange: Event.None,
+				getState: () => ({ enabled: true, readOnly: false }),
+				setEnabled: async enabled => { writes.push(enabled); },
+			},
+			models: models.map(model => ({
+				...model, metadata: {
+					...model.metadata, imageModels: [
+						{ id: 'available-image', name: 'Available Image', supportedOperations: ['generate'], isDefault: true },
+					]
+				}
+			})),
+		});
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		result.picker.refresh(models);
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-image-model').length, 0);
+		assert.ok(result.popup.querySelector('.chat-model-picker-tabbar [aria-label="Images"]'));
+		element(result.popup, '[role="menuitemradio"]').click();
+		assert.deepStrictEqual(writes, [false]);
+		assert.deepStrictEqual(result.selections, []);
+	});
+
+	test('a preference arriving after opening adds Images even without catalog metadata', () => {
+		let state: { enabled: boolean; readOnly: boolean } | undefined;
+		const result = createPicker({
+			imageGeneration: {
+				onDidChange: Event.None,
+				getState: () => state,
+				setEnabled: async () => { },
+			},
+		});
+		assert.strictEqual(result.popup.querySelector('[aria-label="Images"]'), null);
+		state = { enabled: false, readOnly: false };
+		result.picker.refresh();
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		assert.strictEqual(element(result.popup, '[role="menuitemradio"]').getAttribute('aria-checked'), 'true');
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-image-model').length, 0);
+		state = undefined;
+		result.picker.refresh();
+		assert.strictEqual(result.popup.querySelector('[aria-label="Images"]'), null);
+	});
+
+	for (const availability of ['available', 'unavailable'] as const) {
+		test(`keyboard users can inspect ${availability} image details without changing read-only consent`, () => {
+			const writes: boolean[] = [];
+			const result = createPicker({
+				imageGeneration: {
+					onDidChange: Event.None,
+					getState: () => ({ enabled: true, readOnly: true }),
+					setEnabled: async enabled => { writes.push(enabled); },
+				},
+				models: models.map(model => ({
+					...model, metadata: {
+						...model.metadata, imageModels: [
+							{ id: 'readonly-image', name: 'Read-only Image', supportedOperations: ['generate'], isDefault: true, availability },
+						]
+					}
+				})),
+			});
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+			const list = element(result.popup, '.monaco-list');
+			list.focus();
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, bubbles: true }));
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			assert.strictEqual(result.popup.querySelector('.chat-model-card-name')?.textContent, 'Read-only Image');
+			assert.deepStrictEqual(writes, []);
+		});
+	}
+
+	test('the open Images tab swaps its empty state for newly available models and back', () => {
+		const emptyModels = models.map(model => ({ ...model, metadata: { ...model.metadata, imageModels: [] } }));
+		const result = createPicker({ models: emptyModels });
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+		assert.ok(result.popup.textContent?.includes('No image models are available for this account.'));
+		result.picker.refresh(models.map(model => ({
+			...model, metadata: {
+				...model.metadata, imageModels: [
+					{ id: 'available-image', name: 'Available Image', supportedOperations: ['generate'], isDefault: true },
+				]
+			},
+		})));
+		assert.deepStrictEqual({
+			models: Array.from(result.popup.querySelectorAll('.chat-model-picker-image-model .title'), title => title.textContent),
+			empty: result.popup.textContent?.includes('No image models are available for this account.'),
+		}, { models: ['Available Image'], empty: false });
+		result.picker.refresh(emptyModels);
+		assert.ok(result.popup.textContent?.includes('No image models are available for this account.'));
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-image-model').length, 0);
+		assert.deepStrictEqual(result.selections, []);
+	});
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
 		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });

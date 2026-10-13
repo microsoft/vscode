@@ -19,6 +19,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -359,6 +360,9 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
  * generic lane.
  */
 export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema, configSchema: SessionConfigSchema = { type: 'object', properties: { [property]: schema } }): boolean {
+	if (property === SessionConfigKey.ImageGenerationEnabled) {
+		return schema.type === 'boolean';
+	}
 	if (property === SessionConfigKey.AutoApprove || property === 'approvalMode') {
 		return (property === 'approvalMode' && Object.hasOwn(configSchema.properties, SessionConfigKey.AutoApprove))
 			|| getSessionApprovalProperty(configSchema)?.key === property;
@@ -402,6 +406,9 @@ export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown
  * advertised by an agent's config schema but not known to VS Code.
  */
 export class AgentHostChatInputPicker extends Disposable {
+	private readonly _onDidChangeValue = this._register(new Emitter<void>());
+	readonly onDidChangeValue = this._onDidChangeValue.event;
+	private _lastBooleanState: { readonly enabled: boolean; readonly readOnly: boolean } | undefined;
 
 	private _container: HTMLElement | undefined;
 	private _trigger: HTMLElement | undefined;
@@ -528,6 +535,21 @@ export class AgentHostChatInputPicker extends Disposable {
 		void this._showPicker(anchor).catch(onUnexpectedError);
 	}
 
+	getBooleanState(): { readonly enabled: boolean; readonly readOnly: boolean } | undefined {
+		const context = this._readContext();
+		return context?.schema.type === 'boolean' && typeof context.value === 'boolean'
+			? { enabled: context.value, readOnly: !this._canEdit(context) }
+			: undefined;
+	}
+
+	async setBooleanValue(enabled: boolean): Promise<void> {
+		const context = this._readContext();
+		if (!context || context.schema.type !== 'boolean') {
+			throw new CancellationError();
+		}
+		await this._setValue(context, String(enabled));
+	}
+
 	private _reattach(): void {
 		this._hidePicker();
 		this._sessionGeneration++;
@@ -609,6 +631,11 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _renderChip(): void {
+		const state = this.getBooleanState();
+		if (!equals(state, this._lastBooleanState)) {
+			this._lastBooleanState = state;
+			this._onDidChangeValue.fire();
+		}
 		if (!this._container || this._renderDisposables.isDisposed) {
 			return;
 		}

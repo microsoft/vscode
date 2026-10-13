@@ -384,7 +384,7 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 		|| (schema.readOnly && ['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(property))) {
 		return false;
 	}
-	if (property === SessionConfigKey.SandboxEnabled) {
+	if (property === SessionConfigKey.SandboxEnabled || (property === SessionConfigKey.ImageGenerationEnabled && schema.type === 'boolean')) {
 		return false;
 	}
 	if (presentation === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {

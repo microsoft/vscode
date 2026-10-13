@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -4015,6 +4016,83 @@ suite('AgentSideEffects', () => {
 	// ---- registerProgressListener ---------------------------------------
 
 	suite('registerProgressListener', () => {
+
+		test('rehydrates an aggregate reported before the resumed chat catalog exists', () => {
+			const sequences: number[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => sequences.push(envelope.serverSeq)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'chat_usage', chat: URI.parse(defaultChatUri),
+				usage: { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' },
+			});
+			setupSession();
+			assert.deepStrictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri), { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' });
+			assert.deepStrictEqual(sequences, [...sequences].sort((a, b) => a - b));
+		});
+
+		test('publishes late billing on the exact chat without changing canceled turns or peer metadata', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			const peer = buildChatUri(sessionUri, 'independent-peer');
+			stateManager.addChat(sessionUri.toString(), peer, { title: 'Peer' });
+			startTurn('cancelled-image');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'cancelled-image', duration: 100 });
+			const canceled = stateManager.getChatState(defaultChatUri)?.turns;
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' } });
+
+			assert.deepStrictEqual({
+				canceled: stateManager.getChatState(defaultChatUri)?.turns,
+				active: stateManager.getChatState(defaultChatUri)?.activeTurn,
+				billing: readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri),
+				peerBilling: readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer),
+				sessionMeta: stateManager.getSessionState(sessionUri.toString())?._meta,
+				actions: envelopes.map(envelope => envelope.action.type),
+			}, {
+				canceled, active: undefined, billing: usage,
+				peerBilling: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+				sessionMeta: {
+					unrelatedSession: 'preserved',
+					'vscode.chatUsage': {
+						[defaultChatUri]: usage,
+						[peer]: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+					},
+				},
+				actions: [ActionType.SessionMetaChanged, ActionType.SessionMetaChanged],
+			});
+		});
+
+		test('publishes a resumed peer aggregate only after that exact chat enters the catalog', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const peer = buildChatUri(sessionUri, 'resumed-peer');
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage });
+			assert.strictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer), undefined);
+			stateManager.addChat(sessionUri.toString(), peer, { title: 'Resumed peer' });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [peer]: usage },
+			});
+		});
+
+		test('removing a chat removes only its aggregate billing metadata', () => {
+			const peer = buildChatUri(sessionUri, 'removed-peer');
+			setupSession(undefined, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 }, [peer]: { totalNanoAiu: 250_000_000 } },
+			});
+			stateManager.addChat(sessionUri.toString(), peer, { title: 'Peer' });
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionChatRemoved, chat: peer });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 } },
+			});
+		});
 
 		test('emits auth-required notifications when observable state becomes required', () => {
 			const notifications: INotification[] = [];

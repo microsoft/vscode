@@ -23,6 +23,7 @@ import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHos
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers } from '../../common/autoModeTiers.js';
@@ -41,6 +42,7 @@ import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHu
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
+import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
@@ -128,6 +130,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getSessionConfigValues: () => undefined,
+		getEffectiveValue: (_session: string, _schema: unknown, key: string) => rootValues[key],
 		getSessionSandboxPolicy: () => undefined,
 		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
@@ -1069,7 +1072,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, { [AgentHostCanvasesEnabledConfigKey]: true, memory: true, localMemory: true }, logService);
+		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, memory: true, localMemory: true };
+		const launcher = createTestLauncher(managedSettingsPermissions, configValues, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -1129,6 +1133,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		};
 		const basePlan = {
 			client,
+			imageGenerationEnabled: true,
 			extensionSdkPath: '/copilot-sdk',
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
@@ -1155,6 +1160,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessions.add(await launcher.launch(createPlan, testRuntime));
 			sessions.add(await launcher.launch(resumePlan, testRuntime));
 			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
+
+			assert.deepStrictEqual({
+				createImage: createConfigs.map(config => {
+					const compatible: typeof config & { imageGeneration?: unknown } = config;
+					return compatible.imageGeneration;
+				}),
+				resumeImage: resumeConfigs.map(config => {
+					const compatible: typeof config & { imageGeneration?: unknown } = config;
+					return compatible.imageGeneration;
+				}),
+			}, {
+				createImage: [{ enabled: true }, { enabled: true }],
+				resumeImage: [{ enabled: true }],
+			});
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
@@ -1341,6 +1360,27 @@ suite('CopilotSessionLauncher shared session config', () => {
 					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=success, elapsedMs=<ms>',
 				],
 			});
+			for (const imageGenerationEnabled of [undefined, false]) {
+				sessions.add(await launcher.launch({ ...createPlan, imageGenerationEnabled }, testRuntime));
+				sessions.add(await launcher.launch({ ...resumePlan, imageGenerationEnabled }, testRuntime));
+				const create: SessionConfig & { imageGeneration?: unknown } = createConfigs.at(-1)!;
+				const resume: ResumeSessionConfig & { imageGeneration?: unknown } = resumeConfigs.at(-1)!;
+				assert.deepStrictEqual([create.imageGeneration, resume.imageGeneration], [{ enabled: false }, { enabled: false }]);
+			}
+			configValues[SessionConfigKey.ImageGenerationEnabled] = false;
+			for (const plan of [createPlan, resumePlan]) {
+				const wrapper = sessions.add(await launcher.launch(plan, testRuntime));
+				assert.strictEqual(wrapper.launchImageGenerationEnabled, false);
+			}
+			assert.deepStrictEqual([createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration], [{ enabled: false }, { enabled: false }]);
+			configValues[SessionConfigKey.ImageGenerationEnabled] = true;
+			for (const [imageGenerationEnabled, featureEnabled] of [[true, false], [false, true]] as const) {
+				configValues[CopilotCliConfigKey.ImageGeneration] = featureEnabled;
+				const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch({ ...createPlan, imageGenerationEnabled }, testRuntime));
+				const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch({ ...resumePlan, imageGenerationEnabled }, testRuntime));
+				assert.deepStrictEqual([createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled], [featureEnabled, featureEnabled]);
+				assert.deepStrictEqual([createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration], [{ enabled: featureEnabled }, { enabled: featureEnabled }]);
+			}
 		} finally {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();

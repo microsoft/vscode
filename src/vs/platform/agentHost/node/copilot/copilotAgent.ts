@@ -45,7 +45,7 @@ import { createContextSizeConfigSchemaProperty } from '../../common/agentModelCo
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, copilotImageGenerationSessionSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, isImageGenerationEnabledByDefault, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
@@ -58,6 +58,7 @@ import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { readCopilotImageModels, withAgentImageModels, type IImageToolModel } from '../../common/meta/agentImageModels.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
@@ -779,6 +780,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	private _imageModels: readonly IImageToolModel[] | undefined;
+	private _imageCatalogGeneration = 0;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _ensembleExperimentTriggerPending = false;
@@ -1382,6 +1385,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
 		this._capiModels = [];
+		this._imageModels = undefined;
 		this._publishModels();
 		void this._scheduleModelRefresh();
 	}
@@ -1472,6 +1476,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
 		this._capiModels = [];
+		this._imageModels = undefined;
 		this._publishModels();
 		return { failedTurnIds, stopSucceeded };
 	}
@@ -2219,6 +2224,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			this._automationAuthenticationReady.set(false, undefined);
+			const revalidatingCurrentToken = !!token && this._githubCredentialInvalid && token === this._githubCredentials.token;
 			// Only a supplied credential rearms the requirement. Clearing it for an
 			// empty token would silence the outstanding requirement when a second
 			// revocation arrives while the agent is already tokenless, because
@@ -2228,6 +2234,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._authenticationRequired.set(undefined, undefined);
 			}
 			await this._applyGitHubToken(token || undefined, expiresIn);
+			if (revalidatingCurrentToken) {
+				void this._scheduleModelRefresh();
+			}
 			this._automationAuthenticationReady.set(token.length > 0, undefined);
 		});
 		return true;
@@ -2241,6 +2250,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._resolveCopilotSku(token);
 			}
 			return;
+		}
+		if (tokenChanged && this._imageModels !== undefined) {
+			this._imageModels = undefined;
+			this._publishModels();
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
 		const policySessionRelease = this._customizationInstallations.releasePolicySession();
@@ -2311,6 +2324,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _handleCopilotSessionAuthRequired(credentialInvalid = true): void {
+		this._imageCatalogGeneration++;
+		if (this._imageModels !== undefined) {
+			this._imageModels = undefined;
+			this._publishModels();
+		}
 		if (credentialInvalid && !this._githubCredentialInvalid) {
 			this._telemetryAuthenticationGeneration++;
 		}
@@ -2563,15 +2581,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const tokenAtRefreshStart = this._githubCredentials.token;
+		const imageCatalogGeneration = this._imageCatalogGeneration;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._imageModels = undefined;
 			this._publishModels();
 			return;
 		}
 		try {
-			const models = await this._listModels(tokenAtRefreshStart);
+			const { models, imageModels } = await this._listModels(tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._imageModels = imageCatalogGeneration === this._imageCatalogGeneration && !this._githubCredentialInvalid ? imageModels : undefined;
 				this._publishModels();
 			}
 		} catch (err) {
@@ -2580,6 +2601,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// retry would just resurrect the client we are tearing down.
 			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
+			}
+			if (this._imageModels !== undefined) {
+				this._imageModels = undefined;
+				this._publishModels();
 			}
 			if (/\b401\b/.test(getErrorMessage(err))) {
 				this._handleCopilotSessionAuthRequired();
@@ -2608,6 +2633,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _publishModels(): void {
 		const ensemble = this._isEnsembleEnabled();
+		const imageGenerationEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) ?? isImageGenerationEnabledByDefault(this._productService.quality);
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
@@ -2625,7 +2651,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const capiModels = this._withClaudeDefaultReasoningEffort(this._capiModels)
 			// Ensemble's tiers route through HydraFusion, so they only offer what its settings enable.
 			.filter(model => !ensemble || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => ensemble ? this._asEnsemble(model) : model);
+			.map(model => ensemble ? this._asEnsemble(model) : model)
+			.map(model => !imageGenerationEnabled || this._imageModels === undefined ? model : { ...model, _meta: withAgentImageModels(model._meta, this._imageModels) });
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
 			this._reportEnsembleExperimentTrigger();
 		}
@@ -3761,10 +3788,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
+	private async _listModels(gitHubToken: string): Promise<{ models: IAgentModelInfo[]; imageModels: readonly IImageToolModel[] | undefined }> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const enterpriseHost = this._getEnterpriseHost();
+		if (this._clientConnectorAuthentication?.enterpriseHost !== enterpriseHost
+			|| (enterpriseHost !== undefined && this._clientConnectorAuthentication?.token !== gitHubToken)) {
+			throw new Error('Copilot runtime authentication is being updated. Model availability will refresh after the current work finishes.');
+		}
+		const catalog = await client.rpc.models.list(enterpriseHost ? {} : { gitHubToken });
+		const { models } = catalog;
+		const imageModels = readCopilotImageModels(catalog);
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
@@ -3803,7 +3837,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info('[Copilot] No models listed; offering Auto');
 			result.push(this._getFallbackAutoModel());
 		}
-		return result;
+		return { models: result, imageModels };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
@@ -5135,8 +5169,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		// Isolation / branch are contributed by the host (see
-		// AgentService._withHostSessionConfigContributions); this agent only owns its platform
-		// session config (auto-approve / mode / permissions).
+		// AgentService._withHostSessionConfigContributions); this agent owns
+		// permissions, mode, and preview image consent.
 		const values: Record<string, unknown> = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
 			[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
@@ -5153,13 +5187,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const policy = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			this._managedSettingsService.permissions);
-		return getCopilotApprovalConfig(values, policy,
+		const result = getCopilotApprovalConfig(values, policy,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true);
+		Object.assign(result.schema.properties, copilotImageGenerationSessionSchema.toProtocol().properties);
+		Object.assign(result.values, copilotImageGenerationSessionSchema.validateOrDefault(params.config, {
+			[SessionConfigKey.ImageGenerationEnabled]: true,
+		}));
+		return result;
 	}
 
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
 		const inherited: Record<string, unknown> = {};
-		for (const key of [SessionConfigKey.AutoApprove, SessionConfigKey.Permissions]) {
+		for (const key of [SessionConfigKey.AutoApprove, SessionConfigKey.Permissions, SessionConfigKey.ImageGenerationEnabled]) {
 			if (config[key] !== undefined) {
 				inherited[key] = config[key];
 			}
@@ -6659,7 +6698,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 				},
 				sessionLauncher: this._sessionLauncher,
-				launchPlan,
+				launchPlan: { ...launchPlan, imageGenerationEnabled: isImageGenerationEnabledByDefault(this._productService.quality) },
 				shellManager: launchPlan.shellManager,
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,

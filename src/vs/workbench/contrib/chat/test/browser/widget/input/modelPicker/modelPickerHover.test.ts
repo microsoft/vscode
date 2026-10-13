@@ -31,6 +31,30 @@ suite('ModelPickerHover', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('image catalogs never mix image pricing into a chat-model hover', () => {
+		const descriptions = [false, true].flatMap(hasImageModels => [false, true].map(isUBB => {
+			const model = createModel('opaque-model', 'Remote Model');
+			model.metadata = {
+				...model.metadata, inputCost: 20, imageModels: hasImageModels ? [
+					{ id: 'image-one', name: 'Image One', supportedOperations: ['generate'], isDefault: true },
+				] : undefined
+			};
+			const hover = getModelHoverContent(model, isUBB, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return {
+				imageNote: !!hover.element.querySelector('.chat-model-tool-pricing'),
+				chatRateCount: hover.element.querySelectorAll('.chat-model-hover-cost-number').length,
+			};
+		}));
+		assert.deepStrictEqual(descriptions, [
+			{ imageNote: false, chatRateCount: 0 },
+			{ imageNote: false, chatRateCount: 1 },
+			{ imageNote: false, chatRateCount: 0 },
+			{ imageNote: false, chatRateCount: 1 },
+		]);
+	});
+
 	test('non-positive promo models have no promo hover presentation', () => {
 		const results = [0, -10].map(discountPercent => {
 			const model = createModel(`discount-${discountPercent}`, `Discount ${discountPercent}`);

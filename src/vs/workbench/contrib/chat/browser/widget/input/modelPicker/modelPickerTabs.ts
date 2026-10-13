@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelImageModel, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -17,6 +18,7 @@ import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from '
 
 /** The built-in provider's models. */
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
+export const MODEL_PICKER_IMAGES_DESTINATION = 'images';
 /** Prefix for the destination each provider the user added gets. */
 const PROVIDER_DESTINATION_PREFIX = 'provider:';
 
@@ -44,6 +46,13 @@ export interface IModelPickerDestination {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Providers with nothing to list yet, shown as a welcome body when there are no models. */
 	readonly placeholders: readonly IModelPickerProviderPlaceholder[];
+	readonly imageModels?: readonly IModelPickerImageModel[];
+}
+
+export interface IModelPickerImageModel {
+	readonly identifier: string;
+	readonly providerLabel: string;
+	readonly model: ILanguageModelImageModel;
 }
 
 /**
@@ -94,6 +103,7 @@ export function buildModelPickerDestinations(
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
 	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
 	keepBuiltIn = false,
+	keepImages = false,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
@@ -126,6 +136,43 @@ export function buildModelPickerDestinations(
 	}
 
 	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
+	const imageModels = new Map<string, IModelPickerImageModel>();
+	let hasImageCatalog = false;
+	for (const model of models) {
+		if (model.metadata.imageModels === undefined) {
+			continue;
+		}
+		hasImageCatalog = true;
+		const { vendor, groupName } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
+		for (const image of model.metadata.imageModels) {
+			if (!image.isDefault) {
+				continue;
+			}
+			const identifier = `image:${JSON.stringify([getProviderGroupKey(vendor, groupName), image.id])}`;
+			if (!imageModels.has(identifier)) {
+				imageModels.set(identifier, { identifier, providerLabel: groupName, model: image });
+			}
+		}
+	}
+	if (hasImageCatalog || keepImages) {
+		const label = localize('chat.modelPicker.images', "Images");
+		destinations.push({
+			id: MODEL_PICKER_IMAGES_DESTINATION,
+			label,
+			icon: Codicon.fileMedia,
+			models: [],
+			imageModels: [...imageModels.values()].sort((left, right) =>
+				Number(right.model.isDefault) - Number(left.model.isDefault)
+				|| left.model.name.localeCompare(right.model.name)
+				|| left.identifier.localeCompare(right.identifier)),
+			placeholders: [{
+				vendor: MODEL_PICKER_IMAGES_DESTINATION,
+				label,
+				icon: Codicon.fileMedia,
+				message: localize('chat.modelPicker.noImageModels', "No image models are available for this account."),
+			}],
+		});
+	}
 	// Keyed by provider identity rather than by display name, so two providers that
 	// happen to share a name each keep their own tab instead of being merged.
 	const byProvider = new Map<string, { label: string; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();

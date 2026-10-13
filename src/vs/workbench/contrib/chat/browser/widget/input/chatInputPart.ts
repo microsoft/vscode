@@ -140,6 +140,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
@@ -784,6 +785,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
+	private readonly _imageGenerationPicker = this._register(new MutableDisposable<AgentHostChatInputPicker>());
 	private modeWidget: ModePickerActionItem | undefined;
 	private attachContextActionViewItem: MenuEntryActionViewItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
@@ -1507,7 +1509,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _createModelPickerDelegate(): IModelPickerDelegate {
+		if (!this._imageGenerationPicker.value && this._widget) {
+			this._imageGenerationPicker.value = this.instantiationService.createInstance(AgentHostChatInputPicker, this._widget, SessionConfigKey.ImageGenerationEnabled);
+		}
+		const imagePicker = this._imageGenerationPicker.value;
 		return {
+			imageGeneration: imagePicker ? {
+				onDidChange: imagePicker.onDidChangeValue,
+				getState: () => imagePicker.getBooleanState(),
+				setEnabled: enabled => imagePicker.setBooleanValue(enabled),
+			} : undefined,
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				const previousModelIdentifier = this._currentLanguageModel.get()?.identifier;
@@ -3173,7 +3184,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3202,7 +3213,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.contextUsageWidget?.update(lastRequest);
 				}
-				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
+			} else if (e.kind === 'setSessionCost') {
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3219,6 +3232,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initial update
 		this.contextUsageWidget.update(model.lastRequest);
+		this.contextUsageWidget.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 	}
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {

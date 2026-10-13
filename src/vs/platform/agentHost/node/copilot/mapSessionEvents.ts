@@ -1174,7 +1174,8 @@ function makeCompletedToolCallPart(
 	binaryAssets: ReadonlyMap<string, BinaryAssetData>,
 	completedAt?: string,
 ): ResponsePart {
-	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
+	const rawCompletion: typeof d & { toolUsage?: unknown } = d;
+	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result, rawCompletion.toolUsage) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const displayOutput = d.error?.message ?? getSdkToolResultText(d.result);
 	const content: ToolResultContent[] = [];

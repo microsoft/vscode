@@ -7,6 +7,7 @@ import { isObject } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
+import { SessionConfigKey } from './sessionConfigKeys.js';
 
 export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
 /** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
@@ -33,6 +34,8 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
+	/** Enable image generation independently of a session's image preference. */
+	ImageGeneration = 'imageGeneration',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
@@ -95,6 +98,11 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
+
+export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
+	return quality !== 'stable';
+}
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
@@ -195,7 +203,22 @@ export function resolveModelCapabilityOverrideField<K extends keyof ICopilotCliM
 	return undefined;
 }
 
+export const copilotImageGenerationSessionSchema = createSchema({
+	[SessionConfigKey.ImageGenerationEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGeneration.title', "Image Generation"),
+		description: localize('agentHost.config.imageGeneration.description', "Allow the native image tool to use the runtime default image model. Model access and permissions still apply."),
+		default: true,
+		sessionMutable: true,
+	}),
+});
+
 export const copilotCliConfigSchema = createSchema({
+	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable the Images model picker and native image generation. Account access and the session's image preference still apply."),
+	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),

@@ -13,6 +13,8 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import type { IImageGenerationPickerAccess } from './modelPickerActionItem.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -20,7 +22,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, CopilotImageGenerationEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -41,7 +43,8 @@ import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLa
 import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getEnsembleTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
-import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
+import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerImageModel, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_IMAGES_DESTINATION } from './modelPickerTabs.js';
+import { getImageModelOperationsLabel, renderImageModelDetails } from './modelPickerDetails.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
@@ -54,6 +57,7 @@ const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly imageGeneration?: IImageGenerationPickerAccess;
 	readonly workflow?: IModelPickerWorkflow;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
@@ -95,6 +99,7 @@ export interface ITabbedModelPickerContext {
 export class TabbedModelPicker extends Disposable {
 
 	private readonly _onDidHide = this._register(new Emitter<void>());
+	private _hasImageGenerationControl = false;
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
@@ -141,6 +146,9 @@ export class TabbedModelPicker extends Disposable {
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
 		this._register(this._widget.onDidChangeTab(id => { this._activeDestination = id; }));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CopilotImageGenerationEnabledSettingId) && this.isVisible) {
+				this._showCurrent(this._filterValue);
+			}
 			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
 				this.refresh();
 			}
@@ -226,6 +234,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!this.isVisible || !this._context) {
 			return;
 		}
+		const previousImages = this._buildDestinations(this._context).find(destination => destination.id === MODEL_PICKER_IMAGES_DESTINATION);
 		if (models) {
 			this._models = models;
 			this._context = this._refreshContextForModels(this._context, this._models);
@@ -235,6 +244,13 @@ export class TabbedModelPicker extends Disposable {
 			this.hide();
 			return;
 		}
+		const images = destinations.find(destination => destination.id === MODEL_PICKER_IMAGES_DESTINATION);
+		if (this._hasImageGenerationControl !== !!this._context.imageGeneration?.getState()
+			|| !!previousImages !== !!images
+			|| (this._activeDestination === MODEL_PICKER_IMAGES_DESTINATION && !!previousImages?.imageModels?.length !== !!images?.imageModels?.length)) {
+			this._showCurrent(this._filterValue);
+			return;
+		}
 		if (models) {
 			this._speedVariants.clear();
 			for (const destination of destinations) {
@@ -242,6 +258,12 @@ export class TabbedModelPicker extends Disposable {
 			}
 		}
 		const model = this._context.models.find(model => model.identifier === this._detailsModelId);
+		const imageModel = this._getImageModel(this._detailsModelId);
+		if (imageModel) {
+			this._widget.refreshActiveList();
+			this._showImageModelDetails(imageModel);
+			return;
+		}
 		if (this._detailsModelId && !model) {
 			this._widget.refreshActiveList();
 			this._widget.hideDetails();
@@ -284,6 +306,7 @@ export class TabbedModelPicker extends Disposable {
 		const workflow = context.workflow?.available.get() ? context.workflow : undefined;
 		const step = workflow?.state.get();
 		const destinations = this._buildDestinations(context);
+		this._hasImageGenerationControl = !!context.imageGeneration?.getState();
 		if (!destinations.length) {
 			return;
 		}
@@ -325,7 +348,9 @@ export class TabbedModelPicker extends Disposable {
 				const items = searching
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: this._buildItems(destination, sections, current);
-				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
+				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined }
+					: destination.id === MODEL_PICKER_IMAGES_DESTINATION ? undefined
+						: current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
@@ -385,8 +410,11 @@ export class TabbedModelPicker extends Disposable {
 			openItemDetails: item => this._openItemDetails(item),
 			delegate: {
 				onSelect: action => {
+					if (!action.enabled) {
+						return;
+					}
 					void action.run();
-					if (!step) {
+					if (!step && !this._getImageModel(action.id)) {
 						this._widget.hide();
 					}
 				},
@@ -404,7 +432,9 @@ export class TabbedModelPicker extends Disposable {
 		const hydraFusionModels = this._hydraFusionModels(context);
 		// Ensemble's HydraFusion is never a row of its own, even when Ensemble does not offer it.
 		const ensembleHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelEnsemble && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
-		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
+		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context), !!context.imageGeneration?.getState())
+			.filter(destination => destination.id !== MODEL_PICKER_IMAGES_DESTINATION
+				|| (this._configurationService.getValue<boolean>(CopilotImageGenerationEnabledSettingId) === true && !context.workflow?.state.get()));
 	}
 
 	/**
@@ -628,6 +658,9 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		if (destination.id === MODEL_PICKER_IMAGES_DESTINATION) {
+			return this._buildImageItems(destination);
+		}
 		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
 		// Auto leads the built-in provider's list, ahead of any section. Guided selection
 		// compares individual models, so it leaves routing out.
@@ -710,12 +743,114 @@ export class TabbedModelPicker extends Disposable {
 	 * get in the way of a result list, but each row still names its provider.
 	 */
 	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		if (destination.id === MODEL_PICKER_IMAGES_DESTINATION) {
+			return this._buildImageItems(destination);
+		}
 		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
 			? [this._autoModel(context), ...this._hydraFusionModels(context)].filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model)
 			: [];
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
 			.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
+	}
+
+	private _buildImageItems(destination: IModelPickerDestination): IActionListItem<IActionWidgetDropdownAction>[] {
+		const access = this._context?.imageGeneration;
+		const state = access?.getState();
+		const enabled = state?.enabled === true && (destination.imageModels?.some(image => image.model.availability !== 'unavailable') ?? false);
+		const offDescription = localize('chat.modelPicker.imageOffDescription', "The image generation tool won't be called.");
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = state && access ? [{
+			kind: ActionListItemKind.Action,
+			item: {
+				id: 'image-generation:off',
+				label: localize('chat.modelPicker.imageOff', "Off"),
+				enabled: !state.readOnly,
+				checked: !enabled,
+				class: undefined,
+				tooltip: offDescription,
+				run: () => access.setEnabled(false).catch(onUnexpectedError),
+			},
+			label: localize('chat.modelPicker.imageOff', "Off"),
+			detail: offDescription,
+			ariaDescription: offDescription,
+			className: 'chat-model-picker-model chat-model-picker-image-off',
+			group: { title: '', icon: !enabled ? Codicon.check : Codicon.blank },
+			hideIcon: false,
+			disabled: state.readOnly,
+		}] : [];
+		if (state && !destination.imageModels?.length) {
+			items.push({
+				kind: ActionListItemKind.Separator,
+				label: localize('chat.modelPicker.imageCatalogUnavailable', "Image model information is currently unavailable."),
+			});
+		}
+		return items.concat((destination.imageModels ?? []).map(image => {
+			const description = getImageModelOperationsLabel(image.model);
+			const unavailable = image.model.availability === 'unavailable';
+			const selected = state?.enabled === true && !unavailable;
+			const selectable = access && state && !unavailable && !state.readOnly;
+			const checked = selectable ? selected : undefined;
+			const details = toAction({
+				id: MODEL_DETAILS_ACTION_ID,
+				label: localize('chat.modelPicker.details', "Details"),
+				class: ThemeIcon.asClassName(Codicon.info),
+				tooltip: localize('chat.modelPicker.modelDetails', "{0} Details", image.model.name),
+				run: () => this._showImageModelDetails(image),
+			});
+			return {
+				kind: ActionListItemKind.Action,
+				item: {
+					...details, id: image.identifier, label: image.model.name,
+					enabled: !unavailable, checked,
+					run: () => selectable
+						? access.setEnabled(true).then(() => this.refresh()).catch(onUnexpectedError)
+						: this._showImageModelDetails(image),
+				},
+				label: image.model.name,
+				badge: unavailable ? localize('chat.modelPicker.imageUnavailable', "Not Available")
+					: localize('chat.modelPicker.imagePreview', "Preview"),
+				ariaDescription: state?.readOnly ? localize('chat.modelPicker.imageReadOnly', "{0}. Image generation is read-only.", description) : description,
+				detail: unavailable ? localize('chat.modelPicker.imageUnavailableDescription', "This account cannot currently use the runtime image model.")
+					: description,
+				opensDialog: true,
+				group: { title: '', icon: selected ? Codicon.check : Codicon.blank },
+				hideIcon: false,
+				className: `chat-model-picker-model chat-model-picker-image-model${unavailable ? ' chat-model-picker-image-unavailable' : ' chat-model-picker-badge-preview'}`,
+				toolbarActions: [details],
+				toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID],
+			};
+		}));
+	}
+
+	private _getImageModel(identifier: string | undefined): IModelPickerImageModel | undefined {
+		return identifier && this._context
+			? this._buildDestinations(this._context)
+				.find(destination => destination.id === MODEL_PICKER_IMAGES_DESTINATION)?.imageModels
+				?.find(image => image.identifier === identifier)
+			: undefined;
+	}
+
+	private _showImageModelDetails(image: IModelPickerImageModel): void {
+		this._detailsModelId = image.identifier;
+		const { header, content, dispose } = renderImageModelDetails(image.model, image.providerLabel, this._pricingDisclosure);
+		this._widget.showDetails({
+			label: localize('chat.modelPicker.modelDetails', "{0} Details", image.model.name),
+			backLabel: localize('chat.modelPicker.backToImages', "Back to Images"),
+			renderHeader: container => {
+				container.appendChild(header);
+				return toDisposable(() => header.remove());
+			},
+			render: container => {
+				container.appendChild(content);
+				return toDisposable(() => {
+					content.remove();
+					dispose();
+				});
+			},
+			focus: container => container.focus(),
+			restoreFocus: () => this._widget.focusItem(image.identifier),
+			onBack: () => { this._detailsModelId = undefined; },
+		});
 	}
 
 	/**
@@ -857,6 +992,11 @@ export class TabbedModelPicker extends Disposable {
 
 	/** Opens a row's details from the keyboard, as its details button does, and returns to the row on Back. */
 	private _openItemDetails(item: IActionListItem<IActionWidgetDropdownAction>): boolean {
+		const imageModel = this._getImageModel(item.item?.id);
+		if (imageModel) {
+			this._showImageModelDetails(imageModel);
+			return true;
+		}
 		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID)
 			? this._context?.models.find(candidate => candidate.identifier === item.item?.id)
 			: undefined;
