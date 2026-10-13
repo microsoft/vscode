@@ -785,21 +785,16 @@ export class PlaywrightDriver {
 	 * (e.g. selector not found, detached element, timeout on a genuinely missing
 	 * element) are rethrown so real failures aren't silently masked.
 	 */
-	async robustClick(selector: string, timeoutMs: number = 2000, position?: { x: number; y: number }): Promise<void> {
-		if (position) {
-			const { x, y } = await this.getElementXY(selector, position.x, position.y);
-			// Leave toolbar hovers before checking whether the editor click target is unobscured.
-			await this.page.mouse.move(x, y);
-		}
+	async robustClick(selector: string, timeoutMs: number = 2000): Promise<void> {
 		try {
-			await this.page.click(selector, { timeout: timeoutMs, position });
+			await this.page.click(selector, { timeout: timeoutMs });
 			return;
 		} catch (err) {
 			if (!this.isPointerInterceptedError(err)) {
 				throw err;
 			}
 			try {
-				await this.clickAtStablePosition(selector, 100, 5000, position);
+				await this.clickAtStablePosition(selector);
 			} catch (fallbackErr) {
 				const orig = err instanceof Error ? err.message : String(err);
 				const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
@@ -825,11 +820,11 @@ export class PlaywrightDriver {
 	 * coordinates. Clicking the already-sampled {x,y} eliminates the re-sample
 	 * window, making the race window as small as possible (just the CDP round-trip).
 	 */
-	private async clickAtStablePosition(selector: string, intervalMs: number = 100, timeoutMs: number = 5000, position?: { x: number; y: number }): Promise<void> {
+	private async clickAtStablePosition(selector: string, intervalMs: number = 100, timeoutMs: number = 5000): Promise<void> {
 		let last: { x: number; y: number } | undefined;
 		const start = Date.now();
 		while (true) {
-			const current = await this.getElementXY(selector, position?.x, position?.y);
+			const current = await this.getElementXY(selector);
 			if (last && last.x === current.x && last.y === current.y) {
 				await this.page.mouse.click(current.x, current.y);
 				return;
