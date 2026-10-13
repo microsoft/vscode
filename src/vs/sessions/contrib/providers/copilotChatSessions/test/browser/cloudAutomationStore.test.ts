@@ -689,6 +689,18 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual(provider.runs.get().map(run => run.status), ['completed', 'completed', 'failed']);
 	});
 
+	test('cancelled runs project as completed while real failures keep their error', async () => {
+		const { provider, api, set } = setup();
+		api.tasks = (['cancelled', 'failed', 'timed_out'] as const).map(state => ({ id: state, state, created_at: definition.created_at, updated_at: '2026-01-02T00:00:00Z', remote_steerable: false }));
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		assert.deepStrictEqual(provider.runs.get().map(run => ({ status: run.status, completedAt: run.completedAt, errorMessage: run.errorMessage })), [
+			{ status: 'completed', completedAt: '2026-01-02T00:00:00Z', errorMessage: undefined },
+			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'failed' },
+			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'timed_out' },
+		]);
+	});
+
 	test('preflight conflicts and partial patches preserve remote configuration', async () => {
 		const { provider, api, set } = setup();
 		api.definitions = [{ ...definition, tools: ['future-tool'], reasoning_effort: 'future' }];

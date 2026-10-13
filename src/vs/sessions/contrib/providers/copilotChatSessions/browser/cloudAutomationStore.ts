@@ -514,8 +514,8 @@ function cloudTaskStatus(task: Task): IAutomationRun['status'] | undefined {
 	switch (state) {
 		case 'queued': return 'pending';
 		case 'in_progress': case 'running': case 'waiting_for_user': return 'running';
-		case 'completed': case 'idle': return 'completed';
-		case 'failed': case 'timed_out': case 'cancelled': case 'canceled': case 'error': return 'failed';
+		case 'completed': case 'idle': case 'cancelled': case 'canceled': return 'completed';
+		case 'failed': case 'timed_out': case 'error': return 'failed';
 		default: return undefined;
 	}
 }
