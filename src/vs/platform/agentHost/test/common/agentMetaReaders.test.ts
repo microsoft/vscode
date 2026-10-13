@@ -305,15 +305,19 @@ suite('Agent host _meta readers', () => {
 			});
 		});
 
-		test('round trips the namespaced Fusion description and drops malformed values', () => {
+		test('round trips the namespaced Fusion description and drops malformed Fusion values', () => {
 			assert.deepStrictEqual({
 				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
 				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
 				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+				emptyModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': '' } }).fusionModel,
+				invalidModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': 1 } }).fusionModel,
 			}, {
 				valid: 'Workflow description.',
 				empty: '',
 				invalid: undefined,
+				emptyModel: undefined,
+				invalidModel: undefined,
 			});
 		});
 	});
@@ -446,6 +450,13 @@ suite('Agent host _meta readers', () => {
 	});
 
 	suite('readAgentCustomizationMeta', () => {
+		test('reads only explicit, bounded Ask metadata', () => {
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),
+				...[undefined, null, true, {}, 'agent', 'Ask'].map(value => readAgentCustomizationMeta(agentCustomization({ 'vscode.chatMode': value }))),
+			], [{ 'vscode.chatMode': 'ask' }, {}, {}, {}, {}, {}, {}]);
+		});
+
 		test('reads userInvocable, ignores garbage, round-trips', () => {
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});

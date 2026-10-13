@@ -294,9 +294,25 @@ suite('customizationMigration', () => {
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
-		const warning = 'Removes \'gallery\'. Registry updates will stop.';
-
-		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
+		assert.deepStrictEqual({
+			galleryEnabled: category.getCandidateWarnings?.(server, 'Copilot'),
+			galleryEnabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: 'https://registry.example', version: '1.0.0' } }, 'Copilot'),
+			galleryDisabled: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false } }, 'Copilot'),
+			galleryDisabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false, version: '1.0.0' } }, 'Copilot'),
+			versionOnly: category.getCandidateWarnings?.({ ...server, removedProperties: { version: '1.0.0' } }, 'Copilot'),
+			inputsAndGallery: category.getCandidateWarnings?.({ ...server, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }] }, 'Copilot'),
+			settings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+			inputsAndSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }], settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+		}, {
+			galleryEnabled: ['Migrating will stop auto-updates from the MCP registry.'],
+			galleryEnabledWithVersion: ['Migrating will stop auto-updates from the MCP registry.'],
+			galleryDisabled: [],
+			galleryDisabledWithVersion: [],
+			versionOnly: [],
+			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
+			settings: ['Configs will become environment variables. Later changes won\'t apply.'],
+			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables. Later changes won\'t apply.'],
+		});
 	});
 
 	test('explains MCP target conflicts and prioritizes rollback guidance', () => {

@@ -18,9 +18,11 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const session = 'ahp-session:/native';
 const chat = URI.parse(buildDefaultChatUri(session));
@@ -42,13 +44,14 @@ suite('MissionControlSdkEventSource', () => {
 		const errors = sinon.spy(log, 'error');
 		instantiation.stub(ILogService, log);
 		const state = store.add(new AgentHostStateManager(log));
-		const summary = { resource: session, provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
+		const summary = { resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
 		if (provisional) {
 			state.createSession(summary, { emitNotification: false });
 		} else {
-			state.restoreSession(summary, []);
+			state.restoreSession(summary, [], creationTimeChatStorageResource);
 		}
 		instantiation.stub(IAgentHostStateManager, state);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(state));
 		const emitter = store.add(new Emitter<IAgentChatSessionEvent>());
 		let historyRead = 0;
 		const provider = new class extends mock<IAgent>() {

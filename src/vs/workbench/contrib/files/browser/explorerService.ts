@@ -91,6 +91,12 @@ export class ExplorerService implements IExplorerService {
 			events.forEach(e => {
 				if (!shouldRefresh) {
 					for (const resource of e.rawAdded) {
+						// A root folder that was previously deleted got restored, its parent is not part of the model #134144
+						if (this.roots.some(root => this.uriIdentityService.extUri.isEqual(root.resource, resource))) {
+							shouldRefresh = true;
+							break;
+						}
+
 						const parent = this.model.findClosest(dirname(resource));
 						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
 						if (parent && !parent.getChild(basename(resource))) {

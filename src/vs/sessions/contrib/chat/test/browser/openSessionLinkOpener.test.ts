@@ -11,8 +11,17 @@ import { autorun, observableValue } from '../../../../../base/common/observable.
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildOpenSessionLinkUri, parseOpenSessionLinkConnectionAuthority } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { timeout } from '../../../../../base/common/async.js';
+import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { buildDefaultChatUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../workbench/browser/labels.js';
+import { ChatReferenceAttachmentWidget } from '../../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
+import { createChatReferenceVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -44,6 +53,54 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		sessions.getSessions = () => [remote];
 		const ambientLink = buildOpenSessionLinkUri(backend, undefined, undefined, 'local');
 		assert.strictEqual(findSessionForOpenSessionLink(backend, sessions, connections, parseOpenSessionLinkConnectionAuthority(ambientLink)), undefined);
+	});
+
+	test('chat chips open the session on the host of the chat that shows them when local and remote list the same chat URIs', async () => {
+		const shared = 'copilotcli:/shared';
+		const sharedDefault = buildDefaultChatUri(shared);
+		const remoteAddress = 'remote.example:1';
+		const remoteAuthority = agentHostAuthority(remoteAddress);
+		const host = upcastPartial<IAgentConnection>({
+			getActiveSubscriptions: () => [],
+			listSessions: async (): Promise<IAgentSessionMetadata[]> => [{ session: URI.parse(shared), provider: 'copilotcli', startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(sharedDefault), kind: 'default' }] }],
+		});
+		// The remote session is listed first, so a link that does not name its host resolves to it.
+		const remote = upcastPartial<ISession>({ resource: URI.parse(`remote-${remoteAuthority}-copilotcli:/shared`) });
+		const local = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/shared') });
+		const sessions = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] { return [remote, local]; }
+		}();
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity(resource: URI): IAgentHostSessionIdentity | undefined {
+				const connectionAuthority = resource.scheme.startsWith('agent-host-') ? 'local' : resource.scheme.startsWith(`remote-${remoteAuthority}-`) ? remoteAuthority : undefined;
+				return connectionAuthority === undefined ? undefined : { backendSession: resource.with({ scheme: 'copilotcli', fragment: '' }), backendSessionIsAdvertised: true, connectionAuthority };
+			}
+			override getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+				return authority === 'local' || authority === remoteAuthority ? host : undefined;
+			}
+		}();
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostConnectionsService, connections);
+		const opened: string[] = [];
+		instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+			open: async target => {
+				const session = findSessionForOpenSessionLink(parseOpenSessionLinkUri(target)!, sessions, connections, parseOpenSessionLinkConnectionAuthority(target));
+				opened.push(`${session?.resource.toString()}`);
+				return !!session;
+			},
+		}));
+		const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		for (const containingSession of [URI.parse('agent-host-copilotcli:/containing'), URI.parse(`remote-${remoteAuthority}-copilotcli:/containing`)]) {
+			const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, createChatReferenceVariableEntry(URI.parse(sharedDefault), 'turn-1', 'Chat'), containingSession, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, document.createElement('div'), labels));
+			widget.element.click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(opened, [
+			local.resource.toString(),
+			remote.resource.toString(),
+		]);
 	});
 
 	const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {

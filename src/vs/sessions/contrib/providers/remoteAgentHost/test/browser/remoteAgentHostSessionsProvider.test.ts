@@ -38,7 +38,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, type IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -1125,6 +1125,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(defaultUri?.path, '/home/test');
 	});
 
+	test('folder browsing uses a conforming host default and accepts another drive without private metadata', async () => {
+		connection.handshakeState.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }, undefined);
+		const selected = toAgentHostUri(URI.parse('file:///D:/code/project'), 'localhost__4321');
+		let options: IOpenDialogOptions | undefined;
+		const provider = createProvider(disposables, connection, {
+			defaultDirectory: '/C:/Users/test',
+			fileDialogService: upcastPartial<IFileDialogService>({
+				showOpenDialog: async dialogOptions => {
+					options = dialogOptions;
+					return [selected];
+				},
+			}),
+		});
+		const workspace = await provider.browseActions[0].run();
+		assert.deepStrictEqual({
+			defaultPath: options?.defaultUri?.path,
+			fileSystems: options?.availableFileSystems,
+			selected: workspace?.folders[0].root.toString(),
+		}, {
+			defaultPath: '/C:/Users/test',
+			fileSystems: ['vscode-agent-host'],
+			selected: selected.toString(),
+		});
+	});
+
 	test('inline folder browsing uses the same advertised workspace fallback', async () => {
 		const listed: string[] = [];
 		const provider = createProvider(disposables, connection);
@@ -1278,6 +1303,77 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(changes.length > 0);
 		const sessions = provider.getSessions();
 		assert.strictEqual(sessions.length, 2);
+	}));
+
+	test('applies the rest of a listing when one listed session cannot be registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Older hosts list legacy subagent rows (`<parent>#subagent/<id>`) whose
+		// frontend identity collides with their parent session, in any order.
+		const listed = [
+			createSession('before'),
+			createSession('parent-subagent', { session: URI.parse('copilotcli:/parent#subagent%2Ftool-1') }),
+			createSession('parent'),
+			createSession('after'),
+		];
+		let listCalls = 0;
+		const listingConnection = disposables.add(new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				listCalls++;
+				return listed;
+			}
+		}());
+		const registered = new Map<string, string>();
+		const provider = createProvider(disposables, listingConnection, {
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override registerBackendSession(backendSession: URI, agentProvider: string): void {
+					// Like IAgentHostConnectionsService, the first identity claims the fragment-free key.
+					const key = backendSession.with({ fragment: '' }).toString();
+					const previous = registered.get(key);
+					if (previous !== undefined && previous !== backendSession.toString()) {
+						throw new Error(`Conflicting backend identities for ${key}`);
+					}
+					registered.set(key, backendSession.toString());
+					super.registerBackendSession(backendSession, agentProvider);
+				}
+			},
+		});
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		provider.getSessions();
+		await timeout(10_000);
+
+		const label = (session: ISession) => session.resource.fragment ? `${session.resource.path}#${session.resource.fragment}` : session.resource.path;
+		assert.deepStrictEqual({
+			listCalls,
+			added: changes.flatMap(e => e.added.map(label)),
+			sessions: provider.getSessions().map(label).sort(),
+		}, {
+			listCalls: 1,
+			added: ['/before', '/parent', '/after'],
+			sessions: ['/after', '/before', '/parent'],
+		});
+	}));
+
+	test('does not re-fetch a listing that fails to apply', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let listCalls = 0;
+		const listingConnection = disposables.add(new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				listCalls++;
+				return [createSession('listed')];
+			}
+		}());
+		const provider = createProvider(disposables, listingConnection, {
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override _onHostReconciledSessions(): void {
+					throw new Error('apply failed');
+				}
+			},
+		});
+
+		provider.getSessions();
+		await timeout(10_000);
+
+		assert.strictEqual(listCalls, 1);
 	}));
 
 	test('session added notification does not carry model metadata', () => {
@@ -2916,6 +3012,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
 	});
 
+	test('stable remote summaries cannot register a conflicting backend identity on re-upgrade', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const stableKey = 'remoteAgentHost.cachedSessions.v4.localhost__4321';
+		const stable = [{ session: 'copilot:/compatible', provider: 'copilot', startTime: 1000, modifiedTime: 2000 }];
+		storageService.store(stableKey, JSON.stringify(stable), StorageScope.APPLICATION, StorageTarget.USER);
+		const nextConnection = disposables.add(new MockAgentConnection());
+		nextConnection.addSession({ ...createSession('compatible'), session: URI.parse('ahp-session:/compatible'), provider: 'copilot' });
+		const provider = createProvider(disposables, nextConnection, { noConnection: true, storageService });
+		const beforeHost = provider.getSessions().length;
+		provider.setConnection(nextConnection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.ok(session instanceof AgentHostSessionAdapter);
+		assert.deepStrictEqual({
+			beforeHost,
+			backend: session.backendUri.toString(),
+			stableCache: storageService.getObject(stableKey, StorageScope.APPLICATION),
+		}, {
+			beforeHost: 0, backend: 'ahp-session:/compatible', stableCache: stable,
+		});
+	}));
+
 	test('mixed remote cache reloads preserve frontend identities and route same raw IDs to their owning providers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		let listed: IAgentSessionMetadata[] = [
@@ -3829,7 +3947,7 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 	for (const sandbox of [false, true]) {
 		test(`older sandbox addresses in current caches are normalized only by the sandbox provider (${sandbox})`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
-			storageService.store('remoteAgentHost.cachedSessions.v4.localhost__4321', JSON.stringify([{
+			storageService.store('remoteAgentHost.cachedSessions.v5.localhost__4321', JSON.stringify([{
 				session: 'copilot:/cached-address',
 				provider: 'copilot',
 				startTime: 1000,

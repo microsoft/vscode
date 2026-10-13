@@ -536,6 +536,54 @@ suite('Sessions list context menus', () => {
 
 	});
 
+	test('parent session context menu offers marking unread nested sessions as read', async () => {
+		const parentTestSession = createTestSession('Parent');
+		parentTestSession.capabilities.set({ ...parentTestSession.capabilities.get(), supportsIndependentChatReadState: true }, undefined);
+		const parent = parentTestSession.session;
+		const nested = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/nested'),
+			workspace: constObservable(undefined),
+			title: constObservable('Nested'),
+			updatedAt: constObservable(new Date()),
+			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
+			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
+			isRead: constObservable(false),
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const session: ISession = {
+			...parent,
+			chats: constObservable([parent.mainChat.get(), nested]),
+		};
+		const harness = createListHarness(disposables, [session]);
+		const { instantiationService, store } = harness;
+		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const row = container.querySelector<HTMLElement>('.session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+
+		assert.strictEqual(
+			contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.markAllNestedRead')?.label,
+			'Mark All as Read',
+		);
+		contextMenuService.delegate!.onHide?.(false);
+	});
+
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {
 		for (const grouped of [false, true]) {
 			const visible = createTestSession('Visible', { workspaceLabel: 'Workspace', isRead: false }).session;
