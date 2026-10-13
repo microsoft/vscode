@@ -17,7 +17,7 @@ import type { IPullRequestResources } from '../../../github/common/pullRequestRe
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { buildChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -31,9 +31,9 @@ const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
 const REPOSITORY = 'file:///repo';
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY], defaultChat: buildDefaultChatUri(resource) };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {
@@ -290,7 +290,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherFolder = 'file:///other';
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -325,7 +325,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const firstPeer = buildChatUri(session, 'first-peer');
 		const secondPeer = buildChatUri(session, 'second-peer');
-		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -338,7 +338,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		}
 		publishedStateKeys.length = 0;
 
-		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
 		stateManager.removeChat(session, firstPeer);
 		await pump();

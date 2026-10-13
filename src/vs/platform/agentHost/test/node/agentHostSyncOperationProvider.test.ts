@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSyncOperationContribution } from '../../node/agentHostSyncOperationProvider.js';
 
@@ -41,6 +41,7 @@ suite('AgentHostSyncOperationContribution', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
+				defaultChat: buildDefaultChatUri(sessionKey),
 			});
 		}
 		return disposables.add(new AgentHostSyncOperationContribution(

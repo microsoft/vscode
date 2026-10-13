@@ -342,6 +342,18 @@ suite('RemoteSessionMessageRouter', () => {
 		});
 	});
 
+	test('a default-chat source names its advertised default chat, not the default-shaped chat', async () => {
+		const { router, first, second, sessions } = setup();
+		const recreatedDefault = URI.parse(buildDefaultChatUri(backendSession)).with({ query: 'generation=1' }).toString();
+		const state = first.sessionState.verifiedValue!;
+		first.sessionState.set({ ...state, defaultChat: recreatedDefault, chats: state.chats.map((chat, index) => index === 0 ? { ...chat, resource: recreatedDefault } : chat) });
+		await router.send(sessions[1].resource, { session: sessions[2].chats.get()[2].resource.toString(), message: 'Report' }, 'default-source', CancellationToken.None);
+		assert.deepStrictEqual(readAgentMessageDelegationMeta(second.dispatched[0].action.message), {
+			sourceSession: sessions[1].resource.toString(),
+			sourceChat: recreatedDefault,
+		});
+	});
+
 	for (const differentHost of [false, true]) {
 		test(`a stalled destination does not block an unrelated chat: differentHost=${differentHost}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { router, first, sessions } = setup();

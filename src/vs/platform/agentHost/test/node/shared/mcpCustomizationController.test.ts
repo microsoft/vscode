@@ -13,7 +13,7 @@ import { isCustomizationEnabled } from '../../../common/customizationEnablement.
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
@@ -41,6 +41,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		status: SessionStatus.Idle,
 		createdAt: new Date().toISOString(),
 		modifiedAt: new Date().toISOString(),
+		defaultChat: buildDefaultChatUri(session),
 	});
 	if (opts.desiredEnabled !== undefined || opts.customizations !== undefined) {
 		stateManager.dispatchServerAction(session, {

@@ -5,6 +5,7 @@
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -41,6 +42,7 @@ import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUr
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillControl.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
@@ -172,23 +174,26 @@ export function resolveAgentHostChangeset(
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
-/** Resolves the chat channel URI a workbench chat resource addresses. */
-export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): URI | undefined {
+/**
+ * Resolves the chat channel URI a workbench chat resource addresses.
+ * `defaultChat` is the session's advertised default chat (`SessionState.defaultChat`).
+ */
+export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): URI | undefined {
 	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
 	if (explicitChatResource) {
 		return parseUri(explicitChatResource);
 	}
-	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString()) : undefined;
+	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID, defaultChat)?.toString()) : undefined;
 }
 
 /** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
-export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): ReadonlySet<string> {
+export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): ReadonlySet<string> {
 	const ownerIds = new Set<string>([sessionResource.toString()]);
 	if (!state) {
 		return ownerIds;
 	}
 
-	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state);
+	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state, defaultChat);
 	if (!currentChatResource) {
 		return ownerIds;
 	}
@@ -559,9 +564,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
+		const defaultChat = derived(this, reader => {
+			const current = resolution.read(reader);
+			return current ? sessionState.read(reader)?.defaultChat : undefined;
+		});
 		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);
-			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader), defaultChat.read(reader)) : undefined;
 		});
 		const chatStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -586,7 +595,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const session = sessionState.read(reader);
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader));
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
@@ -678,7 +687,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!resource || !resolution.read(reader)) {
 				return [];
 			}
-			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
+			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader), defaultChat.read(reader));
 			return getAgentBrowserViewsNewestFirst(this._browserViewService, ownerIds);
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
@@ -741,6 +750,12 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
+		const targetWindow = getWindow(this._widget.inputPart.persistentContentContainerElement);
+		// Canvases are only presented in the main window, beside their owning chat.
+		const presentsCanvases = !isAuxiliaryWindow(targetWindow);
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		const canvases = this._register(instantiationService.createInstance(CanvasesPillControl, derived(this, reader =>
+			presentsCanvases ? chatModel.read(reader)?.canvasContext?.read(reader) : undefined)));
 		const subagents = derived<readonly IChatSubagentPillEntry[]>(this, reader => {
 			const parentSession = sessionResource.read(reader);
 			const parentChat = chatResource.read(reader);
@@ -807,6 +822,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },
 			customizations: sessionCustomizations,
+			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
 			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
 			backgroundShells,
@@ -814,11 +830,14 @@ export class AgentHostSessionInputPills extends Disposable {
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
-			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
+			targetWindow,
 			enabled: constObservable(true),
-			sources: derived(this, reader => subagentChat.read(reader)
-				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
-				: sources.sources),
+			sources: derived(this, reader => {
+				if (subagentChat.read(reader)) {
+					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
+				}
+				return canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));

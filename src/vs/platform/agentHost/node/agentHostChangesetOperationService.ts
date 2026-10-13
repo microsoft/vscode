@@ -13,7 +13,7 @@ import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSour
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -109,7 +109,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitState) {
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
-				?? (isAhpChatChannel(sourceKey) && !isDefaultChatUri(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
+				?? (isAhpChatChannel(sourceKey) && !this._chatOwnership.isRegisteredDefaultChat(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
 			if (!gitState) {
 				return [];
 			}
@@ -173,7 +173,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// of which changeset is selected; the direct merge stays with the default
 		// chat's Branch changeset.
 		const allowsPullRequestOperations = isBranchChangeset || context.changesetKind === ChangesetKind.Uncommitted;
-		const allowsMergeOperation = isBranchChangeset && isDefaultChatUri(sourceKey);
+		const allowsMergeOperation = isBranchChangeset && this._chatOwnership.isRegisteredDefaultChat(sourceKey);
 		const scopedOperations = scopedOwner
 			? operations.filter(operation => operation.id === AGENT_HOST_MERGE_CHANGESET_OPERATION_ID
 				? allowsMergeOperation
@@ -305,7 +305,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (!gitState) {
 			const sourceKey = resolveBranchChangesetScopeForOwner(this._stateManager, ownerKey)?.sourceUri ?? ownerKey;
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
-				?? (!isAhpChatChannel(sourceKey) || isDefaultChatUri(sourceKey)
+				?? (!isAhpChatChannel(sourceKey) || this._chatOwnership.isRegisteredDefaultChat(sourceKey)
 					? readSessionGitState(this._stateManager.getSessionState(containingSessionKey)?._meta)
 					: undefined);
 		}

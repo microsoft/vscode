@@ -220,7 +220,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
 		parent.insertBefore(container, before ?? null);
 
@@ -246,13 +246,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
-		this._register(menu.onDidChange(() => {
-			const wasHidden = container.classList.contains('hidden');
-			updateVisibility();
-			if (wasHidden !== container.classList.contains('hidden')) {
-				onDidChangeVisibility?.();
-			}
-		}));
+		this._register(menu.onDidChange(updateVisibility));
 
 		return container;
 	}
