@@ -45,4 +45,42 @@ suite('Agent Host Session Artifacts', () => {
 		]);
 	});
 
+	test('maps persisted Windows file paths without interpreting the drive as a URI scheme', () => {
+		const fileUri = URI.file('C:/Users/test/.copilot/session-state/sdk-session/files/report.md');
+		const authority = 'remote-host';
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'backslashes', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: 'C:\\Users\\test\\.copilot\\session-state\\sdk-session\\files\\report.md' },
+			{ id: 'slashes', type: SessionArtifactType.File, label: 'Report', isArtifact: false, uri: 'C:/Users/test/.copilot/session-state/sdk-session/files/report.md' },
+			{ id: 'uri', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: fileUri.toString() },
+		]), uri => toAgentHostUri(uri, authority));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({ id: artifact.id, uri: artifact.uri?.toString() })), [
+			{ id: 'uri', uri: toAgentHostUri(fileUri, authority).toString() },
+			{ id: 'slashes', uri: toAgentHostUri(fileUri, authority).toString() },
+			{ id: 'backslashes', uri: toAgentHostUri(fileUri, authority).toString() },
+		]);
+	});
+
+	test('reports an unmappable file artifact without losing other artifacts and references', () => {
+		const errors: { id: string; isError: boolean }[] = [];
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'first', type: SessionArtifactType.File, label: 'First', isArtifact: true, uri: 'file:///remote/first.md' },
+			{ id: 'bad', type: SessionArtifactType.File, label: 'Bad', isArtifact: true, uri: 'custom:opaque-file' },
+			{ id: 'last', type: SessionArtifactType.File, label: 'Last', isArtifact: false, uri: 'file:///remote/last.md' },
+			{ id: 'issue', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/issues/1' },
+		]), uri => toAgentHostUri(uri, 'remote-host'), (id, error) => {
+			errors.push({ id, isError: error instanceof Error });
+		});
+
+		assert.deepStrictEqual({
+			entries: result.entries.map(({ artifact }) => artifact.id),
+			issues: result.issues.map(issue => issue.recordedReferenceId),
+			errors,
+		}, {
+			entries: ['issue', 'last', 'first'],
+			issues: ['issue'],
+			errors: [{ id: 'bad', isError: true }],
+		});
+	});
+
 });

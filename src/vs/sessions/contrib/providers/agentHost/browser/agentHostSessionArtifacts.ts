@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasDriveLetter } from '../../../../../base/common/extpath.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -30,6 +32,14 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
+function parseFileUri(value: string | undefined): URI | undefined {
+	// Persisted artifacts can contain Windows paths rather than file URIs.
+	if (value && hasDriveLetter(value, true) && (value[2] === '/' || value[2] === '\\')) {
+		return URI.file(value.replace(/\\/g, '/'));
+	}
+	return parseUri(value);
+}
+
 function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri: URI) => URI): ISessionArtifact | undefined {
 	const kind = kindByType.get(artifact.type);
 	if (!kind) {
@@ -37,7 +47,7 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri:
 	}
 
 	const link = parseUri(artifact.link);
-	const parsedUri = parseUri(artifact.uri);
+	const parsedUri = artifact.type === SessionArtifactType.File ? parseFileUri(artifact.uri) : parseUri(artifact.uri);
 	const uri = parsedUri && artifact.type === SessionArtifactType.File ? mapFileUri(parsedUri) : parsedUri;
 	// An artifact the client cannot act on is not worth surfacing.
 	if (!link && !uri && !artifact.commitHash) {
@@ -90,13 +100,24 @@ interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
 }
 
-export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
+/** Projects recorded artifacts independently, reporting conversion failures without discarding other entries. */
+export function partitionSessionArtifacts(
+	meta: SessionMeta | undefined,
+	mapFileUri: (uri: URI) => URI = uri => uri,
+	onError: (artifactId: string, error: unknown) => void = (_artifactId, error) => onUnexpectedError(error),
+): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const pullRequests: IRecordedGitHubReference[] = [];
 	const issues: IRecordedGitHubReference[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
-		const mapped = toSessionArtifact(artifact, mapFileUri);
+		let mapped: ISessionArtifact | undefined;
+		try {
+			mapped = toSessionArtifact(artifact, mapFileUri);
+		} catch (error) {
+			onError(artifact.id, error);
+			continue;
+		}
 		if (!mapped) {
 			continue;
 		}

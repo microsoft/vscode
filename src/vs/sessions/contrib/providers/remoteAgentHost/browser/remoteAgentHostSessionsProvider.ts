@@ -1029,7 +1029,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
-		this.updateResourceLabelHomes();
 
 		this._syncRootState(connection.rootState.value);
 		this._connectionListeners.add(connection.rootState.onDidChange(() => {
@@ -1048,6 +1047,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		// list) and arms a backoff retry if the first attempt fails.
 		this._refreshSessions(wasUnpublished);
 		this._scheduleDevContainerStopIfIdle();
+		this.updateResourceLabelHomes();
 	}
 
 	/**
@@ -1068,7 +1068,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
-		this.updateResourceLabelHomes();
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
 
@@ -1085,27 +1084,32 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
 		this._cancelSessionRefreshRetry();
+		this.updateResourceLabelHomes();
 	}
 
 	private updateResourceLabelHomes(): void {
-		const homes = this.getResourceLabelHomes();
-		for (const session of this.getKnownSessions()) {
-			if (session.sessionType !== 'copilotcli') {
-				continue;
-			}
-			const label = this.getResourceLabelHomeLabel(session);
-			for (const artifact of session.artifacts?.get() ?? []) {
-				if (!artifact.uri) {
+		try {
+			const homes = this.getResourceLabelHomes();
+			for (const session of this.getKnownSessions()) {
+				if (session.sessionType !== 'copilotcli') {
 					continue;
 				}
-				const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
-				const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
-				if (match?.groups?.home) {
-					homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+				const label = this.getResourceLabelHomeLabel(session);
+				for (const artifact of session.artifacts?.get() ?? []) {
+					if (!artifact.uri) {
+						continue;
+					}
+					const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
+					const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
+					if (match?.groups?.home) {
+						homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+					}
 				}
 			}
+			this.updateResourceLabelHomeFormatters(homes, this._labelService);
+		} catch (error) {
+			this._logService.error(`[${this.id}] Failed to update resource label homes.`, error);
 		}
-		this.updateResourceLabelHomeFormatters(homes, this._labelService);
 	}
 
 	/**

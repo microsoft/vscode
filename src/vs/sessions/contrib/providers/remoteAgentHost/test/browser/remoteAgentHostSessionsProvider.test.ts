@@ -285,7 +285,7 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -349,7 +349,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		onDidChangeRecentWorkspaces: Event.None,
 		onDidRemoveRecentWorkspaces: Event.None,
 	}));
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, overrides?.logService ?? new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
@@ -3335,6 +3335,120 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			},
 			home: root.path,
 			label: `${providerLabel}/Remote Session/files/plan.md`,
+		});
+	}));
+
+	test('reconnects and receives new sessions with persisted Windows artifact paths', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('old-session', {
+			summary: 'Old Session',
+			_meta: withSessionArtifacts(undefined, [{
+				id: 'artifact',
+				type: SessionArtifactType.File,
+				label: 'Report',
+				isArtifact: true,
+				uri: 'C:\\Users\\test\\.copilot\\session-state\\sdk-session\\files\\report.md',
+			}]),
+		});
+		connection.addSession(metadata);
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+
+		provider.clearConnection();
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.addSession(metadata);
+		provider.setConnection(reconnected);
+		await timeout(0);
+		fireSessionAdded(reconnected, 'new-session', { title: 'New Session' });
+		await timeout(0);
+
+		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()), ['Old Session', 'New Session']);
+	}));
+
+	test('logs unmappable artifacts and keeps new session notifications working after reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('old-session', {
+			summary: 'Old Session',
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'bad', type: SessionArtifactType.File, label: 'Bad', isArtifact: true, uri: 'custom:opaque-file' },
+				{ id: 'good', type: SessionArtifactType.File, label: 'Good', isArtifact: true, uri: 'file:///home/test/.copilot/session-state/sdk-session/files/report.md' },
+			]),
+		});
+		connection.addSession(metadata);
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const provider = createProvider(disposables, connection, { logService });
+		await timeout(0);
+		provider.clearConnection();
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.addSession(metadata);
+		provider.setConnection(reconnected);
+		await timeout(0);
+		fireSessionAdded(reconnected, 'new-session', { title: 'New Session' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().map(session => session.title.get()),
+			artifacts: provider.getSessions()[0].artifacts?.get().map(artifact => artifact.id),
+			warnings: [...new Set(warnings)],
+		}, {
+			sessions: ['Old Session', 'New Session'],
+			artifacts: ['good'],
+			warnings: ['[agenthost-localhost__4321] Failed to project session artifact \'bad\'.'],
+		});
+	}));
+
+	test('label formatter failures do not interrupt disconnect cleanup or reconnect setup', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('old-session', {
+			summary: 'Old Session',
+			_meta: withSessionArtifacts(undefined, [{
+				id: 'artifact',
+				type: SessionArtifactType.File,
+				label: 'Report',
+				isArtifact: true,
+				uri: 'file:///home/test/.copilot/session-state/sdk-session/files/report.md',
+			}]),
+		});
+		connection.addSession(metadata);
+		const labelService = new class extends MockLabelService {
+			fail = false;
+			override getSeparator(scheme: string, authority?: string): '/' | '\\' {
+				if (this.fail) {
+					throw new Error('Label formatting failed');
+				}
+				return super.getSeparator(scheme, authority);
+			}
+		}();
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error): void { errors.push(String(message)); }
+		}();
+		const provider = createProvider(disposables, connection, { labelService, logService });
+		await timeout(0);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), 'localhost__4321'), 'copilotcli');
+		labelService.fail = true;
+		provider.clearConnection();
+		const draftAfterDisconnect = provider.getSessionByResource(draft.resource);
+
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.addSession(metadata);
+		reconnected.addSession(createSession('listed-session', { summary: 'Listed Session' }));
+		provider.setConnection(reconnected);
+		await timeout(0);
+		reconnected.setAgents([{ provider: 'copilotcli', displayName: 'Updated Copilot', description: 'Updated agent', models: [] }]);
+		fireSessionAdded(reconnected, 'new-session', { title: 'New Session' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			draftAfterDisconnect,
+			sessions: provider.getSessions().map(session => session.title.get()),
+			agentLabel: provider.sessionTypes.find(type => type.id === 'copilotcli')?.label,
+			reportedLabelFailure: errors.includes('[agenthost-localhost__4321] Failed to update resource label homes.'),
+		}, {
+			draftAfterDisconnect: undefined,
+			sessions: ['Old Session', 'Listed Session', 'New Session'],
+			agentLabel: 'Updated Copilot',
+			reportedLabelFailure: true,
 		});
 	}));
 
