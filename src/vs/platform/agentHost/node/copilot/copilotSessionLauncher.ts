@@ -125,10 +125,7 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 /**
- * Forwards VS Code's ExP assignment context so the runtime sends it to CAPI as
- * `X-Copilot-Client-Exp-Assignment-Context`. The runtime no longer derives that
- * header from CAPI's own response context, so it is empty unless the host supplies it.
- * Flights and configs stay empty: VS Code resolves its own treatments.
+ * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
  * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
  */
 export function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
