@@ -58,6 +58,7 @@ import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
@@ -768,6 +769,36 @@ suite('ProtocolServerHandler', () => {
 			create: {},
 			runCancellation: {},
 		});
+	});
+
+	test('reports MC transport identity independently of optional client names and claimed routes', () => {
+		const identities: (Implementation | undefined)[] = [
+			editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'github-mobile-ios', version: '1.0.0' }, undefined,
+		];
+		const results = identities.map((clientInfo, index) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl));
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: `mc-client-${index}`, clientInfo,
+				_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+			}));
+			const event = telemetryService.events.filter(event => event.eventName === 'agentHost.clientConnection').at(-1);
+			assert.ok(event);
+			const data = event.data as IAgentHostClientConnectionEvent;
+			const result = {
+				action: data.action, connectionKind: data.connectionKind, clientType: data.clientType,
+				name: data.clientImplementationName, version: data.clientImplementationVersion,
+				connectedClientCount: data.connectedClientCount,
+			};
+			transport.simulateClose();
+			return result;
+		});
+		assert.deepStrictEqual(results, [
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.EditorWindow, name: 'vscode-editor-window', version: undefined, connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.AgentsWindow, name: 'vscode-agents-window', version: undefined, connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.Unknown, name: 'github-mobile-ios', version: '1.0.0', connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.Unknown, name: undefined, version: undefined, connectedClientCount: 1 },
+		]);
 	});
 
 	test('applies telemetry disablement before reporting the client connection', () => {
