@@ -238,7 +238,11 @@ suite('Extension Gallery Service', () => {
 		])));
 		const galleryService = createExtensionGalleryService(requestService);
 
-		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL },
+			CancellationToken.None
+		);
 
 		assert.deepStrictEqual({
 			extensions: extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
