@@ -3086,7 +3086,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -3707,7 +3707,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			width: 550,
 			height: 500,
 			discoveryQuery: 'review',
-			expectedDiscoveryContentWidth: 302,
+			expectedDiscoveryContentWidth: 310,
 		}),
 	}),
 

@@ -1034,6 +1034,27 @@ function offsetToPosition(text: string, offset: number): IPosition {
 	return { lineNumber, column };
 }
 
+/** Compares active-client state, ignoring undefined object properties omitted by JSON. */
+function equalsActiveClientState(one: unknown, other: unknown): boolean {
+	if (one === other) {
+		return true;
+	}
+	if (Array.isArray(one) || Array.isArray(other)) {
+		return Array.isArray(one) && Array.isArray(other)
+			&& one.length === other.length
+			&& one.every((value, index) => equalsActiveClientState(value, other[index]));
+	}
+	if (!one || !other || typeof one !== 'object' || typeof other !== 'object') {
+		return false;
+	}
+	const oneObject = one as Record<string, unknown>;
+	const otherObject = other as Record<string, unknown>;
+	const oneKeys = Object.keys(oneObject).filter(key => oneObject[key] !== undefined);
+	const otherKeys = Object.keys(otherObject).filter(key => otherObject[key] !== undefined);
+	return oneKeys.length === otherKeys.length
+		&& oneKeys.every(key => Object.hasOwn(otherObject, key) && equalsActiveClientState(oneObject[key], otherObject[key]));
+}
+
 class ActiveClientEntry extends Disposable {
 
 	private readonly _activeClient: IObservable<SessionActiveClient>;
@@ -1129,11 +1150,11 @@ class ActiveClientEntry extends Disposable {
 				if (!existing && !this._claimRequested) {
 					return;
 				}
-				if (equals(existing, activeClient)) {
+				if (equalsActiveClientState(existing, activeClient)) {
 					this._lastPublished = undefined;
 					return;
 				}
-				if (equals(this._lastPublished, activeClient)) {
+				if (equalsActiveClientState(this._lastPublished, activeClient)) {
 					return;
 				}
 				this._dispatch(backendSession, {
