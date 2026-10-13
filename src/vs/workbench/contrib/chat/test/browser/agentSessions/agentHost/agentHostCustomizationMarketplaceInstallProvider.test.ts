@@ -25,6 +25,160 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/ag
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('routes marketplace management through the Agent Host provider', async () => {
+		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
+		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+					calls.push({ operation: 'list', args: [provider, session.toString(), chat?.toString()] });
+					return [{
+						name: 'marketplace',
+						source: 'GitHub: owner/repository',
+						isDefault: false,
+						managed: false,
+						available: true,
+					}];
+				}
+				override async addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+					calls.push({ operation: 'add', args: [provider, session.toString(), source, chat?.toString()] });
+					return {
+						name: 'marketplace',
+						source,
+						isDefault: false,
+						managed: false,
+						available: true,
+					};
+				}
+				override async browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+					calls.push({ operation: 'browse', args: [provider, session.toString(), name, chat?.toString()] });
+					return [
+						{ name: 'plugin', description: 'Plugin description' },
+						{ name: 'plugin-next', description: 'Next plugin' },
+					];
+				}
+				override async removePluginMarketplace(provider: string, session: URI, name: string, force?: boolean, chat?: URI) {
+					calls.push({ operation: 'remove', args: [provider, session.toString(), name, force, chat?.toString()] });
+					return { removed: force === true, dependentPlugins: force ? undefined : ['plugin'] };
+				}
+				override async refreshPluginMarketplaces(provider: string, session: URI, name?: string, chat?: URI) {
+					calls.push({ operation: 'refresh', args: [provider, session.toString(), name, chat?.toString()] });
+					return [{ name: name ?? 'marketplace', success: true }];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendChatResource() { return backendChat; }
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		let changeCount = 0;
+		store.add(provider.onDidChange(() => changeCount++));
+
+		const listed = await provider.list(frontendSession);
+		const added = await provider.add(frontendSession, 'owner/repository');
+		const page = await provider.queryMarketplace(frontendSession, listed[0], { pageSize: 1 }, CancellationToken.None);
+		const nextPage = await provider.queryMarketplace(frontendSession, listed[0], { pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
+		const refused = await provider.remove(frontendSession, 'marketplace');
+		const removed = await provider.remove(frontendSession, 'marketplace', true);
+		const refreshed = await provider.refresh(frontendSession, 'marketplace');
+
+		assert.deepStrictEqual({
+			listed,
+			added,
+			page,
+			nextPage,
+			refused,
+			removed,
+			refreshed,
+			changeCount,
+			calls,
+		}, {
+			listed: [{
+				name: 'marketplace',
+				source: 'GitHub: owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			}],
+			added: {
+				name: 'marketplace',
+				source: 'owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			},
+			page: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin"]',
+					displayName: 'plugin',
+					description: 'Plugin description',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+						providerManaged: true,
+					},
+				}],
+				total: 2,
+				nextCursor: '1',
+			},
+			nextPage: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin-next"]',
+					displayName: 'plugin-next',
+					description: 'Next plugin',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin-next',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+						providerManaged: true,
+					},
+				}],
+				total: 2,
+				nextCursor: undefined,
+			},
+			refused: { removed: false, dependentPlugins: ['plugin'] },
+			removed: { removed: true, dependentPlugins: undefined },
+			refreshed: [{ name: 'marketplace', success: true }],
+			changeCount: 3,
+			calls: [
+				{ operation: 'list', args: ['copilotcli', backendSession.toString(), backendChat.toString()] },
+				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', backendChat.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', undefined, backendChat.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', true, backendChat.toString()] },
+				{ operation: 'refresh', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+			],
+		});
+	});
+
 	test('uses the host-advertised backend session for SDK inventory', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('vendor-session://opaque-host/backend-session?version=2');
@@ -526,8 +680,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
-				override async installPlugin(provider: string, request: { readonly source: string }): Promise<void> {
-					calls.push({ provider, request });
+				override async installPlugin(provider: string, request: { readonly source: string }, session?: URI, chat?: URI): Promise<void> {
+					calls.push({ provider, request, session: session?.toString(), chat: chat?.toString() });
 					plugins.set([new class extends mock<IAgentPlugin>() {
 						override readonly uri = URI.file('/plugins/azure');
 						override readonly label = 'Azure';
@@ -535,9 +689,14 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					}()], undefined);
 				}
 			}(),
-			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: session };
+				}
+			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendChatResource() { return session; }
 			}(),
 			new class extends mock<IAgentPluginService>() {
 				override readonly plugins = plugins;
@@ -563,6 +722,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		assert.deepStrictEqual(calls, [{
 			provider: 'copilotcli',
 			request: { source: 'azure@awesome-copilot' },
+			session: session.toString(),
+			chat: session.toString(),
 		}]);
 	});
 
@@ -582,7 +743,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async installPlugin(): Promise<void> { }
 				override async uninstallPlugin(): Promise<void> { }
 			}(),
-			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity(session: URI) {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: session };
+				}
+			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),

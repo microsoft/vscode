@@ -179,6 +179,7 @@ class ChatModes extends Disposable implements IChatModes {
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
 						id: cachedMode.id,
+						kind: cachedMode.kind === ChatModeKind.Ask ? ChatModeKind.Ask : undefined,
 						uri,
 						name: cachedMode.name,
 						description: cachedMode.description,
@@ -258,7 +259,7 @@ class ChatModes extends Disposable implements IChatModes {
 				seenIds.add(customMode.id);
 
 				let modeInstance = this._customModeInstances.get(customMode.id);
-				if (modeInstance) {
+				if (modeInstance && modeInstance.kind === (customMode.kind ?? ChatModeKind.Agent)) {
 					// Update existing instance with new data
 					if (modeInstance.updateData(customMode)) {
 						hasChanges = true;
@@ -312,10 +313,9 @@ class ChatModes extends Disposable implements IChatModes {
 
 	private getCustomModes(): IChatMode[] {
 		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		if (!this.chatAgentService.hasToolsAgent && !this.isAgentModeDisabledByPolicy()) {
-			return [];
-		}
-		return Array.from(this._customModeInstances.values()).sort((a, b) => a.label.get().localeCompare(b.label.get()));
+		return Array.from(this._customModeInstances.values())
+			.filter(mode => mode.kind === ChatModeKind.Ask || this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy())
+			.sort((a, b) => a.label.get().localeCompare(b.label.get()));
 	}
 
 	private isAgentModeDisabledByPolicy(): boolean {
@@ -477,6 +477,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
+	public readonly kind: ChatModeKind;
 
 	public readonly id: string;
 
@@ -489,7 +490,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get icon(): IObservable<ThemeIcon | undefined> {
-		return constObservable(undefined);
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.icon : constObservable(undefined);
 	}
 
 	public get isBuiltin(): boolean {
@@ -517,7 +518,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get label(): IObservable<string> {
-		return this.name;
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.label : this.name;
 	}
 
 	get handOffs(): IObservable<readonly IHandOff[] | undefined> {
@@ -544,12 +545,11 @@ export class CustomChatMode implements IChatMode {
 		return this._sessionTypes;
 	}
 
-	public readonly kind = ChatModeKind.Agent;
-
 	constructor(
 		customChatMode: ICustomAgent
 	) {
 		this.id = customChatMode.id;
+		this.kind = customChatMode.kind ?? ChatModeKind.Agent;
 		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);

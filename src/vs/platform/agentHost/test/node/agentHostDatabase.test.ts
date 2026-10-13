@@ -366,6 +366,54 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('registration generation tracks normalized catalogs and their default chats, not legacy catalogs', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const normalized = 'session://normalized';
+		const legacy = 'session://legacy';
+		const promoted = 'session://promoted';
+		for (const session of [normalized, legacy, promoted]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const sqlite = await (db as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const sql = (statement: string, params: readonly unknown[]) => new Promise<void>((resolve, reject) => sqlite.run(statement, params, error => error ? reject(error) : resolve()));
+		const changes: Record<string, boolean> = {};
+		const step = async (name: string, action: () => Promise<unknown>) => {
+			const before = await db.getRegistrationGeneration();
+			await action();
+			changes[name] = await db.getRegistrationGeneration() !== before;
+		};
+
+		await step('legacyInsert', () => db.replaceSessionChatCatalog(legacy, [{ chat: 'ahp-chat://legacy-peer', order: 0 }], undefined));
+		await step('legacyDefaultChange', () => sql('UPDATE session_chat_catalogs SET default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://legacy-default', legacy]));
+		await db.replaceSessionChatCatalog(promoted, [], undefined);
+		await step('legacyPromotion', () => sql('UPDATE session_chat_catalogs SET authority_version = 2, default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://promoted', promoted]));
+		await sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [promoted]);
+		await step('normalizedInsert', () => db.registerChatCatalogV2(normalized, { defaultChat: { chat: 'ahp-chat://recorded', order: 0 }, peers: [], privateDescendants: [] }));
+		const afterInsert = (await db.readSessionRegistrations()).normalizedCatalogs;
+		await step('normalizedRevisionChange', () => sql('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?', [normalized]));
+		await step('normalizedDefaultChange', () => sql('UPDATE session_chat_catalogs SET default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://recreated', normalized]));
+		const afterChange = (await db.readSessionRegistrations()).normalizedCatalogs;
+		await step('legacyDelete', () => sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [legacy]));
+		await step('normalizedDelete', () => sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [normalized]));
+
+		assert.deepStrictEqual({ changes, afterInsert, afterChange, afterDelete: (await db.readSessionRegistrations()).normalizedCatalogs }, {
+			changes: {
+				legacyInsert: false,
+				legacyDefaultChange: false,
+				legacyPromotion: true,
+				normalizedInsert: true,
+				normalizedRevisionChange: false,
+				normalizedDefaultChange: true,
+				legacyDelete: false,
+				normalizedDelete: true,
+			},
+			afterInsert: [{ session: normalized, defaultChatUri: 'ahp-chat://recorded' }],
+			afterChange: [{ session: normalized, defaultChatUri: 'ahp-chat://recreated' }],
+			afterDelete: [],
+		});
+	});
+
 	test('finds a chat owner from the record that contains it, never from the chat URI', async () => {
 		const db = new AgentHostDatabase(':memory:');
 		database = db;

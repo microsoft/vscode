@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hostname } from 'os';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -27,12 +29,13 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { ProtocolServerHandler } from '../protocolServerHandler.js';
 import { MissionControlEnvironment } from './missionControlEnvironment.js';
-import type { MissionControlProtocolServer } from './missionControlProtocolServer.js';
+import type { MissionControlProtocolServer, MissionControlPublishDiagnostic } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlProjects } from './missionControlProjects.js';
 import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
 import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
+import { toMissionControlSessionList } from './missionControlSessionList.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
@@ -41,6 +44,7 @@ import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
+	readonly publishTelemetryClock?: StopWatch;
 	readonly clientFileSystemProvider: AgentHostClientFileSystemProvider;
 	readonly trackProtocolHandler: (handler: ProtocolServerHandler) => IDisposable;
 }
@@ -67,6 +71,185 @@ export type MissionControlOperationClassification = {
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
 };
 
+type MissionControlPublishSummaryEvent = {
+	hostLaunchKind: AgentHostLaunchKind;
+	windowDurationMs: number;
+	publishCount: number;
+	chunkedPublishCount: number;
+	frameCount: number;
+	bytes: number;
+	meanQueueWaitMs: number | undefined;
+	maxQueueWaitMs: number;
+	meanAckLatencyMs: number | undefined;
+	maxAckLatencyMs: number;
+	meanPublishDurationMs: number | undefined;
+	maxPublishDurationMs: number;
+	peakInFlight: number;
+	peakOutstandingFrames: number;
+	peakOutstandingBytes: number;
+	ackTimeoutCount: number;
+	publishRejectedCount: number;
+	socketFailureCount: number;
+	queueLimitCount: number;
+	mirrorBackpressureCount: number;
+};
+
+export type MissionControlPublishSummaryClassification = {
+	owner: 'roblourens';
+	comment: 'Aggregates Mission Control publication performance while connected to the relay service, including background mirroring, plus failures without requiring a connection. At most one event per five minutes per host, including across reconnects. WPS acceptance is not client receipt or durable persistence.';
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
+	windowDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds from the first accumulated observation to summary emission.' };
+	publishCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of payload publications whose frames were all acknowledged successfully.' };
+	chunkedPublishCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of successful multi-fragment payload publications.' };
+	frameCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total WPS frames in successful publications; also the acknowledgement-latency denominator.' };
+	bytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Serialized relay JSON bytes in successful publications, excluding WebSocket/TLS overhead.' };
+	meanQueueWaitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Mean enqueue-to-first-write milliseconds for successful publications; absent without a successful publication.' };
+	maxQueueWaitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum enqueue-to-first-write milliseconds among successful publications.' };
+	meanAckLatencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Mean write-to-service-acknowledgement milliseconds across frames in successful publications; absent without a successful frame.' };
+	maxAckLatencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum frame acknowledgement latency in successful publications.' };
+	meanPublishDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Mean enqueue-to-final-acknowledgement milliseconds for successful publications; absent without a successful publication.' };
+	maxPublishDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum enqueue-to-final-acknowledgement milliseconds among successful publications.' };
+	peakInFlight: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum simultaneous in-flight frames observed in successful publications.' };
+	peakOutstandingFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum queued plus in-flight relay frame count observed at admission.' };
+	peakOutstandingBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Maximum queued plus in-flight serialized relay bytes observed at admission.' };
+	ackTimeoutCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of WPS acknowledgement timeout failures.' };
+	publishRejectedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of WPS acknowledgement rejection failures, excluding acknowledged duplicates.' };
+	socketFailureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of unexpected socket closures, socket errors or publish write failures.' };
+	queueLimitCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of relay publication admissions rejected by the frame or byte limit.' };
+	mirrorBackpressureCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of mirror admission attempts paused by backpressure; these are not publication failures.' };
+};
+
+const publishSummaryIntervalMs = 5 * 60_000;
+
+function newPublishTotals() {
+	return {
+		publishCount: 0, chunkedPublishCount: 0, frameCount: 0, bytes: 0,
+		queueWaitMs: 0, maxQueueWaitMs: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+		publishDurationMs: 0, maxPublishDurationMs: 0, peakInFlight: 0,
+		peakOutstandingFrames: 0, peakOutstandingBytes: 0,
+		ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 0, mirrorBackpressureCount: 0,
+	};
+}
+
+class MissionControlPublishTelemetry extends Disposable {
+	private readonly _timer = this._register(new RunOnceScheduler(() => this.flush(), publishSummaryIntervalMs));
+	private _totals = newPublishTotals();
+	private _windowStartedMs: number | undefined;
+	private _lastEmissionMs = -Infinity;
+	private _serviceConnected = false;
+
+	constructor(
+		private readonly _hostLaunchKind: AgentHostLaunchKind,
+		private readonly _clock: StopWatch,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) {
+		super();
+	}
+
+	private _setServiceConnected(connected: boolean): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._serviceConnected = connected;
+		if (!connected && !this._hasFailures()) {
+			this._totals = newPublishTotals();
+			this._windowStartedMs = undefined;
+			this._timer.cancel();
+		}
+	}
+
+	private _hasFailures(): boolean {
+		const totals = this._totals;
+		return totals.ackTimeoutCount + totals.publishRejectedCount + totals.socketFailureCount + totals.queueLimitCount > 0;
+	}
+
+	record(event: MissionControlPublishDiagnostic): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (event.phase === 'relayConnection') {
+			this._setServiceConnected(event.connected);
+			return;
+		}
+		if (!this._serviceConnected && !(event.phase === 'relayPublish' && event.outcome === 'failed' && event.failure !== 'mirrorBackpressure')) {
+			return;
+		}
+		this._windowStartedMs ??= this._clock.elapsed();
+		const totals = this._totals;
+		if (event.phase === 'relayQueue') {
+			totals.peakOutstandingFrames = Math.max(totals.peakOutstandingFrames, event.measurements.frames);
+			totals.peakOutstandingBytes = Math.max(totals.peakOutstandingBytes, event.measurements.bytes);
+		} else if (event.outcome === 'succeeded') {
+			const measurements = event.measurements;
+			totals.publishCount++;
+			totals.chunkedPublishCount += Number(measurements.chunked);
+			totals.frameCount += measurements.frameCount;
+			totals.bytes += measurements.bytes;
+			totals.queueWaitMs += measurements.queueWaitMs;
+			totals.maxQueueWaitMs = Math.max(totals.maxQueueWaitMs, measurements.queueWaitMs);
+			totals.ackLatencyMs += measurements.ackLatencyMs;
+			totals.maxAckLatencyMs = Math.max(totals.maxAckLatencyMs, measurements.maxAckLatencyMs);
+			totals.publishDurationMs += event.durationMs;
+			totals.maxPublishDurationMs = Math.max(totals.maxPublishDurationMs, event.durationMs);
+			totals.peakInFlight = Math.max(totals.peakInFlight, measurements.peakInFlight);
+		} else {
+			switch (event.failure) {
+				case 'ackTimeout': totals.ackTimeoutCount++; break;
+				case 'publishRejected': totals.publishRejectedCount++; break;
+				case 'socketFailure': totals.socketFailureCount++; break;
+				case 'queueLimit': totals.queueLimitCount++; break;
+				case 'mirrorBackpressure': totals.mirrorBackpressureCount++; break;
+			}
+			if (event.failure !== 'mirrorBackpressure') {
+				this.flush();
+				return;
+			}
+		}
+		if (!this._timer.isScheduled()) {
+			this._timer.schedule();
+		}
+	}
+
+	flush(): void {
+		if (this._windowStartedMs === undefined || this._store.isDisposed || !this._serviceConnected && !this._hasFailures()) {
+			return;
+		}
+		const now = this._clock.elapsed();
+		const remaining = this._lastEmissionMs + publishSummaryIntervalMs - now;
+		if (remaining > 0) {
+			if (!this._timer.isScheduled()) {
+				this._timer.schedule(remaining);
+			}
+			return;
+		}
+		const totals = this._totals;
+		const event: MissionControlPublishSummaryEvent = {
+			hostLaunchKind: this._hostLaunchKind,
+			windowDurationMs: now - this._windowStartedMs,
+			publishCount: totals.publishCount, chunkedPublishCount: totals.chunkedPublishCount, frameCount: totals.frameCount, bytes: totals.bytes,
+			meanQueueWaitMs: totals.publishCount ? totals.queueWaitMs / totals.publishCount : undefined,
+			maxQueueWaitMs: totals.maxQueueWaitMs,
+			meanAckLatencyMs: totals.frameCount ? totals.ackLatencyMs / totals.frameCount : undefined,
+			maxAckLatencyMs: totals.maxAckLatencyMs,
+			meanPublishDurationMs: totals.publishCount ? totals.publishDurationMs / totals.publishCount : undefined,
+			maxPublishDurationMs: totals.maxPublishDurationMs,
+			peakInFlight: totals.peakInFlight, peakOutstandingFrames: totals.peakOutstandingFrames, peakOutstandingBytes: totals.peakOutstandingBytes,
+			ackTimeoutCount: totals.ackTimeoutCount, publishRejectedCount: totals.publishRejectedCount, socketFailureCount: totals.socketFailureCount,
+			queueLimitCount: totals.queueLimitCount, mirrorBackpressureCount: totals.mirrorBackpressureCount,
+		};
+		this._lastEmissionMs = now;
+		this._windowStartedMs = undefined;
+		this._totals = newPublishTotals();
+		this._timer.cancel();
+		this._telemetryService.publicLog2<MissionControlPublishSummaryEvent, MissionControlPublishSummaryClassification>('agentHost.missionControlPublishSummary', event);
+	}
+
+	override dispose(): void {
+		this.flush();
+		super.dispose();
+	}
+}
+
 export function getMissionControlEnvironmentName(product: IProductService, machineName = hostname()): string {
 	const applicationName = product.quality === 'stable' ? 'VS Code'
 		: product.quality === 'insider' ? 'VS Code Insiders'
@@ -78,6 +261,7 @@ export function getMissionControlEnvironmentName(product: IProductService, machi
 export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
 	private readonly _projects: MissionControlProjects;
+	private readonly _publishTelemetry: MissionControlPublishTelemetry;
 	private _grantedRoots: () => readonly string[] = () => [];
 	private _projectRoots: () => readonly string[] = () => [];
 
@@ -97,6 +281,7 @@ export class MissionControlHost extends Disposable {
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
+		this._publishTelemetry = this._register(this._instantiationService.createInstance(MissionControlPublishTelemetry, this._options.hostLaunchKind, this._options.publishTelemetryClock ?? StopWatch.create()));
 		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
 			logsHome: environmentService.logsHome,
 			logId: MISSION_CONTROL_AHP_LOG_ID,
@@ -113,8 +298,17 @@ export class MissionControlHost extends Disposable {
 			fetch: (input, init) => proxyResolver.fetch(input, init),
 			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
 			updateProjects: () => this._projects.initialize(),
-			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
+			onError: error => {
+				this._publishTelemetry.flush();
+				this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
+			},
 			onDiagnostic: event => this._reportOperation(event),
+			onPublishDiagnostic: event => {
+				this._publishTelemetry.record(event);
+				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
+					this._logService.trace(`[AgentHost] Mission Control publish ${event.detail}; durationMs=${event.durationMs}`);
+				}
+			},
 			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
@@ -132,6 +326,9 @@ export class MissionControlHost extends Disposable {
 	}
 
 	private _reportOperation(event: IConnectionDiagnosticEvent): void {
+		if (event.phase === 'relayDisconnected') {
+			this._publishTelemetry.flush();
+		}
 		switch (event.phase) {
 			case 'configure':
 			case 'checkIn':
@@ -187,6 +384,7 @@ export class MissionControlHost extends Disposable {
 				relayRootMeta: relay.rootMeta,
 				advertisedModelProviders: ['copilotcli'],
 				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				sessionListAdapter: toMissionControlSessionList,
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: directory ? URI.file(directory).toString() : undefined,

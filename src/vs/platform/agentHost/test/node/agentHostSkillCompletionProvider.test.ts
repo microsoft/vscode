@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
@@ -91,7 +92,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
-		return disposables.add(new AgentHostSkillCompletionProvider(() => agent));
+		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
@@ -100,7 +101,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 	test('announces slash as a trigger character', () => {
 		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, session => URI.parse(buildDefaultChatUri(session))));
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});

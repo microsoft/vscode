@@ -408,7 +408,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	private updateEditorLayoutActionsToolbar(): void {
+	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
 			!this.editorLayoutActionsToolbarContainer ||

@@ -55,6 +55,18 @@ suite('Chat Accessibility Help', () => {
 		);
 	});
 
+	test('documents the canvases pill only for editor window session pills', () => {
+		const keybindings = new MockKeybindingService();
+		const canvasesPill = 'the chat\'s canvases appear in their own pill in the main window';
+		assert.deepStrictEqual(
+			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
+				getAccessibilityHelpText(type, keybindings, false).includes(canvasesPill),
+				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
+			]),
+			[[true, false], [true, false], [false, false], [false, false], [false, false]],
+		);
+	});
+
 	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

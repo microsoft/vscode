@@ -45,7 +45,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			getChatOwner: (chat: string) => chatOwners.get(chat),
 			findRetainedChatOwner: () => undefined,
 		});
-		instantiationService.stub(IAgentHostChatOwnershipService, createLiveChatOwnership(chat => chatOwners.get(chat)));
+		instantiationService.stub(IAgentHostChatOwnershipService, createLiveChatOwnership(chat => chatOwners.get(chat), session => buildDefaultChatUri(session)));
 		instantiationService.stub(IAgentHostProviderService, {
 			getProviderForSession: session => {
 				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);

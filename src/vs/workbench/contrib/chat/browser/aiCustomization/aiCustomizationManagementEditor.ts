@@ -637,19 +637,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.contentContainer.style.width = `${width}px`;
 				if (height !== undefined) {
 					if (this.promptsContentContainer?.style.display !== 'none') {
-						this.listWidget.layout(height - 16, width - 24);
+						this.listWidget.layout(height - 8, width - 16);
 					}
 					if (this.mcpContentContainer?.style.display !== 'none') {
-						this.mcpListWidget?.layout(height - 16, width - 24);
+						this.mcpListWidget?.layout(height - 8, width - 16);
 					}
 					if (this.pluginContentContainer?.style.display !== 'none') {
-						this.pluginListWidget?.layout(height - 16, width - 24);
+						this.pluginListWidget?.layout(height - 8, width - 16);
 					}
 					if (this.toolsContentContainer?.style.display !== 'none') {
-						this.toolsListWidget?.layout(height - 16, width - 24);
+						this.toolsListWidget?.layout(height - 8, width - 16);
 					}
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
-					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
+					this.modelsWidget?.layout(height - 8 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
 						// Use the actual rendered size of the embedded editor container so
 						// the Monaco editor (and its scrollbars) stay within the rounded

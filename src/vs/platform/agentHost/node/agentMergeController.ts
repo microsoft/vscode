@@ -27,13 +27,14 @@ import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificat
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 
@@ -139,6 +140,7 @@ export class AgentMergeController extends Disposable {
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -319,7 +321,10 @@ export class AgentMergeController extends Disposable {
 	 * run their own turns concurrently. A session URI stands for its default chat.
 	 */
 	getTurnContext(chat: string): IAgentMergeTurnContext | undefined {
-		const caller = isAhpChatChannel(chat) ? chat : buildDefaultChatUri(chat);
+		const caller = isAhpChatChannel(chat) ? chat : this._chatOwnership.getDefaultChat(chat);
+		if (caller === undefined) {
+			return undefined;
+		}
 		const context = this._findActiveTurn(caller);
 		if (!context || this._stateManager.getChatState(context.chat)?.activeTurn?.id !== context.turnId) {
 			return undefined;
@@ -1434,7 +1439,12 @@ export class AgentMergeController extends Disposable {
 		try {
 			const state = this._stateManager.getSessionState(session.toString());
 			const chat = this._resolveOwningChat(session, folderKey, readAgentMergeFolderState(state?.config?.values, folderKey, this._sessionFolderKey(state)));
-			this._options.postNotice(chat ?? buildDefaultChatUri(session), kind, content);
+			const target = chat ?? this._chatOwnership.getDefaultChat(session);
+			if (target === undefined) {
+				this._logService.warn(`[AgentMergeController] No chat to post an Agent Merge notice to: session=${session}`);
+				return;
+			}
+			this._options.postNotice(target, kind, content);
 		} catch (error) {
 			this._logService.warn(`[AgentMergeController] Failed to post an Agent Merge notice: session=${session}`, error);
 		}

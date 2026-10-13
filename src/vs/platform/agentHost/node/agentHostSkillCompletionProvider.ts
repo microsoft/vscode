@@ -12,7 +12,7 @@ import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../com
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
+import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
@@ -28,6 +28,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
+		/** The session's recorded default chat, whose customizations the completions offer. */
+		private readonly _getDefaultChat: (session: URI) => URI | undefined,
 		/**
 		 * The owning session's last host-published customization snapshot.
 		 * Supplied by Agent Host so the provider hands it to
@@ -87,7 +89,10 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
-		const chat = URI.parse(buildDefaultChatUri(session));
+		const chat = this._getDefaultChat(session);
+		if (!chat) {
+			return [];
+		}
 		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
