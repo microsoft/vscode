@@ -11456,16 +11456,24 @@ export class AgentService extends Disposable implements IAgentService {
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
 		// A subagent without a recorded private row follows the creation-time rule.
 		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat, parentChat);
+		// Compatibility sessions have no v2 chat catalog to persist private chats
+		// into, so their restored subagent chats are transient: re-derived on every
+		// restore and only registered in memory.
+		const transientOnly = this._orchestratorDatabase.requiresLegacyChatCatalog?.(parentSessionStr) === true;
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;
 			}
-			await this._peerChatStore.persistPrivateChat(parentSession, {
-				chat: child.chatUri,
-				parentChat,
-				origin: JSON.stringify(child.origin),
-				metadata: { interactivity: ChatInteractivity.Hidden },
-			}, true, isCurrent);
+			if (transientOnly) {
+				this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
+			} else {
+				await this._peerChatStore.persistPrivateChat(parentSession, {
+					chat: child.chatUri,
+					parentChat,
+					origin: JSON.stringify(child.origin),
+					metadata: { interactivity: ChatInteractivity.Hidden },
+				}, true, isCurrent);
+			}
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
@@ -11477,7 +11485,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			child.title = title ?? child.title;
 		}
-		if (!normalized.normalized && restored.length > 0) {
+		if (!transientOnly && !normalized.normalized && restored.length > 0) {
 			let result: Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined;
 			try {
 				result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { match, stub } from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -1206,6 +1206,55 @@ suite('Session storage identity compatibility', () => {
 			await second.close();
 			const afterDelete = await recordKeys(await database());
 			assert.deepStrictEqual({ afterCreate: afterCreate.length, afterDelete }, { afterCreate: 2, afterDelete: afterCreate });
+		});
+
+		test('restoring a compatibility session registers its subagent chat in memory with its origin, without a catalog admission', async () => {
+			const db = await database();
+			const fileService = files();
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const createService = (target: CompatibleAgentHostDatabase) => store.add(createTestAgentService(
+				logService, fileService, new SessionDataService(URI.file(directory), fileService, logService, undefined, target.identity), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
+			));
+			const creating = createService(db);
+			registerTestAgentProvider(creating, store.add(new MockAgent('copilotcli')));
+			const created = await creating.createSession({ legacyChatUris: false, provider: 'copilotcli' });
+			await db.close();
+
+			const second = await database();
+			const restarted = createService(second);
+			const agent = store.add(new MockAgent('copilotcli'));
+			const toolCallId = 'historical-task';
+			agent.sessionMessages = [
+				{ type: 'message', session: created, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+				{ type: 'message', session: created, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId, name: 'task' }] },
+				{ type: 'tool_start', session: created, toolCallId, toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session: created, toolCallId, agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_complete', session: created, toolCallId, result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const originalDefault = getTestAgentStateManager(creating).getSessionState(created.toString())!.defaultChat!;
+			await agent.chats.createChat(URI.parse(originalDefault), created);
+			registerTestAgentProvider(restarted, agent);
+			await restarted.restoreSession(created);
+			await timeout(50);
+
+			const state = getTestAgentStateManager(restarted).getSessionState(created.toString());
+			const parentChat = state?.defaultChat;
+			const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
+			assert.deepStrictEqual({
+				origin: subagent?.origin,
+				opaque: subagent?.resource.startsWith('ahp-chat:/') && !subagent.resource.startsWith('ahp-chat://'),
+				recorded: subagent !== undefined && second.identity.hasChat(subagent.resource),
+				warnings: warnings.filter(message => message.includes('admission') || message.includes('private chats')),
+			}, {
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId },
+				opaque: true,
+				recorded: true,
+				warnings: [],
+			});
 		});
 	});
 });

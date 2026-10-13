@@ -5417,7 +5417,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation.toolSpecificData = parentPart.toolSpecificData;
 			invocation.presentation = parentPart.presentation;
 			const index = item.parts.indexOf(parentPart);
-			if (isUnstartedSubagent(parentPart)) {
+			// A pill whose chat the host has not registered yet stays in place, unenriched; the tracker enriches it once the chat appears.
+			if (isUnstartedSubagent(parentPart) && parentPart.toolSpecificData?.kind === 'subagent' && parentPart.toolSpecificData.chatResource !== undefined) {
 				item.parts.splice(index, 1);
 				observation.publisher.publish([invocation]);
 			} else {

@@ -11503,6 +11503,11 @@ suite('AgentHostChatContribution', () => {
 				return undefined;
 			}
 
+			function subagentPillCount(chatSession: IChatSession): number {
+				return chatSession.history.flatMap(item => item.type === 'response' ? item.parts : [])
+					.filter(part => (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent').length;
+			}
+
 			test('restore does not wait for the host to register the subagent chat, and a late in-progress child enriches the pill', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { sessionHandler, agentHostService, sessionUri, resource, childSummary, seedChild } = seed(opaqueHost, opaqueDefault, undefined);
 				seedChild(opaqueChild);
@@ -11545,7 +11550,7 @@ suite('AgentHostChatContribution', () => {
 				seedChild(shaped);
 				const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 				disposables.add(toDisposable(() => chatSession.dispose()));
-				assert.deepStrictEqual({ resource: pillResource(chatSession), subscribed: agentHostService.hasLiveSubscription(shaped) }, { resource: undefined, subscribed: false });
+				assert.deepStrictEqual({ pills: subagentPillCount(chatSession), resource: pillResource(chatSession), subscribed: agentHostService.hasLiveSubscription(shaped) }, { pills: 1, resource: undefined, subscribed: false });
 			}));
 
 			test('uses the recorded chat immediately when the catalog already lists it', async () => {
