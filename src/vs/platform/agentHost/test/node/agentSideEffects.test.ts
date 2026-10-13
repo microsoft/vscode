@@ -1715,6 +1715,29 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Create a plan');
 		});
 
+		test('omits the current chat link from Markdown plan guidance when the chat has no link', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostMarkdownPlanRichLinksEnabledConfigKey]: true },
+			});
+			// A peer whose chat id is `default`: the link format reads that id as the default chat.
+			const recreatedDefaultIdPeer = URI.parse(defaultChatUri).with({ query: 'peer=1' }).toString();
+			stateManager.addChat(sessionUri.toString(), recreatedDefaultIdPeer, creationTimeChatStorageResource(sessionUri.toString(), recreatedDefaultIdPeer, defaultChatUri), { title: 'Plan chat' });
+
+			sideEffects.handleAction(recreatedDefaultIdPeer, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Create a plan', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const instructions = !URI.isUri(sendContext) ? sendContext?.hostInstructions?.join('\n') : undefined;
+			assert.deepStrictEqual({ hasGuidance: instructions?.includes('<rich_plan_markdown>'), hasCurrentChat: instructions?.includes('Current chat') }, { hasGuidance: true, hasCurrentChat: false });
+		});
+
 		test('adds terminal command guidance for a terminal surface', async () => {
 			setupSession(undefined, withChatSurfaceMeta(undefined, { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }));
 
@@ -2155,6 +2178,46 @@ suite('AgentSideEffects', () => {
 				hasUser: true,
 				hasAssistant: true,
 			});
+		});
+
+		test('links a chat attachment by its owner\'s recorded default chat, not by the URI shape', async () => {
+			setupSession();
+			const otherSessionUri = AgentSession.uri('mock', 'session-2');
+			const recordedDefault = buildChatUri(otherSessionUri.toString(), 'main');
+			const defaultIdPeer = buildDefaultChatUri(otherSessionUri.toString());
+			const peer = buildChatUri(otherSessionUri.toString(), 'peer');
+			stateManager.createSession({
+				resource: otherSessionUri.toString(),
+				provider: 'mock',
+				title: 'Other',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				defaultChat: recordedDefault,
+			});
+			stateManager.dispatchServerAction(otherSessionUri.toString(), { type: ActionType.SessionReady });
+			for (const chat of [defaultIdPeer, peer]) {
+				stateManager.addChat(otherSessionUri.toString(), chat, creationTimeChatStorageResource(otherSessionUri.toString(), chat, recordedDefault), { title: 'Peer' });
+			}
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'read other chats',
+					origin: { kind: MessageKind.User },
+					attachments: [recordedDefault, defaultIdPeer, peer].map(resource => ({ type: MessageAttachmentKind.Chat, resource, label: 'Other chat' })),
+				},
+			});
+
+			await waitForSendMessageCalls(1);
+			const links = agent.sendMessageCalls[0].attachments?.map(attachment => attachment.type === MessageAttachmentKind.Simple ? /agent-host-session:\/\/[\w./?=-]*[\w/=-]/.exec(attachment.modelRepresentation ?? '')?.[0] : undefined);
+			assert.deepStrictEqual(links, [
+				'agent-host-session://mock/session-2',
+				undefined,
+				'agent-host-session://mock/session-2?chat=peer',
+			]);
 		});
 
 		test('degrades to a no-excerpt pointer when the referenced chat is unresolvable', async () => {

@@ -6218,7 +6218,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getSessionContextReference(chatResource: URI): string | undefined {
 		const backendResource = this.getBackendChatResource(chatResource);
 		const owner = this._getBackendSessionUri(toSessionId(this.id, chatResource.with({ fragment: '' })));
-		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource) : undefined;
+		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource, this._backendDefaultChat(owner)) : undefined;
 	}
 
 	getWorkingDirectories(sessionId: string): readonly string[] {

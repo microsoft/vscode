@@ -385,10 +385,10 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
 	/** Finds the session whose default chat this is: held session state first, then the host's session records. */
 	private async _resolveDefaultChatOwner(catalog: IAgentHostSessionCatalog, chat: string): Promise<string | undefined> {
-		let session = findChatOwnerInSubscribedState(catalog, chat, true);
+		let session = findChatOwnerInSubscribedState(catalog, chat, true)?.session;
 		if (session === undefined) {
 			try {
-				session = await findChatOwnerInSessionRecords(catalog, chat, true);
+				session = (await findChatOwnerInSessionRecords(catalog, chat, true))?.session;
 			} catch (err) {
 				this._logService.trace(`[${this.constructor.name}] failed to read session records: ${toErrorMessage(err)}`);
 			}

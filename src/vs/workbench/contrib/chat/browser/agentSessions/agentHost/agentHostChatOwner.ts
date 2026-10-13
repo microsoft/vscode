@@ -19,32 +19,38 @@ export type AgentHostChatOwnerSource = Pick<IAgentConnection, 'getActiveSubscrip
 /** How long a chat owner lookup waits for one host before skipping it. */
 export const AGENT_HOST_CHAT_OWNER_TIMEOUT_MS = 5000;
 
+/** The session that owns a chat, with that session's advertised default chat. */
+export interface IAgentHostChatOwner {
+	readonly session: string;
+	/** `undefined` when the owner's state or record names no default chat. */
+	readonly defaultChat: string | undefined;
+}
+
 function listsChat(state: Pick<SessionState, 'defaultChat' | 'chats'>, chat: string, defaultChatOnly: boolean): boolean {
 	return state.defaultChat?.toString() === chat
 		|| !defaultChatOnly && state.chats.some(summary => summary.resource.toString() === chat);
 }
 
 /** The subscribed session whose state lists `chat` as its default chat or one of its chats. */
-export function findChatOwnerInSubscribedState(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly: boolean): string | undefined {
+export function findChatOwnerInSubscribedState(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly: boolean): IAgentHostChatOwner | undefined {
 	for (const subscription of connection.getActiveSubscriptions()) {
 		if (subscription.kind !== StateComponents.Session) {
 			continue;
 		}
 		const state = connection.getSubscriptionUnmanaged(StateComponents.Session, subscription.resource)?.value;
 		if (state && !(state instanceof Error) && listsChat(state, chat, defaultChatOnly)) {
-			return subscription.resource.toString();
+			return { session: subscription.resource.toString(), defaultChat: state.defaultChat?.toString() };
 		}
 	}
 	return undefined;
 }
 
 /** The session whose host record lists `chat`, its default chat included. */
-export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly: boolean): Promise<string | undefined> {
+export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly: boolean): Promise<IAgentHostChatOwner | undefined> {
 	for (const metadata of await connection.listSessions()) {
-		const session = metadata.session.toString();
 		const listed = metadata.chats?.some(entry => (!defaultChatOnly || entry.kind === 'default') && entry.chat.toString() === chat);
 		if (listed) {
-			return session;
+			return { session: metadata.session.toString(), defaultChat: metadata.chats?.find(entry => entry.kind === 'default')?.chat.toString() };
 		}
 	}
 	return undefined;
@@ -56,12 +62,13 @@ export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwn
  * and of each connected remote host, queried in parallel with a per-host
  * timeout. Preference is deterministic: held state, then local, then remotes
  * in connection order. A value that is not a chat channel is a session URI and
- * owns itself. Never derives the owner from the chat URI.
+ * owns itself. Returns the owner's advertised default chat with it. Never
+ * derives the owner or the default chat from the chat URI.
  */
-export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostChatOwnerSource, remoteHosts: IRemoteAgentHostService, logService: ILogService, timeoutMs: number): Promise<URI | undefined> {
+export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostChatOwnerSource, remoteHosts: IRemoteAgentHostService, logService: ILogService, timeoutMs: number): Promise<{ readonly session: URI; readonly defaultChat: string | undefined } | undefined> {
 	const chatString = chat.toString();
 	if (!isAhpChatChannel(chatString)) {
-		return chat;
+		return { session: chat, defaultChat: undefined };
 	}
 	const connections: { readonly label: string; readonly connection: AgentHostChatOwnerSource }[] = [
 		{ label: 'local', connection: localHost },
@@ -76,7 +83,7 @@ export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostC
 	for (const { connection } of connections) {
 		const owner = findChatOwnerInSubscribedState(connection, chatString, false);
 		if (owner !== undefined) {
-			return URI.parse(owner);
+			return { session: URI.parse(owner.session), defaultChat: owner.defaultChat };
 		}
 	}
 	const lookups = connections.map(({ label, connection }) => raceTimeout(
@@ -90,7 +97,7 @@ export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostC
 	for (const lookup of lookups) {
 		const owner = await lookup;
 		if (owner !== undefined) {
-			return URI.parse(owner);
+			return { session: URI.parse(owner.session), defaultChat: owner.defaultChat };
 		}
 	}
 	return undefined;
