@@ -108,7 +108,7 @@ Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, d
 
 For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
 
-Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
+Every Copilot SDK create/resume configuration explicitly opts into native image generation with `imageGeneration.enabled=true`, including Stable. This non-persisted consent is reapplied after host restarts; the CLI rollout environment flag is not a substitute. The runtime owns image-model availability, account authorization, policy, and tool permissions, so opting in does not grant access to an unavailable image model or bypass those checks.
 
 ### Orchestrator layer
 
@@ -144,7 +144,7 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
   - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog item. An entry owns its current `ChatSummary`, optional hydrated `ChatState`, opaque `providerData`, and (for restored peers) resolver, in-flight promise, and invalidation state.
-- Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
+- Owns `_ensureDefaultChat`: creates the default `ChatState` at create/restore time, for the default chat the session records (see the default-chat contract in section 5e).
 - `addChat`/`registerRestoredChatSummary`/`removeChat`: the paths for live, restored, and removed catalog membership.
 - `getChatState` is a synchronous, no-I/O peek for reducers and diagnostics. Interaction paths use `resolveChatState`, which coalesces one peer's materialization, retries failures, and atomically publishes complete state.
 - `getChatOrigin` reads a chat's origin from its `ChatSummary`, so a restored chat's origin is available before its state is ever hydrated.
@@ -165,7 +165,7 @@ Opaque to the host, but not arbitrary for the provider: whatever id the blob car
 
 **I2 — `sessionUri` and `chatChannelUri` are never overloaded.** A native session URI (`ahp-session:/<id>` or a preserved legacy provider URI) identifies an AH session; `ahp-chat://…` identifies its chat. Native chat helpers derive chat resources from the actual immutable session URI. AHP clients use third-party hosts' advertised session and chat resources verbatim rather than applying native derivation. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
-**I3 — The default chat uses the same explicit backing contract as every chat.** The default chat URI is derived from the AH session URI, but its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
+**I3 — The default chat uses the same explicit backing contract as every chat.** The default chat URI is recorded by the host, and its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
 
 **I4 — Single catalog path (spawn channel).** Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. `AgentService` installs the spawn-channel listener **before** the `AgentSideEffects` listener through the provider service's synchronous initializer to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
@@ -420,7 +420,7 @@ Restored peer chats are catalog-only until their entry resolver succeeds. Their 
 graph TD
     A["client dispatch: channel=ahp-chat://session/…/chat/…"]
     B{isAhpChatChannel?}
-    C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
+    C["chatChannel = channel\nsessionChannel = stateManager.getChatOwner(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = providerService.getProviderForSession(sessionChannel)"]
     F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
@@ -433,7 +433,11 @@ graph TD
     F -->|"chats.sendMessage(chat, …)"| G["agent harness resolves its SDK session\nfrom the concrete chat URI"]
 ```
 
-The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is `buildDefaultChatUri(sessionUri)`, not the bare session URI. The provider resolves that concrete chat to its SDK backing; AH does not depend on the backing id matching the session id.
+The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is the session's recorded default chat, not the bare session URI. The provider resolves that concrete chat to its SDK backing; AH does not depend on the backing id matching the session id.
+
+A chat URI is minted from its session, but nothing reads that session back: `parseChatUri` exposes only the chat id. A chat's owning session and storage resource are recorded facts. Live chats carry them in the state manager registry, set once at registration from the containing record (`chats_v2.owner_session_uri` and `storage_resource`, the legacy catalog row, or the session being read) and never recomputed. Consumers read ownership through `IAgentHostChatOwnershipService` (`agentHostChatOwnershipService.ts`): live lookups (`getChatOwner`, `requireChatOwner`, `getChatStorageResource`, `getChatParent`) delegate to the registry, and `onDidRegisterChat` / `onDidUnregisterChat` report each registration with the owner and storage it carried. A chat that is not live resolves through `resolveChatOwner`: the registry and retained summaries, then the central catalogs (`findCentralChatOwners`: normalized rows and their tombstones dominate legacy peer catalogs), then the registered session inventory, then cached catalog payloads (`findCatalogPayloadChatOwners`, a table scan kept last), then restores already in flight (`AgentService` reports each with `trackRestore`), then a spawning tool call that names the chat. Legacy peer-chat reads consult only the central catalogs and the live registry. An unknown owner is reported as not found. Teardown paths use the owner captured at registration or removal, never a lookup after the entry is gone. Clients take owners from session state, session catalogs, or host session records.
+
+A session's default chat is recorded by the host (state entry / catalog header `default_chat_uri`) and is exactly what the host advertises as `SessionState.defaultChat`. Clients read the advertised value. Host code asks `IAgentHostChatOwnershipService.getDefaultChat` / `isDefaultChat`; nothing decides or finds a default chat from the URI shape. `buildDefaultChatUri` only mints the default chat of a new session. `deriveLegacyDefaultChat` derives it for a legacy source that records none (a catalog without a header, a payload without a default entry, a provider-native session), and the host records the result. Clients read `SessionState.defaultChat` / `SessionSummary.defaultChat` directly: the protocol client fills it on every session state and summary from an older VS Code host that predates advertising it (`getOlderHostDefaultChat` in `browser/agentHostOlderHostCompatibility.ts`), and never overrides an advertised value.
 
 ### 5f. Agent Merge Folder Ownership
 
@@ -613,7 +617,7 @@ Providers are being made pure consumers of host facts. Agent Host derives each f
 
 | Field | Meaning | Replaces |
 |---|---|---|
-| `resource` | The provider-owned persistence scope for this exact chat. | `resolveChatUri` in the provider. |
+| `resource` | The provider-owned persistence scope for this exact chat: the storage resource the host recorded when it registered the chat. | Deriving storage from the chat URI in the provider. |
 | `configurationResource` | An opaque scope for configuration and other provider resources shared across related chats. | Passing AH ownership into the provider. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |
@@ -671,7 +675,7 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 | `stateManager.getSessionState(session)?.customizations` | `context.customizations` / `resolveAgentHostCustomizations(context)`, or the `hostCustomizations` argument of `getChatCustomizations` / `getOrCreateActiveClient`. All three carry the host's last published snapshot, and `undefined` means "no snapshot yet", not "no customizations" |
 | `stateManager.getChatState(chat)?.origin`, `sessionState.chats.find(...)?.origin` | `context.origin` / `resolveAgentChatOrigin(context)`; for spawn edges `resolveSubagentChatParent(context)` |
 | `parseChatUri(chat)?.chatId.startsWith('subagent/')`, `parseSubagentSessionUri(chat)` for routing | `resolveSubagentChatParent(context)` from the host-owned `Tool` origin |
-| `isDefaultChatUri(chat)` gates | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |
+| Default-chat checks by URI shape | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |
 | `buildDefaultChatUri(session)` as an active-client / fan-out default | the required `chats` argument of `getOrCreateActiveClient`, re-sent whenever the catalog grows and withheld entirely while the host has no authoritative membership |
 | `stateManager.getSessionSummary(session)?._meta` + `setSessionMeta(...)` for prompt cache | `IAgentHostPromptCache.read` / `.write` |
 | `stateManager.onDidChangeSessionTitle` for OTel | `IAgentHostSessionTitleSignal.onDidChangeSessionTitle` |

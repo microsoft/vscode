@@ -30,7 +30,7 @@ import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState }
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -43,6 +43,7 @@ import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/ag
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -150,7 +151,7 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
 		return disposables.add(service);
 	}
 
@@ -165,6 +166,7 @@ suite('AgentHostAutomationService', () => {
 			stateManager.createSession({
 				resource: resource.toString(), provider: 'mock', title: '',
 				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(resource.toString()),
 			});
 		}
 		const started = new DeferredPromise<void>();
@@ -540,7 +542,7 @@ suite('AgentHostAutomationService', () => {
 			startSession: async (_, message) => {
 				reporter.userMessageSent(
 					'copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					session.toString(), 'first-turn', undefined, 'direct', message, false,
+					session.toString(), session.toString(), 'first-turn', undefined, 'direct', message, false,
 				);
 				await started.complete();
 			},
@@ -579,11 +581,12 @@ suite('AgentHostAutomationService', () => {
 			stateManager.createSession({
 				resource: session.toString(), provider, title: '',
 				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const service = createService({
 				createSession: async () => session,
 				startSession: async () => {
-					stateManager.addChat(session.toString(), defaultChat);
+					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat, buildDefaultChatUri(session.toString())));
 					stateManager.dispatchServerAction(defaultChat, {
 						type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(),
 						message: { text: 'Review changes', origin: { kind: MessageKind.Automation } },
@@ -875,6 +878,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -993,6 +997,7 @@ suite('AgentHostAutomationService', () => {
 						status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(),
 						modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1140,6 +1145,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '',
 						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1190,6 +1196,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1246,6 +1253,7 @@ suite('AgentHostAutomationService', () => {
 				stateManager.createSession({
 					resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session),
 				});
 				writeFailures = 1;
 				return URI.parse(session);
@@ -1341,6 +1349,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1393,6 +1402,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1446,6 +1456,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1505,6 +1516,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1571,6 +1583,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1652,6 +1665,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'mock', title: '',
 						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1768,6 +1782,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1849,6 +1864,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},

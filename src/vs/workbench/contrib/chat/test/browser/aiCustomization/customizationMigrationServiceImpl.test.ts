@@ -759,10 +759,93 @@ suite('CustomizationMigrationService', () => {
 			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
 			candidates: [['server', { type: McpServerType.LOCAL, command: 'node', env: { TOKEN: '${TOKEN}' } }]],
-			exclusions: [['header-name', 'environmentVariableInName', ['Environment variable references (\'${env:...}\') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.']]],
+			exclusions: [['header-name', 'environmentVariableInName', ['Variables (\'${env:...}\' or \'${input:...}\') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.']]],
 			staleFailures: ['noLongerEligible'],
 			result: { migratedCount: 1, failures: [] },
 			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] } } },
+		});
+	});
+
+	test('migrates profile MCP servers with ${input:} references, and explains unsupported ones', async () => {
+		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
+		const targetUri = URI.file('/custom-copilot/mcp-config.json');
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const servers = {
+			server: { command: 'node', env: { TOKEN: '${input:token}' } },
+			password: { command: 'node', args: ['${input:secret}'] },
+			digit: { command: 'node', args: ['${input:1st}'] },
+			collision: { command: 'node', args: ['${input:api-key}', '${env:API_KEY}'] },
+			default: { command: 'node', args: ['${input:level}'] },
+			command: { command: '${command:extension.pick}', args: ['${input:token}'] },
+			setting: { command: '${config:mcp.missing}' },
+		};
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [
+				{ id: 'token', type: 'promptString', description: 'Token' },
+				{ id: 'secret', type: 'promptString', description: 'Secret', password: true },
+				{ id: '1st', type: 'promptString', description: 'First' },
+				{ id: 'api-key', type: 'promptString', description: 'API key' },
+				{ id: 'level', type: 'pickString', description: 'Level', options: ['info', 'debug'], default: 'trace' },
+			],
+			servers,
+		})));
+		const [workspaceServer] = createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers;
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: Object.entries(servers).map(([name, server]) => ({
+				...workspaceServer,
+				id: `mcp.config.usrlocal.${name}`,
+				name,
+				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
+				// User servers are forwarded with their variables unresolved.
+				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
+				projectedConfiguration: { type: McpServerType.LOCAL, ...server },
+			})),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostCopilot);
+		const supportScope = new MutableMcpServerSupportScope(snapshot);
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return supportScope; }
+		}();
+		const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getClientWorkingDirectoryUris() { return []; }
+		}();
+		const globalConfigurationService = new class extends mock<IMcpCopilotGlobalConfigurationService>() {
+			override async getConfigurationResource() { return targetUri; }
+		}();
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, customizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService, new TestMcpService(), globalConfigurationService));
+		const session = harnessService.activeSessionResource.get();
+		const migration = await service.computeMigration(session, CustomizationMigrationType.McpServers);
+		const result = await service.migrateMcpServers(session, migration.candidates);
+
+		assert.deepStrictEqual({
+			candidates: migration.candidates.map(candidate => candidate.name),
+			exclusions: migration.exclusions.map(exclusion => [exclusion.name, exclusion.reason, exclusion.details]),
+			result,
+			source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()).inputs.map((input: { id: string }) => input.id),
+			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			candidates: ['server', 'digit'],
+			exclusions: [
+				['password', 'unsupportedInputType', ['Inputs are migrated to environment variables, except password and command inputs, and inputs that are not fully declared in the \'inputs\' of the same file. Use an environment variable (\'${env:...}\') instead to migrate this server.']],
+				['collision', 'variableNameCollision', ['Inputs are migrated to environment variables named after their IDs, and an input of this server would use the same environment variable as a different input or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input to migrate this server.']],
+				['default', 'unsupportedInputDefault', ['The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.']],
+				// Its inputs are fine, so the reason names the variable that isn't, not the inputs.
+				['command', 'unsupportedVariable', ['This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable (\'${env:...}\') to migrate this server.']],
+				['setting', 'unsupportedVariable', ['This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable (\'${env:...}\') to migrate this server.']],
+			],
+			result: { migratedCount: 2, failures: [] },
+			source: ['token', 'secret', 'api-key', 'level'],
+			target: {
+				mcpServers: {
+					server: { type: 'local', command: 'node', args: [], env: { TOKEN: '' }, tools: ['*'] },
+					digit: { type: 'local', command: 'node', args: ['${MCP_1ST}'], env: { MCP_1ST: '' }, tools: ['*'] },
+				},
+			},
 		});
 	});
 

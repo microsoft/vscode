@@ -13,8 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { buildChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -131,7 +131,9 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
+		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,

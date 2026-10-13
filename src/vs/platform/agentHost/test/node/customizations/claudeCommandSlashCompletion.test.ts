@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { CompletionItem, CompletionItemKind } from '../../../common/state/protocol/commands.js';
-import { MessageAttachmentKind } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageAttachmentKind } from '../../../common/state/sessionState.js';
 import { AgentHostSkillCompletionProvider } from '../../../node/agentHostSkillCompletionProvider.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { buildDiscoveredCustomizations } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
@@ -56,7 +57,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 		const agent = disposables.add(new MockAgent('mock'));
 		agent.getSessionCustomizations = async () => customizations;
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
 
 		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, CancellationToken.None);
 	}

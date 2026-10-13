@@ -25,7 +25,7 @@ import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus } from 
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
 import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
@@ -39,6 +39,8 @@ import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/pr
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
 import { IFileService } from '../../../files/common/files.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,6 +100,7 @@ suite('Mission Control host integration', () => {
 		}());
 		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
+		instantiation.stub(IAgentHostChatOwnershipService, stateManager ? createTestChatOwnershipService(stateManager) : new class extends mock<IAgentHostChatOwnershipService>() { }());
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
 		instantiation.stubInstance(MissionControlProjects, new class extends mock<MissionControlProjects>() {
@@ -170,7 +173,7 @@ suite('Mission Control host integration', () => {
 	}
 
 	for (const session of ['ahp-session:/draft', 'copilotcli:/draft']) {
-		const summary = { resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' };
+		const summary = { resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z', defaultChat: buildDefaultChatUri(session) };
 
 		test(`does not mirror an abandoned provisional draft (${session})`, () => {
 			const f = createMirror();
@@ -211,7 +214,7 @@ suite('Mission Control host integration', () => {
 	test('continues mirroring restored sessions even when their history is empty', () => {
 		const f = createMirror();
 		const session = 'ahp-session:/restored';
-		f.state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, []);
+		f.state.restoreSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
 		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 		f.clock.runAll();
 		assert.deepStrictEqual(f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),
@@ -355,7 +358,7 @@ suite('Mission Control host integration', () => {
 		const state = store.add(new AgentHostStateManager(new NullLogService()));
 		const session = URI.parse('ahp-session:/opaque-native-conversation');
 		const now = new Date().toISOString();
-		state.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+		state.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 		const defaultChat = state.getSessionSummary(session.toString())?.defaultChat;
 		assert.ok(defaultChat);
 		const chat = URI.parse(defaultChat);

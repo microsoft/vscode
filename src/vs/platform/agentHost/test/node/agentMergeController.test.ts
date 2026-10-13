@@ -34,10 +34,11 @@ import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpoi
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
 import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 let sessionCounter = 0;
 
@@ -81,6 +82,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -215,7 +217,7 @@ suite('AgentMergeController', () => {
 	test('tools enable Agent Merge for the invoking chat folder', async () => {
 		const { stateManager, configurationService, controller, gitService, session } = createControllerHarness(disposables);
 		const peerChat = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peerChat, { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		const branchReads: string[] = [];
 		gitService.getCurrentBranchName = async directory => {
 			branchReads.push(directory.toString());
@@ -352,6 +354,7 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind) => notices.push({ chat, kind }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -377,7 +380,7 @@ suite('AgentMergeController', () => {
 			logService,
 		));
 		stateManager.createSession(summary(session));
-		stateManager.addChat(session, peerChat, { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
 		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
@@ -407,7 +410,7 @@ suite('AgentMergeController', () => {
 	test('only the chat running a repair turn may use its authorization, and removing that chat ends the turn', async () => {
 		const { stateManager, controller, session, peerChat, refreshes, start } = createPeerRepairHarness(disposables);
 		const sameFolderChat = buildChatUri(session, 'same-folder');
-		stateManager.addChat(session, sameFolderChat, { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, sameFolderChat, creationTimeChatStorageResource(session, sameFolderChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		await start();
 		const authorized = { owner: controller.getTurnContext(peerChat) !== undefined, sameFolder: controller.getTurnContext(sameFolderChat) !== undefined };
 
@@ -789,7 +792,7 @@ suite('AgentMergeController', () => {
 			const otherSession = `copilot:/agent-merge-controller-${++sessionCounter}`;
 			stateManager.createSession(summary(otherSession));
 			const foreignChat = buildChatUri(otherSession, 'foreign');
-			stateManager.addChat(otherSession, foreignChat, { workingDirectories: [OTHER_REPOSITORY] });
+			stateManager.addChat(otherSession, foreignChat, creationTimeChatStorageResource(otherSession, foreignChat, buildDefaultChatUri(otherSession)), { workingDirectories: [OTHER_REPOSITORY] });
 			return foreignChat;
 		});
 		await start();
@@ -845,7 +848,7 @@ suite('AgentMergeController', () => {
 	test('posts notices to the chat that turned Agent Merge on', () => {
 		const { stateManager, configurationService, session, noticeChats } = createControllerHarness(disposables);
 		const peerChat = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peerChat, { workingDirectories: [REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [REPOSITORY] });
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(REPOSITORY)]: { enabled: true, chat: peerChat } },
 		});
@@ -1048,6 +1051,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1318,6 +1322,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1371,6 +1376,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {
@@ -1608,6 +1614,7 @@ suite('AgentMergeController', () => {
 				},
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
@@ -1694,6 +1701,7 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind, content) => { notices.push({ chat, kind, content }); },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
@@ -1720,7 +1728,7 @@ suite('AgentMergeController', () => {
 			logService,
 		));
 		stateManager.createSession(summary(session));
-		stateManager.addChat(session, peerChat, { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
 		const start = () => {
@@ -1813,6 +1821,7 @@ suite('AgentMergeController', () => {
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {
@@ -2137,7 +2146,7 @@ function repairSnapshot(): PullRequestSnapshot {
 	};
 }
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
 	return {
 		resource,
@@ -2147,5 +2156,6 @@ function summary(resource: string): SessionSummary {
 		createdAt: now,
 		modifiedAt: now,
 		workingDirectories: [REPOSITORY],
+		defaultChat: buildDefaultChatUri(resource),
 	};
 }
