@@ -23,6 +23,7 @@ import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceServ
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { AgentFinderSavedResourceFeedResult, IAgentFinderSavedResourceFeedService } from '../../../browser/aiCustomization/agentFinderSavedResourceFeedService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -56,6 +57,21 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 	}
 
+	function createSavedResourceFeedService(overrides: {
+		readonly feedIds?: IAgentFinderSavedResourceFeedService['feedIds'];
+		readonly results?: readonly AgentFinderSavedResourceFeedResult[];
+		readonly authorizationRequired?: boolean;
+		readonly signIns?: CancellationToken[];
+	} = {}): IAgentFinderSavedResourceFeedService {
+		return new class extends mock<IAgentFinderSavedResourceFeedService>() {
+			override readonly feedIds = overrides.feedIds;
+			override readonly onDidChange = Event.None;
+			override readonly authorizationRequired = overrides.authorizationRequired ?? false;
+			override async getFeeds() { return overrides.results ?? []; }
+			override async signIn(token: CancellationToken) { overrides.signIns?.push(token); }
+		}();
+	}
+
 	function registerConnectorService(instantiationService: TestInstantiationService, marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider): void {
 		instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = Event.None;
@@ -72,6 +88,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
 			override getActiveDescriptor() { return harness; }
 		}());
+		instantiationService.stub(IAgentFinderSavedResourceFeedService, createSavedResourceFeedService());
 	}
 
 	function createService(
@@ -79,6 +96,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		platformService: ICustomizationMarketplaceService,
 		connectorsService: ICopilotConnectorsService,
 		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
+		savedResourceFeedService = createSavedResourceFeedService(),
 	): CustomizationMarketplaceWorkbenchService {
 		const platformSources = platformService.allSources ?? platformService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 		const normalizedPlatformService = new class extends mock<ICustomizationMarketplaceService>() {
@@ -104,6 +122,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			pluginMarketplaceService,
 			connectorsService,
 			harnessService,
+			savedResourceFeedService,
 			store.add(new TestInstantiationService()),
 		));
 	}
@@ -376,6 +395,105 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: ['public'],
 			hasMore: true,
 			errors: [{ sourceId: 'agentFinder', message: 'Partial failure' }],
+		});
+	});
+
+	test('projects saved feeds into ordered Browse sections and preserves partial failures', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const feedIds = {
+			editorsPicks: 'feed_editors',
+			planBuildAndShip: 'feed_plan',
+			connectYourWork: 'feed_connect',
+		};
+		const entry = (identifier: string): ICustomizationMarketplaceEntry => ({
+			identifier,
+			displayName: identifier,
+			description: `${identifier} description`,
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		});
+		const savedResourceFeedService = createSavedResourceFeedService({
+			feedIds,
+			results: [{
+				id: feedIds.editorsPicks,
+				feed: { id: feedIds.editorsPicks, name: 'Remote editor title', version: 1, items: [entry('first'), entry('second')] },
+			}, {
+				id: feedIds.planBuildAndShip,
+				error: 'Plan feed unavailable',
+			}, {
+				id: feedIds.connectYourWork,
+				feed: { id: feedIds.connectYourWork, name: 'Remote connect title', version: 2, items: [entry('third')] },
+			}],
+		});
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{ async query() { return { items: [] }; } },
+			savedResourceFeedService,
+		);
+		const sections = await service.getBrowseSections({}, CancellationToken.None);
+		const excluded = await service.getBrowseSections({ sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sections,
+			excluded,
+		}, {
+			sections: {
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [{
+					id: feedIds.editorsPicks,
+					title: 'Editor\'s picks',
+					presentation: 'hero',
+					items: [entry('first'), entry('second')].map(item => ({ ...item, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id })),
+				}, {
+					id: feedIds.connectYourWork,
+					title: 'Connect your work',
+					presentation: 'list',
+					items: [{ ...entry('third'), sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id }],
+				}],
+				error: 'Plan feed unavailable',
+			},
+			excluded: undefined,
+		});
+	});
+
+	test('prefers saved-feed authentication recovery for the GitHub Feed', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const signIns: CancellationToken[] = [];
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { return { items: [] }; },
+				getRecoveryAction() {
+					return { label: 'SDK Sign In', kind: 'signIn' as const, async run() { } };
+				},
+			},
+			createSavedResourceFeedService({ authorizationRequired: true, signIns }),
+		);
+		const action = service.getSourceRecoveryAction(CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await action?.run(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			label: action?.label,
+			kind: action?.kind,
+			groupId: action?.groupId,
+			signIns,
+		}, {
+			label: 'Sign In',
+			kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			signIns: [CancellationToken.None],
 		});
 	});
 

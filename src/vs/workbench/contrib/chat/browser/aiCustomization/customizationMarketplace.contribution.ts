@@ -22,6 +22,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AgentFinderSavedResourceFeedService, IAgentFinderSavedResourceFeedService } from './agentFinderSavedResourceFeedService.js';
 import { CopilotConnectorsService, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from './customizationMarketplaceInstallService.js';
 import { removeLegacyCustomizationMarketplaceInstallationRecords } from './customizationMarketplaceInstallationAssociation.js';
@@ -31,6 +32,7 @@ if (isWeb) {
 	registerSingleton(IPlatformCustomizationMarketplaceService, PlatformCustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 }
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
+registerSingleton(IAgentFinderSavedResourceFeedService, AgentFinderSavedResourceFeedService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsRequestService, CopilotConnectorsRequestService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
@@ -78,8 +80,8 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.overview', "Browse customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),
-				localize('customizationDiscovery.help.ranking', "Available search results are ordered by source-assigned relevance, not trust or quality. Feed priority breaks equal relevance scores. Browsing without search text shows higher-priority custom entries first and interleaves entries at the same priority while preserving each catalog's order."),
-				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
+				localize('customizationDiscovery.help.ranking', "Available search results are ordered by source-assigned relevance, not trust or quality. Curated Browse sections preserve their saved editorial order. When curated sections are unavailable, Browse uses source priority and catalog order."),
+				localize('customizationDiscovery.help.browse', "Clear the search to browse Editor's picks, Plan, build, and ship, and Connect your work when curated GitHub Feed sections are available. Otherwise, Browse groups catalog items by type. Show All on a type section applies its filter and moves to search results."),
 				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens a quick pick where you can add and manage plugin marketplaces."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate the list. Press Enter or Space on an available item to open its in-product details. Press Enter to open an installed item."),
 				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. For connectors, choose Connect, Reconnect, or Disconnect to manage the connection. When the selected agent provides SDK installation management, its inventory is authoritative and its exact review is shown before installation or removal. Copilot SDK search omits candidates that the runtime does not mark installable. Installing a public Browse result through Copilot prompts for GitHub sign-in first when needed. Repair asks the owning SDK or local implementation to recover missing content. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup to open the publisher's instructions instead. VS Code continues to apply destination, trust, policy, and compatibility checks."),
