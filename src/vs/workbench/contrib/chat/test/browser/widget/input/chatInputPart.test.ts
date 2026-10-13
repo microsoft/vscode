@@ -17,13 +17,13 @@ import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders contributed attachment widgets for the session of the input model that holds the attachments', () => {
-		const inputModelSession = URI.parse('remote-remote.example__1-copilotcli:/restored');
+	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {
+		const restoredSession = URI.parse('remote-remote.example__1-copilotcli:/restored');
 		const chip = createChatReferenceVariableEntry(URI.parse('ahp-chat://default/c2Vzc2lvbg'), undefined, 'Chat');
 		const createdFor: (string | undefined)[] = [];
 		// While setInputModel restores the incoming session's attachments, the
 		// widget's view model is still absent (first load) or the outgoing session.
-		const render = (viewModelSession: URI | undefined) => {
+		const render = (inputModelSession: URI | undefined, viewModelSession: URI | undefined) => {
 			const attachedContextDisposables = store.add(new MutableDisposable());
 			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 				attachedContextContainer: dom.$('div'),
@@ -48,10 +48,13 @@ suite('ChatInputPart', () => {
 			attachedContextDisposables.dispose();
 		};
 
-		render(undefined);
-		render(URI.parse('agent-host-copilotcli:/outgoing'));
+		const editedRequestSession = URI.parse('agent-host-copilotcli:/edited');
+		render(restoredSession, undefined);
+		render(restoredSession, URI.parse('agent-host-copilotcli:/outgoing'));
+		// The inline request-edit input part never binds an input model.
+		render(undefined, editedRequestSession);
 
-		assert.deepStrictEqual(createdFor, [inputModelSession.toString(), inputModelSession.toString()]);
+		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
 	});
 
 	test('uses the Sessions content gutter for composer layout', () => {
