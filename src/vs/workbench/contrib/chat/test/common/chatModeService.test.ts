@@ -314,6 +314,40 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
+	test('replaces a cached Agent instance when the host publishes Ask semantics', async () => {
+		const ask: ICustomAgent = {
+			id: 'host:/opaque/ask',
+			uri: URI.parse('host:/opaque/ask'),
+			kind: ChatModeKind.Ask,
+			name: 'Questions',
+			agentInstructions: { content: '', toolReferences: [] },
+			source: { storage: PromptsStorage.builtIn },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: false },
+			enabled: true,
+		};
+		promptsService.setCustomModes([ask]);
+		storageService.store('chat.customModes.local', [new CustomChatMode({ ...ask, kind: undefined })], StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const modes = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+		const cached = modes.findModeById(ask.id);
+		await modes.waitForPendingUpdates();
+		const refreshed = modes.findModeById(ask.id);
+
+		assert.deepStrictEqual({
+			replaced: cached !== refreshed,
+			previousKind: cached?.kind,
+			currentKind: refreshed?.kind,
+			currentLabel: refreshed?.label.get(),
+			currentIcon: refreshed?.icon.get(),
+		}, {
+			replaced: true,
+			previousKind: ChatModeKind.Agent,
+			currentKind: ChatModeKind.Ask,
+			currentLabel: 'Ask',
+			currentIcon: ChatMode.Ask.icon.get(),
+		});
+	});
+
 	test('should not fire change event when custom mode payload is unchanged', async () => {
 		const baseMode: ICustomAgent = {
 			id: 'stable-mode',

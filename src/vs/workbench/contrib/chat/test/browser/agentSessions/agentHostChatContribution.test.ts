@@ -16263,8 +16263,41 @@ suite('AgentHostChatContribution', () => {
 
 	suite('customizations', () => {
 
+		for (const selection of ['default', 'unmarked', 'malformed']) {
+			test(`rejects ${selection} agent selection without read-only Ask metadata when Agent is disabled`, async () => {
+				const agentUri = 'other-host:/opaque/ask';
+				class CustomizationService extends NullAgentHostCustomizationService {
+					override getCustomAgents(): readonly AgentCustomization[] {
+						return [{
+							type: CustomizationType.Agent, id: 'opaque', uri: agentUri, name: 'Ask',
+							...(selection === 'malformed' ? { _meta: { 'vscode.chatMode': true } } : {}),
+						}];
+					}
+				}
+				const { agentHostService, chatAgentService } = createContribution(disposables, {
+					configOverrides: { [ChatConfiguration.AgentEnabled]: false },
+					customizationServiceOverride: new CustomizationService(),
+				});
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+				await assert.rejects(registered.impl.invoke(makeRequest({
+					sessionResource: URI.parse('agent-host-copilot:/new-ask'),
+					modeInstructions: selection === 'default' ? undefined : { uri: URI.parse(agentUri), name: 'Ask', content: '', toolReferences: [] },
+				}), () => { }, [], CancellationToken.None), /does not provide the selected read-only Ask agent/);
+
+				assert.deepStrictEqual(agentHostService.turnActions, []);
+			});
+		}
+
 		test('maps built-in custom agent URIs for turns', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			class AskCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents(): readonly AgentCustomization[] {
+					return [{ type: CustomizationType.Agent, id: 'ask', uri: 'copilot-builtin:/agents/ask.agent.md', name: 'Ask', _meta: { 'vscode.chatMode': 'ask' } }];
+				}
+			}
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				configOverrides: { [ChatConfiguration.AgentEnabled]: false },
+				customizationServiceOverride: new AskCustomizationService(),
+			});
 			const agentUri = toAgentHostUri(URI.parse('copilot-builtin:/agents/ask.agent.md'), LOCAL_AGENT_HOST_AUTHORITY);
 
 			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {

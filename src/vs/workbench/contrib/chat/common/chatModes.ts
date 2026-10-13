@@ -259,7 +259,7 @@ class ChatModes extends Disposable implements IChatModes {
 				seenIds.add(customMode.id);
 
 				let modeInstance = this._customModeInstances.get(customMode.id);
-				if (modeInstance) {
+				if (modeInstance && modeInstance.kind === (customMode.kind ?? ChatModeKind.Agent)) {
 					// Update existing instance with new data
 					if (modeInstance.updateData(customMode)) {
 						hasChanges = true;
@@ -477,7 +477,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
-	private _kind: ChatModeKind;
+	public readonly kind: ChatModeKind;
 
 	public readonly id: string;
 
@@ -545,15 +545,11 @@ export class CustomChatMode implements IChatMode {
 		return this._sessionTypes;
 	}
 
-	get kind(): ChatModeKind {
-		return this._kind;
-	}
-
 	constructor(
 		customChatMode: ICustomAgent
 	) {
 		this.id = customChatMode.id;
-		this._kind = customChatMode.kind ?? ChatModeKind.Agent;
+		this.kind = customChatMode.kind ?? ChatModeKind.Agent;
 		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
@@ -593,11 +589,6 @@ export class CustomChatMode implements IChatMode {
 			update(this._targetObservable, newData.target);
 			update(this._visibilityObservable, newData.visibility, objectEquals);
 			update(this._agentsObservable, newData.agents, arraysEqual);
-			const kind = newData.kind ?? ChatModeKind.Agent;
-			if (this._kind !== kind) {
-				this._kind = kind;
-				hasChanges = true;
-			}
 			if (!IAgentSource.isEquals(this._source, newData.source)) {
 				this._source = newData.source;
 				hasChanges = true;

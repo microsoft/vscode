@@ -2351,6 +2351,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
+		if (validMode.kind !== currentMode.kind) {
+			this.setChatMode(validMode.id);
+			return;
+		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
 			this.setChatMode(ChatModeKind.Ask);
 			return;

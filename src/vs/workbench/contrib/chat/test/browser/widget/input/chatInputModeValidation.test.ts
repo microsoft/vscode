@@ -10,7 +10,7 @@ import { bufferToStream, VSBuffer } from '../../../../../../../base/common/buffe
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../../../../base/common/policy.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -277,6 +277,28 @@ suite('ChatInputPart mode validation', () => {
 		harness.setAvailableModes([ChatMode.Agent, ChatMode.Ask, hostAsk]);
 
 		assert.deepStrictEqual(harness.snapshot(), { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: true });
+	});
+
+	test('reselects a refreshed mode instance and notifies observers when its kind changes', () => {
+		const harness = createInput();
+		const oldMode = upcastPartial<IChatMode>({ ...customMode, id: hostAsk.id });
+		harness.setAvailableModes([ChatMode.Agent, oldMode]);
+		harness.input.setChatMode(oldMode.id);
+		const observedKinds: ChatModeKind[] = [];
+		store.add(autorun(reader => {
+			observedKinds.push(harness.input.currentModeObs.read(reader).kind);
+		}));
+		harness.setAvailableModes([ChatMode.Agent, hostAsk]);
+
+		assert.deepStrictEqual({
+			snapshot: harness.snapshot(),
+			reselected: harness.input.currentModeObs.get() === hostAsk,
+			observedKinds,
+		}, {
+			snapshot: { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: true },
+			reselected: true,
+			observedKinds: [ChatModeKind.Agent, ChatModeKind.Ask],
+		});
 	});
 
 	test('continues to validate other account restrictions', async () => {

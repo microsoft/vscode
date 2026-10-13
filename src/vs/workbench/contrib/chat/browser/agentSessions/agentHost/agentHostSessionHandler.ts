@@ -3349,14 +3349,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
-		this._clientDispatchedTurnIds.add(turnId);
-
 		// Model and agent selection now travel on the turn message itself rather
 		// than via the removed `session/modelChanged` / `session/agentChanged`
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 		const requestedAgentUri = request.modeInstructions?.uri ? fromAgentHostUri(request.modeInstructions.uri).toString() : undefined;
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => agent.uri === requestedAgentUri);
+			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
+				throw new Error(localize('agentHost.askUnavailable', "Agent mode is disabled and this host does not provide the selected read-only Ask agent."));
+			}
+		}
+		this._clientDispatchedTurnIds.add(turnId);
 
 		// If the chat model has fewer previous requests than the protocol has
 		// turns, a checkpoint was restored or a message was edited. Dispatch
