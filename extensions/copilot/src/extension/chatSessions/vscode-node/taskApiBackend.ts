@@ -38,7 +38,7 @@ import {
 	PullArtifactRef,
 	TaskContent,
 } from '../vscode/cloudAgentBackend';
-import { extractTitle, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
+import { extractTitle } from '../vscode/copilotCodingAgentUtils';
 
 const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
 const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
@@ -170,7 +170,7 @@ function taskToSessionData(task: AgentTask & { readonly automation_id?: string |
 		state: task.state,
 		createdAt: task.created_at,
 		updatedAt: task.updated_at,
-		completedAt: task.state === 'completed' || task.state === 'idle' || isFailedTaskState(task.state) ? (task.updated_at ?? task.created_at) : undefined,
+		completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
 		pullArtifact: taskToPullArtifactRef(task),
 		diffRefs: taskToDiffRefs(task, repo),
 		repo,

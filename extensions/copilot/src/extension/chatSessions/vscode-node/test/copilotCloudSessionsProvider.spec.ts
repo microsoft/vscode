@@ -1374,13 +1374,13 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
-	it.each(['idle', 'completed', 'failed', 'timed_out', 'cancelled'] as const)('propagates authoritative settled timing for %s', async state => {
+	it.each([['completed', '2026-04-01T00:00:00Z'], ['idle', undefined], ['failed', undefined], ['timed_out', undefined], ['cancelled', undefined]] as const)('lists and resolves %s with the same completion time', async (state, completedAt) => {
 		const task = { ...makeTask([], state), updated_at: '2026-04-01T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }] };
 		const client = new FakeTaskApiClient({ globalTasks: [task] });
 		vi.spyOn(client, 'getTask').mockResolvedValue(task);
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 		expect({ listed: (await backend.fetchSessionList(undefined, true))[0].completedAt, resolved: (await backend.fetchSession(task.id)).completedAt }).toEqual({
-			listed: task.updated_at, resolved: task.updated_at,
+			listed: completedAt, resolved: completedAt,
 		});
 	});
 
