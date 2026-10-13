@@ -122,5 +122,6 @@ export function testRegistrationGeneration(...registrations: Iterable<IAgentHost
 export async function readTestSessionRegistrations(database: IAgentHostDatabase): Promise<IAgentHostDatabaseSessionRegistrations> {
 	const generation = await database.getRegistrationGeneration();
 	const [current, legacy] = await Promise.all([database.listSessionV2Registrations(), database.listSessions()]);
-	return { generation, current, legacy };
+	// Database fakes keep no normalized chat catalogs.
+	return { generation, current, legacy, normalizedCatalogs: [] };
 }

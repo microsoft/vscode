@@ -536,6 +536,26 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().installPlugin(provider, request);
 	}
 
+	listPluginMarketplaces(provider: string) {
+		return this._getManagementService().listPluginMarketplaces(provider);
+	}
+
+	addPluginMarketplace(provider: string, source: string) {
+		return this._getManagementService().addPluginMarketplace(provider, source);
+	}
+
+	browsePluginMarketplace(provider: string, name: string) {
+		return this._getManagementService().browsePluginMarketplace(provider, name);
+	}
+
+	removePluginMarketplace(provider: string, name: string, force?: boolean) {
+		return this._getManagementService().removePluginMarketplace(provider, name, force);
+	}
+
+	refreshPluginMarketplaces(provider: string, name?: string) {
+		return this._getManagementService().refreshPluginMarketplaces(provider, name);
+	}
+
 	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
 		return this._getManagementService().searchCustomizationMarketplace(provider, session, request);
 	}

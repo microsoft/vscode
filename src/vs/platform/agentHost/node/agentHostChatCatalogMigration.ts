@@ -116,7 +116,7 @@ export async function migrateChatCatalogV2(
 				return {
 					chat: chat.uri,
 					...(isPrivate ? {} : { order: visibleOrder.get(chat.uri) }),
-					storageResource: creationTimeChatStorageResource(session.toString(), chat.uri),
+					storageResource: creationTimeChatStorageResource(session.toString(), chat.uri, defaultChat.uri),
 					...(isPrivate && provenance && provenance.kind !== ChatOriginKind.User ? { parentChat: provenance.chat } : {}),
 					providerData,
 					origin,

@@ -132,6 +132,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			if (!isSessionsWindow) {
 				content.push(localize('chat.sessionStatusPillsCompact', "When space is limited, session status pills collapse to icons one at a time from right to left. Their full labels remain available to screen readers and in tooltips. Labels return as space becomes available. If the icons still do not fit, the row scrolls horizontally; use the arrow keys to reach every pill."));
 				content.push(localize('chat.editorArtifactsPill', "The editor window uses the same compact Artifacts pill as the Agents Window, rather than an expanded list above the input. Generated images appear automatically. In a subagent chat, the Artifacts pill shows that chat's transcript artifacts without the parent session's metadata. A single file pill opens directly; multiple artifacts open a dropdown with a Generated Images section. Use the pill's hover or context menu, or a dropdown row's actions, to save an artifact or copy its path."));
+				content.push(localize('chat.editorCanvasesPill', "In local Copilot agent-host sessions with chat.canvases.enabled turned on, the chat's canvases appear in their own pill in the main window. A single canvas shows its title and opens directly; multiple canvases show a count and open a picker. Activating a canvas focuses its tab beside the chat, or reopens it if it was closed."));
 			}
 			content.push(localize('chat.sessionActivityPills', "Subagents and Customizations are available in both the Agents Window and editor window, and are hidden by default. Enable them from the session status toolbar context menu. Subagents lists the current chat's direct subagents, grouped into in-progress and completed chats. Activate an entry to open its chat to the side. Subagent Options lets you show all subagents or only those in progress, remembered across windows. Customizations lists the agents, skills, instructions, hooks, prompts, MCP servers, and plugins used by the current chat. Activate an entry to reveal it in the Customizations editor."));
 			content.push(getBackgroundShellsPillAccessibilityHelp());
@@ -269,6 +270,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
+	}
+	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
+		content.push(localize('chat.editorCopySessionLink', "For an Agent Host chat editor, open the editor tab context menu and choose Copy Link to copy a session URL that renders as a session link in Markdown. Selecting multiple chat tabs copies one link per line."));
 	}
 	content.push(localize('chat.attachments.pastedText', "Long pasted text, including single-line text, is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.paste.asText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));

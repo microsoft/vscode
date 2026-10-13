@@ -47,6 +47,7 @@ import { ComponentFixtureContext, createEditorServices, createTextModel, defineC
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
+import '../../../../contrib/welcomeGettingStarted/browser/media/gettingStarted.css';
 
 // ============================================================================
 // Fixture editor input
@@ -54,6 +55,7 @@ import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 interface IFixtureEditorInputOptions {
 	readonly typeId?: string;
+	readonly name?: string;
 	readonly dirty?: boolean;
 	readonly capabilities?: EditorInputCapabilities;
 	readonly icon?: ThemeIcon | URI;
@@ -82,7 +84,7 @@ class FixtureEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return basename(this.resource);
+		return this._options.name ?? basename(this.resource);
 	}
 
 	/**
@@ -123,6 +125,7 @@ class FixtureEditorInput extends EditorInput {
 interface IEditorSpec {
 	readonly resource: URI;
 	readonly typeId?: string;
+	readonly name?: string;
 	readonly dirty?: boolean;
 	readonly icon?: ThemeIcon | URI;
 	readonly capabilities?: EditorInputCapabilities;
@@ -292,6 +295,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	for (const [index, spec] of ordered.entries()) {
 		const input = disposableStore.add(new FixtureEditorInput(spec.resource, {
 			typeId: spec.typeId,
+			name: spec.name,
 			dirty: spec.dirty,
 			icon: spec.icon,
 			capabilities: spec.capabilities,
@@ -670,6 +674,19 @@ function createLayoutFixtures() {
 		FileIconsMinimal: defineComponentFixture({
 			fileIconTheme: 'vs-minimal',
 			render: render(true, {}),
+		}),
+		FileIconsModernWelcome: defineComponentFixture({
+			fileIconTheme: 'vscode-modern-icons',
+			render: render(true, {
+				editors: [{
+					resource: URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' }),
+					name: 'Welcome',
+					pinned: true,
+					active: true,
+				}],
+				width: 320,
+			}),
+			expectedVisualDescriptions: ['The Welcome tab displays one full-color product icon without a generic file mask or overlapping artwork.'],
 		}),
 		FileIconsNone: defineComponentFixture({
 			fileIconTheme: 'none',

@@ -44,7 +44,7 @@ suite('MissionControlSdkEventSource', () => {
 		const errors = sinon.spy(log, 'error');
 		instantiation.stub(ILogService, log);
 		const state = store.add(new AgentHostStateManager(log));
-		const summary = { resource: session, provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
+		const summary = { resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
 		if (provisional) {
 			state.createSession(summary, { emitNotification: false });
 		} else {

@@ -535,6 +535,30 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('remembers whether Other Models was expanded when the picker reopens', async () => {
+		const older = model('example-5.5');
+		const newer = model('example-5.6');
+		const result = createPicker({ models: [older, newer], selectedModelId: newer.identifier });
+		const toggleOtherModels = async () => {
+			element(result.popup, '.chat-model-picker-section-toggle').click();
+			await timeout(0);
+		};
+		const initial = listRows(result.popup);
+		await toggleOtherModels();
+		result.picker.hide();
+		reopen(result);
+		const reopenedExpanded = listRows(result.popup);
+		await toggleOtherModels();
+		result.picker.hide();
+		reopen(result);
+		assert.deepStrictEqual({ initial, reopenedExpanded, reopenedCollapsed: listRows(result.popup), selections: result.selections }, {
+			initial: ['example-5.6', 'Other Models'],
+			reopenedExpanded: ['example-5.6', 'Other Models', 'example-5.5'],
+			reopenedCollapsed: ['example-5.6', 'Other Models'],
+			selections: [],
+		});
+	});
+
 	for (const target of ['list', 'search', 'details', 'detailsControl', 'back'] as const) {
 		test(`Escape from ${target} closes the picker in one step`, () => {
 			const { picker, popup, selections } = createPicker({ models: [...models, createAutoModel()] });

@@ -25,6 +25,152 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/ag
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('routes marketplace management through the Agent Host provider', async () => {
+		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listPluginMarketplaces(provider: string) {
+					calls.push({ operation: 'list', args: [provider] });
+					return [{
+						name: 'marketplace',
+						source: 'GitHub: owner/repository',
+						isDefault: false,
+						managed: false,
+						available: true,
+					}];
+				}
+				override async addPluginMarketplace(provider: string, source: string) {
+					calls.push({ operation: 'add', args: [provider, source] });
+					return {
+						name: 'marketplace',
+						source,
+						isDefault: false,
+						managed: false,
+						available: true,
+					};
+				}
+				override async browsePluginMarketplace(provider: string, name: string) {
+					calls.push({ operation: 'browse', args: [provider, name] });
+					return [
+						{ name: 'plugin', description: 'Plugin description' },
+						{ name: 'plugin-next', description: 'Next plugin' },
+					];
+				}
+				override async removePluginMarketplace(provider: string, name: string, force?: boolean) {
+					calls.push({ operation: 'remove', args: [provider, name, force] });
+					return { removed: force === true, dependentPlugins: force ? undefined : ['plugin'] };
+				}
+				override async refreshPluginMarketplaces(provider: string, name?: string) {
+					calls.push({ operation: 'refresh', args: [provider, name] });
+					return [{ name: name ?? 'marketplace', success: true }];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		let changeCount = 0;
+		store.add(provider.onDidChange(() => changeCount++));
+
+		const listed = await provider.list();
+		const added = await provider.add('owner/repository');
+		const page = await provider.queryMarketplace(listed[0], { pageSize: 1 }, CancellationToken.None);
+		const nextPage = await provider.queryMarketplace(listed[0], { pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
+		const refused = await provider.remove('marketplace');
+		const removed = await provider.remove('marketplace', true);
+		const refreshed = await provider.refresh('marketplace');
+
+		assert.deepStrictEqual({
+			listed,
+			added,
+			page,
+			nextPage,
+			refused,
+			removed,
+			refreshed,
+			changeCount,
+			calls,
+		}, {
+			listed: [{
+				name: 'marketplace',
+				source: 'GitHub: owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			}],
+			added: {
+				name: 'marketplace',
+				source: 'owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			},
+			page: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin"]',
+					displayName: 'plugin',
+					description: 'Plugin description',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+						providerManaged: true,
+					},
+				}],
+				total: 2,
+				nextCursor: '1',
+			},
+			nextPage: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin-next"]',
+					displayName: 'plugin-next',
+					description: 'Next plugin',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin-next',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+						providerManaged: true,
+					},
+				}],
+				total: 2,
+				nextCursor: undefined,
+			},
+			refused: { removed: false, dependentPlugins: ['plugin'] },
+			removed: { removed: true, dependentPlugins: undefined },
+			refreshed: [{ name: 'marketplace', success: true }],
+			changeCount: 3,
+			calls: [
+				{ operation: 'list', args: ['copilotcli'] },
+				{ operation: 'add', args: ['copilotcli', 'owner/repository'] },
+				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
+				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
+				{ operation: 'remove', args: ['copilotcli', 'marketplace', undefined] },
+				{ operation: 'remove', args: ['copilotcli', 'marketplace', true] },
+				{ operation: 'refresh', args: ['copilotcli', 'marketplace'] },
+			],
+		});
+	});
+
 	test('uses the host-advertised backend session for SDK inventory', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('vendor-session://opaque-host/backend-session?version=2');

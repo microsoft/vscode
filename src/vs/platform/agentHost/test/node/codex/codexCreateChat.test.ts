@@ -64,7 +64,7 @@ import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwner
 
 /** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function hostChatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString())) };
+	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
@@ -3497,6 +3497,7 @@ suite('CodexAgent exact chat routing', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 		let enabled = true;
 		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({

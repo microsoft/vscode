@@ -14,7 +14,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type 
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../common/agentHostSchema.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
-import { MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -117,6 +117,7 @@ suite('AgentHostUtilityModelService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			defaultChat: buildDefaultChatUri(SESSION),
 		});
 		if (scenario.lastTurnModel) {
 			stateManager.seedDefaultChatTurns(SESSION, [{
