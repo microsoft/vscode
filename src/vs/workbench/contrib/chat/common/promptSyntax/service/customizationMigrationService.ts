@@ -94,7 +94,10 @@ export interface IMcpServerCustomizationMigrationSettingVariable {
 	readonly key: string;
 	/** The environment variable that replaces it. */
 	readonly name: string;
-	/** The setting's value as text, retained to revalidate it before writing. */
+	/**
+	 * The setting's value as text, retained to revalidate it before writing. Empty if the setting is unset,
+	 * not a string or number, or its value contains a variable.
+	 */
 	readonly value: string;
 }
 
@@ -181,7 +184,7 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	UnsupportedVariable = 'unsupportedVariable',
 	/** An input's default cannot be written to the destination, or a `pickString` default is not one of its options. */
 	UnsupportedInputDefault = 'unsupportedInputDefault',
-	/** A `${config:}` setting is unset, is not a string or number, contains a variable, or its value cannot be written to the destination. */
+	/** A `${config:}` reference names no setting, or a setting's value cannot be written in a remote server's `${NAME:-value}` reference. */
 	UnsupportedSettingValue = 'unsupportedSettingValue',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',

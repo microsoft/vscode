@@ -831,21 +831,22 @@ suite('CustomizationMigrationService', () => {
 			source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()).inputs.map((input: { id: string }) => input.id),
 			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			candidates: ['server', 'digit'],
+			// The setting is not set, so it migrates to an empty variable.
+			candidates: ['server', 'digit', 'setting'],
 			exclusions: [
 				['password', 'unsupportedInputType', ['Inputs are migrated to environment variables, except password and command inputs, and inputs that are not fully declared in the \'inputs\' of the same file. Use an environment variable (\'${env:...}\') instead to migrate this server.']],
 				['collision', 'variableNameCollision', ['Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input or use a different setting to migrate this server.']],
 				['default', 'unsupportedInputDefault', ['The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.']],
 				// Its inputs are fine, so the reason names the variable that isn't, not the inputs.
 				['command', 'unsupportedVariable', ['This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable (\'${env:...}\') to migrate this server.']],
-				['setting', 'unsupportedSettingValue', ['Settings (\'${config:...}\') are migrated to environment variables set to their current values, and a setting of this server is not set, is not a string or number, contains a variable, or cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.']],
 			],
-			result: { migratedCount: 2, failures: [] },
+			result: { migratedCount: 3, failures: [] },
 			source: ['token', 'secret', 'api-key', 'level'],
 			target: {
 				mcpServers: {
 					server: { type: 'local', command: 'node', args: [], env: { TOKEN: '' }, tools: ['*'] },
 					digit: { type: 'local', command: 'node', args: ['${MCP_1ST}'], env: { MCP_1ST: '' }, tools: ['*'] },
+					setting: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
 				},
 			},
 		});
@@ -861,8 +862,10 @@ suite('CustomizationMigrationService', () => {
 			local: { command: '${config:mcp.command}', args: ['--level=${input:level}'], env: { PORT: '${config:mcp.port}', TOKEN: '${env:TOKEN}' } },
 			remote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Host': '${config:mcp.host}' } },
 			changed: { command: 'node', args: ['--timeout=${config:mcp.timeout}'] },
+			// These settings have no usable value, so they become empty variables.
 			unset: { command: '${config:mcp.missing}' },
 			structured: { command: 'node', args: ['${config:mcp.options}'] },
+			brace: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${config:mcp.brace}' } },
 			collision: { command: 'node', args: ['${config:api.key}', '${env:API_KEY}'] },
 		};
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
@@ -870,7 +873,7 @@ suite('CustomizationMigrationService', () => {
 			servers,
 		})));
 		const configurationService = store.add(createMigrationConfiguration());
-		for (const [key, value] of Object.entries({ 'mcp.command': 'npx', 'mcp.port': 8080, 'mcp.host': 'localhost', 'mcp.timeout': 30, 'mcp.options': { verbose: true }, 'api.key': 'key' })) {
+		for (const [key, value] of Object.entries({ 'mcp.command': 'npx', 'mcp.port': 8080, 'mcp.host': 'localhost', 'mcp.timeout': 30, 'mcp.options': { verbose: true }, 'api.key': 'key', 'mcp.brace': 'a}b' })) {
 			await configurationService.setUserConfiguration(key, value);
 		}
 		const [workspaceServer] = createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers;
@@ -882,8 +885,8 @@ suite('CustomizationMigrationService', () => {
 				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
 				// User servers are forwarded with their variables unresolved.
 				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
-				projectedConfiguration: name === 'remote'
-					? { type: McpServerType.REMOTE, url: servers.remote.url, headers: servers.remote.headers }
+				projectedConfiguration: name === 'remote' || name === 'brace'
+					? { type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: (server as { headers: Record<string, string> }).headers }
 					: { type: McpServerType.LOCAL, ...server as { command: string } },
 			})),
 			discoveryComplete: true,
@@ -923,18 +926,22 @@ suite('CustomizationMigrationService', () => {
 				]],
 				['remote', [['MCP_HOST', 'localhost']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
 				['changed', [['MCP_TIMEOUT', '30']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
+				['unset', [['MCP_MISSING', '']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
+				['structured', [['MCP_OPTIONS', '']], ['Settings will become environment variables set to their current values. Later changes to the settings won\'t apply.']],
 			],
 			exclusions: [
-				['unset', 'unsupportedSettingValue', ['Settings (\'${config:...}\') are migrated to environment variables set to their current values, and a setting of this server is not set, is not a string or number, contains a variable, or cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.']],
-				['structured', 'unsupportedSettingValue', ['Settings (\'${config:...}\') are migrated to environment variables set to their current values, and a setting of this server is not set, is not a string or number, contains a variable, or cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.']],
+				// The `}` in the value would end the `${NAME:-value}` default early.
+				['brace', 'unsupportedSettingValue', ['Settings (\'${config:...}\') are migrated to environment variables set to their current values, and a setting reference of this server has no setting name, or the value of a setting cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.']],
 				['collision', 'variableNameCollision', ['Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input or use a different setting to migrate this server.']],
 			],
-			result: { migratedCount: 2, failures: [['changed', McpServerCustomizationMigrationFailureReason.SourceChanged]] },
-			source: ['changed', 'unset', 'structured', 'collision'],
+			result: { migratedCount: 4, failures: [['changed', McpServerCustomizationMigrationFailureReason.SourceChanged]] },
+			source: ['changed', 'brace', 'collision'],
 			target: {
 				mcpServers: {
 					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '${MCP_PORT}', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
+					unset: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
+					structured: { type: 'local', command: 'node', args: ['${MCP_OPTIONS}'], env: { MCP_OPTIONS: '' }, tools: ['*'] },
 				},
 			},
 		});

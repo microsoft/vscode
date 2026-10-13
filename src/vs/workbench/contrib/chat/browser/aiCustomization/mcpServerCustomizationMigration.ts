@@ -181,7 +181,7 @@ export class McpServerCustomizationMigrator {
 			}
 			if (!isConfigurationRepresentable(server.projectedConfiguration)
 				|| !isConfigurationRepresentable(analysis.migration)
-				|| Iterable.some(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved(), replacement => !isForwardedUnresolved(replacement, storage, !!analysis.environmentVariables))
+				|| Iterable.some(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved(), replacement => !isForwardedUnresolved(replacement, storage, !!analysis.projectedAsWritten))
 				|| !equals(analysis.projection, canonicalizeConfiguration(server.projectedConfiguration))) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
@@ -809,6 +809,8 @@ interface IMcpServerSourceAnalysis {
 	readonly environmentVariables?: readonly IMcpServerCustomizationMigrationVariable[];
 	/** The settings the server reads from environment variables once migrated, if it references any. */
 	readonly settingVariables?: readonly IMcpServerCustomizationMigrationSettingVariable[];
+	/** Whether the client projects the server as written, with none of its variables resolved. */
+	readonly projectedAsWritten?: boolean;
 }
 
 /**
@@ -817,7 +819,8 @@ interface IMcpServerSourceAnalysis {
  * to `${NAME}`, never to its current value, so the destination reads the variable at server start.
  * `${input:id}` and `${config:key}` are rewritten to an environment variable named after the input or
  * setting. A local server declares it in its `env`, set to the input's default, or empty, or to the
- * setting's current value; a remote server, which has no `env`, writes that value in the reference instead.
+ * setting's current value, or empty if it has none; a remote server, which has no `env`, writes that value
+ * in the reference instead.
  */
 async function analyzeSourceConfiguration(
 	rawConfiguration: unknown,
@@ -869,17 +872,17 @@ async function analyzeSourceConfiguration(
 	if (!withEnvironmentVariables) {
 		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 	}
-	const migration = rewriteEnvironmentVariables(withEnvironmentVariables, variables, settings);
+	const migration = rewriteEnvironmentVariables(withEnvironmentVariables, variables, settings.variables);
 	if (typeof migration === 'string') {
 		return migration;
 	}
 	if (hasEnvironmentVariables && await hasVariablesInEnvironmentValues(configuration, folder, configurationResolverService)) {
 		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 	}
-	const settingVariables = settings.length > 0 ? { settingVariables: settings } : {};
-	if (variables.length > 0) {
-		// The client stops at the first input, before resolving any variable, and projects the server as written.
-		return { projection: configuration, migration, environmentVariables: variables, ...settingVariables };
+	const settingVariables = settings.variables.length > 0 ? { settingVariables: settings.variables } : {};
+	if (variables.length > 0 || !settings.resolvable) {
+		// The client stops at the first input, or fails on a setting it can't resolve, and projects the server as written.
+		return { projection: configuration, migration, ...(variables.length > 0 ? { environmentVariables: variables } : {}), ...settingVariables, projectedAsWritten: true };
 	}
 	// The client resolves the variables of `.vscode/mcp.json` servers before forwarding them, including
 	// settings, but forwards user servers as written.
@@ -890,41 +893,36 @@ async function analyzeSourceConfiguration(
 }
 
 /**
- * Reads the current value of each setting that a server references, with the resolver and the folder
- * that VS Code resolves the server's variables with, so it is the value VS Code substitutes today. Only
- * a string or a number is migrated: the resolver turns other values, such as booleans and arrays, into
- * text that VS Code never intended as a value, and fails on an unset or structured setting. A value
- * containing a variable is not migrated either, since VS Code resolves it while the destination would not.
+ * Reads the current value of each setting that a server references, in the scope of the folder that
+ * VS Code resolves the server's variables in, so it is the value VS Code substitutes today. Only a
+ * string or a number is carried over. Any other setting, whether unset, structured or a boolean, becomes
+ * an empty variable, as does a value containing a variable, which VS Code resolves while the destination
+ * would not. `resolvable` is whether VS Code can resolve every setting, which it can't when one is unset
+ * or structured.
  */
 async function getSettingVariables(
 	settingKeys: ReadonlySet<string>,
 	sourceFile: IMcpSourceFile,
 	folder: IWorkspaceFolderData | undefined,
 	services: IMcpServerVariableServices,
-): Promise<IMcpServerCustomizationMigrationSettingVariable[] | McpServerCustomizationMigrationFailureReason> {
+): Promise<{ readonly variables: IMcpServerCustomizationMigrationSettingVariable[]; readonly resolvable: boolean } | McpServerCustomizationMigrationFailureReason> {
 	const names = getMigratedSettingNames(settingKeys, sourceFile);
 	if (typeof names === 'string') {
 		return names;
 	}
-	const settings: IMcpServerCustomizationMigrationSettingVariable[] = [];
+	const variables: IMcpServerCustomizationMigrationSettingVariable[] = [];
+	let resolvable = true;
 	for (const { key, name } of names) {
-		const rawValue = services.configurationService.getValue<unknown>(key, folder ? { resource: folder.uri } : {});
-		if (typeof rawValue !== 'string' && typeof rawValue !== 'number') {
-			return McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue;
-		}
-		const value = String(rawValue);
-		let resolved: string;
 		try {
-			resolved = await services.configurationResolverService.resolveAsync(folder, `\${config:${key}}`);
+			await services.configurationResolverService.resolveAsync(folder, `\${config:${key}}`);
 		} catch {
-			return McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue;
+			resolvable = false;
 		}
-		if (resolved !== value || hasConfigurationVariable(value)) {
-			return McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue;
-		}
-		settings.push({ key, name, value });
+		const rawValue = services.configurationService.getValue<unknown>(key, folder ? { resource: folder.uri } : {});
+		const value = typeof rawValue === 'string' || typeof rawValue === 'number' ? String(rawValue) : '';
+		variables.push({ key, name, value: hasConfigurationVariable(value) || hasEnvVarReferences(value) ? '' : value });
 	}
-	return settings;
+	return { variables, resolvable };
 }
 
 function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IMcpServerCustomizationMigrationCandidate): boolean {
@@ -935,12 +933,13 @@ function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IM
 }
 
 /**
- * Whether a variable may remain in a projected configuration. A server with `${input:}` is projected as
- * written, so its `${input:}`, `${env:}`, `${config:}` and portable variables remain. Otherwise, only user
- * servers are forwarded unresolved, and only their `${env:}` and `${config:}` are migrated.
+ * Whether a variable may remain in a projected configuration. A server with `${input:}`, or with a setting
+ * the client can't resolve, is projected as written, so its `${input:}`, `${env:}`, `${config:}` and
+ * portable variables remain. Otherwise, only user servers are forwarded unresolved, and only their
+ * `${env:}` and `${config:}` are migrated.
  */
-function isForwardedUnresolved(replacement: Replacement, storage: PromptsStorage.local | PromptsStorage.user, hasInputs: boolean): boolean {
-	if (hasInputs) {
+function isForwardedUnresolved(replacement: Replacement, storage: PromptsStorage.local | PromptsStorage.user, projectedAsWritten: boolean): boolean {
+	if (projectedAsWritten) {
 		return replacement.name === 'input' || replacement.name === 'env' || replacement.name === 'config' || isPortableMigrationVariable(replacement.name, replacement.arg);
 	}
 	return storage === PromptsStorage.user && (replacement.name === 'env' || replacement.name === 'config');
@@ -970,6 +969,12 @@ async function hasVariablesInEnvironmentValues(
 	configurationResolverService: IConfigurationResolverService,
 ): Promise<boolean> {
 	const expression = ConfigurationResolverExpression.parse(configuration);
+	// Settings are migrated separately, and one that VS Code can't resolve must not hide the environment variables.
+	for (const replacement of expression.unresolved()) {
+		if (replacement.name === 'config') {
+			expression.resolve(replacement, '');
+		}
+	}
 	try {
 		await configurationResolverService.resolveAsync(folder, expression);
 	} catch {
@@ -1063,7 +1068,7 @@ function rewriteEnvironmentVariables(
 					return variable.id;
 				}
 				rewritten = true;
-				return declaresVariables
+				return declaresVariables || setting.value === ''
 					? `\${${setting.name}}`
 					: withDefault(offset, setting.name, setting.value, McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue);
 			}

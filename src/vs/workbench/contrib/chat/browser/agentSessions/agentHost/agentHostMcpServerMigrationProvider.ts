@@ -275,7 +275,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			case McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault:
 				return [localize('mcpMigrationServerUnsupportedInputDefault', "The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue:
-				return [localize('mcpMigrationServerUnsupportedSettingValue', "Settings ('${config:...}') are migrated to environment variables set to their current values, and a setting of this server is not set, is not a string or number, contains a variable, or cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.")];
+				return [localize('mcpMigrationServerUnsupportedSettingValue', "Settings ('${config:...}') are migrated to environment variables set to their current values, and a setting reference of this server has no setting name, or the value of a setting cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.")];
 		}
 		// For a server the planner analyzed, its compatibility and delivery are not why it was excluded.
 		const analyzed = server !== undefined && isMcpServerMigrationDeliverable(server);
