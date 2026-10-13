@@ -1216,6 +1216,11 @@ class AutomationRunSession implements ISession {
 		const run = this.progress.read(reader);
 		return new Date(run.updatedAt ?? run.completedAt ?? this.session.updatedAt.read(reader).getTime());
 	});
+	/** Outcome shown for a completed run, such as a cancellation. */
+	readonly completedStatusMessage = derived(this, reader => {
+		const run = this.progress.read(reader);
+		return run.status === 'completed' ? run.statusDescription : undefined;
+	});
 
 	constructor(readonly session: ISession, run: IAutomationRun, private readonly chatModels: IObservable<readonly IChatModel[]>) {
 		this.run = observableValue(this, run);
@@ -1493,6 +1498,7 @@ class AutomationHistorySection extends Disposable {
 			onToolbarAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
 			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
 			showMetadataWhileActive: session => runsBySession.get(session.resource.toString())?.externalResource !== undefined,
+			getCompletedStatusMessage: (session, reader) => session instanceof AutomationRunSession ? session.completedStatusMessage.read(reader) : undefined,
 			getAdditionalContextKeys: (session, reader) => {
 				const run = this.currentRuns.read(reader).find(run => isEqual(run.sessionResource, session.resource));
 				return [
@@ -1692,7 +1698,7 @@ class AutomationHistorySection extends Disposable {
 							: run.status === 'completed' ? localize('automationRunCloudCompleted', "Completed on GitHub")
 								: localize('automationRunCloudFailed', "Failed on GitHub: {0}", run.errorMessage ?? ''))
 					: localize('automationRunWorking', "Working...");
-				description.textContent = run.externalResource && run.status === 'completed' ? '' : label;
+				description.textContent = run.externalResource && run.status === 'completed' && !run.statusDescription ? '' : label;
 				statusSeparator?.classList.toggle('has-separator', !!description.textContent);
 				timeDate = new Date(run.updatedAt ?? run.completedAt ?? run.startedAt);
 				let details = label;

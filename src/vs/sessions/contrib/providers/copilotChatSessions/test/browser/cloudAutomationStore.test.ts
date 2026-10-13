@@ -694,10 +694,10 @@ suite('CloudAutomationStore', () => {
 		api.tasks = (['cancelled', 'failed', 'timed_out'] as const).map(state => ({ id: state, state, created_at: definition.created_at, updated_at: '2026-01-02T00:00:00Z', remote_steerable: false }));
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
-		assert.deepStrictEqual(provider.runs.get().map(run => ({ status: run.status, completedAt: run.completedAt, errorMessage: run.errorMessage })), [
-			{ status: 'completed', completedAt: '2026-01-02T00:00:00Z', errorMessage: undefined },
-			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'failed' },
-			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'timed_out' },
+		assert.deepStrictEqual(provider.runs.get().map(run => ({ status: run.status, completedAt: run.completedAt, errorMessage: run.errorMessage, statusDescription: run.statusDescription })), [
+			{ status: 'completed', completedAt: '2026-01-02T00:00:00Z', errorMessage: undefined, statusDescription: 'Cancelled' },
+			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'failed', statusDescription: undefined },
+			{ status: 'failed', completedAt: '2026-01-02T00:00:00Z', errorMessage: 'timed_out', statusDescription: undefined },
 		]);
 	});
 

@@ -754,6 +754,29 @@ suite('AutomationsCardsWidget', () => {
 		}, { opened: [external.externalResource!.toString()], stopped: [external.id], localCancels: 0, archived: [sessionsManagementService.session.sessionId] });
 	});
 
+	test('cancelled cloud runs show Cancelled before the time in native and fallback rows', async () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const externalResource = URI.parse('https://github.com/owner/private/tasks/exact');
+		const cancelled = run({ status: 'completed', statusDescription: 'Cancelled', externalResource });
+		const fallback = run({ id: 'fallback', status: 'completed', statusDescription: 'Cancelled', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/fallback') });
+		const describe = (row: Element | null) => ({
+			details: [...row?.querySelectorAll('.session-details-row > span') ?? []].map(element => element.textContent).filter(Boolean),
+			cancelledInLabel: !!row?.getAttribute('aria-label')?.includes('Cancelled'),
+		});
+		const nativeRow = () => widget.element.querySelector('.automations-run-session-list .monaco-list-row');
+		automationService.setRuns([cancelled, fallback]);
+		await waitForSessionActions();
+		const cancelledRows = { native: describe(nativeRow()), fallback: describe(widget.element.querySelector('.automations-temporary-run')) };
+		automationService.setRuns([{ ...cancelled, statusDescription: undefined }]);
+		await waitForSessionActions();
+		assert.deepStrictEqual({ ...cancelledRows, completedNative: describe(nativeRow()) }, {
+			native: { details: ['workspace', 'Cancelled', 'now'], cancelledInLabel: true },
+			fallback: { details: ['owner/private', 'Cancelled', 'now'], cancelledInLabel: true },
+			completedNative: { details: ['workspace', 'now'], cancelledInLabel: false },
+		});
+	});
+
 	test('cloud Done actions stay disabled until both projected and backing conversation states are terminal', async () => {
 		const { widget, automationService, sessionsManagementService, contextMenuService } = setup('done');
 		automationService.setAutomations([automation()]);

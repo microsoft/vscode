@@ -1322,6 +1322,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
+			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
 			externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
@@ -1791,7 +1792,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(badgeEl);
 			}
 
-			const statusMessage = getSessionStatusMessage(sessionStatus, description);
+			const statusMessage = getSessionStatusMessage(sessionStatus, description)
+				?? (sessionStatus === SessionStatus.Completed ? this.options.getCompletedStatusMessage?.(element, reader) : undefined);
 			if (sessionStatus !== SessionStatus.InProgress || !hideDetails) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -2885,6 +2887,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
 	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
+	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -3019,6 +3022,10 @@ class SessionsAccessibilityProvider {
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			const completedStatusMessage = status === SessionStatus.Completed ? this.options?.getCompletedStatusMessage?.(element, reader) : undefined;
+			if (completedStatusMessage) {
+				label = localize('sessionItemCompletedStatusAria', "{0}, {1}", label, completedStatusMessage);
 			}
 			const eligible = isExternalApplicationBadgeEligible(element, reader);
 			if (eligible) {
@@ -6646,6 +6653,8 @@ export interface ISessionsFlatListOptions {
 	readonly getAdditionalContextKeys?: SessionContextKeyProvider;
 	/** Keeps repository and time visible alongside progress in history views. */
 	readonly showMetadataWhileActive?: (session: ISession) => boolean;
+	/** Short outcome shown before the time of a completed row, such as "Cancelled". */
+	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
 	readonly markSessionReadOnOpen?: boolean;
 	/**
@@ -6743,6 +6752,7 @@ export class SessionsFlatList extends Disposable {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 				showMetadataWhileActive: this.options.showMetadataWhileActive,
+				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -6778,6 +6788,7 @@ export class SessionsFlatList extends Disposable {
 					reportExternalApplicationBadgeModeExperimentTrigger,
 					reportExternalApplicationBadgeShowFromExperimentTrigger,
 					showMetadataWhileActive: this.options.showMetadataWhileActive,
+					getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
