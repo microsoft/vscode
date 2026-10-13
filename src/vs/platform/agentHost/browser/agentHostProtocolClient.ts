@@ -2083,7 +2083,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (value.defaultChat !== undefined) {
 			return value;
 		}
-		const defaultChat = getOlderHostDefaultChat(session, this._initializeResult.get());
+		const root = this.rootState.value;
+		const defaultChat = getOlderHostDefaultChat(session, this._initializeResult.get(), root instanceof Error ? undefined : root);
 		return defaultChat === undefined ? value : { ...value, defaultChat };
 	}
 

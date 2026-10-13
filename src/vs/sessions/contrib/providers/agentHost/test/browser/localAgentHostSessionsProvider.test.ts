@@ -1830,6 +1830,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('creation reference follows the creator\'s default chat once the creator becomes known', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-late'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-late')!;
+		const observed: (string | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(session.createdBySession?.read(reader)?.chat?.toString())));
+
+		fireSessionMetaChanged(agentHost, 'created-late', withSessionCreationReference(undefined, {
+			session: 'claude:/late-creator',
+			chat: buildDefaultChatUri('claude:/late-creator'),
+			turnId: 'turn-1',
+		}));
+		// The creator is announced after the reference was first read: its default chat is now known.
+		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
+
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#default', 'agent-host-claude:/late-creator']);
+	}));
+
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('remote-created'));
 		const provider = createProvider(disposables, agentHost);
@@ -4137,6 +4157,100 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resolved: 1,
 			verbatim: undefined,
 		});
+	});
+
+	test('NewSession subscribes to its default chat once the created state advertises it', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+		activeSession.set(new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}(), undefined);
+		let ids: readonly string[] | undefined;
+		disposables.add(autorun(reader => ids = session.mainChat.read(reader).changesets.read(reader)?.map(changeset => changeset.id)));
+
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		// The created session's default chat is not default-shaped, and its state arrives after creation.
+		const defaultChat = buildChatUri(backendUri, 'main');
+		agentHost.setChatState(defaultChat, {
+			resource: defaultChat,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [],
+			changesets: [{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: 'uncommitted' }],
+		});
+		const beforeState = { subscriptions: agentHost.sessionSubscribeCounts.get(defaultChat), ids };
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date().toISOString() }],
+		});
+
+		assert.deepStrictEqual({ beforeState, afterState: { subscriptions: agentHost.sessionSubscribeCounts.get(defaultChat), ids } }, {
+			beforeState: { subscriptions: undefined, ids: undefined },
+			afterState: { subscriptions: 1, ids: ['uncommitted'] },
+		});
+	});
+
+	test('a NewSession disposed before its state advertises a default chat never subscribes to it', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const draft = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		await timeout(0);
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		const defaultChat = buildChatUri(backendUri, 'main');
+
+		provider.deleteNewSession(draft.sessionId);
+		await timeout(0);
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [],
+		});
+
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(defaultChat), undefined);
+	});
+
+	test('a NewSession that graduates before its state advertises a default chat does not subscribe to it afterwards', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async resource => {
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Graduated Session' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const draft = provider.createNewSession(URI.parse('file:///home/user/graduating'), sessionTypeId);
+		await timeout(0);
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		const defaultChat = buildChatUri(backendUri, 'main');
+		const chat = await provider.createNewChat(draft.sessionId);
+		await provider.sendRequest(draft.sessionId, chat.resource, { query: 'hello' });
+
+		const before = agentHost.wireOps.filter(op => op === `subscribe:${defaultChat}`).length;
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [],
+		});
+
+		// The graduated draft's watch is gone, so the state does not open its draft-time chat subscription.
+		assert.deepStrictEqual({ before, after: agentHost.wireOps.filter(op => op === `subscribe:${defaultChat}`).length }, { before: 0, after: 0 });
 	});
 
 	test('NewSession dispose clears _lastSessionStates entry and fires onDidChangeCustomAgents', async () => {
@@ -11634,6 +11748,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session);
 		assert.strictEqual(session!.workspace.get(), undefined);
 	}));
+
+	for (const advertisesDefault of [true, false]) {
+		test(`the main chat's changesets come from the advertised default chat only, never the first chat (${advertisesDefault})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.advertisesMintedDefaultChat = false;
+			agentHost.addSession(createSession('first-chat-changesets', { summary: 'First Chat', workingDirectory: URI.file('/repo') }));
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => candidate.title.get() === 'First Chat');
+			assert.ok(session);
+			activeSession.set(session as IActiveSession, undefined);
+
+			const firstChat = buildChatUri(AgentSession.uri('copilotcli', 'first-chat-changesets'), 'first');
+			agentHost.setChatState(firstChat, {
+				resource: firstChat,
+				title: 'First',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				changesets: [{ label: 'Branch Changes', uriTemplate: `${firstChat}/changeset/branch`, changeKind: 'branch' }],
+				turns: [],
+			});
+			agentHost.setSessionState('first-chat-changesets', 'copilotcli', {
+				provider: 'copilotcli',
+				title: 'First Chat',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				...(advertisesDefault ? { defaultChat: firstChat } : {}),
+				chats: [{ resource: firstChat, title: 'First', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+			});
+
+			let ids: readonly string[] | undefined;
+			disposables.add(autorun(reader => ids = session.mainChat.read(reader).changesets.read(reader)?.map(changeset => changeset.id)));
+			assert.deepStrictEqual(ids, advertisesDefault ? ['branch'] : undefined);
+		}));
+	}
 
 	test('Last Turn Changes keeps live chat edits until the host changeset updates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workingDirectory = URI.file('/repo');

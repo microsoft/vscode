@@ -307,7 +307,7 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
 	/** Default chat -> owning session, cached only for chats a host has listed. */
 	private readonly _defaultChatOwners = new LRUCache<string, string>(1024);
-	/** Chats no session advertises as its default chat, so their usage is not recorded. */
+	/** Chats a held or listed session names as one of its non-default chats, so their usage is not recorded. */
 	private readonly _nonDefaultChats = new LRUCache<string, true>(1024);
 	/** Per-host queue keeping that host's records in arrival order while owners resolve. */
 	private readonly _recordingByHost = new Map<IAgentHostSessionCatalog, Promise<void>>();
@@ -349,12 +349,14 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		const previous = this._recordingByHost.get(catalog) ?? Promise.resolve();
 		const next = previous.then(async () => {
 			// Re-checked when the step runs, so a burst waits for one lookup.
+			if (this._nonDefaultChats.get(chat)) {
+				return;
+			}
 			const session = this._defaultChatOwners.get(chat) ?? await this._resolveDefaultChatOwner(catalog, chat);
 			// The default chat's owner is a `copilotcli:/<rawId>` session;
 			// `getCopilotCliSessionRawId` yields the same raw id the reader derives
 			// from the client session resource.
 			if (session === undefined) {
-				this._nonDefaultChats.set(chat, true);
 				return;
 			}
 			const rawId = getCopilotCliSessionRawId(URI.parse(session));
@@ -383,20 +385,31 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		await Promise.all(this._recordingByHost.values());
 	}
 
-	/** Finds the session whose default chat this is: held session state first, then the host's session records. */
+	/**
+	 * Finds the session whose default chat this is: held session state first,
+	 * then the host's session records. Remembers a chat that a session names as
+	 * a non-default chat. A chat no session names yet, or a lookup that fails,
+	 * is not remembered, so a later action looks it up again.
+	 */
 	private async _resolveDefaultChatOwner(catalog: IAgentHostSessionCatalog, chat: string): Promise<string | undefined> {
-		let session = findChatOwnerInSubscribedState(catalog, chat, true)?.session;
-		if (session === undefined) {
+		let owner = findChatOwnerInSubscribedState(catalog, chat);
+		if (owner === undefined) {
 			try {
-				session = (await findChatOwnerInSessionRecords(catalog, chat, true))?.session;
+				owner = await findChatOwnerInSessionRecords(catalog, chat);
 			} catch (err) {
 				this._logService.trace(`[${this.constructor.name}] failed to read session records: ${toErrorMessage(err)}`);
 			}
 		}
-		if (session !== undefined) {
-			this._defaultChatOwners.set(chat, session);
+		if (owner === undefined) {
+			return undefined;
 		}
-		return session;
+		if (!owner.isDefaultChat) {
+			this._nonDefaultChats.set(chat, true);
+			return undefined;
+		}
+		this._nonDefaultChats.delete(chat);
+		this._defaultChatOwners.set(chat, owner.session);
+		return owner.session;
 	}
 
 	/**

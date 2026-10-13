@@ -965,6 +965,55 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('projects session folder changes only onto the advertised default chat, never onto the first chat', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const firstChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'first'));
+		const legacyCatalogue: readonly Changeset[] = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' },
+			{ label: 'Last Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'changeset/turn/{turnId}' },
+		];
+		const firstChat = { resource: firstChatUri.toString(), title: 'First', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const project = (defaultChat: string | undefined) => {
+			const sessionSubscription = createMutableSubscription({
+				...(defaultChat !== undefined ? { defaultChat } : {}),
+				chats: [firstChat],
+				changesets: legacyCatalogue,
+			} as unknown as SessionState);
+			const chatSubscription = createMutableSubscription(createChatState(firstChat));
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
+					const subscription = component === StateComponents.Session ? sessionSubscription : chatSubscription;
+					return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const projected = createChatChangesets(sessionUri, constObservable(firstChatUri), {
+				environment: 'local',
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: () => defaultChat,
+			}, constObservable(true));
+			let ids: readonly string[] | undefined;
+			disposables.add(autorun(reader => ids = projected.read(reader)?.map(changeset => changeset.id)));
+			return ids;
+		};
+
+		assert.deepStrictEqual({
+			advertisedDefault: project(firstChatUri.toString()),
+			noAdvertisedDefault: project(undefined),
+		}, {
+			advertisedDefault: ['branch', 'session', 'turn'],
+			noAdvertisedDefault: ['session', 'turn'],
+		});
+	});
+
 	test('subscribes Last Turn Changes directly to the owning chat while live edits are provided', () => {
 		const chatUri = URI.parse('ahp-chat://peer/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {

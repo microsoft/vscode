@@ -1003,19 +1003,6 @@ export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefin
 	return chat?.activeTurn;
 }
 
-/**
- * Resolves the default chat's catalog summary from a session, if present.
- */
-export function getDefaultChat(session: SessionState): ChatSummary | undefined {
-	if (session.defaultChat !== undefined) {
-		const match = session.chats.find(c => c.resource === session.defaultChat);
-		if (match) {
-			return match;
-		}
-	}
-	return session.chats[0];
-}
-
 // ---- SessionMeta accessors -------------------------------------------------
 
 /**

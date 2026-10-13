@@ -6352,6 +6352,51 @@ suite('AgentHostProtocolClient', () => {
 				});
 			});
 
+			async function listedDefaultKinds(client: AgentHostProtocolClient, transport: TestProtocolTransport, index: number) {
+				const listing = client.listSessions();
+				const request = await waitForRequestAt(transport, 'listSessions', index);
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [summary(undefined)] } });
+				return (await listing)[0].chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind }));
+			}
+			const olderRootState = { agents: [], activeSessions: 0, _meta: { hostBuild: { version: '1.100.0' } } };
+
+			test('a host identified only by its root state build gets the legacy default chat', async () => {
+				const transport = disposables.add(new TestProtocolTransport());
+				const { client } = createClient(transport);
+				const connecting = client.connect();
+				const initialize = await waitForRequest(transport, 'initialize');
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: olderRootState }] },
+				});
+				await connecting;
+				assert.deepStrictEqual(await listedDefaultKinds(client, transport, 0), [{ chat: legacyDefault, kind: 'default' }, { chat: peer, kind: 'peer' }]);
+			});
+
+			test('a relay host identified by the root state it sends after authentication gets the legacy default chat', async () => {
+				const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
+				const { client } = createClient(transport);
+				const connecting = client.connect();
+				const initialize = await waitForRequest(transport, 'initialize');
+				// The relay's handshake root is minimal; the host build arrives with the root it re-reads after authentication.
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], activeSessions: 0 } }] },
+				});
+				await connecting;
+				const beforeAuthentication = await listedDefaultKinds(client, transport, 0);
+				const authenticated = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' });
+				const authentication = await waitForRequest(transport, 'authenticate');
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequest(transport, 'subscribe');
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 2, state: olderRootState } } });
+				await authenticated;
+				assert.deepStrictEqual({ beforeAuthentication, afterAuthentication: await listedDefaultKinds(client, transport, 1) }, {
+					beforeAuthentication: [{ chat: legacyDefault, kind: 'peer' }, { chat: peer, kind: 'peer' }],
+					afterAuthentication: [{ chat: legacyDefault, kind: 'default' }, { chat: peer, kind: 'peer' }],
+				});
+			});
+
 			test('a session-added notification gets the legacy default chat without changing the host payload', async () => {
 				const results = [];
 				for (const [meta, advertised] of [[olderVSCodeHost, undefined], [olderVSCodeHost, peer], [{}, undefined]] as const) {

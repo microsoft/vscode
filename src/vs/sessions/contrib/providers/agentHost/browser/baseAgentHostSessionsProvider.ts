@@ -865,7 +865,7 @@ export interface IAgentHostAdapterOptions {
 	 * The advertised default chat of a backend session of this host, from the
 	 * session state or listing this client holds; `undefined` when neither is known.
 	 */
-	readonly getBackendDefaultChat: (backendSession: URI) => string | undefined;
+	readonly getBackendDefaultChat: (backendSession: URI, reader: IReader | undefined) => string | undefined;
 	/** `Changeset.changeKind` the Changes view selects by default. Defaults to `branch`. */
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 	/** Connection state from the backing remote provider, when there is one. */
@@ -1347,6 +1347,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _defaultChatIsReadOverride = observableValue<boolean | undefined>('defaultChatIsReadOverride', undefined);
 	private readonly _defaultChatBackendUri = observableValue<URI | undefined>(this, undefined);
+	/** The backend URI of the session's default chat, once its catalog or listing names one. */
+	readonly defaultChatBackendUri: IObservable<URI | undefined> = this._defaultChatBackendUri;
 	private readonly _defaultChatUpdatedAt: ISettableObservable<Date | undefined>;
 	private readonly _hasMultipleChats: ISettableObservable<boolean>;
 	private readonly _aggregateChatResources = new ResourceSet();
@@ -1522,7 +1524,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
-		this.createdBySession = derived(this, reader => {
+		// Re-evaluates when any session's state changes; equal references do not notify observers.
+		this.createdBySession = derivedOpts<ISessionCreationReference | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a === b || (!!a && !!b && isEqual(a.session, b.session) && isEqual(a.chat, b.chat) && a.turnId === b.turnId),
+		}, reader => {
 			const meta = this._metaObs.read(reader);
 			const creationReference = readSessionCreationReference(meta);
 			const remoteOrigin = readRemoteSessionOrigin({ _meta: meta });
@@ -1533,7 +1539,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return undefined;
 			}
 			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
-			const sourceDefaultChat = this._options.getBackendDefaultChat(URI.parse(creationReference.session));
+			const sourceDefaultChat = this._options.getBackendDefaultChat(URI.parse(creationReference.session), reader);
 			const parsedChat = creationReference.chat ? parseChatUri(creationReference.chat) : undefined;
 			const chat = creationReference.chat !== undefined && creationReference.chat === sourceDefaultChat
 				? session
@@ -1644,7 +1650,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		);
 		const defaultChatUriObs = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const state = sessionStateObs.read(reader).read(reader);
-			const resource = state && !(state instanceof Error) ? state.defaultChat ?? state.chats[0]?.resource : undefined;
+			const resource = state && !(state instanceof Error) ? state.defaultChat : undefined;
 			return resource ? URI.parse(resource) : undefined;
 		});
 		const defaultChatChangesets = createChatChangesets(
@@ -3986,6 +3992,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `customizations` and `activeClient.customizations` for the picker.
 	 */
 	protected readonly _lastSessionStates = new Map<string, SessionState>();
+	/** Fires when {@link _lastSessionStates} or {@link _sessionCache} changes, for readers of a backend session's default chat. */
+	private readonly _backendSessionsChanged = observableSignal(this);
 
 	/** Cache of adapted sessions, keyed by exact backend resource. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
@@ -4241,6 +4249,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				cached.dispose();
 			}
 			this._sessionCache.clear();
+			this._backendSessionsChanged.trigger(undefined);
 			this._sessionKeysByResource.clear();
 		}));
 
@@ -4336,10 +4345,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * The advertised default chat of a backend session: from its session state,
 	 * else from its listing, both received through the protocol client.
 	 */
-	private _backendDefaultChat(backendSession: URI): string | undefined {
+	private _backendDefaultChat(backendSession: URI, reader: IReader | undefined): string | undefined {
+		this._backendSessionsChanged.read(reader);
 		const cached = this._sessionCache.get(backendSession.toString());
 		return this._lastSessionStates.get(toSessionId(this.id, this._mapBackendSessionResource(backendSession)))?.defaultChat
-			?? cached?.getBackendChatResource(cached.resource)?.toString();
+			?? cached?.defaultChatBackendUri.read(reader)?.toString();
 	}
 
 	private _mapBackendSessionResource(resource: URI): URI {
@@ -4379,7 +4389,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
-			getBackendDefaultChat: backendSession => this._backendDefaultChat(backendSession),
+			getBackendDefaultChat: (backendSession, reader) => this._backendDefaultChat(backendSession, reader),
 			connectionStatus: this.remoteConnectionStatus,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
@@ -4986,7 +4996,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				getBackendChatResource: chat => this.getBackendChatResource(chat),
 				agentCapabilities: this._agentCapabilities,
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
-				getBackendDefaultChat: backendSession => this._backendDefaultChat(backendSession),
+				getBackendDefaultChat: (backendSession, reader) => this._backendDefaultChat(backendSession, reader),
 				connectionStatus: this.remoteConnectionStatus,
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);
@@ -6218,7 +6228,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getSessionContextReference(chatResource: URI): string | undefined {
 		const backendResource = this.getBackendChatResource(chatResource);
 		const owner = this._getBackendSessionUri(toSessionId(this.id, chatResource.with({ fragment: '' })));
-		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource, this._backendDefaultChat(owner)) : undefined;
+		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource, this._backendDefaultChat(owner, undefined)) : undefined;
 	}
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
@@ -6606,7 +6616,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection) {
 			return;
 		}
-		const advertisedDefaultChat = !chatId ? this._backendDefaultChat(cached.backendUri) : undefined;
+		const advertisedDefaultChat = !chatId ? this._backendDefaultChat(cached.backendUri, undefined) : undefined;
 		const backendChat = this.getBackendChatResource(chatUri)
 			?? (advertisedDefaultChat !== undefined ? URI.parse(advertisedDefaultChat) : undefined);
 		if (!backendChat) {
@@ -6875,7 +6885,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return advertised;
 		}
 		const state = this._lastSessionStates.get(sessionId);
-		const defaultChat = this._backendDefaultChat(sessionUri);
+		const defaultChat = this._backendDefaultChat(sessionUri, undefined);
 		const backendResource = state && getSessionChatResource(state, sourceChat.fragment || DEFAULT_CHAT_ID, defaultChat);
 		if (backendResource) {
 			return URI.parse(backendResource);
@@ -7484,7 +7494,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * otherwise when the session state, which may not be hydrated yet, advertises one.
 	 */
 	private _whenBackendDefaultChat(sessionUri: URI, session: IAgentSubscription<SessionState>, store: DisposableStore, callback: (defaultChat: string) => void): void {
-		const known = this._backendDefaultChat(sessionUri);
+		const known = this._backendDefaultChat(sessionUri, undefined);
 		if (known !== undefined) {
 			callback(known);
 			return;
@@ -7591,6 +7601,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
 		const previousAgentMergeSettings = agentMergeSettings();
 		this._lastSessionStates.set(sessionId, state);
+		this._backendSessionsChanged.trigger(undefined);
 		this._updateAgentMergeFolders(sessionId, state);
 		const agentMergeSettingsChanged = !structuralEquals(previousAgentMergeSettings, agentMergeSettings());
 		// Only fire when the inputs to `getCustomAgents` actually change.
@@ -7665,6 +7676,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
+		this._backendSessionsChanged.trigger(undefined);
 		const newSession = this._newSessions.get(sessionId);
 		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
@@ -7726,6 +7738,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _handleNewSessionStateGone(sessionId: string): void {
 		if (this._lastSessionStates.delete(sessionId)) {
+			this._backendSessionsChanged.trigger(undefined);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
@@ -7887,6 +7900,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				cached.setMeta(cached.sessionMeta);
 			}
 			this._sessionCache.set(rawId, cached);
+			this._backendSessionsChanged.trigger(undefined);
 		}
 	}
 
@@ -8008,6 +8022,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						continue;
 					}
 					this._sessionCache.set(rawId, cached);
+					this._backendSessionsChanged.trigger(undefined);
 					added.push(cached);
 				}
 			}
@@ -8044,6 +8059,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						continue;
 					}
 					this._sessionCache.delete(key);
+					this._backendSessionsChanged.trigger(undefined);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
 					this._runningModelConfigurations.deleteAndDispose(cached.sessionId);
@@ -8242,6 +8258,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
+		this._backendSessionsChanged.trigger(undefined);
 		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
 		this._syncActiveClient();
 	}
@@ -8272,6 +8289,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		if (cached) {
 			this._sessionCache.delete(rawId);
+			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
@@ -8285,6 +8303,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
 		this._agentMergeFolders.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
+		this._backendSessionsChanged.trigger(undefined);
 		return cached;
 	}
 

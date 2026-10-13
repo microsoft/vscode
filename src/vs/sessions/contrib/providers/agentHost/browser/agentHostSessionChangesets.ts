@@ -210,7 +210,7 @@ export function createChatChangesets(
 		if (!chatUri || !chatState || chatState instanceof Error || sessionState instanceof Error) {
 			return undefined;
 		}
-		const defaultChatUri = sessionState?.defaultChat ?? sessionState?.chats?.[0]?.resource;
+		const defaultChatUri = sessionState?.defaultChat;
 		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
@@ -799,7 +799,7 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			constObservable(chatUri ?? toUri(options.getBackendDefaultChat(sessionUri))),
+			constObservable(chatUri ?? toUri(options.getBackendDefaultChat(sessionUri, undefined))),
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
