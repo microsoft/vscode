@@ -331,10 +331,20 @@ export class ForkConversationAction extends Action2 {
 		}
 		if (error instanceof ChatSessionForkError) {
 			await instantiationService.invokeFunction(accessor => {
-				accessor.get(INotificationService).prompt(
+				const notificationService = accessor.get(INotificationService);
+				notificationService.prompt(
 					Severity.Warning,
-					localize('chat.forkInitialMessageUnknown', "The fork request outcome is unknown. Inspect the target before sending the prompt again."),
-					[{ label: localize('chat.fork.inspectTarget', "Inspect Target"), run: () => this._openForkedSession(instantiationService, sourceSessionResource, error.target, options) }]
+					localize('chat.forkInitialMessageUnknown', "The fork request outcome is unknown: {0}. Inspect the target before sending the prompt again.", toErrorMessage(error.cause)),
+					[{
+						label: localize('chat.fork.inspectTarget', "Inspect Target"),
+						run: async () => {
+							try {
+								await this._openForkedSession(instantiationService, sourceSessionResource, error.target, options);
+							} catch (openError) {
+								notificationService.error(localize('chat.fork.inspectTargetFailed', "The forked chat could not be opened: {0}.", toErrorMessage(openError)));
+							}
+						}
+					}]
 				);
 			});
 			return;

@@ -6,6 +6,7 @@
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -106,7 +107,7 @@ registerAction2(class extends ForkConversationAction {
 
 				if (!appeared) {
 					logService.error(`Forked session ${forkedSessionResource.toString()} did not appear within timeout`);
-					return;
+					throw new Error(localize('chat.fork.targetDidNotAppear', "The forked chat did not appear, so it was most likely never created."));
 				}
 			}
 			if (options?.toSide) {

@@ -168,14 +168,21 @@ suite('ForkConversationAction', () => {
 		const target = source.with({ fragment: 'fork' });
 		const failure = new ChatSessionForkError(target, new Error('connection lost'));
 		const choices: IPromptChoice[] = [];
+		const prompts: string[] = [];
+		const errors: string[] = [];
 		const opens: URI[] = [];
 		let creations = 0;
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
 			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				prompts.push(String(args[1]));
 				choices.push(...args[2]);
 				return super.prompt(...args);
+			}
+			override error(...args: Parameters<TestNotificationService['error']>) {
+				errors.push(String(args[0]));
+				return super.error(...args);
 			}
 		}());
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
@@ -197,12 +204,55 @@ suite('ForkConversationAction', () => {
 		const beforeInspection = [...opens];
 		await choices[0]?.run();
 
-		assert.deepStrictEqual({ beforeInspection, choices: choices.map(choice => choice.label), creations, opens }, {
+		assert.deepStrictEqual({ beforeInspection, choices: choices.map(choice => choice.label), creations, opens, prompts, errors }, {
 			beforeInspection: [],
 			choices: ['Inspect Target'],
 			creations: 1,
 			opens: [target],
+			prompts: ['The fork request outcome is unknown: connection lost. Inspect the target before sending the prompt again.'],
+			errors: [],
 		});
+	});
+
+	test('reports a failure to inspect the target instead of silently doing nothing', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const source = URI.parse('agent-host-copilot:/source');
+		const target = source.with({ fragment: 'fork' });
+		const failure = new ChatSessionForkError(target, new Error('connection lost'));
+		const choices: IPromptChoice[] = [];
+		const errors: string[] = [];
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				choices.push(...args[2]);
+				return super.prompt(...args);
+			}
+			override error(...args: Parameters<TestNotificationService['error']>) {
+				errors.push(String(args[0]));
+				return super.error(...args);
+			}
+		}());
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getContentProviderSchemes: () => [source.scheme],
+			forkChatSession: async () => {
+				throw failure;
+			},
+		}));
+		const action = new class extends ForkConversationAction {
+			protected override async _openForkedSession(): Promise<void> {
+				throw new Error('The forked chat did not appear, so it was most likely never created.');
+			}
+		};
+		await assert.rejects(
+			instantiationService.invokeFunction(accessor => action.run(accessor, source, { initialMessage: { text: 'new prompt' } })),
+			error => error === failure,
+		);
+		await choices[0]?.run();
+
+		assert.deepStrictEqual(errors, [
+			'The forked chat could not be opened: The forked chat did not appear, so it was most likely never created..',
+		]);
 	});
 
 	test('trims only the fork slash command title', async () => {
