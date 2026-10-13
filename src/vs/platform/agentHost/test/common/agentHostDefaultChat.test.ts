@@ -6,16 +6,17 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getAdvertisedDefaultChat } from '../../common/agentHostDefaultChat.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import type { InitializeResult } from '../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import { buildChatUri, ROOT_STATE_URI } from '../../common/state/sessionState.js';
 
 suite('getAdvertisedDefaultChat', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = 'copilotcli:/session';
-	const shapedDefault = buildDefaultChatUri(session);
+	const shapedDefault = deriveLegacyDefaultChat(session);
 	const advertised = buildChatUri(session, 'main');
 
 	function host(meta: InitializeResult['_meta'], hostBuild?: { version: string }): InitializeResult {

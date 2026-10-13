@@ -17,7 +17,8 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
-import { deriveLegacyDefaultChat, IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';

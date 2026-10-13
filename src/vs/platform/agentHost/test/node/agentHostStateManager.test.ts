@@ -15,7 +15,7 @@ import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInte
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { deriveLegacyDefaultChat } from '../../node/agentHostChatOwnershipService.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';

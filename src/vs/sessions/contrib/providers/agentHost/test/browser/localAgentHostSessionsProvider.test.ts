@@ -25,6 +25,7 @@ import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasInfo, type IAge
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { deriveLegacyDefaultChat } from '../../../../../../platform/agentHost/common/agentHostLegacyDefaultChat.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
@@ -2327,7 +2328,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		test('falls back to the default-shaped chat for an identified older VS Code host that advertises none', async () => {
 			assert.deepStrictEqual(await resolveRoutedChats({ 'vscode.agentHost': true }, undefined, [shapedDefault, peer]), {
-				defaultChat: shapedDefault,
+				defaultChat: deriveLegacyDefaultChat(backend),
 				peerChat: peer,
 			});
 		});

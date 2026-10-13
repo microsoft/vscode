@@ -867,13 +867,10 @@ export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: stri
 }
 
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, every session always owns a
- * default chat whose URI is derived from the owning session URI so producers and
- * consumers can compute it without a lookup table.
- *
- * The session URI is encoded into the path so {@link parseChatUri} can recover
- * it.
+ * Mints the URI of a new session's default chat. This is the minting scheme
+ * for new default chats and may change (for example, to opaque URIs); it does
+ * not find an existing session's default chat. Hosts read the recorded default
+ * chat and clients read the advertised `SessionState.defaultChat`.
  */
 export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);

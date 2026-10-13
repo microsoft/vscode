@@ -66,7 +66,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
-import { deriveLegacyDefaultChat } from '../agentHostChatOwnershipService.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';

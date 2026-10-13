@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { buildDefaultChatUri, buildSubagentChatUri, isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
+import { buildSubagentChatUri, isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
+import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { IAgentHostStateManager, type AgentHostStateManager, type IChatRegistration } from './agentHostStateManager.js';
 
@@ -30,19 +30,6 @@ export type ChatOwnerLookup = (chat: ProtocolURI) => Promise<ProtocolURI | undef
 interface IDefaultChatIndex {
 	readonly generation: number;
 	readonly owners: ReadonlyMap<ProtocolURI, ProtocolURI>;
-}
-
-/**
- * The legacy derivation of a session's default chat: the default-shaped chat
- * URI VS Code minted for it. This is the only non-minting use of
- * {@link buildDefaultChatUri}. Call it only for a legacy source that records no
- * default chat (a catalog without a header, a payload without a default entry,
- * a legacy subagent session, a provider-native session), and only after every
- * recorded source was consulted; never for a session with normalized (v2)
- * authority. The result is recorded as that session's default chat.
- */
-export function deriveLegacyDefaultChat(session: ResourceURI | ProtocolURI): string {
-	return buildDefaultChatUri(session);
 }
 
 export const IAgentHostChatOwnershipService = createDecorator<IAgentHostChatOwnershipService>('agentHostChatOwnershipService');
