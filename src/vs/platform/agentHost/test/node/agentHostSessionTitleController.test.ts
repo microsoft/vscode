@@ -33,7 +33,7 @@ import { sessionServerToolDefinitions } from '../../node/shared/sessionServerToo
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -177,7 +177,7 @@ suite('AgentHostSessionTitleController', () => {
 			gitHubService: createTestGitHubService(createTestGitHubClient({ query })),
 			utilityModelService: createUtilityModelService(copilotApiService, getGitHubCopilotToken),
 			getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, query };
 	}
 
@@ -290,7 +290,7 @@ suite('AgentHostSessionTitleController', () => {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 		const beforeRefinement = await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
@@ -451,7 +451,7 @@ suite('AgentHostSessionTitleController', () => {
 				},
 				getInitialTitleGenerationStrategy: () => 'deferred',
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			const defaultChat = buildDefaultChatUri(session);
 			const pendingTitle = new DeferredPromise<string>();
 			copilotApiService.responsePromise = pendingTitle.p;
@@ -496,7 +496,7 @@ suite('AgentHostSessionTitleController', () => {
 			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
 				getInitialTitleGenerationStrategy: () => strategy,
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
 			const beforeRegistration = await db.getMetadata('titleGenerationStrategy');
 			strategy = initial === 'utility' ? 'deferred' : 'utility';
@@ -514,7 +514,7 @@ suite('AgentHostSessionTitleController', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(),
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 
 		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(), 'utility');
 	});
@@ -526,7 +526,7 @@ suite('AgentHostSessionTitleController', () => {
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(),
 			getInitialTitleGenerationStrategy: () => strategy,
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
 		controller.clearSession(session.toString(), []);
 		strategy = 'utility';
@@ -652,7 +652,7 @@ suite('AgentHostSessionTitleController', () => {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
 			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
@@ -688,7 +688,7 @@ suite('AgentHostSessionTitleController', () => {
 			persistMetadata: (resource: string, values: Readonly<Record<string, string>>) => store.persistMetadata(session, URI.parse(resource), values),
 			readNormalizedChat: (owner: URI, resource: URI) => store.readNormalizedChat(owner, resource),
 		};
-		const original = disposables.add(new AgentHostSessionTitleController(stateManager, options, new NullLogService()));
+		const original = disposables.add(new AgentHostSessionTitleController(stateManager, options, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		original.generateForkedTitle(session.toString(), chat, [inherited], 'Fork seed');
 		await store.whenIdle();
 		await db.setMetadata(customChatTitleMetadataKey(chat), 'Stale legacy title');
@@ -697,7 +697,7 @@ suite('AgentHostSessionTitleController', () => {
 		const freshState = disposables.add(new AgentHostStateManager(new NullLogService()));
 		freshState.createSession(createSummary(session, 'Owner header'));
 		freshState.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), { title: 'Fork seed', turns: [inherited] });
-		const restored = disposables.add(new AgentHostSessionTitleController(freshState, options, new NullLogService()));
+		const restored = disposables.add(new AgentHostSessionTitleController(freshState, options, new NullLogService(), createTestChatOwnershipService(freshState)));
 		await restored.restoreTitleGenerationStrategy(session.toString(), chat);
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
@@ -727,7 +727,7 @@ suite('AgentHostSessionTitleController', () => {
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
 			restored.refineTitleFromFirstTurn(session.toString());
@@ -746,7 +746,7 @@ suite('AgentHostSessionTitleController', () => {
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
 			restored.refineTitleFromFirstTurn(session.toString());
@@ -776,7 +776,7 @@ suite('AgentHostSessionTitleController', () => {
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
 			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
 			restored.refineTitleFromFirstTurn(session.toString());
@@ -1144,7 +1144,7 @@ suite('AgentHostSessionTitleController', () => {
 				gitHubService,
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'copilot-token'),
 				persistSurfacedSessionTitle: async session => { persistedTitles.push(session); },
-			}, new NullLogService()));
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			const sessions = [URI.parse('agenthost-session://copilot/first'), URI.parse('agenthost-session://copilot/second')];
 			for (const session of sessions) {
 				stateManager.announceSurfacedSession(createSummary(session));
@@ -1562,7 +1562,7 @@ suite('AgentHostSessionTitleController', () => {
 				},
 			},
 			getInitialTitleGenerationStrategy: () => 'utility',
-		}, new NullLogService()));
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		const chat = buildDefaultChatUri(session);
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat, { id: 'azure/work/gpt-5' });
 		await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'title should be generated');

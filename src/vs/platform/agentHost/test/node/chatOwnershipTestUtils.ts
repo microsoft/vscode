@@ -44,6 +44,10 @@ export function createLiveChatOwnership(getChatOwner: (chat: string) => string |
 		override isDefaultChat(session: string, chat: string): boolean {
 			return getDefaultChat(session) === chat;
 		}
+		override isRegisteredDefaultChat(chat: string): boolean {
+			const owner = getChatOwner(chat);
+			return owner !== undefined && getDefaultChat(owner) === chat;
+		}
 		override findRetainedChatOwner(): string | undefined {
 			return undefined;
 		}

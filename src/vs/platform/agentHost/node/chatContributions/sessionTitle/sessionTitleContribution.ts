@@ -11,6 +11,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
@@ -25,6 +26,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
@@ -60,7 +62,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 			this._persistSessionMetadata(observed.session, observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
 			this._persistSessionMetadata(observed.session, observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
 			this._titleController.markTitleRenamed(observed.session, observed.channel, observed.action.title);
-			if (this._stateManager.isDefaultChat(observed.session, observed.channel)) {
+			if (this._chatOwnership.isDefaultChat(observed.session, observed.channel)) {
 				this._stateManager.dispatchServerAction(observed.session, observed.action);
 				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
 				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
@@ -85,7 +87,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		if (!state || state.chats.length > 1) {
 			return;
 		}
-		const defaultChat = state.defaultChat ?? this._stateManager.getDefaultChat(session);
+		const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(session);
 		if (defaultChat === undefined) {
 			return;
 		}

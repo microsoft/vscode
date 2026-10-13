@@ -32,6 +32,7 @@ import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTo
 import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCIRequest, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, setAgentMergeEnabledToolName } from '../../node/shared/agentMergeServerTools.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('Agent Merge server tools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +69,7 @@ suite('Agent Merge server tools', () => {
 		const controller = store.add(new AgentMergeController(
 			{ startTurn: () => false, cancelTurn: () => { }, postNotice: () => { } },
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			new class extends mock<IAgentHostGitStateService>() {
 				override readonly onDidRefreshSessionGitState = Event.None;

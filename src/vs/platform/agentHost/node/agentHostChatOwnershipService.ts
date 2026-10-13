@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { buildSubagentChatUri, isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
-import { deriveLegacyDefaultChat, IAgentHostStateManager, type AgentHostStateManager, type IChatRegistration } from './agentHostStateManager.js';
+import { IAgentHostStateManager, type AgentHostStateManager, type IChatRegistration } from './agentHostStateManager.js';
 
 export type { IChatRegistration } from './agentHostStateManager.js';
 
@@ -31,13 +32,26 @@ interface IDefaultChatIndex {
 	readonly owners: ReadonlyMap<ProtocolURI, ProtocolURI>;
 }
 
+/**
+ * The legacy derivation of a session's default chat: the default-shaped chat
+ * URI VS Code minted for it. This is the only non-minting use of
+ * {@link buildDefaultChatUri}. Call it only for a legacy source that records no
+ * default chat (a catalog without a header, a payload without a default entry,
+ * a legacy subagent session, a provider-native session), and only after every
+ * recorded source was consulted; never for a session with normalized (v2)
+ * authority. The result is recorded as that session's default chat.
+ */
+export function deriveLegacyDefaultChat(session: ResourceURI | ProtocolURI): string {
+	return buildDefaultChatUri(session);
+}
+
 export const IAgentHostChatOwnershipService = createDecorator<IAgentHostChatOwnershipService>('agentHostChatOwnershipService');
 
 /**
- * Resolves which session owns a chat and where its persisted data lives, from
- * recorded ownership only: the live chat registry, retained summaries, the
- * central catalog and the registered session inventory. A chat URI is never
- * decoded to find its owner.
+ * Chat ownership and session-chat relationships (owner, storage, parent,
+ * default chat), from recorded facts only: the live chat registry, retained
+ * summaries, the central catalog and the registered session inventory. A chat
+ * URI is never decoded to find its owner or role.
  */
 export interface IAgentHostChatOwnershipService {
 	readonly _serviceBrand: undefined;
@@ -68,6 +82,11 @@ export interface IAgentHostChatOwnershipService {
 	getDefaultChat(session: ProtocolURI): ProtocolURI | undefined;
 	/** Whether `chat` is the recorded default chat of `session`. */
 	isDefaultChat(session: ProtocolURI, chat: ProtocolURI): boolean;
+	/**
+	 * Whether `chat` is registered and is the recorded default chat of the
+	 * session that owns it. An unregistered chat is no session's default chat.
+	 */
+	isRegisteredDefaultChat(chat: ProtocolURI): boolean;
 	/** The owner of a chat of a session that is no longer resident, from retained summaries. */
 	findRetainedChatOwner(chat: ProtocolURI): ProtocolURI | undefined;
 
@@ -133,6 +152,11 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 
 	isDefaultChat(session: ProtocolURI, chat: ProtocolURI): boolean {
 		return this._stateManager.isDefaultChat(session, chat);
+	}
+
+	isRegisteredDefaultChat(chat: ProtocolURI): boolean {
+		const owner = this._stateManager.getChatOwner(chat);
+		return owner !== undefined && this._stateManager.isDefaultChat(owner, chat);
 	}
 
 	async resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {

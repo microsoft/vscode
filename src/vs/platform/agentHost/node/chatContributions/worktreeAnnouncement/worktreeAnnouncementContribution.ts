@@ -11,6 +11,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { readSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from '../../shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
@@ -27,6 +28,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -47,7 +49,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<undefined> {
-		if (this._stateManager.isDefaultChat(turn.session, turn.chat)) {
+		if (this._chatOwnership.isDefaultChat(turn.session, turn.chat)) {
 			return undefined;
 		}
 		const emitted = this._context.memento(announcementEmittedKey, turn.chat);

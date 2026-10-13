@@ -263,7 +263,7 @@ function createTestSideEffects(
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
 		sessionDataService: options.sessionDataService,
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
-	}, logService));
+	}, logService, createTestChatOwnershipService(stateManager)));
 	services.set(IAgentHostSessionTitleController, titleController);
 	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
 	services.set(IAgentHostProviderService, providerService);

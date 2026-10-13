@@ -31,6 +31,7 @@ import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, ty
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
@@ -115,6 +116,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	constructor(
 		private readonly _execution: IAgentHostAutomationExecution,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -837,7 +839,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		// Match the run's recorded sessions to their default chats, so a run still completes after its session left the registry.
 		const run = [...this._runs.values()].find(candidate => !isTerminalLifecycle(candidate.lifecycle)
-			&& candidate.sessions.some(session => this._stateManager.getDefaultChat(session) === envelope.channel));
+			&& candidate.sessions.some(session => this._chatOwnership.getDefaultChat(session) === envelope.channel));
 		if (!run) {
 			return;
 		}

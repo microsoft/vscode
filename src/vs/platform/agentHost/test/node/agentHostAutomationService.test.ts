@@ -43,6 +43,7 @@ import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/ag
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -150,7 +151,7 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
 		return disposables.add(service);
 	}
 

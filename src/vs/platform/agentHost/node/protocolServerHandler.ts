@@ -1836,7 +1836,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
-			const defaultChat = state.defaultChat ?? this._stateManager.getDefaultChat(params.channel);
+			const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(params.channel);
 			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
 			}

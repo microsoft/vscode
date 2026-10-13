@@ -10,6 +10,7 @@ import { type IAgentHostChatContribution, type IAgentHostChatContributionContext
 import { isAhpChatChannel, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Reconciles the current pull request of the folder a started turn ran in after it ends. */
 export class GitHubReferencesContribution extends Disposable implements IAgentHostChatContribution {
@@ -20,6 +21,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 	) {
 		super();
@@ -40,7 +42,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	 * reconciles the session folder's through the session.
 	 */
 	private _getPullRequestKey(turn: ITurnEnd): ProtocolURI {
-		if (isAhpChatChannel(turn.channel) && !this._stateManager.isDefaultChat(turn.session, turn.channel)) {
+		if (isAhpChatChannel(turn.channel) && !this._chatOwnership.isDefaultChat(turn.session, turn.channel)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, turn.channel);
 			if (!folder.isSessionFolder && folder.folderKey !== undefined) {
 				return turn.channel;

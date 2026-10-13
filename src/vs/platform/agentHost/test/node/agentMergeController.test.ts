@@ -38,6 +38,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
 import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 let sessionCounter = 0;
 
@@ -81,6 +82,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -352,6 +354,7 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind) => notices.push({ chat, kind }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1048,6 +1051,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1318,6 +1322,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1371,6 +1376,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {
@@ -1608,6 +1614,7 @@ suite('AgentMergeController', () => {
 				},
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
@@ -1694,6 +1701,7 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind, content) => { notices.push({ chat, kind, content }); },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
@@ -1813,6 +1821,7 @@ suite('AgentMergeController', () => {
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {

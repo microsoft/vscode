@@ -64,7 +64,7 @@ import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../co
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { AgentHostStateManager, creationTimeChatStorageResource, deriveLegacyDefaultChat } from './agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
@@ -75,7 +75,7 @@ import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDa
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
-import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
+import { deriveLegacyDefaultChat, IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
@@ -1975,7 +1975,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
 		validateRenameTitle(title, SessionServerToolName.RenameChat);
-		const isDefaultChat = this._stateManager.isDefaultChat(session.toString(), chat.toString());
+		const isDefaultChat = this._chatOwnership.isDefaultChat(session.toString(), chat.toString());
 		if (!isDefaultChat && !await this._peerChatExists(session, chat)) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
@@ -2628,7 +2628,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** The recorded default chat of a session, or `undefined` when none is recorded. */
 	private _defaultChat(session: URI | string): string | undefined {
-		return this._stateManager.getDefaultChat(session.toString());
+		return this._chatOwnership.getDefaultChat(session.toString());
 	}
 
 	/** The recorded default chat of a session that must be known. */
@@ -5789,7 +5789,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Source chat not found: ${sourceKey}`);
 		}
 		const defaultChatKey = this._stateManager.getSessionState(sourceSessionKey)?.defaultChat ?? this._defaultChat(sourceSessionKey);
-		const isDefaultSource = sourceKey === sourceSessionKey || this._stateManager.isDefaultChat(sourceSessionKey, sourceKey);
+		const isDefaultSource = sourceKey === sourceSessionKey || this._chatOwnership.isDefaultChat(sourceSessionKey, sourceKey);
 		const sourceChatKey = isDefaultSource ? defaultChatKey : sourceKey;
 		if (sourceChatKey === undefined) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Source session not found: ${sourceSessionKey}`);
@@ -6143,7 +6143,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const storage = this._chatStorageResource(session, chat);
-		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isDefaultChat: this._stateManager.isDefaultChat(session.toString(), chat.toString()), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
+		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isDefaultChat: this._chatOwnership.isDefaultChat(session.toString(), chat.toString()), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
 		const turns = await this._interleaveLocalTurns(session.toString(), chat.toString(), hydrated);
 		const byId = new Map(turns.map(turn => [turn.id, turn]));
 		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
@@ -6447,7 +6447,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidMaterializeChat missing summary for session: ${sessionKey}`);
 			return;
 		}
-		if (!this._stateManager.isDefaultChat(sessionKey, e.chat.toString())) {
+		if (!this._chatOwnership.isDefaultChat(sessionKey, e.chat.toString())) {
 			if (!state.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
 				return;
 			}
@@ -8050,11 +8050,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
 		if (!state || !summary || (replaceSessionWorkspace
-			? !hasSingleUserChat(state.chats) || !this._stateManager.isDefaultChat(session.toString(), chat.toString()) || !sessionDirectories?.length
+			? !hasSingleUserChat(state.chats) || !this._chatOwnership.isDefaultChat(session.toString(), chat.toString()) || !sessionDirectories?.length
 			: !sessionDirectories?.includes(directories[0]))) {
 			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
 		}
-		if (this._stateManager.isDefaultChat(session.toString(), chat.toString())) {
+		if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 			await this._peerChatStore.persistMetadata(session, chat, {
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
 			});
@@ -8286,7 +8286,7 @@ export class AgentService extends Disposable implements IAgentService {
 				|| !this._stateManager.getSessionState(sessionKey)?.chats.some(current => current.resource === chat.summary.resource)) {
 				continue;
 			}
-			if (this._stateManager.isDefaultChat(sessionKey, chat.summary.resource)) {
+			if (this._chatOwnership.isDefaultChat(sessionKey, chat.summary.resource)) {
 				await this._peerChatStore.persistMetadata(session, URI.parse(chat.summary.resource), {
 					[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories),
 				});
@@ -8409,7 +8409,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const chatState = this._stateManager.getChatState(channel);
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (!chatState || this._stateManager.isDefaultChat(this._chatOwnership.requireChatOwner(channel), channel) || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
+			&& (!chatState || this._chatOwnership.isDefaultChat(this._chatOwnership.requireChatOwner(channel), channel) || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
 			return true;
 		}
@@ -9755,7 +9755,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			if (!this._stateManager.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
+			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
@@ -10009,7 +10009,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidChangeChatData for unknown chat: ${e.chat.toString()}`);
 			return;
 		}
-		if (this._stateManager.isDefaultChat(sessionStr, e.chat.toString())) {
+		if (this._chatOwnership.isDefaultChat(sessionStr, e.chat.toString())) {
 			void this._persistDefaultChatBacking({ session: URI.parse(sessionStr), chat: e, defaultChat: e.chat })
 				.catch(err => this._logService.error(err, `[AgentService] Failed to persist default-chat backing for ${e.chat.toString()}`));
 			return;

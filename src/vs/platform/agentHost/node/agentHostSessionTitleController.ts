@@ -16,6 +16,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -173,6 +174,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -274,7 +276,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (!chatChannel || !isAhpChatChannel(chatChannel)) {
 			return undefined;
 		}
-		return !this._stateManager.isDefaultChat(channel, chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
+		return !this._chatOwnership.isDefaultChat(channel, chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
 			? chatChannel
 			: undefined;
 	}
@@ -372,9 +374,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (strategy === 'activeAgent') {
 			return;
 		}
-		let independentChat = this._independentChatChannel(channel, chatChannel ?? this._stateManager.getDefaultChat(channel));
+		let independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 		// Adding the first peer snapshots the session-backed title onto its now-independent default chat.
-		if (independentChat && this._stateManager.isDefaultChat(channel, independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
 			const seed = this._lastAppliedTitle.get(channel);
 			if (seed !== undefined && this._stateManager.getChatState(independentChat)?.title === seed) {
 				this._lastAppliedTitle.set(independentChat, seed);
@@ -416,7 +418,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			lastApplied,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => {
-				independentChat = this._independentChatChannel(channel, chatChannel ?? this._stateManager.getDefaultChat(channel));
+				independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 				const currentKey = independentChat ?? channel;
 				if (deferred) {
 					this._deferredRefinementStarted.add(currentKey);
@@ -448,7 +450,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !this._stateManager.isDefaultChat(channel, chatChannel);
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !this._chatOwnership.isDefaultChat(channel, chatChannel);
 		if (isAdditionalChat) {
 			const key = chatChannel;
 			this._lastAppliedTitle.set(key, fallbackTitle);
@@ -618,7 +620,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return false;
 		}
 		// A refinement started before a peer made the default chat independent is still keyed by the session.
-		if (independentChat && this._stateManager.isDefaultChat(channel, independentChat) && this._titleGenerationCancellationSources.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && this._titleGenerationCancellationSources.has(channel)) {
 			return false;
 		}
 		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
@@ -634,10 +636,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * keep the per-chat cap across the transition.
 	 */
 	private _syncDefaultChatTitleReviewReminderCount(channel: ProtocolURI, key: ProtocolURI): void {
-		if (key !== channel && !this._stateManager.isDefaultChat(channel, key)) {
+		if (key !== channel && !this._chatOwnership.isDefaultChat(channel, key)) {
 			return;
 		}
-		const defaultChat = key === channel ? this._stateManager.getDefaultChat(channel) : key;
+		const defaultChat = key === channel ? this._chatOwnership.getDefaultChat(channel) : key;
 		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, defaultChat === undefined ? 0 : this._titleReviewReminderCounts.get(defaultChat) ?? 0);
 		if (count > 0) {
 			this._titleReviewReminderCounts.set(key, count);
@@ -1057,7 +1059,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 
 	private _clearDeferredTitleSeed(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
 		this._persistSessionFlag(channel, this._deferredTitleSeedMetadataKey(independentChat), '');
-		if (independentChat && this._stateManager.isDefaultChat(channel, independentChat)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat)) {
 			this._persistSessionFlag(channel, DEFERRED_TITLE_SEED_KEY, '');
 		}
 	}
@@ -1073,7 +1075,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			try {
 				let independentChat: ProtocolURI | undefined = chatChannel;
 				let raw = await ref.object.getMetadata(this._deferredTitleSeedMetadataKey(independentChat));
-				if (raw === undefined && this._stateManager.isDefaultChat(channel, chatChannel)) {
+				if (raw === undefined && this._chatOwnership.isDefaultChat(channel, chatChannel)) {
 					independentChat = undefined;
 					raw = await ref.object.getMetadata(DEFERRED_TITLE_SEED_KEY);
 				}

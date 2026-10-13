@@ -576,7 +576,7 @@ export class AgentSideEffects extends Disposable {
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
-		const defaultChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._stateManager.getDefaultChat(session);
+		const defaultChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._chatOwnership.getDefaultChat(session);
 		if (defaultChat === undefined) {
 			return;
 		}

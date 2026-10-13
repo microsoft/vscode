@@ -96,28 +96,6 @@ export function creationTimeChatStorageResource(session: string, chat: string, d
 	return chat === defaultChat ? session : chat;
 }
 
-/**
- * The legacy derivation of a session's default chat: the default-shaped chat
- * URI VS Code minted for it. This is the only non-minting use of
- * {@link buildDefaultChatUri}. Call it only for a legacy source that records no
- * default chat (a catalog without a header, a payload without a default entry,
- * a legacy subagent session), and only after every recorded source was
- * consulted; never for a session with normalized (v2) authority. The result is
- * recorded as that session's default chat.
- */
-export function deriveLegacyDefaultChat(session: URI | ResourceURI): string {
-	return buildDefaultChatUri(session);
-}
-
-/**
- * Whether `chat` is registered and is the recorded default chat of the
- * session that owns it. An unregistered chat is no session's default chat.
- */
-export function isRegisteredDefaultChat(ownership: { getChatOwner(chat: URI): URI | undefined; isDefaultChat(session: URI, chat: URI): boolean }, chat: URI): boolean {
-	const owner = ownership.getChatOwner(chat);
-	return owner !== undefined && ownership.isDefaultChat(owner, chat);
-}
-
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
 	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
 }
@@ -1329,7 +1307,7 @@ export class AgentHostStateManager extends Disposable {
 	 * so clients update the entry in place instead of dropping it.
 	 *
 	 * `summary.defaultChat` is the session's default chat as its restore source
-	 * records it (or as {@link deriveLegacyDefaultChat} derives it for a legacy
+	 * records it (or as `deriveLegacyDefaultChat` derives it for a legacy
 	 * source that records none); it is recorded as the session's default chat.
 	 *
 	 * `chatStorageResource` gives the storage each restored chat registers
