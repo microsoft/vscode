@@ -338,11 +338,17 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 			// If the path contains an opening bracket, provide the path starting immediately after
 			// the opening bracket as an additional result. Brackets that wrap a whole segment, such
 			// as `(group)` in `app/(group)/page.tsx`, are part of the path so they are skipped.
-			const bracketSegments = Array.from(path.matchAll(linkWithSuffixBracketSegmentInPath), m => [m.index, m.index + m[0].length]);
+			// Both lists are in order, so walk through the segments once alongside the brackets.
+			const bracketSegments = Array.from(path.matchAll(linkWithSuffixBracketSegmentInPath), m => ({ start: m.index, end: m.index + m[0].length }));
+			let segmentIndex = 0;
 			const openingBracketMatch = path.matchAll(/(?<bracket>[\[\(])(?![\]\)])/g);
 			for (const match of openingBracketMatch) {
 				const bracket = match.groups?.bracket;
-				if (bracket && !bracketSegments.some(([start, end]) => match.index >= start && match.index < end)) {
+				while (segmentIndex < bracketSegments.length && bracketSegments[segmentIndex].end <= match.index) {
+					segmentIndex++;
+				}
+				const isInSegment = segmentIndex < bracketSegments.length && match.index >= bracketSegments[segmentIndex].start;
+				if (bracket && !isInSegment) {
 					results.push({
 						path: {
 							index: linkStartIndex + (prefix?.text.length || 0) + match.index + 1,
