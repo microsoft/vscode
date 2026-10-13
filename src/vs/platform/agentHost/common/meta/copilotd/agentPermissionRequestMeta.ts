@@ -33,10 +33,13 @@ export const enum AgentPermissionRequestKind {
 	Commands = 'commands',
 	/** Read a single file. */
 	Read = 'read',
+	/** Write a single file. */
+	Write = 'write',
 }
 
 export interface IAgentPermissionRequestMeta {
 	readonly kind?: AgentPermissionRequestKind;
+	readonly fileName?: string;
 }
 
 /**
@@ -53,16 +56,26 @@ function normalizeKind(value: unknown): AgentPermissionRequestKind | undefined {
 			return AgentPermissionRequestKind.Commands;
 		case 'read':
 			return AgentPermissionRequestKind.Read;
+		case 'write':
+			return AgentPermissionRequestKind.Write;
 		default:
 			return undefined;
 	}
 }
 
-function readKind(value: unknown): AgentPermissionRequestKind | undefined {
+function readRequest(value: unknown): IAgentPermissionRequestMeta | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
-	return normalizeKind((value as Record<string, unknown>).kind);
+	const request = value as Record<string, unknown>;
+	const kind = normalizeKind(request.kind);
+	if (!kind) {
+		return undefined;
+	}
+	if (kind === AgentPermissionRequestKind.Write && typeof request.fileName === 'string' && request.fileName.trim()) {
+		return { kind, fileName: request.fileName };
+	}
+	return { kind };
 }
 
 /**
@@ -77,6 +90,10 @@ export function readPermissionRequestMeta(source: IHasPermissionRequestMeta): IA
 	if (!meta) {
 		return {};
 	}
-	const kind = readKind(meta.promptRequest) ?? readKind(meta.permissionRequest);
-	return kind ? { kind } : {};
+	return readRequest(meta.promptRequest) ?? readRequest(meta.permissionRequest) ?? {};
+}
+
+/** Adds the edit diff consumed by Copilot clients without replacing native AHP edits. */
+export function withPermissionDiff(meta: Record<string, unknown> | undefined, diff: string | undefined): Record<string, unknown> | undefined {
+	return diff ? { ...meta, permissionRequest: { diff } } : meta;
 }

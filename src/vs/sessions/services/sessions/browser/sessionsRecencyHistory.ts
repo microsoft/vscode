@@ -4,43 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
+import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-/** A single recently-opened entry: a chat within a session, or a session when no specific chat applies. */
-export interface IRecencyEntry {
+export type SessionRecencyEntry = {
+	readonly kind: 'session';
 	readonly sessionResource: URI;
 	readonly chatResource: URI | undefined;
-}
+} | {
+	readonly kind: 'newSession';
+} | {
+	readonly kind: 'customView';
+	readonly id: string;
+};
 
 interface ISerializedRecencyEntry {
 	readonly session: string;
 	readonly chat?: string;
 }
 
-/** Identity of an entry, used for de-duplication: a (session, chat) pair. */
-function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
-	return `${sessionResource.toString()}::${chatResource?.toString() ?? ''}`;
+export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
+	switch (entry.kind) {
+		case 'session':
+			return JSON.stringify([entry.kind, getComparisonKey(entry.sessionResource), entry.chatResource && getComparisonKey(entry.chatResource)]);
+		case 'newSession':
+			return entry.kind;
+		case 'customView':
+			return `${entry.kind}:${entry.id}`;
+	}
 }
 
 /**
- * The single source of truth for "recently opened" ordering across the sessions
- * UI. Maintains an MRU-ordered list of `(session, chat)` entries (index 0 is the
- * most recently opened), deduplicated by the `(session, chat)` pair and capped at
- * {@link MAX_RECENCY_ENTRIES}. The list is persisted so recency survives reloads.
- *
- * Both the sessions picker (via
- * {@link ISessionsManagementService.getRecentlyOpenedSessions}) and the
- * Back/Forward navigation ({@link SessionsNavigation}) build on top of this.
+ * Shared MRU ordering for session navigation and the recent-sessions picker.
+ * Session/chat entries persist across reloads; singleton view entries are window-local.
  */
 export class SessionsRecencyHistory extends Disposable {
 
 	private static readonly STORAGE_KEY = 'agentSessions.recencyHistory';
-	private static readonly MAX_RECENCY_ENTRIES = 50;
+	private static readonly MAX_SESSION_ENTRIES = 50;
 
-	private _entries: IRecencyEntry[] = [];
+	private _entries: SessionRecencyEntry[] = [];
 
 	private readonly _version = observableValue<number>(this, 0);
 
@@ -50,7 +56,7 @@ export class SessionsRecencyHistory extends Disposable {
 	}
 
 	/** The recency entries in MRU order (index 0 is the most recently opened). */
-	get entries(): readonly IRecencyEntry[] {
+	get entries(): readonly SessionRecencyEntry[] {
 		return this._entries;
 	}
 
@@ -63,13 +69,10 @@ export class SessionsRecencyHistory extends Disposable {
 		this._entries = this._load();
 	}
 
-	/**
-	 * Record that the given session (optionally a specific chat within it) was
-	 * explicitly opened, promoting it to the front of the MRU list.
-	 */
-	markOpened(sessionResource: URI, chatResource: URI | undefined): void {
-		const key = entryKey(sessionResource, chatResource);
-		const existingIndex = this._entries.findIndex(e => entryKey(e.sessionResource, e.chatResource) === key);
+	/** Promote the opened destination to the front, keeping only its most recent occurrence. */
+	markOpened(entry: SessionRecencyEntry, tx?: ITransaction): void {
+		const key = getRecencyEntryKey(entry);
+		const existingIndex = this._entries.findIndex(e => getRecencyEntryKey(e) === key);
 		if (existingIndex === 0) {
 			// Already at the front: nothing to do.
 			return;
@@ -79,18 +82,17 @@ export class SessionsRecencyHistory extends Disposable {
 			this._entries.splice(existingIndex, 1);
 		}
 
-		this._entries.unshift({ sessionResource, chatResource });
+		this._entries.unshift(entry);
 
-		if (this._entries.length > SessionsRecencyHistory.MAX_RECENCY_ENTRIES) {
-			this._entries.length = SessionsRecencyHistory.MAX_RECENCY_ENTRIES;
-		}
+		let sessionEntries = 0;
+		this._entries = this._entries.filter(candidate => candidate.kind !== 'session' || ++sessionEntries <= SessionsRecencyHistory.MAX_SESSION_ENTRIES);
 
 		this._save();
-		this._bumpVersion();
+		this._bumpVersion(tx);
 	}
 
 	/** Remove every entry matching the given predicate. */
-	remove(predicate: (entry: IRecencyEntry) => boolean): void {
+	remove(predicate: (entry: SessionRecencyEntry) => boolean): void {
 		const next = this._entries.filter(e => !predicate(e));
 		if (next.length === this._entries.length) {
 			return;
@@ -100,11 +102,11 @@ export class SessionsRecencyHistory extends Disposable {
 		this._bumpVersion();
 	}
 
-	private _bumpVersion(): void {
-		this._version.set(this._version.get() + 1, undefined);
+	private _bumpVersion(tx?: ITransaction): void {
+		this._version.set(this._version.get() + 1, tx);
 	}
 
-	private _load(): IRecencyEntry[] {
+	private _load(): SessionRecencyEntry[] {
 		const raw = this._storageService.get(SessionsRecencyHistory.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
 			return [];
@@ -117,6 +119,7 @@ export class SessionsRecencyHistory extends Disposable {
 			return parsed
 				.filter(e => e && typeof e.session === 'string')
 				.map(e => ({
+					kind: 'session',
 					sessionResource: URI.parse(e.session),
 					chatResource: e.chat ? URI.parse(e.chat) : undefined,
 				}));
@@ -127,14 +130,16 @@ export class SessionsRecencyHistory extends Disposable {
 	}
 
 	private _save(): void {
-		if (this._entries.length === 0) {
+		const serialized: ISerializedRecencyEntry[] = this._entries
+			.filter(e => e.kind === 'session')
+			.map(e => ({
+				session: e.sessionResource.toString(),
+				chat: e.chatResource?.toString(),
+			}));
+		if (serialized.length === 0) {
 			this._storageService.remove(SessionsRecencyHistory.STORAGE_KEY, StorageScope.WORKSPACE);
 			return;
 		}
-		const serialized: ISerializedRecencyEntry[] = this._entries.map(e => ({
-			session: e.sessionResource.toString(),
-			chat: e.chatResource?.toString(),
-		}));
 		this._storageService.store(SessionsRecencyHistory.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }

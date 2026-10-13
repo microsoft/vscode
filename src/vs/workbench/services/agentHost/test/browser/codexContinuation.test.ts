@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { ICodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
@@ -38,6 +39,41 @@ suite('Codex continuation eligibility', () => {
 		const both = account({ rateLimits: [...account().rateLimits!, { usedPercent: 95, windowDurationMins: 10080, resetsAt: now / 1000 + 180 }] });
 		const extended = updateCodexEpisode(episode, both, now)!;
 		assert.deepStrictEqual([extended.limits.length, updateCodexEpisode(extended, both, now + 60_000)?.limits.length, updateCodexEpisode(extended, both, now + 180_000)], [2, 1, undefined]);
+	});
+	for (const windowDurationMins of [300, 10080]) {
+		test(`configurable thresholds are inclusive for the ${windowDurationMins}-minute limit`, () => {
+			const cases = [
+				{ threshold: 0, usage: -1, eligible: false }, { threshold: 0, usage: 0, eligible: true },
+				{ threshold: 80, usage: 79.99, eligible: false }, { threshold: 80, usage: 80, eligible: true }, { threshold: 80, usage: 85, eligible: true },
+				{ threshold: 90, usage: 89.99, eligible: false }, { threshold: 90, usage: 90, eligible: true },
+				{ threshold: 95.5, usage: 95.49, eligible: false }, { threshold: 95.5, usage: 95.5, eligible: true },
+				{ threshold: 100, usage: 99.99, eligible: false }, { threshold: 100, usage: 100, eligible: true }, { threshold: 100, usage: 101, eligible: false },
+			];
+			assert.deepStrictEqual(cases.map(({ threshold, usage }) => getCodexTriggeringLimits(account({
+				rateLimits: [{ usedPercent: usage, windowDurationMins }],
+			}), now, threshold).length > 0), cases.map(value => value.eligible));
+		});
+	}
+	test('a custom threshold extends suppression to another qualifying usage window', () => {
+		const initial = account({ rateLimits: [{ usedPercent: 80, windowDurationMins: 300, resetsAt: now / 1000 + 60 }] });
+		const episode: ICodexContinuationEpisode = { owner: 'one', surface: 'editorWindow', limits: getCodexTriggeringLimits(initial, now, 80) };
+		const both = { ...initial, rateLimits: [...initial.rateLimits!, { usedPercent: 85, windowDurationMins: 10080, resetsAt: now / 1000 + 180 }] };
+		assert.deepStrictEqual(updateCodexEpisode(episode, both, now, 80)?.limits.map(limit => limit.duration), [300, 10080]);
+	});
+	test('unknown-reset suppression clears below the configured threshold, not the default', () => {
+		const initial = account({ rateLimits: [{ usedPercent: 80, windowDurationMins: 300 }] });
+		const episode: ICodexContinuationEpisode = { owner: 'one', surface: 'agentsWindow', limits: getCodexTriggeringLimits(initial, now, 80) };
+		assert.deepStrictEqual([79.99, 80, 85].map(usedPercent => updateCodexEpisode(episode, {
+			...initial, observedAt: now + 1000, rateLimits: [{ usedPercent, windowDurationMins: 300 }],
+		}, now + 1000, 80)?.limits[0].until), [undefined, now + 300 * 60_000, now + 300 * 60_000]);
+	});
+	test('legacy episodes retain their original 90-percent recovery boundary', () => {
+		const episode: ICodexContinuationEpisode = {
+			owner: 'one', surface: 'agentsWindow',
+			limits: [{ duration: 300, until: now + 300 * 60_000, observedAt: now, reliable: false }],
+		};
+		const fresh = account({ observedAt: now + 1000, rateLimits: [{ usedPercent: 85, windowDurationMins: 300 }] });
+		assert.strictEqual(updateCodexEpisode(episode, fresh, now + 1000, 80), undefined);
 	});
 	test('unknown resets do not slide and clear only on newer fresh below-threshold data', () => {
 		const unknown = account({ rateLimits: [{ usedPercent: 95, windowDurationMins: 300 }] });
@@ -74,6 +110,15 @@ suite('Codex continuation eligibility', () => {
 			getCodexContinuationCandidates(sessions, [source, { ...target, policyState: PolicyState.Disabled }]),
 			getCodexContinuationCandidates(sessions, [source, { ...target, id: '@provider=vscode-proxy:other', name: source.name }]),
 		], [['new', 'old'], ['old', 'new'], [], [], []]);
+	});
+	test('provider metadata selects Codex candidates without inferring a standard or opaque URI scheme', () => {
+		const source: SessionModelInfo = { provider: 'codex', id: '@provider=openai:gpt', name: 'GPT', _meta: { modelSourceId: 'chatgptSubscription' } };
+		const target: SessionModelInfo = { provider: 'codex', id: '@provider=vscode-proxy:gpt', name: 'GPT Copilot' };
+		const resources = ['codex:/legacy', 'ahp-session:/standard', 'session-store://tenant/opaque?revision=2'];
+		const sessions: IAgentSessionMetadata[] = resources.map(resource => ({ session: URI.parse(resource), provider: 'codex', startTime: 0, modifiedTime: 0, model: { id: source.id } }));
+		const other = { ...sessions[1], provider: 'claude' };
+		const missing = { ...sessions[1], provider: undefined };
+		assert.deepStrictEqual(getCodexContinuationCandidates([...sessions, other, missing], [source, target]).map(candidate => candidate.session.session.toString()), sessions.map(session => session.session.toString()));
 	});
 	test('archived active sessions do not outrank newer candidates', () => {
 		const source: SessionModelInfo = { provider: 'codex', id: '@provider=openai:gpt', name: 'GPT', _meta: { modelSourceId: 'chatgptSubscription' } };

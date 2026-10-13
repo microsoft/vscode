@@ -13,7 +13,8 @@ import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri } from '../../.
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
-import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
+import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
 /** Coordinates automatic and user-defined session and chat titles. */
 export class SessionTitleContribution extends Disposable implements IAgentHostChatContribution {
@@ -28,6 +29,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 	}
@@ -53,22 +55,22 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 
 		if (isAhpChatChannel(observed.channel)) {
 			this._stateManager.updateChatTitle(observed.session, observed.channel, observed.action.title);
-			this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-			this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
-			this._persistSessionMetadata(observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
-			this._persistSessionMetadata(observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
+			this._persistSessionMetadata(observed.session, observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+			this._persistSessionMetadata(observed.session, observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+			this._persistSessionMetadata(observed.session, observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
+			this._persistSessionMetadata(observed.session, observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
 			this._titleController.markTitleRenamed(observed.session, observed.channel, observed.action.title);
 			if (isDefaultChatUri(observed.channel)) {
 				this._stateManager.dispatchServerAction(observed.session, observed.action);
-				this._persistSessionMetadata(observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-				this._persistSessionMetadata(observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 				this._titleController.markTitleRenamed(observed.session);
 			}
 			return;
 		}
 
-		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
-		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(observed.channel, observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
+		this._persistSessionMetadata(observed.channel, observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		this._titleController.markTitleRenamed(observed.channel);
 		this._retitleSoleDefaultChat(observed.channel, observed.action.title);
 	}
@@ -85,10 +87,10 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		}
 		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
 		this._stateManager.updateChatTitle(session, defaultChat, title);
-		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
-		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
-		this._persistSessionMetadata(session, customChatTitleMetadataKey(defaultChat), title);
-		this._persistSessionMetadata(session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionMetadata(session, defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, session, customChatTitleMetadataKey(defaultChat), title);
+		this._persistSessionMetadata(session, session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
 	}
 
 	/**
@@ -97,6 +99,13 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
 		await this._titleController.restoreTitleGenerationStrategy(context.session, context.chat);
+		const normalized = await this._chatPersistence.readNormalizedChat(URI.parse(context.session), URI.parse(context.chat));
+		if (normalized.normalized) {
+			if (!normalized.chat) {
+				throw new Error(`Missing normalized chat during title hydration: ${context.chat}`);
+			}
+			return { ...restored, title: normalized.chat.metadata?.summary };
+		}
 		if (restored.title !== undefined) {
 			return restored;
 		}
@@ -129,7 +138,8 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		}
 	}
 
-	private _persistSessionMetadata(session: string, key: string, value: string): void {
-		persistSessionMetadata(this._sessionDataService, this._logService, session, key, value);
+	private _persistSessionMetadata(owner: string, resource: string, key: string, value: string): void {
+		void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(resource), { [key]: value }).catch(error =>
+			this._logService.warn(`[SessionTitleContribution] Failed to persist title for ${resource}`, error));
 	}
 }

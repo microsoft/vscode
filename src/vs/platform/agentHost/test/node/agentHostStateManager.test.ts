@@ -11,11 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -94,6 +94,34 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(fired, [sessionChatUri, sessionChatUri]);
 	});
 
+	test('batches chat working-directory invalidation by effective scope', () => {
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///a', 'file:///b'] });
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
+		const fired: string[] = [];
+		const actions: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+		disposables.add(manager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === peer && envelope.action.type === ActionType.ChatWorkingDirectorySet) {
+				actions.push(envelope.action.directory);
+			}
+		}));
+
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///a' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///b' });
+		});
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///b' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///c' });
+		});
+
+		assert.deepStrictEqual({ fired, actions }, {
+			fired: [peer],
+			actions: ['file:///a', 'file:///b', 'file:///c'],
+		});
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
@@ -103,7 +131,7 @@ suite('AgentHostStateManager', () => {
 	test('background work stays on each chat across turns and is not mirrored into the session catalog', () => {
 		manager.createSession(makeSessionSummary());
 		const peer = buildChatUri(sessionUri, 'peer');
-		manager.addChat(sessionUri, peer);
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
 		const shell: BackgroundShellWork = {
 			kind: BackgroundWorkKind.Shell, id: 'shared-id', label: 'Run tests', command: 'npm test',
 			startedAt: new Date(0).toISOString(),
@@ -163,6 +191,25 @@ suite('AgentHostStateManager', () => {
 		manager.setCanvasState(sessionChatUri, resource, { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' });
 		manager.removeSession(sessionUri);
 		assert.strictEqual(manager.getSnapshot(resource), undefined);
+	});
+
+	test('listener-owned envelopes share global ordering without mutating or emitting host state', () => {
+		const root = manager.rootState;
+		const previous = manager.serverSeq;
+		const hostEnvelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(envelope => hostEnvelopes.push(envelope)));
+		const action = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [] } } } as const;
+		const relay = manager.createServerActionEnvelope(ROOT_STATE_URI, action);
+		manager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: 1 });
+		assert.deepStrictEqual({
+			relay,
+			sharedConfigPreserved: manager.rootState.config === root.config,
+			hostSequences: hostEnvelopes.map(envelope => envelope.serverSeq),
+			snapshotSequence: manager.getSnapshot(ROOT_STATE_URI)?.fromSeq,
+		}, {
+			relay: { channel: ROOT_STATE_URI, action, serverSeq: previous + 1, origin: undefined }, sharedConfigPreserved: true,
+			hostSequences: [previous + 2], snapshotSequence: previous + 2,
+		});
 	});
 
 	test('getSnapshot returns root snapshot', () => {
@@ -230,6 +277,199 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].action.type, ActionType.SessionReady);
 		assert.strictEqual(envelopes[0].serverSeq, 1);
 		assert.strictEqual(envelopes[0].origin, undefined);
+	});
+
+	test('does not mark a multi-chat session read while any chat is unread', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+		const state = manager.getSessionState(sessionUri)!;
+		assert.deepStrictEqual({
+			sessionIsRead: !!(state.status & SessionStatus.IsRead),
+			defaultChatIsRead: !!(manager.getChatState(sessionChatUri)!.status & SessionStatus.IsRead),
+			peerIsRead: !!(manager.getChatState(peer)!.status & SessionStatus.IsRead),
+			catalog: state.chats.map(chat => ({
+				resource: chat.resource,
+				isRead: !!(chat.status & SessionStatus.IsRead),
+			})),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: false,
+			peerIsRead: false,
+			catalog: [
+				{ resource: sessionChatUri, isRead: false },
+				{ resource: peer, isRead: false },
+			],
+		});
+	});
+
+	test('marking a chat unread also marks its session unread', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peerIsRead: isSessionStatusRead(manager.getChatState(peer)!.status),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: true,
+			peerIsRead: false,
+		});
+	});
+
+	test('marking the sole unread chat read also marks its session read', () => {
+		manager.createSession(makeSessionSummary());
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			sessionIsRead: true,
+			chatIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('only the last unread aggregate chat promotes its session to read', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
+		manager.addChat(sessionUri, hidden, creationTimeChatStorageResource(sessionUri, hidden), { interactivity: ChatInteractivity.Hidden });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+		const afterLastUnreadChat = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			afterLastUnreadChat,
+			afterRedundantRead: {
+				session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+				defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+				peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+				hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+			},
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			afterLastUnreadChat: { session: true, defaultChat: true, peer: true, hidden: false },
+			afterRedundantRead: { session: false, defaultChat: true, peer: true, hidden: false },
+			actions: [
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: false },
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('tool chats retain exact read state without affecting the session aggregate', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const tool = buildChatUri(sessionUri, 'tool');
+		manager.addChat(sessionUri, tool, creationTimeChatStorageResource(sessionUri, tool), {
+			origin: { kind: ChatOriginKind.Tool, chat: sessionChatUri, toolCallId: 'tool-call' },
+		});
+
+		manager.dispatchServerAction(tool, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const afterToolUnread = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			tool: isSessionStatusRead(manager.getChatState(tool)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+		const afterSessionUnread = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			tool: isSessionStatusRead(manager.getChatState(tool)!.status),
+		};
+
+		assert.deepStrictEqual({ afterToolUnread, afterSessionUnread }, {
+			afterToolUnread: { session: true, defaultChat: true, tool: false },
+			afterSessionUnread: { session: false, defaultChat: false, tool: false },
+		});
+	});
+
+	test('hidden chats retain exact read state without affecting the session aggregate', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, hidden, creationTimeChatStorageResource(sessionUri, hidden), { interactivity: ChatInteractivity.Hidden });
+
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		}, {
+			session: true,
+			defaultChat: true,
+			hidden: false,
+		});
+	});
+
+	test('session read state synchronizes its sole default chat', () => {
+		manager.createSession(makeSessionSummary());
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const afterRead = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			afterRead,
+			afterUnread: {
+				session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+				chat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			},
+		}, {
+			afterRead: { session: true, chat: true },
+			afterUnread: { session: false, chat: false },
+		});
 	});
 
 	test('emits session title changes and suppresses no-op assignments', () => {
@@ -378,6 +618,33 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
 	});
 
+	for (const cleanup of ['delete', 'retract', 'unpublish', 'restore'] as const) {
+		test(`eviction retains the physical default independently of routing until ${cleanup}`, () => {
+			const physical = buildChatUri(sessionUri, 'advertised-default');
+			const peer = buildDefaultChatUri(sessionUri);
+			manager.createSession({ ...makeSessionSummary(), defaultChat: physical });
+			manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer));
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peer });
+			manager.removeSession(sessionUri);
+			const evicted = {
+				physical: manager.getDefaultChatUri(sessionUri),
+				routing: manager.getSurfacedSessionSummary(sessionUri)?.defaultChat,
+			};
+			if (cleanup === 'delete') {
+				manager.deleteSession(sessionUri);
+			} else if (cleanup === 'retract') {
+				manager.retractSurfacedSession(sessionUri);
+			} else if (cleanup === 'unpublish') {
+				manager.setSessionSummaryPublished(sessionUri, false);
+			} else {
+				manager.restoreSession({ ...makeSessionSummary(), defaultChat: peer }, [], creationTimeChatStorageResource);
+			}
+			assert.deepStrictEqual({ evicted, after: manager.getDefaultChatUri(sessionUri) }, {
+				evicted: { physical, routing: peer }, after: peer,
+			});
+		});
+	}
+
 	test('deleteSession clears parent and subagent annotations', () => {
 		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
 		const parentAnnotations = buildAnnotationsUri(sessionUri);
@@ -463,11 +730,30 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: provisional.project,
+			project: persisted.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
 			addedWorkingDirectories: persisted.workingDirectories,
+		});
+	});
+
+	test('project changes keep catalogue and session snapshots consistent', () => {
+		manager.createSession(makeSessionSummary());
+		const previous = manager.getSessionState(sessionUri);
+		const project = { uri: 'file:///new-project', displayName: 'New Project' };
+		manager.setSessionProject(sessionUri, project);
+		const snapshot = manager.getSnapshot(sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			previous: previous?.project,
+			state: manager.getSessionState(sessionUri)?.project,
+			snapshot: snapshot.project,
+			summary: manager.getSessionSummary(sessionUri)?.project,
+		}, {
+			previous: makeSessionSummary().project,
+			state: project,
+			snapshot: project,
+			summary: project,
 		});
 	});
 
@@ -747,7 +1033,7 @@ suite('AgentHostStateManager', () => {
 			},
 		];
 
-		const state = manager.restoreSession(makeSessionSummary(), turns);
+		const state = manager.restoreSession(makeSessionSummary(), turns, creationTimeChatStorageResource);
 		assert.strictEqual(state.lifecycle, SessionLifecycle.Ready);
 		const chatState = manager.getDefaultChatState(sessionUri);
 		assert.strictEqual(chatState?.turns.length, 1);
@@ -755,10 +1041,48 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual((chatState?.turns[0].responseParts[0] as MarkdownResponsePart).content, 'world');
 	});
 
+	test('restoreSession marks an inconsistent multi-chat aggregate unread', () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const state = manager.restoreSession({
+			...makeSessionSummary(),
+			status: SessionStatus.Idle | SessionStatus.IsRead,
+			chats: [{ resource: peer, title: 'Peer', status: SessionStatus.Idle | SessionStatus.IsRead }],
+		}, [], creationTimeChatStorageResource, { defaultChatIsRead: false });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(state.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peerIsRead: isSessionStatusRead(state.chats.find(chat => chat.resource === peer)!.status),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: false,
+			peerIsRead: true,
+		});
+	});
+
+	test('restoreSession excludes hidden unread chats from the session aggregate', () => {
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		const state = manager.restoreSession({
+			...makeSessionSummary(),
+			status: SessionStatus.Idle | SessionStatus.IsRead,
+			chats: [{ resource: hidden, title: 'Hidden', interactivity: ChatInteractivity.Hidden, status: SessionStatus.Idle }],
+		}, [], creationTimeChatStorageResource, { defaultChatIsRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(state.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hiddenIsRead: isSessionStatusRead(state.chats.find(chat => chat.resource === hidden)!.status),
+		}, {
+			sessionIsRead: true,
+			defaultChatIsRead: true,
+			hiddenIsRead: false,
+		});
+	});
+
 	test('restoreSession returns existing state for duplicate session', () => {
 		const existing = manager.createSession(makeSessionSummary());
 
-		const state = manager.restoreSession(makeSessionSummary(), []);
+		const state = manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 		assert.strictEqual(state, existing);
 	});
 
@@ -766,14 +1090,14 @@ suite('AgentHostStateManager', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
-		manager.restoreSession(makeSessionSummary(), []);
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
 	});
 
 	test('restored unpublished sessions retain summary changes without notifying root clients', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			const notifications: INotification[] = [];
 			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
 
@@ -811,7 +1135,7 @@ suite('AgentHostStateManager', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
-		manager.restoreSession(makeSessionSummary(), []);
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 
 		const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
 		assert.strictEqual(changed.length, 1);
@@ -824,7 +1148,7 @@ suite('AgentHostStateManager', () => {
 		// A legacy chat adopted after startup was never surfaced by discovery, so
 		// restore records it silently and clients have no entry. Publishing is what
 		// makes an adopted session appear instead of existing only on the host.
-		manager.restoreSession(makeSessionSummary(), []);
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
@@ -841,7 +1165,7 @@ suite('AgentHostStateManager', () => {
 		test('reports draft status by origin, addressable by session or chat URI', () => {
 			const restoredUri = URI.from({ scheme: 'copilot', path: '/restored-session' }).toString();
 			manager.createSession(makeSessionSummary());
-			manager.restoreSession(makeSessionSummary(restoredUri), []);
+			manager.restoreSession(makeSessionSummary(restoredUri), [], creationTimeChatStorageResource);
 
 			assert.deepStrictEqual({
 				created: manager.isUnusedDraft(sessionUri),
@@ -861,7 +1185,7 @@ suite('AgentHostStateManager', () => {
 		test('a restored session that was first created is no longer a draft', () => {
 			// `restoreSession` short-circuits when the session is already in state.
 			manager.createSession(makeSessionSummary());
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 
 			assert.strictEqual(manager.isUnusedDraft(sessionUri), true);
 		});
@@ -930,6 +1254,42 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual(notification.session, sessionUri);
 			assert.strictEqual(notification.changes.title, 'New Title');
 			assert.strictEqual(notification.changes.status, undefined, 'unchanged fields should be omitted');
+		});
+	});
+
+	test('emits sessionSummaryChanged when compact chat status changes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const chat = buildChatUri(sessionUri, 'compact-status');
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			manager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat), { title: 'Peer' });
+			await new Promise(r => setTimeout(r, 150));
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+			manager.dispatchServerAction(chat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await new Promise(r => setTimeout(r, 150));
+
+			const changes = notifications
+				.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+				.map(notification => notification.changes);
+			assert.deepStrictEqual(changes, [{
+				chats: [
+					{
+						resource: buildDefaultChatUri(sessionUri),
+						title: 'Test',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.Idle,
+					},
+					{
+						resource: chat,
+						title: 'Peer',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						archived: true,
+					},
+				],
+			}]);
 		});
 	});
 
@@ -1233,7 +1593,7 @@ suite('AgentHostStateManager', () => {
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const summary = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			const summary = manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			assert.deepStrictEqual(
 				{
@@ -1249,7 +1609,7 @@ suite('AgentHostStateManager', () => {
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
 					summaryChats: [
 						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
-						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User }, status: SessionStatus.Idle | SessionStatus.IsRead },
 					],
 					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
@@ -1260,7 +1620,7 @@ suite('AgentHostStateManager', () => {
 
 		test('setChatSummaryChanges updates the chat catalog, the chat state and the session list summary once', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 			const changes = { additions: 3, deletions: 1, files: 2 };
@@ -1299,7 +1659,7 @@ suite('AgentHostStateManager', () => {
 					{ resource: peerChat, title: 'Peer', changes: { additions: 4, deletions: 2, files: 3 } },
 				],
 				defaultChat,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 
 			assert.deepStrictEqual({
 				summaryChats: manager.getSessionSummary(sessionUri)?.chats?.map(chat => ({ resource: chat.resource, changes: chat.changes })),
@@ -1310,6 +1670,29 @@ suite('AgentHostStateManager', () => {
 					{ resource: peerChat, changes: { additions: 4, deletions: 2, files: 3 } },
 				],
 				defaultChatState: { additions: 1, deletions: 0, files: 1 },
+			});
+		});
+
+		test('restores the explicit default role instead of inferring it from a chat URI', () => {
+			const oldDefault = buildDefaultChatUri(sessionUri);
+			manager.restoreSession({
+				...makeSessionSummary(),
+				defaultChat: peerChat,
+				chats: [
+					{ resource: peerChat, title: 'Default', changes: { files: 0 } },
+					{ resource: oldDefault, title: 'Peer' },
+				],
+			}, [], creationTimeChatStorageResource, { defaultChatTitle: 'Default' });
+			assert.deepStrictEqual({
+				defaultChat: manager.getSessionState(sessionUri)?.defaultChat,
+				chats: manager.getSessionState(sessionUri)?.chats.map(chat => ({ resource: chat.resource, title: chat.title })),
+				state: manager.getSessionState(sessionUri)?.turns,
+				changes: manager.getChatState(peerChat)?.changes,
+			}, {
+				defaultChat: peerChat,
+				chats: [{ resource: peerChat, title: 'Default' }, { resource: oldDefault, title: 'Peer' }],
+				state: [],
+				changes: { files: 0 },
 			});
 		});
 
@@ -1336,7 +1719,7 @@ suite('AgentHostStateManager', () => {
 
 		test('removeChat shrinks the catalog and refuses the default chat', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat);
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 
 			manager.removeChat(sessionUri, buildDefaultChatUri(sessionUri));
 			const afterDefaultRemoval = manager.getSessionState(sessionUri)?.chats.length;
@@ -1363,7 +1746,7 @@ suite('AgentHostStateManager', () => {
 
 			// Becoming multi-chat snapshots the session title onto the default chat
 			// so it stops inheriting the session title.
-			manager.addChat(sessionUri, peerChat);
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 			const afterAdd = manager.getSessionState(sessionUri)?.chats.find(c => c.resource === defaultChat)?.title;
 
 			// Rename each independently.
@@ -1386,11 +1769,11 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('restored peer chat snapshots the inherited default chat title', () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const beforeRestore = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title;
 
-			manager.registerRestoredChatSummary(sessionUri, peerChat, { title: 'Peer' });
+			manager.registerRestoredChatSummary(sessionUri, peerChat, { storageResource: creationTimeChatStorageResource(sessionUri, peerChat), title: 'Peer' });
 
 			assert.deepStrictEqual({
 				beforeRestore,
@@ -1419,7 +1802,7 @@ suite('AgentHostStateManager', () => {
 				}
 			}));
 
-			manager.restoreSession(summary, []);
+			manager.restoreSession(summary, [], creationTimeChatStorageResource);
 			const listed = manager.prepareSessionSummariesForListing([summary])[0];
 
 			assert.deepStrictEqual({
@@ -1437,12 +1820,12 @@ suite('AgentHostStateManager', () => {
 			manager.createSession(makeSessionSummary());
 			const canonicalDefault = buildDefaultChatUri(sessionUri);
 			const peer2 = buildChatUri(sessionUri, 'peer-2');
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 			manager.updateChatTitle(sessionUri, canonicalDefault, '');
 			manager.updateChatTitle(sessionUri, peerChat, '');
 			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
 
-			manager.addChat(sessionUri, peer2, { title: 'Peer 2' });
+			manager.addChat(sessionUri, peer2, creationTimeChatStorageResource(sessionUri, peer2), { title: 'Peer 2' });
 
 			const state = manager.getSessionState(sessionUri);
 			assert.deepStrictEqual({
@@ -1454,14 +1837,33 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('a recreated catalog default stays stable when the routing default changes', () => {
+			const defaultChat = `${buildDefaultChatUri(sessionUri)}?generation=recreated`;
+			manager.createSession({ ...makeSessionSummary(), defaultChat });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, defaultChat, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+			manager.addChat(sessionUri, buildChatUri(sessionUri, 'peer-2'), creationTimeChatStorageResource(sessionUri, buildChatUri(sessionUri, 'peer-2')), { title: 'Peer 2' });
+
+			assert.deepStrictEqual({
+				catalogDefault: manager.getDefaultChatUri(sessionUri),
+				routingDefault: manager.getSessionState(sessionUri)?.defaultChat,
+				defaultTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+				peerTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				catalogDefault: defaultChat, routingDefault: peerChat, defaultTitle: 'Test', peerTitle: '',
+			});
+		});
+
 		test('addChat is idempotent for an existing chat URI', () => {
 			manager.createSession(makeSessionSummary());
-			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			const first = manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const second = manager.addChat(sessionUri, peerChat, { title: 'Ignored' });
+			const second = manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Ignored' });
 
 			assert.deepStrictEqual(
 				{
@@ -1479,11 +1881,132 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('records chat ownership, storage and parent from registration rather than the chat URI', () => {
+			const owner = makeSessionSummary('copilot:/owner-b').resource;
+			const foreign = 'copilot:/session-a';
+			manager.restoreSession(makeSessionSummary(owner), [], creationTimeChatStorageResource);
+			const peer = buildChatUri(foreign, 'peer');
+			const foreignDefault = buildDefaultChatUri(foreign);
+			const spawned = buildChatUri(foreign, 'spawned');
+			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+			manager.addChat(owner, foreignDefault, creationTimeChatStorageResource(owner, foreignDefault));
+			manager.registerRestoredChatSummary(owner, spawned, { storageResource: creationTimeChatStorageResource(owner, spawned), origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tool' } });
+			const unregistered = buildChatUri(owner, 'unregistered');
+
+			assert.deepStrictEqual({
+				owners: [peer, foreignDefault, spawned, unregistered].map(chat => manager.getChatOwner(chat)),
+				storage: [buildDefaultChatUri(owner), peer, foreignDefault, spawned, unregistered].map(chat => manager.getChatStorageResource(chat)),
+				parents: [peer, spawned].map(chat => manager.getChatParent(chat)),
+				sessionOfChat: manager.getSessionState(peer)?.title,
+				sessionOfUnregistered: manager.getSessionState(unregistered),
+				required: (() => { try { return manager.requireChatOwner(unregistered); } catch (error) { return (error as Error).message; } })(),
+			}, {
+				owners: [owner, owner, owner, undefined],
+				storage: [owner, peer, owner, spawned, undefined],
+				parents: [undefined, peer],
+				sessionOfChat: 'Test',
+				sessionOfUnregistered: undefined,
+				required: `Unknown chat owner: ${unregistered}`,
+			});
+		});
+
+		test('keeps recorded chat storage across re-registration and summary refresh', () => {
+			const owner = 'copilot:/storage-owner';
+			const peer = buildChatUri('copilot:/storage-named', 'peer');
+			const defaultChat = buildDefaultChatUri('copilot:/storage-named');
+			const recorded = new Map([[defaultChat, 'copilot:/default-storage'], [peer, 'copilot:/peer-storage']]);
+			manager.restoreSession({
+				...makeSessionSummary(owner),
+				defaultChat,
+				chats: [{ resource: peer, title: 'Peer', status: SessionStatus.Idle, interactivity: ChatInteractivity.Full }],
+			} as SessionSummary, [], (session, chat) => recorded.get(chat) ?? creationTimeChatStorageResource(session, chat));
+			manager.registerRestoredChatSummary(owner, peer, { storageResource: 'copilot:/other-storage', title: 'Peer' });
+			manager.dispatchServerAction(owner, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+			assert.deepStrictEqual([defaultChat, peer].map(chat => [manager.getChatOwner(chat), manager.getChatStorageResource(chat)]), [
+				[owner, 'copilot:/default-storage'],
+				[owner, 'copilot:/peer-storage'],
+			]);
+		});
+
+		test('passes a restored chat its recorded storage when resolution starts, and rejects a resolution its removal invalidates', async () => {
+			const owner = 'copilot:/resolver-owner';
+			const peer = buildChatUri('copilot:/resolver-named', 'peer');
+			const invalidated = buildChatUri(owner, 'invalidated');
+			const received: [string | undefined, string][] = [];
+			let release!: () => void;
+			const released = new Promise<void>(resolve => release = resolve);
+			manager.restoreSession(makeSessionSummary(owner), [], creationTimeChatStorageResource);
+			manager.registerRestoredChatSummary(owner, peer, {
+				storageResource: 'copilot:/recorded-peer-storage',
+				providerData: 'peer-data',
+				resolver: async (providerData, storageResource) => {
+					received.push([providerData, storageResource]);
+					return { turns: [] };
+				},
+			});
+			manager.registerRestoredChatSummary(owner, invalidated, {
+				storageResource: creationTimeChatStorageResource(owner, invalidated),
+				resolver: async () => {
+					await released;
+					return { turns: [] };
+				},
+			});
+
+			await manager.resolveChatState(peer);
+			const resolving = manager.resolveChatState(invalidated);
+			manager.removeChat(owner, invalidated);
+			release();
+
+			await assert.rejects(resolving, { message: `Restored chat was invalidated while resolving: ${invalidated}` });
+			assert.deepStrictEqual(received, [['peer-data', 'copilot:/recorded-peer-storage']]);
+		});
+
+		test('deleting a session disposes the changesets of chats it owns, not of the session their URIs encode', () => {
+			const owner = 'copilot:/changeset-owner';
+			const encoded = 'copilot:/changeset-encoded';
+			manager.restoreSession(makeSessionSummary(owner), [], creationTimeChatStorageResource);
+			manager.restoreSession(makeSessionSummary(encoded), [], creationTimeChatStorageResource);
+			const moved = buildChatUri(encoded, 'moved');
+			const stays = buildChatUri(encoded, 'stays');
+			manager.addChat(owner, moved, creationTimeChatStorageResource(owner, moved));
+			manager.addChat(encoded, stays, creationTimeChatStorageResource(encoded, stays));
+			const movedChangeset = buildTurnChangesetUri(moved, 'turn-1');
+			const staysChangeset = buildTurnChangesetUri(stays, 'turn-1');
+			manager.registerChangeset(movedChangeset);
+			manager.registerChangeset(staysChangeset);
+
+			manager.deleteSession(owner);
+
+			assert.deepStrictEqual({
+				moved: manager.getChangesetState(movedChangeset),
+				stays: manager.getChangesetState(staysChangeset) !== undefined,
+			}, { moved: undefined, stays: true });
+		});
+
+		test('retains the owner of an evicted published session default chat and of announced chats', () => {
+			const owner = 'copilot:/retained-owner';
+			manager.restoreSession({ ...makeSessionSummary(owner), defaultChat: buildChatUri('copilot:/elsewhere', 'stable-default') }, [], creationTimeChatStorageResource);
+			manager.setSessionSummaryPublished(owner, true);
+			const defaultChat = manager.getDefaultChatUri(owner);
+			manager.removeSession(owner);
+
+			assert.deepStrictEqual({
+				live: manager.getChatOwner(defaultChat),
+				retained: manager.findRetainedChatOwner(defaultChat),
+				unknown: manager.findRetainedChatOwner(buildChatUri(owner, 'unknown')),
+			}, {
+				live: undefined,
+				retained: owner,
+				unknown: undefined,
+			});
+		});
+
 		test('addChat for an unknown session is a no-op', () => {
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const summary = manager.addChat('copilot:/missing', peerChat);
+			const summary = manager.addChat('copilot:/missing', peerChat, creationTimeChatStorageResource('copilot:/missing', peerChat));
 
 			assert.deepStrictEqual(
 				{
@@ -1502,11 +2025,11 @@ suite('AgentHostStateManager', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat2 = buildChatUri(sessionUri, 'peer-2');
 
-			manager.addChat(sessionUri, peerChat);
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 			// Rename the default chat away from the snapshotted session title.
 			manager.updateChatTitle(sessionUri, defaultChat, 'Renamed Default');
 			// Adding a second peer must not re-snapshot / clobber the default title.
-			manager.addChat(sessionUri, peerChat2);
+			manager.addChat(sessionUri, peerChat2, creationTimeChatStorageResource(sessionUri, peerChat2));
 
 			const state = manager.getSessionState(sessionUri);
 			assert.deepStrictEqual(
@@ -1524,7 +2047,7 @@ suite('AgentHostStateManager', () => {
 		test('updateChatTitle on a peer leaves the session and default titles untouched', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			manager.updateChatTitle(sessionUri, peerChat, 'Peer Renamed');
 
@@ -1547,7 +2070,7 @@ suite('AgentHostStateManager', () => {
 
 		test('chat archive action changes only the peer and emits chatUpdated', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
@@ -1569,14 +2092,14 @@ suite('AgentHostStateManager', () => {
 					resource: peerChat,
 					title: 'Peer',
 					origin: { kind: ChatOriginKind.User },
-					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 					archived: true,
 				},
 				sessionArchived: false,
 				action: {
 					type: ActionType.SessionChatUpdated,
 					chat: peerChat,
-					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived, activity: undefined },
+					changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived, activity: undefined },
 				},
 			});
 		});
@@ -1603,7 +2126,7 @@ suite('AgentHostStateManager', () => {
 
 		test('removeChat emits SessionChatRemoved for a peer', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat);
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1682,7 +2205,7 @@ suite('AgentHostStateManager', () => {
 		test('hasActiveTurn stays true until all concurrent chat turns finish', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const idle = manager.hasActiveTurn(sessionUri);
 
@@ -1728,7 +2251,7 @@ suite('AgentHostStateManager', () => {
 		test('a running peer chat promotes the session summary to InProgress while the default chat is idle', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const idle = manager.getSessionState(sessionUri)?.status;
 
@@ -1767,7 +2290,7 @@ suite('AgentHostStateManager', () => {
 
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1844,7 +2367,7 @@ suite('AgentHostStateManager', () => {
 		test('active-turn event and active-session count flip once per session across concurrent chats', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const turnEvents: boolean[] = [];
 			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
@@ -1935,7 +2458,7 @@ suite('AgentHostStateManager', () => {
 		test('removeChat clears a peer chat that is removed mid-turn', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const turnEvents: boolean[] = [];
 			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
@@ -1987,7 +2510,7 @@ suite('AgentHostStateManager', () => {
 
 		test('removeChat flips the session idle when the removed peer held the last active turn', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			const turnEvents: boolean[] = [];
 			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
@@ -2063,7 +2586,7 @@ suite('AgentHostStateManager', () => {
 					state: TurnState.Complete,
 				},
 			];
-			manager.restoreSession(makeSessionSummary(), turns);
+			manager.restoreSession(makeSessionSummary(), turns, creationTimeChatStorageResource);
 			const state = manager.getSessionState(sessionUri);
 
 			assert.deepStrictEqual(
@@ -2081,7 +2604,7 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('registerRestoredChatSummary and resolveChatState hydrate a peer without dispatching SessionChatAdded', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -2098,6 +2621,7 @@ suite('AgentHostStateManager', () => {
 			const draft = { text: 'work in progress', origin: { kind: MessageKind.User } };
 			const modifiedAt = new Date(42_000).toISOString();
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				title: 'Restored Peer',
 				modifiedAt,
 				draft,
@@ -2127,8 +2651,9 @@ suite('AgentHostStateManager', () => {
 		test('refreshChatHistory preserves independent modified times in a multi-chat session', async () => {
 			const sessionModifiedAt = new Date(60_000).toISOString();
 			const peerModifiedAt = new Date(30_000).toISOString();
-			manager.restoreSession({ ...makeSessionSummary(), modifiedAt: sessionModifiedAt }, []);
+			manager.restoreSession({ ...makeSessionSummary(), modifiedAt: sessionModifiedAt }, [], creationTimeChatStorageResource);
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				modifiedAt: peerModifiedAt,
 				resolver: async () => ({ turns: [] }),
 			});
@@ -2158,7 +2683,7 @@ suite('AgentHostStateManager', () => {
 			manager.restoreSession(
 				{ ...makeSessionSummary(), modifiedAt: sessionModifiedAt },
 				[],
-				{ defaultChatModifiedAt: chatModifiedAt },
+				creationTimeChatStorageResource, { defaultChatModifiedAt: chatModifiedAt },
 			);
 
 			manager.refreshChatHistory(defaultChat, [], [{
@@ -2184,28 +2709,30 @@ suite('AgentHostStateManager', () => {
 				...makeSessionSummary(),
 				chats: [
 					{ resource: defaultChat, title: '' },
-					{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle },
+					{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle | SessionStatus.IsRead },
 				],
 				defaultChat,
 			};
-			manager.restoreSession(summary, []);
+			manager.restoreSession(summary, [], creationTimeChatStorageResource);
 
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				archived: true,
 				resolver: async () => ({ turns: [] }),
 			});
 
 			assert.strictEqual(
 				manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.status,
-				SessionStatus.Idle | SessionStatus.IsArchived,
+				SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 			);
 		});
 
 		test('resolveChatState coalesces restored peer resolution and atomically installs its state', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 
 			let resolverCalls = 0;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				title: 'Restored Peer',
 				draft: { text: 'work in progress', origin: { kind: MessageKind.User } },
 				resolver: async () => {
@@ -2245,9 +2772,10 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('resolveChatState retries failed restored peer resolution', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			let resolverCalls = 0;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				resolver: async () => {
 					resolverCalls++;
 					if (resolverCalls === 1) {
@@ -2270,9 +2798,10 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('uses the latest unresolved summary when resolving a restored peer chat', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			let resolveHistory!: (state: { turns: Turn[] }) => void;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				title: 'Original title',
 				resolver: () => new Promise(resolve => { resolveHistory = resolve; }),
 			});
@@ -2292,15 +2821,16 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('invalidates a pending restored peer resolver before same-URI reuse', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			let resolveHistory!: (state: { turns: Turn[] }) => void;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				resolver: () => new Promise(resolve => { resolveHistory = resolve; }),
 			});
 
 			const resolving = manager.resolveChatState(peerChat);
 			manager.removeChat(sessionUri, peerChat);
-			manager.addChat(sessionUri, peerChat, { title: 'Replacement' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Replacement' });
 			resolveHistory({ turns: [] });
 			await assert.rejects(() => resolving, /invalidated/);
 
@@ -2313,10 +2843,11 @@ suite('AgentHostStateManager', () => {
 
 		test('registerRestoredChatSummary does not replace an already-hydrated chat URI', async () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 			let resolverCalls = 0;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				title: 'Ignored',
 				resolver: async () => {
 					resolverCalls++;
@@ -2343,6 +2874,7 @@ suite('AgentHostStateManager', () => {
 
 		test('registerRestoredChatSummary does not register a peer for an unknown session', async () => {
 			const summary = manager.registerRestoredChatSummary('copilot:/missing', peerChat, {
+				storageResource: creationTimeChatStorageResource('copilot:/missing', peerChat),
 				resolver: async () => ({ turns: [] }),
 			});
 
@@ -2359,7 +2891,7 @@ suite('AgentHostStateManager', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				manager.createSession(makeSessionSummary());
 				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
-				manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+				manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Peer' });
 
 				const notifications: INotification[] = [];
 				disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
@@ -2401,7 +2933,7 @@ suite('AgentHostStateManager', () => {
 
 		test('session summaries preserve chat interactivity', () => {
 			manager.createSession(makeSessionSummary());
-			manager.addChat(sessionUri, peerChat, {
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), {
 				title: 'Hidden peer',
 				interactivity: ChatInteractivity.Hidden,
 			});
@@ -2410,9 +2942,10 @@ suite('AgentHostStateManager', () => {
 				resource: chat.resource,
 				title: chat.title,
 				interactivity: chat.interactivity,
+				status: chat.status,
 			})), [
-				{ resource: sessionChatUri, title: 'Test', interactivity: undefined },
-				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden },
+				{ resource: sessionChatUri, title: 'Test', interactivity: undefined, status: SessionStatus.Idle },
+				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden, status: SessionStatus.Idle | SessionStatus.IsRead },
 			]);
 		});
 
@@ -2470,10 +3003,11 @@ suite('AgentHostStateManager', () => {
 		const peerChat2 = buildChatUri(sessionUri, 'peer-2');
 
 		test('passes initial providerData verbatim to a restored peer resolver', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			const blob = '{"sdkSessionId":"abc-123","model":{"id":"x\\"y"}}';
 			let received: string | undefined;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				providerData: blob,
 				resolver: async providerData => {
 					received = providerData;
@@ -2487,9 +3021,10 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('passes providerData updated before resolution to the resolver', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			let received: string | undefined;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				providerData: 'v1',
 				resolver: async providerData => {
 					received = providerData;
@@ -2504,9 +3039,10 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('retries resolution with current providerData', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			const received: Array<string | undefined> = [];
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				providerData: 'v1',
 				resolver: async providerData => {
 					received.push(providerData);
@@ -2525,9 +3061,10 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('removeChat prevents an unresolved peer resolver from observing stale providerData', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			let resolverCalls = 0;
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat),
 				providerData: 'blob',
 				resolver: async () => {
 					resolverCalls++;
@@ -2546,10 +3083,11 @@ suite('AgentHostStateManager', () => {
 		});
 
 		test('removeSession prevents unresolved peer resolvers from observing stale providerData', async () => {
-			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			const resolverCalls: string[] = [];
 			for (const chat of [peerChat, peerChat2]) {
 				manager.registerRestoredChatSummary(sessionUri, chat, {
+					storageResource: creationTimeChatStorageResource(sessionUri, chat),
 					providerData: `blob-${chat}`,
 					resolver: async () => {
 						resolverCalls.push(chat);
@@ -2613,6 +3151,29 @@ suite('Subagent URI helpers', () => {
 			parentSession: 'copilot:/session-1/subagent/tc-1',
 			toolCallId: 'tc-2',
 		});
+	});
+
+	test('parses legacy Copilot subagent selections without treating opaque fragments as subagents', () => {
+		const addresses = [
+			'copilotcli:/parent#subagent%2Fcall-1',
+			URI.from({ scheme: 'copilotcli', path: '/parent', fragment: 'subagent/call-2' }),
+			'copilotcli:/parent/subagent/call-path#subagent/call-fragment',
+			'copilotcli:/parent#peer-chat',
+			'copilotcli:/parent#subagent/',
+			'copilotcli://tenant/parent#subagent/call-1',
+			'copilotcli:/parent?revision=1#subagent/call-1',
+			'ahp-session:/parent#subagent/call-1',
+			'conversation:/parent#subagent/call-1',
+		];
+		assert.deepStrictEqual(addresses.map(address => {
+			const parsed = parseSubagentSessionUri(address);
+			return parsed && { parent: parsed.parentSession.toString(), toolCallId: parsed.toolCallId };
+		}), [
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-1' },
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-2' },
+			{ parent: 'copilotcli:/parent#subagent%2Fcall-fragment', toolCallId: 'call-path' },
+			undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('parseSubagentSessionUri returns undefined for non-subagent URIs', () => {

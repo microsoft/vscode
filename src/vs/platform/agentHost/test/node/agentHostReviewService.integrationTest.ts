@@ -29,6 +29,7 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function rmDirWithRetry(path: string | undefined): void {
 	if (!path) {
@@ -67,12 +68,13 @@ suite.skip('AgentHostReviewService (real git)', () => {
 			refreshSessionGitState: async () => { },
 			getSessionGitState: () => undefined,
 			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },
 		};
-		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, gitStateService, logService));
+		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, gitStateService, logService, createTestChatOwnershipService(stateManager)));
 	}
 
 	setup(() => {

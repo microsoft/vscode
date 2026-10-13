@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync } from 'fs';
+import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
@@ -33,6 +33,7 @@ import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, re
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IServerToolTestSession {
 	readonly sessionUri: string;
@@ -59,20 +60,25 @@ interface ISeedFeedbackOptions {
 
 const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
-const sessionToolNames = [
-	SessionServerToolName.ListSessions,
-	SessionServerToolName.GetCurrentSession,
-	SessionServerToolName.CreateSession,
-	SessionServerToolName.RenameChat,
-	SessionServerToolName.SendMessage,
-	SessionServerToolName.GetSessionContext,
-	SessionServerToolName.DeleteSession,
-] as const;
+function getSessionToolNames(supportsWorkspaceChange: boolean): readonly SessionServerToolName[] {
+	return [
+		SessionServerToolName.ListSessions,
+		SessionServerToolName.GetCurrentSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
+		SessionServerToolName.CreateSession,
+		SessionServerToolName.SendMessage,
+		SessionServerToolName.GetSessionContext,
+		SessionServerToolName.DeleteSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
+	];
+}
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	// Claude omits the prior server-tool input from detailed session context.
 	const supportsFullSessionContext = config.provider !== 'claude';
+	// Claude cannot move a chat to another workspace.
+	const supportsWorkspaceChange = config.provider !== 'claude';
 	// Claude reports success but leaves the target listed.
 	const supportsCrossSessionDelete = config.provider !== 'claude';
 	// Claude starts another turn instead of rejecting a message to the current chat.
@@ -106,7 +112,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-server-tools-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
 		if (config.provider === 'codex' && context.isLinux) {
 			// Concurrent Codex 0.153.0 starts can race cleanup of synthetic sandbox mount targets.
@@ -281,41 +287,48 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
-		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...getSessionToolNames(supportsWorkspaceChange)]);
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
-		const session = await createSession('rename-chat');
-		await driveTurnToCompletion(
-			context.client,
-			session.sessionUri,
-			'turn-rename-chat-seed',
-			'/rename Seeded Chat',
-			reserveClientSequenceBlock(),
-		);
-		const { tool } = await driveServerTool(
-			session,
-			'turn-rename-chat',
-			'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
-			SessionServerToolName.RenameChat,
-		);
-		const renamed = await retry(async () => {
-			const sessionTitle = (await sessionState(session.sessionUri)).title;
-			const chatTitle = (await chatState(session.chatUri)).title;
-			if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
-				throw new Error('The chat rename has not completed');
-			}
-			return { sessionTitle, chatTitle };
-		}, 100, 100);
+		try {
+			const session = await createSession('rename-chat', false, () => setRootConfig({
+				[AgentHostActiveAgentTitleGenerationConfigKey]: true,
+			}));
+			await driveTurnToCompletion(
+				context.client,
+				session.sessionUri,
+				'turn-rename-chat-seed',
+				'/rename Seeded Chat',
+				reserveClientSequenceBlock(),
+				{ expectUnread: false },
+			);
+			const { tool } = await driveServerTool(
+				session,
+				'turn-rename-chat',
+				'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
+				SessionServerToolName.RenameChat,
+			);
+			const renamed = await retry(async () => {
+				const sessionTitle = (await sessionState(session.sessionUri)).title;
+				const chatTitle = (await chatState(session.chatUri)).title;
+				if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
+					throw new Error('The chat rename has not completed');
+				}
+				return { sessionTitle, chatTitle };
+			}, 100, 100);
 
-		assert.deepStrictEqual({
-			succeeded: tool.completion.result.success,
-			...renamed,
-		}, {
-			succeeded: true,
-			sessionTitle: 'Coverage audit',
-			chatTitle: 'Coverage audit',
-		});
+			assert.deepStrictEqual({
+				succeeded: tool.completion.result.success,
+				...renamed,
+			}, {
+				succeeded: true,
+				sessionTitle: 'Coverage audit',
+				chatTitle: 'Coverage audit',
+			});
+		} finally {
+			await setRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: false });
+		}
 	});
 
 	serverToolTest('server tool: add_artifact_or_reference records artifacts and references in one batch', async function () {

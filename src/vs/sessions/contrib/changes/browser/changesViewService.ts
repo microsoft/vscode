@@ -449,7 +449,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			this._deleteChangesetSelections(session.resource);
 			this._deleteSessionViewState(session.resource);
 		}));
-		this._register(sessionsManagementService.onDidDeleteChat(session => this._pruneChangesetSelections(session)));
+		this._register(sessionsManagementService.onDidDeleteChat(({ sessionResource, chatResource }) => this._deleteChatChangesetSelection(sessionResource, chatResource)));
 		this._register(sessionsManagementService.onDidDiscardNewSession(session => {
 			this._deleteChangesetSelections(session.resource);
 			this._deleteSessionViewState(session.resource);
@@ -508,22 +508,15 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 	}
 
-	private _pruneChangesetSelections(session: ISession): void {
-		const selections = this._changesetSelectionsBySession.get(session.resource);
+	private _deleteChatChangesetSelection(sessionResource: URI, chatResource: URI): void {
+		const selections = this._changesetSelectionsBySession.get(sessionResource);
 		if (!selections) {
 			return;
 		}
 
-		const chats = session.chats.get();
-		let changed = false;
-		for (const chatResource of selections.chats.keys()) {
-			if (!chats.some(chat => isEqual(chat.resource, chatResource))) {
-				selections.chats.delete(chatResource);
-				changed = true;
-			}
-		}
+		const changed = selections.chats.delete(chatResource);
 		if (selections.chats.size === 0) {
-			this._changesetSelectionsBySession.delete(session.resource);
+			this._changesetSelectionsBySession.delete(sessionResource);
 		}
 		if (changed) {
 			this._changesetSelectionChanged.trigger(undefined);

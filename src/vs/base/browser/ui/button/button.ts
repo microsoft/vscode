@@ -441,7 +441,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.appendChild(this.separatorContainer);
 
 		// Separator styles
-		const border = options.buttonBorder;
+		const border = options.secondary ? options.buttonSecondaryBorder : options.buttonBorder;
 		if (border) {
 			this.separatorContainer.style.borderTop = '1px solid ' + border;
 			this.separatorContainer.style.borderBottom = '1px solid ' + border;

@@ -218,6 +218,9 @@ function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undef
 	if (Array.isArray(raw.candidateModels) && raw.candidateModels.every(candidate => typeof candidate === 'string')) {
 		result.candidateModels = raw.candidateModels;
 	}
+	if (typeof raw.selectionReason === 'string' && raw.selectionReason.trim()) {
+		result.selectionReason = raw.selectionReason;
+	}
 	return result;
 }
 

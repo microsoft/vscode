@@ -46,7 +46,7 @@ import {
 } from '../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
@@ -68,6 +68,7 @@ import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
@@ -1129,7 +1130,10 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			// codex SDK root is supplied so the provider actually registers.
 			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			// Native marketplace plugins start a background Git sync outside the replay proxy, which can
+			// leave clone directories locked on Windows after shutdown. Client plugins use host-provided
+			// skills, agents, and MCP configuration independently of this native marketplace feature.
+			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true', '-c', 'features.plugins=false']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`
@@ -1294,8 +1298,8 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requires merging the session snapshot with its default chat snapshot.
  */
 export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
-	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
-	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
+	const owningSession = mintedTestChatOwner(sessionUri) ?? sessionUri;
+	const chatUri = mintedTestChatOwner(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
 	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession }, timeoutMs);
 	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri }, timeoutMs);
 	return mergeSessionWithDefaultChat(

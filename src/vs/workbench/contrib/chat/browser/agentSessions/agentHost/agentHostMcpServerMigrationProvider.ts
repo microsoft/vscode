@@ -159,7 +159,9 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			for (const requested of requestedCandidates) {
 				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
 				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)
-					|| !equals(current.removedProperties, requested.removedProperties)) {
+					|| !equals(current.migratedConfiguration, requested.migratedConfiguration)
+					|| !equals(current.removedProperties, requested.removedProperties)
+					|| !equals(current.environmentVariables, requested.environmentVariables)) {
 					failures.push(this.noLongerEligible(requested));
 				} else {
 					eligibleCandidates.push(current);
@@ -250,10 +252,32 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		if (server && server.applicability !== AgentHostMcpServerApplicability.Applicable) {
 			return [localize('mcpMigrationServerNotApplicable', "This server is not associated with the current workspace.")];
 		}
-		if (server && server.compatibility.kind !== 'supported') {
+		switch (reason) {
+			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName:
+				return [localize('mcpMigrationServerEnvironmentVariableInName', "Variables ('${env:...}' or '${input:...}') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName:
+				return [localize('mcpMigrationServerInvalidEnvironmentVariableName', "The destination MCP configuration only supports environment variable names made of letters, digits and underscores that do not start with a digit. Rename the variable to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong:
+				return [localize('mcpMigrationServerEnvironmentVariableValueTooLong', "A value that references an environment variable is too long for the destination to expand it. Shorten the value to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl:
+				return [localize('mcpMigrationServerUnsupportedEnvironmentVariableInUrl', "The destination MCP configuration does not support environment variables in the scheme or port of a URL, or as the whole URL. Use a fixed value there to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.UnsupportedInputType:
+				return [localize('mcpMigrationServerUnsupportedInputType', "Inputs are migrated to environment variables, except password and command inputs, and inputs that are not fully declared in the 'inputs' of the same file. Use an environment variable ('${env:...}') instead to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidInputName:
+				return [localize('mcpMigrationServerInvalidInputName', "Inputs are migrated to environment variables named after their IDs, and an input of this server has an empty ID. Give the input an ID to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.VariableNameCollision:
+				return [localize('mcpMigrationServerVariableNameCollision', "Inputs are migrated to environment variables named after their IDs, and an input of this server would use the same environment variable as a different input or environment variable reference ('${env:...}') in the same file, or as an entry of its 'env'. Rename the input to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.UnsupportedVariable:
+				return [localize('mcpMigrationServerUnsupportedVariable', "This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable ('${env:...}') to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault:
+				return [localize('mcpMigrationServerUnsupportedInputDefault', "The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.")];
+		}
+		// For a server the planner analyzed, its compatibility and delivery are not why it was excluded.
+		const analyzed = server !== undefined && isMcpServerMigrationDeliverable(server);
+		if (server && !analyzed && server.compatibility.kind !== 'supported') {
 			return server.compatibility.reasons.map(getMcpCompatibilityDetail);
 		}
-		if (server && server.delivery !== AgentHostMcpServerDelivery.ClientForwarded) {
+		if (server && !analyzed && server.delivery !== AgentHostMcpServerDelivery.ClientForwarded) {
 			return [localize('mcpMigrationServerNotForwarded', "This server is not forwarded from its current configuration to the active agent.")];
 		}
 		switch (reason) {

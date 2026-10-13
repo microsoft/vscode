@@ -979,13 +979,18 @@ const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
 
 export function parseCoAuthors(message: string): CoAuthor[] {
 	const coAuthors: CoAuthor[] = [];
+	const emails = new Set<string>();
 	let match;
 
 	coAuthorRegex.lastIndex = 0;
 	while ((match = coAuthorRegex.exec(message)) !== null) {
 		const name = match[1].trim();
 		const email = match[2].trim();
-		if (name && email) {
+
+		// Squash merge commit messages repeat the trailers of each squashed commit
+		const emailKey = email.toLowerCase();
+		if (name && email && !emails.has(emailKey)) {
+			emails.add(emailKey);
 			coAuthors.push({ name, email });
 		}
 	}

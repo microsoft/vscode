@@ -1,0 +1,38 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FIRST_FORK_INCLUDED. Reply exactly "FIRST_READY".
+    response:
+      content: FIRST_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FIRST_FORK_INCLUDED. Reply exactly "FIRST_READY".
+        - role: assistant
+          content: FIRST_READY
+        - role: user
+          content: Remember LATER_FORK_EXCLUDED. Reply exactly "LATER_READY".
+    response:
+      content: LATER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FIRST_FORK_INCLUDED. Reply exactly "FIRST_READY".
+        - role: assistant
+          content: FIRST_READY
+        - role: user
+          content: Reply with the code word from the source conversation. Do not use tools.
+    response:
+      content: FIRST_FORK_INCLUDED
+      stopReason: end_turn

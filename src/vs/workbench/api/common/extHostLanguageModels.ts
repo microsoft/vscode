@@ -197,6 +197,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, configuration: options.configuration }, token) ?? [];
+		if (this._languageModelProviders.get(vendor) !== data) {
+			return [];
+		}
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {

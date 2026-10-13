@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -19,6 +18,7 @@ import {
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, runRecordOnlyTests } = context;
@@ -29,7 +29,7 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 	(config.planModeStyle ? test : test.skip)(planModeTitle, async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-plan-test-`);
 		tempDirs.push(tempDir);
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-plan-mode-${config.provider}`, createdSessions, URI.file(tempDir));
 
@@ -90,7 +90,7 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 	(runRecordOnlyTests ? test : test.skip)('can abort a running turn', async function () {
 		this.timeout(120_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-abort-`);
 		tempDirs.push(tempDir);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tempDir));

@@ -22,7 +22,7 @@ export interface NativeMpcDiscoveryAdapter {
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI }) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI; expandEnvironmentVariables?: boolean }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -63,6 +63,8 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			launch,
 			defaultCwd,
 			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
+			// Keep the raw URL, since `URI` normalization would encode the references.
+			...(options?.expandEnvironmentVariables ? { environmentVariableExpansion: server.url ? { url: server.url } : {} } : {}),
 		};
 	}));
 }
@@ -103,6 +105,11 @@ export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter
 
 	override getFilePath(details: INativeMcpDiscoveryData): URI | undefined {
 		return getCopilotGlobalMcpConfigurationResource(details);
+	}
+
+	/** Expands `${VAR}` references like the Copilot runtime, including those written when servers are migrated from the user `mcp.json`. */
+	override adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir, expandEnvironmentVariables: true });
 	}
 }
 

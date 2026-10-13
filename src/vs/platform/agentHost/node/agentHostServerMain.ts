@@ -86,7 +86,7 @@ interface IServerOptions {
 	readonly connectionToken: string | undefined;
 }
 
-function parseServerOptions(): IServerOptions {
+async function parseServerOptions(): Promise<IServerOptions> {
 	const argv = process.argv.slice(2);
 	const envPort = parseInt(process.env['VSCODE_AGENT_HOST_PORT'] ?? '8081', 10);
 	const portIdx = argv.indexOf('--port');
@@ -127,7 +127,7 @@ function parseServerOptions(): IServerOptions {
 			process.exit(1);
 		}
 		try {
-			connectionToken = fs.readFileSync(tokenFilePath).toString().replace(/\r?\n$/, '');
+			connectionToken = (await fs.promises.readFile(tokenFilePath, 'utf8')).replace(/\r?\n$/, '');
 		} catch {
 			log(`Error: Unable to read connection token file at '${tokenFilePath}'`);
 			process.exit(1);
@@ -153,7 +153,7 @@ function parseServerOptions(): IServerOptions {
 // ---- Main -------------------------------------------------------------------
 
 async function main(): Promise<void> {
-	const options = parseServerOptions();
+	const options = await parseServerOptions();
 	const disposables = new DisposableStore();
 	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
