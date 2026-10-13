@@ -29,6 +29,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
+		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => true,
@@ -78,6 +79,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendChatResource() { return backendChat; }
 			}(),
 			new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
@@ -166,13 +168,13 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			refreshed: [{ name: 'marketplace', success: true }],
 			changeCount: 3,
 			calls: [
-				{ operation: 'list', args: ['copilotcli', backendSession.toString(), frontendSession.toString()] },
-				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', frontendSession.toString()] },
-				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
-				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
-				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', undefined, frontendSession.toString()] },
-				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', true, frontendSession.toString()] },
-				{ operation: 'refresh', args: ['copilotcli', backendSession.toString(), 'marketplace', frontendSession.toString()] },
+				{ operation: 'list', args: ['copilotcli', backendSession.toString(), backendChat.toString()] },
+				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', backendChat.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+				{ operation: 'browse', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', undefined, backendChat.toString()] },
+				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', true, backendChat.toString()] },
+				{ operation: 'refresh', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
 			],
 		});
 	});
@@ -694,6 +696,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendChatResource() { return session; }
 			}(),
 			new class extends mock<IAgentPluginService>() {
 				override readonly plugins = plugins;

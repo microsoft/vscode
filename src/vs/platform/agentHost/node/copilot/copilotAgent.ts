@@ -2049,7 +2049,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _findPluginOperationSession(session: URI | undefined, chat: URI | undefined): CopilotAgentSession | undefined {
-		return chat ? this._findChatByUri(chat) ?? (session ? this._findSessionChat(session) : undefined) : session ? this._findSessionChat(session) : undefined;
+		if (chat) {
+			const exactChat = this._findChatByUri(chat);
+			return exactChat && session && isEqual(exactChat.ownerSessionUri, session) ? exactChat : undefined;
+		}
+		return session ? this._findSessionChat(session) : undefined;
 	}
 
 	async uninstallPlugin(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {

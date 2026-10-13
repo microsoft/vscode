@@ -1728,6 +1728,8 @@ suite('CopilotAgent', () => {
 	test('manages plugin marketplaces through the SDK server API', async () => {
 		const client = new TestCopilotClient([]);
 		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
+		const chat = URI.parse('vendor-chat:/marketplace-peer');
+		const otherSession = URI.parse('agent-host-copilotcli:/other-session');
 		client.pluginMarketplaces = [{
 			name: 'marketplace',
 			source: 'GitHub: owner/repository',
@@ -1741,15 +1743,19 @@ suite('CopilotAgent', () => {
 		client.pluginMarketplaceRefreshResults = [{ name: 'marketplace', success: true }];
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		chatEntriesBySdkId(agent).set('unrelated-live-session', {
-			chatSession: { resourceUri: URI.parse('agent-host-copilotcli:/other-session') } as CopilotAgentSession,
+			chatSession: {
+				resourceUri: chat,
+				ownerSessionUri: otherSession,
+			} as CopilotAgentSession,
 			dispose() { },
 		});
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'unrelated-live-session' });
 		try {
-			const listed = await agent.listPluginMarketplaces(session);
-			const added = await agent.addPluginMarketplace(session, 'owner/repository');
-			const browsed = await agent.browsePluginMarketplace(session, 'marketplace');
-			const removed = await agent.removePluginMarketplace(session, 'marketplace', true);
-			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace');
+			const listed = await agent.listPluginMarketplaces(session, chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
+			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
+			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
 
 			assert.deepStrictEqual({
 				listed,
@@ -1796,6 +1802,7 @@ suite('CopilotAgent', () => {
 		const calls: unknown[] = [];
 		const liveSession = {
 			resourceUri: chat,
+			ownerSessionUri: session,
 			installPlugin: async (source: string) => { calls.push(['install', source]); },
 			uninstallPlugin: async (name: string, directSourceId?: string) => { calls.push(['uninstall', name, directSourceId]); },
 			listPluginMarketplaces: async () => [{
