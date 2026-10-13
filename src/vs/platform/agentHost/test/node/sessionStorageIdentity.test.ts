@@ -284,6 +284,23 @@ suite('Session storage identity compatibility', () => {
 		}, { deleted: true, sessions: ['copilotcli:/created-by-old'] });
 	});
 
+	test('normalized catalogs read their session and default chat in runtime spelling', async () => {
+		const db = await database();
+		const session = 'ahp-session:/normalized-compat';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const recordedDefault = `${buildDefaultChatUri(session)}?generation=1`;
+		// The compatibility format keeps this session's catalog in its storage spelling.
+		await db.raw.registerChatCatalogV2('copilotcli:/normalized-compat', { defaultChat: { chat: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1`, order: 0 }, peers: [], privateDescendants: [] });
+		assert.deepStrictEqual({
+			runtime: (await db.readSessionRegistrations()).normalizedCatalogs,
+			storage: (await db.raw.readSessionRegistrations()).normalizedCatalogs,
+		}, {
+			runtime: [{ session, defaultChatUri: recordedDefault }],
+			storage: [{ session: 'copilotcli:/normalized-compat', defaultChatUri: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1` }],
+		});
+	});
+
 	test('catalog payload checksums and per-session receipts round-trip through storage encoding', async () => {
 		const db = await database();
 		const session = 'ahp-session:/new';

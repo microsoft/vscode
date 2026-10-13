@@ -353,13 +353,14 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 }
 
 /**
- * The default chat of a known session: the default chat its listing records,
- * else the session's recorded default chat. `undefined` when neither records one.
+ * The default chat of a known session: the session's recorded default chat,
+ * else, for a session that records none, the default chat its listing names.
+ * `undefined` when neither names one.
  */
 function resolveDefaultChat(sessions: readonly IAgentSessionMetadata[], session: URI, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
-	const listed = sessions.find(candidate => candidate.session.toString() === session.toString())?.chats?.find(chat => chat.kind === 'default')?.chat;
-	const recorded = listed?.toString() ?? getDefaultChat(session.toString());
-	return recorded === undefined ? undefined : URI.parse(recorded);
+	const defaultChat = getDefaultChat(session.toString())
+		?? sessions.find(candidate => candidate.session.toString() === session.toString())?.chats?.find(chat => chat.kind === 'default')?.chat.toString();
+	return defaultChat === undefined ? undefined : URI.parse(defaultChat);
 }
 
 export interface IRenameTitleResult {
