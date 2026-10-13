@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { partitionSessionArtifacts } from '../../browser/agentHostSessionArtifacts.js';
 
@@ -59,6 +59,26 @@ suite('Agent Host Session Artifacts', () => {
 			{ id: 'slashes', uri: toAgentHostUri(fileUri, authority).toString() },
 			{ id: 'backslashes', uri: toAgentHostUri(fileUri, authority).toString() },
 		]);
+	});
+
+	test('maps persisted UNC file paths while preserving their server authority', () => {
+		const fileUri = URI.parse('file://server/share/report.md');
+		const authority = 'remote-host';
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'backslashes', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: '\\\\server\\share\\report.md' },
+			{ id: 'slashes', type: SessionArtifactType.File, label: 'Report', isArtifact: false, uri: '//server/share/report.md' },
+			{ id: 'uri', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: fileUri.toString() },
+		]), uri => toAgentHostUri(uri, authority));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({
+			id: artifact.id,
+			uri: artifact.uri?.toString(),
+			original: artifact.uri && fromAgentHostUri(artifact.uri).toString(),
+		})), ['uri', 'slashes', 'backslashes'].map(id => ({
+			id,
+			uri: toAgentHostUri(fileUri, authority).toString(),
+			original: fileUri.toString(),
+		})));
 	});
 
 	test('reports an unmappable file artifact without losing other artifacts and references', () => {

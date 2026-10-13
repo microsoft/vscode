@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasDriveLetter } from '../../../../../base/common/extpath.js';
+import { hasDriveLetter, toSlashes } from '../../../../../base/common/extpath.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -34,8 +34,8 @@ function parseUri(value: string | undefined): URI | undefined {
 
 function parseFileUri(value: string | undefined): URI | undefined {
 	// Persisted artifacts can contain Windows paths rather than file URIs.
-	if (value && hasDriveLetter(value, true) && (value[2] === '/' || value[2] === '\\')) {
-		return URI.file(value.replace(/\\/g, '/'));
+	if (value && ((hasDriveLetter(value, true) && (value[2] === '/' || value[2] === '\\')) || value.startsWith('\\\\') || value.startsWith('//'))) {
+		return URI.file(toSlashes(value));
 	}
 	return parseUri(value);
 }
