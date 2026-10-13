@@ -27,7 +27,7 @@ suite('Session isolation tool', () => {
 			resource: session, provider: 'copilotcli', title: 'Project', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 		});
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		const calls: { chat: string; turnId: string }[] = [];
 		let enabled = true;
 		const group = createSessionIsolationToolGroup({

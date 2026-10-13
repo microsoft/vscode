@@ -1789,7 +1789,7 @@ suite('AgentService (node dispatcher)', () => {
 				const [listed] = await svc.listSessions();
 				await svc.whenCatalogReconciliationIdle();
 				assert.deepStrictEqual({
-					stableDefault: manager.getDefaultChatUri(session.toString()),
+					stableDefault: manager.getPrimaryChat(session.toString()),
 					routingDefault: manager.getSessionState(session.toString())?.defaultChat,
 					persisted: after.sourceRevision > before.sourceRevision,
 					defaults: data.chats.filter(chat => chat.kind === 'default').map(chat => chat.uri),
@@ -2839,6 +2839,7 @@ suite('AgentService (node dispatcher)', () => {
 					const now = new Date().toISOString();
 					stateManager.restoreSession({
 						resource: session.toString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 						provider: provider.id,
 						title: 'Canvas session',
 						status: SessionStatus.Idle,
@@ -2900,6 +2901,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (const session of [requestedSession, owningSession]) {
 				stateManager.restoreSession({
 					resource: session.toString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 					provider: provider.id,
 					title: 'Canvas session',
 					status: SessionStatus.Idle,
@@ -2910,7 +2912,7 @@ suite('AgentService (node dispatcher)', () => {
 			const foreignChat = URI.parse(buildChatUri(owningSession, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(owningSession.toString(), foreignChat.toString(), {
-				storageResource: creationTimeChatStorageResource(owningSession.toString(), foreignChat.toString()),
+				storageResource: creationTimeChatStorageResource(owningSession.toString(), foreignChat.toString(), buildDefaultChatUri(owningSession.toString())),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -2940,6 +2942,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = AgentSession.uri('copilot', 'canvas-disabled-session');
 			stateManager.restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: provider.id,
 				title: 'Canvas session',
 				status: SessionStatus.Idle,
@@ -2949,7 +2952,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(session.toString(), chat.toString(), {
-				storageResource: creationTimeChatStorageResource(session.toString(), chat.toString()),
+				storageResource: creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -3835,6 +3838,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(localService).restoreSession({
 				resource: owner.toString(),
+				defaultChat: buildDefaultChatUri(owner.toString()),
 				provider: 'copilotcli',
 				title: '',
 				status: SessionStatus.Idle,
@@ -3842,7 +3846,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: now,
 				workingDirectories: [],
 			}, [createTurn('root-turn', rootTerminal, 'root preview', true)], creationTimeChatStorageResource);
-			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), creationTimeChatStorageResource(owner.toString(), peerChat.toString()), {
+			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), creationTimeChatStorageResource(owner.toString(), peerChat.toString(), buildDefaultChatUri(owner.toString())), {
 				title: 'Peer',
 				turns: [createTurn('peer-turn', peerTerminal, 'peer preview', true)],
 			});
@@ -3904,6 +3908,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(localService).restoreSession({
 				resource: owner.toString(),
+				defaultChat: buildDefaultChatUri(owner.toString()),
 				provider: 'copilotcli',
 				title: '',
 				status: SessionStatus.Idle,
@@ -4073,7 +4078,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(peer, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
 
@@ -4093,7 +4098,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 			const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
@@ -4460,7 +4465,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session.toString());
 			const peerChat = buildChatUri(session, 'peer');
-			getStateManager(svc).addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat));
+			getStateManager(svc).addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat, buildDefaultChatUri(session.toString())));
 			getStateManager(svc).dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -4498,7 +4503,7 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(session, 'peer');
 			const stateManager = getStateManager(svc);
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 			stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
 			const sessionReadPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
@@ -4554,7 +4559,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const toolChat = buildChatUri(session, 'tool');
-			getStateManager(svc).addChat(session.toString(), toolChat, creationTimeChatStorageResource(session.toString(), toolChat), {
+			getStateManager(svc).addChat(session.toString(), toolChat, creationTimeChatStorageResource(session.toString(), toolChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4581,7 +4586,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const sideChat = buildChatUri(session, 'side');
-			getStateManager(svc).addChat(session.toString(), sideChat, creationTimeChatStorageResource(session.toString(), sideChat), {
+			getStateManager(svc).addChat(session.toString(), sideChat, creationTimeChatStorageResource(session.toString(), sideChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4612,7 +4617,7 @@ suite('AgentService (node dispatcher)', () => {
 				let targetResolverCalls = 0;
 				if (targetIsPeer) {
 					stateManager.registerRestoredChatSummary(session.toString(), targetChat, {
-						storageResource: creationTimeChatStorageResource(session.toString(), targetChat),
+						storageResource: creationTimeChatStorageResource(session.toString(), targetChat, buildDefaultChatUri(session.toString())),
 						resolver: async () => {
 							targetResolverCalls++;
 							return { turns: [] };
@@ -4623,7 +4628,7 @@ suite('AgentService (node dispatcher)', () => {
 				let unrelatedResolverCalls = 0;
 				for (const chat of unopenedChats) {
 					stateManager.registerRestoredChatSummary(session.toString(), chat, {
-						storageResource: creationTimeChatStorageResource(session.toString(), chat),
+						storageResource: creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())),
 						resolver: async () => {
 							unrelatedResolverCalls++;
 							throw new Error('Unrelated chat history must not block prompt dispatch');
@@ -4873,7 +4878,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/repo')],
 				config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///repo': { enabled: true } } },
 			});
-			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer')), { workingDirectories: [other] });
+			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer'), buildDefaultChatUri(session.toString())), { workingDirectories: [other] });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
 			// A client sends only the folders it changes, by working directory. A chat
@@ -17141,6 +17146,7 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(service).restoreSession(
 				{
 					resource: childSessionUri,
+					defaultChat: buildDefaultChatUri(childSessionUri),
 					provider: 'subagent',
 					title: 'Explore',
 					status: SessionStatus.Idle,
@@ -17186,7 +17192,7 @@ suite('AgentService (node dispatcher)', () => {
 					provider: agent.id, startTime: 1, source: 'restore',
 				}, { checkTombstone: false });
 				getStateManager(svc).restoreSession({
-					resource: child.toString(), provider: agent.id, title: 'Internal worker',
+					resource: child.toString(), defaultChat: buildDefaultChatUri(child.toString()), provider: agent.id, title: 'Internal worker',
 					status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
 				}, [], creationTimeChatStorageResource);
 			}
@@ -17362,6 +17368,7 @@ suite('AgentService (node dispatcher)', () => {
 			const summaryNow = Date.now();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: 'copilot',
 				title: 'Materialized',
 				status: SessionStatus.Idle,
@@ -18375,6 +18382,7 @@ suite('AgentService (node dispatcher)', () => {
 			const subagent = buildSubagentSessionUri(parent, 'tool-call');
 			getStateManager(localService).restoreSession({
 				resource: subagent,
+				defaultChat: buildDefaultChatUri(subagent),
 				provider: 'subagent',
 				title: 'Subagent',
 				status: SessionStatus.Idle,
@@ -21832,7 +21840,7 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.restoreSession(session);
 			const row = (await database.readChatV2(session.toString(), child)).chat;
 			assert.deepStrictEqual({
-				physical: getStateManager(svc).getDefaultChatUri(session.toString()),
+				physical: getStateManager(svc).getPrimaryChat(session.toString()),
 				parent: row?.parentChat,
 				origin: row?.origin,
 				publicOrder: row?.order,
@@ -21872,6 +21880,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -21879,7 +21888,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: now,
 				workingDirectories: [URI.file('/workspace/original').toString()],
 			}, [], creationTimeChatStorageResource);
-			getStateManager(svc).addChat(session.toString(), child, creationTimeChatStorageResource(session.toString(), child), {
+			getStateManager(svc).addChat(session.toString(), child, creationTimeChatStorageResource(session.toString(), child, buildDefaultChatUri(session.toString())), {
 				title: 'Historical Worker',
 				turns: [{
 					id: 'materialized-turn',
@@ -21987,6 +21996,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -22120,6 +22130,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: agent.id,
 				title: 'Owner',
 				status: SessionStatus.Idle,
@@ -22176,6 +22187,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22272,6 +22284,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22340,6 +22353,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22474,6 +22488,7 @@ suite('AgentService (node dispatcher)', () => {
 				const now = new Date().toISOString();
 				const restoreOwner = (title: string) => stateManager.restoreSession({
 					resource: sessionKey,
+					defaultChat: buildDefaultChatUri(sessionKey),
 					provider: agent.id,
 					title,
 					status: SessionStatus.Idle,
@@ -22578,6 +22593,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22654,6 +22670,7 @@ suite('AgentService (node dispatcher)', () => {
 			const now = new Date().toISOString();
 			const restoreOwner = (title: string) => stateManager.restoreSession({
 				resource: sessionKey,
+				defaultChat: buildDefaultChatUri(sessionKey),
 				provider: agent.id,
 				title,
 				status: SessionStatus.Idle,
@@ -22724,6 +22741,7 @@ suite('AgentService (node dispatcher)', () => {
 				const now = new Date().toISOString();
 				getStateManager(svc).restoreSession({
 					resource: session.toString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 					provider: agent.id,
 					title: 'Stale Owner',
 					status: SessionStatus.Idle,
@@ -22775,7 +22793,7 @@ suite('AgentService (node dispatcher)', () => {
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' } as const;
 			getStateManager(service).registerRestoredChatSummary(parent.toString(), childChat, {
-				storageResource: creationTimeChatStorageResource(parent.toString(), childChat),
+				storageResource: creationTimeChatStorageResource(parent.toString(), childChat, buildDefaultChatUri(parent.toString())),
 				title: 'Subagent',
 				origin,
 				interactivity: ChatInteractivity.ReadOnly,
@@ -22911,7 +22929,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 
 			const peerChat = buildChatUri(parent, 'peer-spawner');
-			getStateManager(service).addChat(parent, peerChat, creationTimeChatStorageResource(parent, peerChat), {
+			getStateManager(service).addChat(parent, peerChat, creationTimeChatStorageResource(parent, peerChat, buildDefaultChatUri(parent)), {
 				title: 'Peer',
 				turns: [{
 					id: 'peer-turn', state: TurnState.Complete, usage: undefined,
@@ -22979,7 +22997,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 			let peerResolved = false;
 			getStateManager(service).registerRestoredChatSummary(parent, peerChat, {
-				storageResource: creationTimeChatStorageResource(parent, peerChat),
+				storageResource: creationTimeChatStorageResource(parent, peerChat, buildDefaultChatUri(parent)),
 				title: 'Peer',
 				resolver: async () => {
 					peerResolved = true;
@@ -23545,7 +23563,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chat = URI.parse(buildChatUri(session, 'peer-1'));
-			getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
+			getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 
 			assert.deepStrictEqual({
 				result: await service.stopBackgroundWork(chat, 'shell:3'),
@@ -24406,7 +24424,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildSubagentChatUri(session, 'tool-1');
-			getStateManager(service).addChat(session.toString(), sourceChat, creationTimeChatStorageResource(session.toString(), sourceChat), {
+			getStateManager(service).addChat(session.toString(), sourceChat, creationTimeChatStorageResource(session.toString(), sourceChat, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [completedTurn('t1')],
 			});
@@ -25195,7 +25213,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const source = buildSubagentChatUri(session.toString(), 'tool-1');
-			getStateManager(service).addChat(session.toString(), source, creationTimeChatStorageResource(session.toString(), source), {
+			getStateManager(service).addChat(session.toString(), source, creationTimeChatStorageResource(session.toString(), source, buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [{ id: 't1', state: TurnState.Complete, message: { text: 'work', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
 			});
@@ -27665,7 +27683,7 @@ suite('AgentService (node dispatcher)', () => {
 					afterPeer,
 					physical: (await database.getChatV2ProviderDetail(physical))?.providerData,
 					peer: (await database.getChatV2ProviderDetail(peer))?.providerData,
-					stableDefault: getStateManager(svc).getDefaultChatUri(session.toString()),
+					stableDefault: getStateManager(svc).getPrimaryChat(session.toString()),
 				}, { afterPeer: 'default-backing', physical: 'default-update', peer: 'peer-update', stableDefault: physical });
 			});
 		}
@@ -27700,7 +27718,7 @@ suite('AgentService (node dispatcher)', () => {
 					registerTestAgentProvider(svc, agent);
 					if (restore) {
 						await svc.restoreSession(session);
-						assert.strictEqual(getStateManager(svc).getDefaultChatUri(session.toString()), physical);
+						assert.strictEqual(getStateManager(svc).getPrimaryChat(session.toString()), physical);
 						svc.dispatchAction(physical, {
 							type: ActionType.ChatTurnStarted, turnId: 'cold-turn', startedAt: new Date().toISOString(),
 							message: { text: 'Cold send', origin: { kind: MessageKind.User } },
@@ -27722,6 +27740,51 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		test('a normalized session whose primary chat is not default-shaped treats a default-shaped chat as a peer', async () => {
+			const session = URI.parse('ahp-session:/recorded-primary');
+			const primary = buildChatUri(session, 'advertised-default');
+			const shaped = buildDefaultChatUri(session);
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Owner' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: primary, order: 0, providerData: 'default-backing' },
+				peers: [], privateDescendants: [],
+			});
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot')));
+			const coldShapedSubscribe = await svc.subscribe(URI.parse(shaped), 'cold-client').then(() => 'subscribed', (error: Error) => error.message);
+			await svc.restoreSession(session);
+			await svc.createChat(session, URI.parse(shaped), { title: 'Shaped peer' });
+			const manager = getStateManager(svc);
+			svc.dispatchAction(shaped, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 1);
+			svc.dispatchAction(primary, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 2);
+			assert.deepStrictEqual({
+				coldShapedSubscribe,
+				primary: manager.getPrimaryChat(session.toString()),
+				chats: manager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				storage: [primary, shaped].map(chat => manager.getChatStorageResource(chat)),
+				archived: [primary, shaped].map(chat => isSessionStatusArchived(manager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.status)),
+			}, {
+				coldShapedSubscribe: `Cannot subscribe to unknown resource: ${shaped}`,
+				primary,
+				chats: [primary, shaped],
+				storage: [session.toString(), shaped],
+				archived: [false, true],
+			});
+		});
+
 		test('onDidChangeChatData does not persist tool-origin chats as peer membership', async () => {
 			const onDidChangeChatData = disposables.add(new Emitter<IAgentChatDataChange>());
 			class MultiChatAgent extends MockAgent {
@@ -27740,7 +27803,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const toolCallId = 'tool-1';
 			const toolChatUri = URI.parse(buildSubagentChatUri(session.toString(), toolCallId));
-			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), creationTimeChatStorageResource(session.toString(), toolChatUri.toString()), {
+			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), creationTimeChatStorageResource(session.toString(), toolChatUri.toString(), buildDefaultChatUri(session.toString())), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId },
 			});
 			onDidChangeChatData.fire({ chat: toolChatUri, providerData: 'tool-backing' });
@@ -28492,7 +28555,7 @@ suite('AgentService (node dispatcher)', () => {
 				/title persistence failed/
 			);
 
-			getStateManager(localService).addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Original chat' });
+			getStateManager(localService).addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Original chat' });
 			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
 			await db.setMetadata(`customChatTitleSource:${defaultChat}`, 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
@@ -28809,7 +28872,7 @@ suite('AgentService (node dispatcher)', () => {
 				svc.dispatchAction(first.toString(), { type: ActionType.SessionDefaultChatChanged, defaultChat: peer.toString() }, 'residency-client', 1);
 				await createUsedSession(svc, residency.agent);
 				await waitForResidency(() => !getStateManager(svc).getSessionState(first.toString()), 'Routed session was not evicted');
-				const evictedDefault = getStateManager(svc).getDefaultChatUri(first.toString());
+				const evictedDefault = getStateManager(svc).getPrimaryChat(first.toString());
 				if (operation === 'delete') {
 					await svc.disposeSession(first);
 				} else {
@@ -28818,7 +28881,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					evictedDefault,
 					disposed: residency.agent.chatContexts.filter(call => call.boundary === 'disposeChat').map(call => call.chat.toString()),
-					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getDefaultChatUri(first.toString()) : undefined,
+					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getPrimaryChat(first.toString()) : undefined,
 				}, {
 					evictedDefault: physical,
 					disposed: operation === 'delete' ? [peer.toString(), physical] : [],
@@ -28891,7 +28954,7 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
-				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
+				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString(), buildDefaultChatUri(sessionResource.toString())), {});
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					peerChat.toString(),
@@ -28949,7 +29012,7 @@ suite('AgentService (node dispatcher)', () => {
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'initial-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'initial', origin: { kind: MessageKind.User } } });
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
-				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
+				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString(), buildDefaultChatUri(sessionResource.toString())), {});
 				localService.addSubscriber(sessionResource, 'client-1');
 				localService.unsubscribe(sessionResource, 'client-1');
 
@@ -29237,7 +29300,7 @@ suite('AgentService (node dispatcher)', () => {
 				];
 				await service.restoreSession(session);
 				const chat = URI.parse(buildChatUri(session, 'peer-1'));
-				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()), {});
+				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())), {});
 				service.addSubscriber(session, 'client-1');
 
 				service.unsubscribe(session, 'client-1');
@@ -29827,7 +29890,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const named = AgentSession.uri('copilot', 'named-by-uri');
 				const chat = URI.parse(buildChatUri(named, 'moved'));
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
 				service.addSubscriber(chat, 'client-1');
 				getStateManager(service).removeChat(owner.toString(), chat.toString());
 
@@ -29845,7 +29908,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
 				service.addSubscriber(chat, 'client-1');
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
 
 				service.unsubscribe(chat, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
@@ -30899,6 +30962,7 @@ suite('AgentService (node dispatcher)', () => {
 			const resolve = (resource: string, chat = buildDefaultChatUri(resource)) => resolver._resolveWorkingDirectoryBeforeSend({ session: resource, chat, turnId: 't', prompt: 'hi' });
 			const inject = (resource: string, dirs?: readonly URI[]) => getStateManager(service).restoreSession({
 				resource,
+				defaultChat: buildDefaultChatUri(resource),
 				provider: 'copilot',
 				title: 't',
 				status: SessionStatus.Idle,
@@ -30919,7 +30983,7 @@ suite('AgentService (node dispatcher)', () => {
 			inject(none, undefined);
 			const peerDirectory = URI.file('/roots/peer');
 			const peerChat = buildChatUri(URI.parse(multi), 'peer');
-			getStateManager(service).addChat(multi, peerChat, creationTimeChatStorageResource(multi, peerChat), { workingDirectories: [peerDirectory.toString()] });
+			getStateManager(service).addChat(multi, peerChat, creationTimeChatStorageResource(multi, peerChat, buildDefaultChatUri(multi)), { workingDirectories: [peerDirectory.toString()] });
 
 			// No worktree isolation is configured, so index 0 resolves to itself and
 			// the additional roots are preserved as-is; a session with no roots
@@ -30948,6 +31012,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 			getStateManager(localService).restoreSession({
 				resource: session.toString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
 				provider: 'copilot',
 				title: 'Additional resume',
 				status: SessionStatus.Idle,
@@ -31254,6 +31319,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = buildDefaultChatUri(sessionResource);
 			getStateManager(localService).restoreSession({
 				resource: sessionResource,
+				defaultChat: buildDefaultChatUri(sessionResource),
 				provider: 'copilot',
 				title: 'Worktree fallback',
 				status: SessionStatus.Idle,

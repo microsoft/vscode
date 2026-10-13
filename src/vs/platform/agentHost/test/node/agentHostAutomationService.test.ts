@@ -583,7 +583,7 @@ suite('AgentHostAutomationService', () => {
 			const service = createService({
 				createSession: async () => session,
 				startSession: async () => {
-					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat));
+					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat, buildDefaultChatUri(session.toString())));
 					stateManager.dispatchServerAction(defaultChat, {
 						type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(),
 						message: { text: 'Review changes', origin: { kind: MessageKind.Automation } },

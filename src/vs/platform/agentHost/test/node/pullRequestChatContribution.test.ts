@@ -45,7 +45,7 @@ suite('PullRequestChatContribution', () => {
 			workingDirectories: ['file:///repo'],
 		});
 		if (otherFolder) {
-			state.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: [otherFolder] });
+			state.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		}
 		state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });

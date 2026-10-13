@@ -68,7 +68,7 @@ import {
 	type ListSessionsResult,
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -1834,10 +1834,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
-			// The default chat is created alongside its session; creating it
+			// The primary chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
-			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+			const primaryChat = state.defaultChat ?? this._stateManager.getPrimaryChat(params.channel);
+			if (primaryChat !== undefined && URI.parse(params.chat).toString() === URI.parse(primaryChat).toString()) {
 				return null;
 			}
 			const source = params.source;

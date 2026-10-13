@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
-import { AUTOMATION_CATALOG_URI, isDefaultChatUri, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
@@ -829,18 +829,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				this._handleMcpAuthentication(envelope.channel);
 				break;
 		}
-		if (!isDefaultChatUri(envelope.channel)) {
-			return;
-		}
 		const action = envelope.action;
 		if (action.type !== ActionType.ChatTurnComplete
 			&& action.type !== ActionType.ChatTurnCancelled
 			&& action.type !== ActionType.ChatError) {
 			return;
 		}
-		// Match the run's recorded sessions to their default chats, so a run still completes after its session left the registry.
+		// Match the run's recorded sessions to their primary chats, so a run still completes after its session left the registry.
 		const run = [...this._runs.values()].find(candidate => !isTerminalLifecycle(candidate.lifecycle)
-			&& candidate.sessions.some(session => this._stateManager.getDefaultChatUri(session) === envelope.channel));
+			&& candidate.sessions.some(session => this._stateManager.getPrimaryChat(session) === envelope.channel));
 		if (!run) {
 			return;
 		}

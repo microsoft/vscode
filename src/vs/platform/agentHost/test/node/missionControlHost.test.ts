@@ -214,7 +214,7 @@ suite('Mission Control host integration', () => {
 	test('continues mirroring restored sessions even when their history is empty', () => {
 		const f = createMirror();
 		const session = 'ahp-session:/restored';
-		f.state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
+		f.state.restoreSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
 		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
 		f.clock.runAll();
 		assert.deepStrictEqual(f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),

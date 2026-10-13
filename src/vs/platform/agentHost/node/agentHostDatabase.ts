@@ -157,6 +157,13 @@ export interface IAgentHostDatabaseSessionRegistrations {
 	readonly current: readonly IAgentHostDatabaseSession[];
 	/** Legacy registrations, as {@link IAgentHostDatabase.listSessions} lists them. */
 	readonly legacy: readonly IAgentHostDatabaseSession[];
+	/** The primary chat each chat catalog with normalized (v2) authority records for its session. */
+	readonly normalizedCatalogs: readonly IAgentHostDatabaseNormalizedCatalog[];
+}
+
+export interface IAgentHostDatabaseNormalizedCatalog {
+	readonly session: string;
+	readonly defaultChatUri: string;
 }
 
 export interface IAgentHostDatabaseChatOwner {
@@ -719,10 +726,11 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
 
 /**
- * Counts changes to the session registrations on this connection with TEMP
- * objects, which live only as long as the connection and never change the
- * database file. Every writer of agent-host.db is this process's connection,
- * so the count covers every registration change, including migrations.
+ * Counts changes to the session registrations, and to the primary chats
+ * normalized chat catalogs record, on this connection with TEMP objects, which live
+ * only as long as the connection and never change the database file. Every
+ * writer of agent-host.db is this process's connection, so the count covers
+ * every registration change, including migrations.
  */
 const REGISTRATION_GENERATION_SQL = (() => {
 	const bump = `UPDATE ${REGISTRATION_GENERATION_TABLE} SET value = value + 1;`;
@@ -733,6 +741,9 @@ const REGISTRATION_GENERATION_SQL = (() => {
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_update AFTER UPDATE OF session_uri, provider ON main.${table} WHEN OLD.session_uri IS NOT NEW.session_uri OR OLD.provider IS NOT NEW.provider BEGIN ${bump} END;`,
 	]);
 	triggers.push(
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_insert AFTER INSERT ON main.session_chat_catalogs WHEN NEW.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_delete AFTER DELETE ON main.session_chat_catalogs WHEN OLD.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_update AFTER UPDATE OF authority_version, default_chat_uri ON main.session_chat_catalogs WHEN OLD.authority_version IS NOT NEW.authority_version OR OLD.default_chat_uri IS NOT NEW.default_chat_uri BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_insert AFTER INSERT ON main.metadata WHEN ${registrationKey('NEW')} BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_delete AFTER DELETE ON main.metadata WHEN ${registrationKey('OLD')} BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_update AFTER UPDATE ON main.metadata WHEN ${registrationKey('OLD')} OR ${registrationKey('NEW')} BEGIN ${bump} END;`,
@@ -1783,8 +1794,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		// listings are read: the generation then describes exactly what was read.
 		return this._transactionSequencer.queue(async () => {
 			const generation = await this.getRegistrationGeneration();
-			const [current, legacy] = await Promise.all([this.listSessionV2Registrations(), this.listSessions()]);
-			return { generation, current, legacy };
+			const [current, legacy, normalized] = await Promise.all([
+				this.listSessionV2Registrations(),
+				this.listSessions(),
+				all(await this._ensureDatabase(), 'SELECT session_uri, default_chat_uri FROM session_chat_catalogs WHERE authority_version = 2', []),
+			]);
+			return { generation, current, legacy, normalizedCatalogs: normalized.map(row => ({ session: row.session_uri as string, defaultChatUri: row.default_chat_uri as string })) };
 		});
 	}
 

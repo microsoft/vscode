@@ -201,7 +201,7 @@ suite('AgentHostChangesetStrategy', () => {
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);
 		if (options.peer) {
-			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource), { workingDirectories: options.peer.workingDirectories });
+			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource, buildDefaultChatUri(session)), { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
 		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };

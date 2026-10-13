@@ -21,7 +21,7 @@ export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
 		return 0;
 	}
 	override async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
-		return { generation: 0, current: [], legacy: [] };
+		return { generation: 0, current: [], legacy: [], normalizedCatalogs: [] };
 	}
 }
 

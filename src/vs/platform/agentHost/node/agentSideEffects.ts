@@ -52,7 +52,6 @@ import {
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
-	buildDefaultChatUri,
 	isSubagentChatUri,
 	mergeLogicalTurnUsage,
 	MessageAttachmentKind,
@@ -577,7 +576,11 @@ export class AgentSideEffects extends Disposable {
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
-		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
+		const primaryChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._stateManager.getPrimaryChat(session);
+		if (primaryChat === undefined) {
+			return;
+		}
+		const chat = URI.parse(primaryChat);
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
 
 		// Skip the dispatch when the resolved customizations match what the

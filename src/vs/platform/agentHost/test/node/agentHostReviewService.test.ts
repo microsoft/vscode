@@ -13,7 +13,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
-import { SessionStatus, buildChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -57,7 +57,7 @@ suite('AgentHostReviewService', () => {
 			branchName: 'session-feature',
 			baseBranchName: 'session-main',
 		}));
-		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///chat'] });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: ['file:///chat'] });
 
 		const openedDatabases: string[] = [];
 		const sessionDataService = createSessionDataService(new TestSessionDatabase());

@@ -12,7 +12,7 @@ import { AgentHostSandboxKey, ISandboxConfigValue } from '../../common/sandboxCo
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readSessionSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -76,7 +76,7 @@ suite('Session sandbox configuration', () => {
 				});
 			}
 			const chat = buildChatUri(session, id);
-			manager.addChat(session, chat, creationTimeChatStorageResource(session, chat));
+			manager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)));
 			return chat;
 		};
 		return { manager, configuration, create, registerChat };
@@ -212,7 +212,7 @@ suite('Session sandbox configuration', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('filesystem-rules');
 		const peer = buildChatUri(owner, 'peer');
-		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 		const sessions = [owner, peer, buildSubagentSessionUri(owner, 'child')];
 		configuration.updateRootConfig({
 			sandbox: {
@@ -259,7 +259,7 @@ suite('Session sandbox configuration', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('host-rules');
 		const peer = buildChatUri(owner, 'peer');
-		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 		const sessions = [owner, peer, buildSubagentSessionUri(owner, 'child')];
 		const local = {
 			enabled: 'on', allowNetwork: true, allowLocalNetwork: true,
@@ -578,7 +578,7 @@ suite('Session sandbox configuration', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('outbound');
 		const peer = buildChatUri(owner, 'peer');
-		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 		const sessions = [owner, peer, buildSubagentSessionUri(owner, 'child')];
 		for (const local of [undefined, false, true]) {
 			const sandbox = { enabled: 'on', ...(local !== undefined ? { allowNetwork: local } : {}) };
@@ -624,7 +624,7 @@ suite('Session sandbox configuration', () => {
 			const { manager, configuration, create } = setupSession();
 			const owner = create('credentials');
 			const peer = buildChatUri(owner, 'peer');
-			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 			for (const local of [undefined, false, true]) {
 				const sandbox = { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) };
 				configuration.updateRootConfig({ sandbox });
@@ -673,7 +673,7 @@ suite('Session sandbox configuration', () => {
 			const { manager, configuration, create } = setupSession();
 			const owner = create('servers');
 			const peer = buildChatUri(owner, 'peer');
-			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 			for (const local of [false, true]) {
 				const sandbox = { enabled: 'on', [key]: local };
 				configuration.updateRootConfig({ sandbox });
@@ -703,7 +703,7 @@ suite('Session sandbox configuration', () => {
 			const { manager, configuration, create } = setupSession();
 			const owner = create('network');
 			const peer = buildChatUri(owner, 'peer');
-			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 			const sandbox = {
 				enabled: 'on',
 				allowNetwork: localAccess, allowUnsandboxedCommands: localAccess,
@@ -1014,7 +1014,7 @@ suite('Session sandbox configuration', () => {
 		const other = create('other');
 		const root = configuration.getRootConfigValues();
 		const peer = buildChatUri(owner, 'peer');
-		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
+		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
 		manager.dispatchServerAction(peer, {
 			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2026-01-01T00:00:00Z',

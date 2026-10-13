@@ -154,7 +154,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerRoot = URI.file('/peer-repo');
-		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 		const target = URI.file('/peer-repo/src/file.ts');
 
 		await handler.invoke({

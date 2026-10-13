@@ -411,7 +411,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 		const runSubagentTool = (toolCallId: string, phase?: { subagentKind: 'fusionPhase'; model: string }) => {
 			const chatUri = buildSubagentChatUri(sessionUri, toolCallId);
-			stateManager.addChat(sessionKey, chatUri, creationTimeChatStorageResource(sessionKey, chatUri));
+			stateManager.addChat(sessionKey, chatUri, creationTimeChatStorageResource(sessionKey, chatUri, buildDefaultChatUri(sessionKey)));
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
 			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
 			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });

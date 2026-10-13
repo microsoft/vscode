@@ -1342,7 +1342,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			workingDirectories: ['file:///main'],
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: peerWorkingDirectories });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: peerWorkingDirectories });
 		testGitStates.set(peer, { branchName: 'feature', baseBranchName: 'main' });
 		return {
 			branchChangeset,
@@ -1407,7 +1407,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			{ after: { uri: cachedUri, content: { uri: cachedUri } }, diff: { added: 2, removed: 1 } },
 		]));
 		const secondPeer = buildChatUri(harness.session, 'second-peer');
-		harness.stateManager.addChat(harness.session, secondPeer, creationTimeChatStorageResource(harness.session, secondPeer), { workingDirectories: ['file:///shared'] });
+		harness.stateManager.addChat(harness.session, secondPeer, creationTimeChatStorageResource(harness.session, secondPeer, buildDefaultChatUri(harness.session)), { workingDirectories: ['file:///shared'] });
 
 		harness.service.registerStaticChangesets(harness.peer);
 		harness.service.registerStaticChangesets(secondPeer);
@@ -1464,10 +1464,10 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		const differentDirectory = buildChatUri(session, 'different-directory');
 		const sharedDifferentDirectory = buildChatUri(session, 'shared-different-directory');
 		const differentBase = buildChatUri(session, 'different-base');
-		stateManager.addChat(session, shared, creationTimeChatStorageResource(session, shared), { workingDirectories: ['file:///shared'] });
-		stateManager.addChat(session, differentDirectory, creationTimeChatStorageResource(session, differentDirectory), { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, sharedDifferentDirectory, creationTimeChatStorageResource(session, sharedDifferentDirectory), { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, differentBase, creationTimeChatStorageResource(session, differentBase), { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, shared, creationTimeChatStorageResource(session, shared, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, differentDirectory, creationTimeChatStorageResource(session, differentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, sharedDifferentDirectory, creationTimeChatStorageResource(session, sharedDifferentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, differentBase, creationTimeChatStorageResource(session, differentBase, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
 		testGitStates.set(defaultChat, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(shared, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(differentDirectory, { branchName: 'feature', baseBranchName: 'main' });
@@ -1786,7 +1786,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(resource, options.peer.resource, creationTimeChatStorageResource(resource, options.peer.resource), { workingDirectories: options.peer.workingDirectories });
+			stateManager.addChat(resource, options.peer.resource, creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -2621,7 +2621,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
 			const mainChat = buildDefaultChatUri(sessionStr);
 			const peerChat = buildChatUri(sessionStr, 'peer-1');
-			stateManager.addChat(sessionStr, peerChat, creationTimeChatStorageResource(sessionStr, peerChat));
+			stateManager.addChat(sessionStr, peerChat, creationTimeChatStorageResource(sessionStr, peerChat, buildDefaultChatUri(sessionStr)));
 
 			for (const [chat, turnId, startedAt] of [
 				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],

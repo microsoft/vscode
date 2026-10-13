@@ -299,7 +299,7 @@ class MockAgentService implements IAgentService {
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
-		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
+		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
@@ -485,9 +485,10 @@ suite('ProtocolServerHandler', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function makeSessionSummary(resource?: string): SessionSummary {
+	function makeSessionSummary(resource?: string): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: resource ?? sessionUri,
+			defaultChat: buildDefaultChatUri(resource ?? sessionUri),
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -3700,7 +3701,7 @@ suite('ProtocolServerHandler', () => {
 			await Promise.all([writeFile(plan.fsPath, '# Full plan'), writeFile(privateFile.fsPath, 'private'), writeFile(otherPlan.fsPath, 'unrelated')]);
 			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
 			const chat = buildChatUri(sessionUri, 'opaque-peer');
-			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat));
+			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)));
 			agentService.getSessionPlanFile = (session, resource) => session.toString() === sessionUri && resource.toString() === chat ? plan : undefined;
 			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
 			agentService.resourceResolve = async params => ({ uri: params.uri, type: ResourceType.File });
@@ -3961,8 +3962,8 @@ suite('ProtocolServerHandler', () => {
 				await previews.mkdir(URI.parse(uri).with({ path: dirname(URI.parse(uri).path) }));
 				await previews.writeFile(URI.parse(uri), VSBuffer.fromString(data).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
 			}
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
-			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat, buildDefaultChatUri(sessionUri)), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
 			for (const [chat, tool, uri] of [[buildDefaultChatUri(sessionUri), 'tool-call', pendingContent], [peerChat, 'peer-tool', peerContent], [workerChat, 'worker-tool', workerContent]]) {
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'preview-turn', startedAt: '2026-09-30T19:00:00.000Z',
@@ -5455,7 +5456,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
@@ -7203,8 +7204,8 @@ suite('ProtocolServerHandler', () => {
 			const peerChat = buildChatUri(sessionUri, 'peer');
 			const siblingChat = buildChatUri(sessionUri, 'sibling');
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
-			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat));
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat, buildDefaultChatUri(sessionUri)));
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientSet,
 				activeClient: {
@@ -7234,7 +7235,7 @@ suite('ProtocolServerHandler', () => {
 	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
 		const peerChat = buildChatUri(sessionUri, 'peer');
 		stateManager.createSession(makeSessionSummary());
-		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 		stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: {

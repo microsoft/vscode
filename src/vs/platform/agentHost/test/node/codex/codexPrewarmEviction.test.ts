@@ -321,7 +321,7 @@ function chatOf(session: URI, chatId: string): URI {
 
 /** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function chatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString())) };
+	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
 /**

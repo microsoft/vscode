@@ -390,7 +390,7 @@ suite('AgentFeedbackServerTools', () => {
 			host = new AgentServerToolHost(manager, [feedbackServerToolGroup]);
 			// Tools run inside registered chats.
 			manager.createSession(makeSummary());
-			manager.addChat(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'), creationTimeChatStorageResource(sessionResource, buildChatUri(sessionResource, 'peer-chat-1')));
+			manager.addChat(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'), creationTimeChatStorageResource(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'), buildDefaultChatUri(sessionResource)));
 		});
 
 		teardown(() => disposables.dispose());
@@ -468,7 +468,7 @@ suite('AgentFeedbackServerTools', () => {
 		test('executeTool attributes a chat to its recorded owner, not the session its URI encodes', () => {
 			const encoded = 'copilot:/encoded-session';
 			const chatUri = buildChatUri(encoded, 'moved');
-			manager.addChat(sessionResource, chatUri, creationTimeChatStorageResource(sessionResource, chatUri));
+			manager.addChat(sessionResource, chatUri, creationTimeChatStorageResource(sessionResource, chatUri, buildDefaultChatUri(sessionResource)));
 			host.executeTool(chatUri, addCommentToolName, {
 				resourceUri: fileUri,
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },

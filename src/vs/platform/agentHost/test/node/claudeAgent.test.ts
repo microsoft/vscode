@@ -8521,8 +8521,8 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.addChat(ownerSession.toString(), parentUri.toString(), creationTimeChatStorageResource(ownerSession.toString(), parentUri.toString()));
-		stateManager.addChat(ownerSession.toString(), subagentUri, creationTimeChatStorageResource(ownerSession.toString(), subagentUri), {
+		stateManager.addChat(ownerSession.toString(), parentUri.toString(), creationTimeChatStorageResource(ownerSession.toString(), parentUri.toString(), buildDefaultChatUri(ownerSession.toString())));
+		stateManager.addChat(ownerSession.toString(), subagentUri, creationTimeChatStorageResource(ownerSession.toString(), subagentUri, buildDefaultChatUri(ownerSession.toString())), {
 			origin: { kind: ChatOriginKind.Tool, chat: parentUri.toString(), toolCallId },
 		});
 		await agent.materializeChat(parentUri, { configurationResource: ownerSession, resource: parentUri }, JSON.stringify({ sdkSessionId: parentSessionId }));
@@ -11333,7 +11333,7 @@ suite('ClaudeAgent — host seams', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.addChat(session.toString(), subagentChat.toString(), creationTimeChatStorageResource(session.toString(), subagentChat.toString()), {
+		stateManager.addChat(session.toString(), subagentChat.toString(), creationTimeChatStorageResource(session.toString(), subagentChat.toString(), buildDefaultChatUri(session.toString())), {
 			origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri(session).toString(), toolCallId: 'tool-call-1' },
 		});
 

@@ -264,7 +264,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const sessionKey = 'agent:/session';
 		const chatKey = buildChatUri('agent:/named-by-uri', 'peer');
 		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
-		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey));
+		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey, buildDefaultChatUri(sessionKey)));
 
 		const refresh = contribution.registry?.refreshSessionGitState(chatKey);
 		await Promise.resolve();
@@ -448,7 +448,7 @@ suite('AgentHostChangesetOperationService', () => {
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 		});
-		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey));
+		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey, buildDefaultChatUri(sessionKey)));
 		const changesetUri = buildUncommittedChangesetUri(chatKey);
 		stateManager.registerChangeset(changesetUri);
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature' };
@@ -534,7 +534,7 @@ suite('AgentHostChangesetOperationService', () => {
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
 		});
-		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat));
+		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat, buildDefaultChatUri(sessionKey)));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
 		const changesetUri = buildBranchChangesetUri(folderOwner);
 		stateManager.registerChangeset(changesetUri);
@@ -558,7 +558,7 @@ suite('AgentHostChangesetOperationService', () => {
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
 		});
-		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat));
+		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat, buildDefaultChatUri(sessionKey)));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
 		const changesetUri = buildBranchChangesetUri(folderOwner);
 		stateManager.registerChangeset(changesetUri);
@@ -739,8 +739,8 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 		const sameScopePeer = buildChatUri(sessionKey, 'same-scope-peer');
 		const otherScopePeer = buildChatUri(sessionKey, 'other-scope-peer');
-		stateManager.addChat(sessionKey, sameScopePeer, creationTimeChatStorageResource(sessionKey, sameScopePeer), { workingDirectories: [defaultFolder] });
-		stateManager.addChat(sessionKey, otherScopePeer, creationTimeChatStorageResource(sessionKey, otherScopePeer), { workingDirectories: [peerFolder] });
+		stateManager.addChat(sessionKey, sameScopePeer, creationTimeChatStorageResource(sessionKey, sameScopePeer, buildDefaultChatUri(sessionKey)), { workingDirectories: [defaultFolder] });
+		stateManager.addChat(sessionKey, otherScopePeer, creationTimeChatStorageResource(sessionKey, otherScopePeer, buildDefaultChatUri(sessionKey)), { workingDirectories: [peerFolder] });
 		const operations: readonly ChangesetOperation[] = [
 			{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },

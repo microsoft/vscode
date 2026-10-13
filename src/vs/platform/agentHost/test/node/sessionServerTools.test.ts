@@ -2230,7 +2230,7 @@ suite('SessionServerTools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		const renamedChat = new DeferredPromise<string>();
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({
