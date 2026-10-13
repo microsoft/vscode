@@ -16,7 +16,6 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
-	buildDefaultChatUri,
 	ChangesetStatus,
 	FileEditKind,
 	isHostNoticeTurn,
@@ -203,11 +202,16 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				return undefined;
 			}
 			const resolvedTurnSource = turnSource.read(reader);
+			const defaultChat = sessionState.defaultChat;
+			const chat = resolvedTurnSource.chatUri?.toString() ?? defaultChat;
+			if (chat === undefined) {
+				return undefined;
+			}
 			const resolvedCatalogue = resolveChatChangesetCatalogue(
-				resolvedTurnSource.chatUri?.toString() ?? buildDefaultChatUri(backendSession.toString()),
+				chat,
 				resolvedTurnSource.changesets,
 				sessionState.changesets,
-				sessionState.defaultChat,
+				defaultChat,
 			);
 			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
 			if (!turnEntry) {
@@ -311,8 +315,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				const workspaceRoots = workspaceRootUris.map(roots => roots.map(root => URI.parse(root)));
 				const chatUris = derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
 					const session = state.read(reader);
+					const defaultChat = session && !(session instanceof Error) ? session.defaultChat : undefined;
 					return [...new Set([
-						buildDefaultChatUri(key),
+						...(defaultChat !== undefined ? [defaultChat] : []),
 						...(session && !(session instanceof Error) ? session.chats?.map(chat => chat.resource) ?? [] : []),
 					])];
 				});

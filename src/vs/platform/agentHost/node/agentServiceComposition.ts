@@ -47,12 +47,14 @@ import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
 	readonly authenticationService: IAgentHostAuthenticationService;
 	readonly configurationService: IAgentConfigurationService;
 	readonly stateManager: AgentHostStateManager;
+	readonly chatOwnership: IAgentHostChatOwnershipService;
 	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
 	readonly checkpointService: IAgentHostCheckpointService;
 	readonly completions: IAgentHostCompletions;
@@ -91,7 +93,8 @@ export function createAgentServiceComposition(
 			owned.add(options.orchestratorDatabase);
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService);
+		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership);
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -157,6 +160,8 @@ export function createAgentServiceComposition(
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
+			getChatOwner: chat => chatOwnership.getChatOwner(chat),
+			getDefaultChat: session => chatOwnership.getDefaultChat(session),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {
@@ -247,6 +252,7 @@ export function createAgentServiceComposition(
 			authenticationService: core.authenticationService,
 			configurationService,
 			stateManager,
+			chatOwnership,
 			customizationEnablementService,
 			checkpointService,
 			completions,

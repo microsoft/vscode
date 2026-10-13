@@ -132,6 +132,41 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.installPlugin!(provider, request));
 	}
 
+	listPluginMarketplaces(provider: AgentProvider) {
+		if (!this._agentService.listPluginMarketplaces) {
+			throw new Error('Agent Host plugin marketplace inventory is unavailable');
+		}
+		return this._agentService.listPluginMarketplaces(provider);
+	}
+
+	addPluginMarketplace(provider: AgentProvider, source: string) {
+		if (!this._agentService.addPluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace registration is unavailable');
+		}
+		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, source));
+	}
+
+	browsePluginMarketplace(provider: AgentProvider, name: string) {
+		if (!this._agentService.browsePluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace browse is unavailable');
+		}
+		return this._agentService.browsePluginMarketplace(provider, name);
+	}
+
+	removePluginMarketplace(provider: AgentProvider, name: string, force?: boolean) {
+		if (!this._agentService.removePluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace removal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.removePluginMarketplace!(provider, name, force));
+	}
+
+	refreshPluginMarketplaces(provider: AgentProvider, name?: string) {
+		if (!this._agentService.refreshPluginMarketplaces) {
+			throw new Error('Agent Host plugin marketplace refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshPluginMarketplaces!(provider, name));
+	}
+
 	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
 		if (!this._agentService.searchCustomizationMarketplace) {
 			return Promise.resolve({ kind: 'unavailable', reason: 'unsupported' });
@@ -225,11 +260,15 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
-		return this._agentService.collectDebugLogs(session, kind, chat);
+		return this._agentService.collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		await this._agentService.cancelDebugLogs?.(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

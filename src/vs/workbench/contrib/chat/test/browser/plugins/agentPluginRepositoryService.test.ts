@@ -826,32 +826,55 @@ suite('AgentPluginRepositoryService', () => {
 		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/microsoft/vscode/plugins/myPlugin');
 	});
 
-	test('uses indexed repository URI when available', () => {
-		const storage = store.add(new InMemoryStorageService());
-		storage.store('chat.plugins.marketplaces.index.v1', JSON.stringify({
-			'github:microsoft/vscode': {
-				repositoryUri: URI.file('/cache/agentPlugins/indexed/microsoft/vscode'),
-				marketplaceType: MarketplaceType.Copilot,
-			},
-		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	for (const { label, indexedPath, expectedPath } of [
+		{
+			label: 'uses indexed repository URI inside the current plugin home',
+			indexedPath: '/cache/agentPlugins/indexed/microsoft/vscode',
+			expectedPath: '/cache/agentPlugins/indexed/microsoft/vscode',
+		},
+		{
+			label: 'ignores indexed repository URI from a previous portable install',
+			indexedPath: '/previous/VSCode/data/agent-plugins/github.com/microsoft/vscode',
+			expectedPath: '/cache/agentPlugins/github.com/microsoft/vscode',
+		},
+		{
+			label: 'ignores indexed repository URI with only a matching path prefix',
+			indexedPath: '/cache/agentPlugins-old/github.com/microsoft/vscode',
+			expectedPath: '/cache/agentPlugins/github.com/microsoft/vscode',
+		},
+	]) {
+		test(label, () => {
+			const storage = store.add(new InMemoryStorageService());
+			storage.store('chat.plugins.marketplaces.index.v1', JSON.stringify({
+				'github:microsoft/vscode': {
+					repositoryUri: URI.file(indexedPath),
+					marketplaceType: MarketplaceType.Copilot,
+				},
+			}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-		instantiationService.stub(IPluginGitService, stubPluginGit());
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
-		instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
-		instantiationService.stub(IFileService, { exists: async () => true } as unknown as IFileService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
-		instantiationService.stub(IProgressService, { withProgress: async (_options: unknown, callback: (...args: unknown[]) => Promise<unknown>) => callback() } as unknown as IProgressService);
-		instantiationService.stub(IStorageService, storage);
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+			instantiationService.stub(IPluginGitService, stubPluginGit());
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: URI.file('/cache/agentPlugins') } } as unknown as IUserDataProfileService);
+			instantiationService.stub(IFileService, { exists: async () => true } as unknown as IFileService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+			instantiationService.stub(IProgressService, { withProgress: async (_options: unknown, callback: (...args: unknown[]) => Promise<unknown>) => callback() } as unknown as IProgressService);
+			instantiationService.stub(IStorageService, storage);
 
-		const service = instantiationService.createInstance(AgentPluginRepositoryService);
-		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
-		const uri = service.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType);
+			const service = instantiationService.createInstance(AgentPluginRepositoryService);
+			const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
 
-		assert.strictEqual(uri.path, '/cache/agentPlugins/indexed/microsoft/vscode');
-	});
+			assert.deepStrictEqual({
+				repository: service.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType).path,
+				plugin: service.getPluginInstallUri(plugin).path,
+			}, {
+				repository: expectedPath,
+				plugin: expectedPath + '/plugins/myPlugin',
+			});
+		});
+	}
 
 	test('does not delete an invalid indexed repository outside the cache root', async () => {
 		const operations: string[] = [];

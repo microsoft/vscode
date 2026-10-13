@@ -12,6 +12,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { isWeb } from '../../../../../base/common/platform.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -244,6 +245,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,
+			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {
 				const hosts = this._inventory.hosts.read(reader);
@@ -269,7 +271,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 	command: { id: RemoteAgentHostCommandIds.connectViaMissionControl, title: localize('connectMissionControlHost', "Environments"), icon: Codicon.remote },
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ProductQualityContext.notEqualsTo('stable')),
 	group: '1_add',
 	order: 5,
 });

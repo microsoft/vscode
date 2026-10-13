@@ -4428,7 +4428,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (isBrowserViewVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else {
-				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container)
+				// The bound input model's session owns these attachments: restoring them renders before the widget's view model switches to it.
+				// The inline request-edit input part has no bound input model and falls back to the widget's session.
+				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 					?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);
 			}
 

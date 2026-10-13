@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
@@ -44,7 +44,10 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { ICanvas, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
@@ -57,6 +60,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
@@ -378,6 +382,10 @@ suite('AgentHostSessionInputPills', () => {
 				viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
 				viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
 			},
+			showModel: (model: IChatModel) => {
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: viewModel.sessionResource, model });
+				viewModelChanged.fire({ previousSessionResource: viewModel.sessionResource, currentSessionResource: viewModel.sessionResource });
+			},
 			inputFocused: () => inputFocused,
 		};
 	}
@@ -679,6 +687,52 @@ suite('AgentHostSessionInputPills', () => {
 			subagentLabels: [],
 			inputFocusedAfterRemoval: true,
 			releasedSubscriptions: true,
+		});
+	});
+
+	test('shows the chat\'s live canvases and reveals the selected canvas', async () => {
+		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));
+		const configuration = harness.instantiationService.get(IConfigurationService);
+		assert.ok(configuration instanceof TestConfigurationService);
+		const canvas = (id: string, title: string, source?: string): ICanvas => ({
+			resource: URI.parse(`agent-host-canvas:/${id}`),
+			instanceId: id,
+			title,
+			source: source ? URI.parse(source) : undefined,
+		});
+		const preview = canvas('preview', 'Preview', 'https://example.test/preview');
+		const pending = canvas('pending', 'Pending');
+		const dashboard = canvas('dashboard', 'Dashboard', 'https://example.test/dashboard');
+		const owner = { providerId: 'local/copilotcli', session: URI.parse('ahp-session:/42'), chat: URI.parse('ahp-session:/42/chats/main') };
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [preview, pending]);
+		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases }) }));
+		const disabled = harness.labels();
+		await configuration.setUserConfiguration(CanvasesEnabledSettingId, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CanvasesEnabledSettingId }));
+		const single = {
+			labels: harness.labels(),
+			ariaLabel: harness.persistentContent.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+		};
+		const offersToggle = harness.menu().some(action => action.id === 'chatInputPills.toggle.canvases');
+		canvases.set([preview, pending, dashboard], undefined);
+		const dropdown = harness.dropdown('2 Canvases');
+		dropdown.find(item => item.label === dashboard.title)?.select();
+		harness.showModel(upcastPartial<IChatModel>({}));
+
+		assert.deepStrictEqual({
+			disabled,
+			single,
+			offersToggle,
+			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			commands: harness.commands,
+			withoutCanvasContext: harness.labels(),
+		}, {
+			disabled: [],
+			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview' },
+			offersToggle: true,
+			dropdown: ['Canvases', 'Preview', 'Dashboard'],
+			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
+			withoutCanvasContext: [],
 		});
 	});
 
@@ -1596,7 +1650,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('resolves the configured session changeset and ignores templated entries', () => {
+	test('resolves Session Changes by default, honors a configured changeset, and ignores templated entries', () => {
 		const backendSession = URI.parse('ahp-session:/session');
 		const changesets: readonly Changeset[] = [
 			{ label: 'Last Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
@@ -1605,19 +1659,123 @@ suite('AgentHostSessionInputPills', () => {
 		];
 
 		assert.deepStrictEqual({
-			preferred: resolveAgentHostChangeset(backendSession, changesets, ChangesetKind.Session),
+			default: resolveAgentHostChangeset(backendSession, changesets),
+			configured: resolveAgentHostChangeset(backendSession, changesets, ChangesetKind.Branch),
 			fallback: resolveAgentHostChangeset(backendSession, changesets.slice(0, 2), ChangesetKind.Branch),
 			turnOnly: resolveAgentHostChangeset(backendSession, changesets.slice(0, 1), ChangesetKind.Session),
 		}, {
-			preferred: {
+			default: {
 				changeset: changesets[1],
 				resource: URI.parse('ahp-session:/session/changeset/session'),
+			},
+			configured: {
+				changeset: changesets[2],
+				resource: URI.parse('ahp-session:/session/changeset/branch'),
 			},
 			fallback: {
 				changeset: changesets[1],
 				resource: URI.parse('ahp-session:/session/changeset/session'),
 			},
 			turnOnly: undefined,
+		});
+	});
+
+	test('targets and opens Session Changes by default when Branch Changes is also offered', async () => {
+		const instantiationService = createInstantiationService();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const backendChat = URI.parse(buildDefaultChatUri(backendSession));
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: backendChat.toString(),
+				chats: [],
+				changesets: [{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: ChangesetKind.Session }],
+			} as unknown as SessionState],
+			[StateComponents.Chat, {
+				changesets: [
+					{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch },
+					{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: ChangesetKind.Uncommitted },
+					{ label: 'This Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
+				],
+			} as unknown as ChatState],
+			[StateComponents.Changeset, {
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'change',
+					edit: {
+						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+						diff: { added: 3, removed: 1 },
+					},
+				}],
+			} as unknown as ChangesetState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const opened: { readonly label: string | undefined; readonly files: readonly (string | undefined)[] }[] = [];
+		const editorService = upcastPartial<IEditorService>({
+			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
+				if (isResourceMultiDiffEditorInput(input)) {
+					opened.push({ label: input.label, files: input.resources?.map(resource => resource.goToFileResource?.toString()) ?? [] });
+				}
+				return undefined;
+			},
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+		));
+		const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
+		button?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			ariaLabel: button?.getAttribute('aria-label'),
+			changesetSubscriptions: [...new Set(connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString()))],
+			opened,
+		}, {
+			ariaLabel: 'Session Changes: 1 File, +3, -1',
+			changesetSubscriptions: [`${backendSession.toString()}/changeset/session`],
+			opened: [{ label: 'Session Changes', files: [toAgentHostUri(URI.file('/changed.ts'), 'local').toString()] }],
 		});
 	});
 
@@ -1648,8 +1806,8 @@ suite('AgentHostSessionInputPills', () => {
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
 		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
-		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
-		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
+		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild, stateWithoutChild.defaultChat);
+		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild, stateWithChild.defaultChat);
 
 		assert.deepStrictEqual({
 			before: [...before],
@@ -1684,7 +1842,7 @@ suite('AgentHostSessionInputPills', () => {
 			})],
 		});
 
-		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state, state.defaultChat)], [
 			sessionResource.toString(),
 			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
 		]);

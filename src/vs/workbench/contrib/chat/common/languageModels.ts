@@ -262,6 +262,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
+	/** How the agent host presents its Auto model as Ensemble, when it does. */
+	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -428,10 +430,14 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (it contains a "Learn More" link). The discount is described separately by
-	 * {@link getAutoModelDiscountDescription}.
+	 * (Auto's contains a "Learn More" link; Ensemble's does not). The discount is
+	 * described separately by {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(): string {
+	export function getAutoModelDescription(ensemble?: boolean): string {
+		if (ensemble) {
+			// The Auto docs don't describe Ensemble, so it has no Learn More link.
+			return localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.");
+		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
@@ -442,8 +448,14 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
+	 * @param ensemble Whether Auto is presented as Ensemble.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, ensemble?: boolean): string {
+		if (ensemble) {
+			return tierLabel
+				? localize('autoModel.ensembleTierDiscount', "Models routed via Ensemble {0} receive a {1}% discount.", tierLabel, discountPercent)
+				: localize('autoModel.ensembleDiscount', "Models routed via Ensemble receive a {0}% discount.", discountPercent);
+		}
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
@@ -1317,6 +1329,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._providers.get(vendorId) !== provider) {
+				return;
+			}
 
 			const allModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
@@ -1415,6 +1430,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 						}
 					});
 				}
+			}
+
+			if (this._providers.get(vendorId) !== provider) {
+				return;
 			}
 
 			const wasResolved = this._modelsGroups.has(vendorId);
@@ -1524,11 +1543,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 
 		return toDisposable(() => {
+			modelChangeListener.dispose();
+			if (this._providers.get(vendor) !== provider) {
+				return;
+			}
+
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
 			this._clearModelCache(vendor);
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
-			modelChangeListener.dispose();
+			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 

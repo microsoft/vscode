@@ -13,7 +13,7 @@ import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
@@ -26,6 +26,7 @@ import type { GuardianWarningNotification } from '../../../node/codex/protocol/g
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
+import { requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 
 /**
  * Exactly the state `_resolveConversationSession` reads: the provider id it
@@ -680,7 +681,7 @@ suite('CodexAgent', () => {
 			_markCatalogStartupContext: () => { },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 		};
@@ -732,7 +733,7 @@ suite('CodexAgent', () => {
 			_store: { isDisposed: false },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },

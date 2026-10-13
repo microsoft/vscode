@@ -18,7 +18,7 @@ import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
+import { MissionControlProtocolServer, type IMissionControlSocket, type MissionControlPublishDiagnosticObserver } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
@@ -50,6 +50,7 @@ export interface IMissionControlEnvironmentHost {
 	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
+	readonly onPublishDiagnostic?: MissionControlPublishDiagnosticObserver;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
 	readonly getSessionCount?: () => Promise<number>;
 	readonly getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
@@ -694,6 +695,11 @@ export class MissionControlEnvironment extends Disposable {
 			sealing?.rootMeta,
 			this._mirror.value,
 			this._host.createAhpLogger,
+			event => {
+				if (this._server.value === server) {
+					this._host.onPublishDiagnostic?.(event);
+				}
+			},
 		);
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);

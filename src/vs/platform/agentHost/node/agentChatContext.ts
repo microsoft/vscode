@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentChatContext } from '../common/agent.js';
-import { buildDefaultChatUri, isDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
@@ -22,7 +22,8 @@ function toUri(resource: URI | ProtocolURI): URI {
  * to a provider, so every boundary (create, materialize, send, truncate,
  * dispose, release, model/agent change, history read) carries the same facts:
  *
- * - `resource` — provider-owned persistence scope for the exact chat;
+ * - `resource` — provider-owned persistence scope for the exact chat, its
+ *   recorded `storageResource`;
  * - `configurationResource` — opaque scope for shared configuration;
  * - `origin` — how the chat came into existence, read from its `ChatSummary`.
  *   Absent only in the narrow restore window before a chat is registered,
@@ -32,14 +33,14 @@ function toUri(resource: URI | ProtocolURI): URI {
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI): IAgentChatContext {
+export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
 	return {
-		resource: isDefaultChatUri(chatKey) ? sessionUri : toUri(chat),
+		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		configurationResource: sessionUri,
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
@@ -61,7 +62,7 @@ export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, se
 	if (!state) {
 		return undefined;
 	}
-	const defaultChat = state.defaultChat ?? buildDefaultChatUri(sessionKey);
+	const defaultChat = state.defaultChat ?? stateManager.getDefaultChat(sessionKey);
 	const seen = new Set<string>();
 	const chats: URI[] = [];
 	for (const summary of state.chats) {
@@ -70,7 +71,7 @@ export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, se
 			chats.push(URI.parse(summary.resource));
 		}
 	}
-	if (!seen.has(defaultChat)) {
+	if (defaultChat !== undefined && !seen.has(defaultChat)) {
 		chats.unshift(URI.parse(defaultChat));
 	}
 	return chats;
