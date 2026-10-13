@@ -4542,16 +4542,37 @@ suite('AutomationsWorkspacePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('cloud mode filters recent folders and always offers Add repository, but local mode does not', async () => {
+	test('cloud mode shows Git folders with repo icons and explains disabled targets without description text', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
-		providersService.setProviders([provider, createMockProvider('github')]);
 		const folder = URI.file('/local/private');
 		const publicFolder = URI.file('/local/public');
+		const otherGitFolder = URI.file('/local/other-git');
 		const plainFolder = URI.file('/local/notes');
+		const gitDetected = observableValue('gitDetected', false);
+		const github = createMockProvider('github');
+		providersService.setProviders([{
+			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace && {
+					...workspace,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: {
+							uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined),
+							isRepository: extUri.isEqual(uri, otherGitFolder) ? gitDetected : constObservable(!extUri.isEqual(uri, plainFolder)),
+						},
+					})),
+				};
+			},
+		}, {
+			...github,
+			resolveWorkspace: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? github.resolveWorkspace(uri) : undefined,
+		}]);
 		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
 		const storage = disposables.add(new TestStorageService());
-		seedStorage(storage, [folder, publicFolder, plainFolder].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		seedStorage(storage, [folder, publicFolder, otherGitFolder, plainFolder].map(uri => ({ uri, providerId: provider.id, checked: false })));
 		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
 			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
 		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
@@ -4568,30 +4589,63 @@ suite('AutomationsWorkspacePicker', () => {
 		}));
 		picker.setCloudMode(cloudMode);
 		const rows = () => picker.getItems().filter(row => row.kind === ActionListItemKind.Action)
-			.map(row => ({ label: row.label, icon: row.group?.icon?.id }));
-		const empty = rows();
+			.map(row => ({
+				label: row.label, icon: row.group?.icon?.id, disabled: !!row.disabled,
+				description: typeof row.description === 'string' ? row.description : row.description?.value,
+				reason: row.ariaDescription, hover: row.hover?.content,
+			}));
+		const pending = rows()[0];
 		let targetsReady = false;
 		const ready = picker.waitForTargets(CancellationToken.None).then(() => { targetsReady = true; });
 		await timeout(0);
 		const waitedForLocalFolder = !targetsReady;
 		privateTarget.set({ workspace: repository }, undefined);
 		await ready;
+		gitDetected.set(true, undefined);
 		const populated = rows();
+		const publicRow = picker.getItems().find(row => row.item?.folderUri && extUri.isEqual(row.item.folderUri, publicFolder))!;
+		const mobilePublicRow = buildMobileWorkspacePickerRows([publicRow], () => { })[0].sheetItem;
+		const errors: string[] = [];
+		picker.onSelectionError = error => errors.push(error.message);
+		await picker.select('local/public');
+		await picker.select('local/other-git');
+		const rejectedSelections = picker.selectedFolderUri;
 		await picker.select('Add repository');
 		const selected = picker.selectedFolderUri?.toString();
 		cloudMode.set(false, undefined);
 		assert.deepStrictEqual({
-			empty, waitedForLocalFolder, populated, pickCount, selected,
+			pending, waitedForLocalFolder, populated, rejectedSelections, errors, pickCount, selected,
+			publicAriaLabel: publicRow.item?.ariaLabel,
+			mobilePublicRow: { icon: mobilePublicRow.icon?.id, description: mobilePublicRow.description, disabled: mobilePublicRow.disabled },
 			localFolders: picker.getItems().flatMap(row => row.item?.folderUri?.scheme === Schemas.file ? [row.item.folderUri.toString()] : []).sort(),
 			localOffersGitHub: rows().some(row => row.label === 'Add repository' || row.label === 'Work in GitHub'),
 		}, {
-			empty: [{ label: 'No known private GitHub repositories', icon: undefined }, { label: 'Add repository', icon: 'github' }],
+			pending: { label: 'local/private', icon: 'repo', disabled: true, description: '$(info)', reason: 'Checking repository access...', hover: 'Checking repository access...' },
 			waitedForLocalFolder: true,
-			populated: [{ label: 'local/private', icon: 'lock' }, { label: 'Add repository', icon: 'github' }],
+			populated: [
+				{ label: 'local/private', icon: 'repo', disabled: false, description: undefined, reason: undefined, hover: undefined },
+				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations require a private GitHub repository. This repository is public.', hover: 'Cloud automations require a private GitHub repository. This repository is public.' },
+				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Private GitHub repository required.', hover: 'Private GitHub repository required.' },
+				{ label: 'Add repository', icon: 'github', disabled: false, description: undefined, reason: undefined, hover: undefined },
+			],
+			rejectedSelections: undefined,
+			errors: ['Private GitHub repository required.', 'Private GitHub repository required.'],
 			pickCount: 1, selected: repository.toString(),
-			localFolders: [folder, publicFolder, plainFolder].map(uri => uri.toString()).sort(),
+			publicAriaLabel: 'local/public, unavailable. Cloud automations require a private GitHub repository. This repository is public.',
+			mobilePublicRow: { icon: 'repo', description: 'Cloud automations require a private GitHub repository. This repository is public.', disabled: true },
+			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
 		});
+	});
+
+	test('empty cloud folder picker still offers Add repository', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, TestAutomationsWorkspacePicker);
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		picker.setCloudMode(constObservable(true));
+		assert.deepStrictEqual(picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label), [
+			'No known Git repositories', 'Add repository',
+		]);
 	});
 
 	for (const mobile of [false, true]) {

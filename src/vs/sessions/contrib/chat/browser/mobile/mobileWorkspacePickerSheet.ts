@@ -90,15 +90,15 @@ export function buildMobileWorkspacePickerRows(
 		// (e.g. `Codicon.remote` / `Codicon.cloud`) on the desktop
 		// picker. On the mobile sheet the surrounding window is already
 		// scoped to a single host via the host picker, so the host
-		// indication is redundant — render every workspace as a folder
-		// to match the inline folder search results below.
+		// indication is redundant — use folders, but preserve explicit
+		// repository icons that describe the workspace rather than its host.
 		const isWorkspaceRow = !!data?.folderUri;
-		const icon = isWorkspaceRow ? Codicon.folder : item.group?.icon;
+		const icon = isWorkspaceRow && item.group?.icon?.id !== Codicon.repo.id ? Codicon.folder : item.group?.icon;
 		rows.push({
 			sheetItem: {
 				id,
 				label: item.label ?? '',
-				description: descriptionToString(item.description),
+				description: item.ariaDescription ?? descriptionToString(item.description),
 				icon,
 				checked: !!data?.checked,
 				disabled: item.disabled,

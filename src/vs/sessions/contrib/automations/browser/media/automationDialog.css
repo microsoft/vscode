@@ -4,6 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Dialog */
+.action-widget .inline-description .monaco-list-row.automation-cloud-repository .title {
+	flex: 1;
+}
+
+.action-widget .inline-description .monaco-list-row.automation-cloud-repository .description {
+	flex: 0 0 auto;
+	margin-left: auto;
+}
+
 .automation-cloud-row {
 	display: flex;
 	align-items: center;

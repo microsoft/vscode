@@ -17,10 +17,11 @@ import { IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
@@ -1491,7 +1492,7 @@ export function renderForm(
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
 	const privateRepositoryHint = DOM.append(targetRow, $('span.automation-cloud-description', {
 		role: 'status',
-	}, localize('automation.form.privateRepositoriesOnly', "Only known private GitHub repositories are shown.")));
+	}, localize('automation.form.cloudRepositoryHint', "Select a private GitHub repository to run in the cloud.")));
 	disposables.add(autorun(reader => {
 		setAutomationControlVisible(privateRepositoryHint, runInCloud.read(reader));
 	}));
@@ -2287,6 +2288,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			for (const item of super._buildItems()) {
 				if (item.item?.folderUri && (cloud || item.item.folderUri.scheme === GITHUB_REMOTE_FILE_SCHEME)) {
 					value?.getWorkspaceTarget(item.item.folderUri).read(reader);
+					if (cloud) {
+						this.isGitWorkspace(item.item.folderUri, reader);
+					}
 				}
 			}
 			if (this.actionWidgetService.isVisible && this._triggerElement?.getAttribute('aria-expanded') === 'true') {
@@ -2326,23 +2330,56 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
+	private isGitWorkspace(folder: URI, reader?: IReader): boolean {
+		if (folder.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return true;
+		}
+		return this.sessionsProvidersService.getProviders().some(provider =>
+			provider.resolveWorkspace(folder)?.folders.some(folder => {
+				const repository = folder.gitRepository;
+				repository?.resolveRepository?.();
+				return repository !== undefined && (repository.isRepository?.read(reader) ?? true);
+			}) === true);
+	}
+
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const configuration = this.cloudConfiguration.get();
 		if (this.cloudMode?.get()) {
-			const repositories = super._buildItems().filter(item => {
+			const repositories = super._buildItems().flatMap(item => {
 				const folder = item.item?.folderUri;
 				const target = folder && configuration?.getWorkspaceTarget(folder).get();
-				return target && target.workspace && !target.pending && !target.disabledReason && !target.isPublicRepository;
-			}).map(item => ({
-				...item,
-				submenuActions: undefined,
-				onRemove: undefined,
-				description: localize('automation.form.privateRepository', "Private GitHub repository"),
-				group: { title: '', icon: Codicon.lock },
-			}));
+				if (!folder || (!this.isGitWorkspace(folder) && !target?.workspace && !target?.isPublicRepository)) {
+					return [];
+				}
+				const reason = target?.pending
+					? localize('automation.form.checkingRepository', "Checking repository access...")
+					: target?.isPublicRepository
+						? localize('automation.form.publicRepository', "Cloud automations require a private GitHub repository. This repository is public.")
+						: target?.disabledReason
+							?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
+							?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+				return [{
+					...item,
+					item: {
+						...item.item,
+						ariaLabel: reason ? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", item.label ?? '', reason) : item.item?.ariaLabel,
+					},
+					submenuActions: undefined,
+					onRemove: undefined,
+					toolbarActions: undefined,
+					iconClasses: undefined,
+					disabled: reason !== undefined,
+					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
+					ariaDescription: reason,
+					tooltip: reason,
+					hover: reason ? { content: reason } : undefined,
+					className: 'automation-cloud-repository',
+					group: { title: '', icon: Codicon.repo },
+				}];
+			});
 			const items: IActionListItem<IWorkspacePickerItem>[] = repositories.length ? repositories : [{
 				kind: ActionListItemKind.Action,
-				label: localize('automation.form.noPrivateRepositories', "No known private GitHub repositories"),
+				label: localize('automation.form.noGitRepositories', "No known Git repositories"),
 				disabled: true,
 				item: { id: 'automation.noPrivateRepositories' },
 			}];
