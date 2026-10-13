@@ -310,7 +310,7 @@
             "default": false,
             "included": true,
             "agentHost": {
-                "status": "partial"
+                "status": "enforced"
             },
             "referencedSettings": [
                 "github.copilot.chat.otel.enabled"

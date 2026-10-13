@@ -220,7 +220,7 @@ suite('platform/otel - outboundForwarder', () => {
 	test('FileForwarder logs write failures, does not reject flush, and recovers after a blocking parent is removed', async () => {
 		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
 		try {
-			const blockingParent = join(directory, 'blocked');
+			const blockingParent = join(directory, 'blocked-synthetic-customer-user');
 			const path = join(blockingParent, 'spans.jsonl');
 			await fs.writeFile(blockingParent, 'blocking file');
 			const logger = store.add(new CapturingLogger());
@@ -230,7 +230,22 @@ suite('platform/otel - outboundForwarder', () => {
 			fwd.forwardSpans(makeResult([makeSpan('failed', '1111111111111111')]));
 			await fwd.flush();
 
-			ok(logger.messages.some(message => message.level === 'Warning' && message.msg.includes(path)));
+			const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
+			deepStrictEqual({
+				count: diagnostics.length,
+				hasOperation: diagnostics.some(message => message.includes('mkdir')),
+				hasCode: diagnostics.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
+				exposesPath: diagnostics.some(message => message.includes(path)),
+				exposesSentinel: diagnostics.some(message => message.includes('synthetic-customer-user')),
+				exposesRawMessage: diagnostics.some(message => message.includes('not a directory')),
+			}, {
+				count: 1,
+				hasOperation: true,
+				hasCode: true,
+				exposesPath: false,
+				exposesSentinel: false,
+				exposesRawMessage: false,
+			});
 
 			await fs.unlink(blockingParent);
 			fwd.forwardSpans(makeResult([makeSpan('recovered', '2222222222222222')]));
@@ -255,7 +270,22 @@ suite('platform/otel - outboundForwarder', () => {
 				fwd.forwardSpans(makeResult([makeSpan(name, '1111111111111111')]));
 				await fwd.flush();
 
-				ok(logger.messages.some(message => message.level === 'Warning' && message.msg.includes(options.filePath)));
+				const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
+				deepStrictEqual({
+					count: diagnostics.length,
+					hasOperation: diagnostics.some(message => message.includes('append')),
+					hasCode: diagnostics.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
+					exposesPath: diagnostics.some(message => message.includes(options.filePath)),
+					exposesSentinel: diagnostics.some(message => message.includes('vscode-otel-forwarder-')),
+					exposesRawMessage: diagnostics.some(message => message.includes('no such file')),
+				}, {
+					count: 1,
+					hasOperation: true,
+					hasCode: true,
+					exposesPath: false,
+					exposesSentinel: false,
+					exposesRawMessage: false,
+				});
 				await rejects(fs.access(options.filePath), { code: 'ENOENT' });
 				await rejects(fs.access(join(directory, name)), { code: 'ENOENT' });
 			}

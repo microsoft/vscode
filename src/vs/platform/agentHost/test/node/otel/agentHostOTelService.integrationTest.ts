@@ -551,7 +551,13 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		const service = store.add(new AgentHostOTelService({ env }, new class extends NullLogService {
 			override error(message: string): void { logMessages.push(message); }
 		}, makeEnvService(tmpdir())));
-		strictEqual((await service.getSdkTelemetryConfig())?.filePath, undefined);
+		deepStrictEqual(await service.getSdkTelemetryConfig(), {
+			exporterType: 'file',
+			filePath: '',
+			otlpEndpoint: undefined,
+			sourceName: undefined,
+			captureContent: undefined,
+		});
 		deepStrictEqual(logMessages, ['[agentHost.otel] ignored managed file export path: path is empty']);
 	});
 
@@ -626,7 +632,13 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			}, new class extends NullLogService {
 				override error(message: string): void { logMessages.push(message); }
 			}, makeEnvService(tmp)));
-			strictEqual((await missingHomeService.getSdkTelemetryConfig())?.filePath, undefined);
+			deepStrictEqual(await missingHomeService.getSdkTelemetryConfig(), {
+				exporterType: 'file',
+				filePath: '',
+				otlpEndpoint: undefined,
+				sourceName: undefined,
+				captureContent: undefined,
+			});
 			strictEqual(logMessages.length, 1);
 
 			const dbService = services.add(new AgentHostOTelService({
@@ -636,6 +648,9 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 					return new Response(null, { status: 200 });
 				},
 			}, new NullLogService(), makeEnvService(tmp)));
+			const dbConfig = await dbService.getSdkTelemetryConfig();
+			ok(dbConfig?.otlpEndpoint?.startsWith('http://127.0.0.1:'));
+			strictEqual(dbConfig?.filePath, '');
 			ok(dbService.getSessionTraceContext('invalid-file', 'copilot:/invalid-file'));
 			await dbService.flush();
 			const dbPath = dbService.getSpansDbPath();
@@ -649,6 +664,30 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual(fetchCalls, 0);
 		} finally {
 			services.dispose();
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	test('rejected managed file paths retain the empty child override when DB startup fails', async () => {
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-file-failure-'));
+		const userDataPath = join(tmp, 'not-a-directory');
+		await writeFile(userDataPath, '');
+		const service = store.add(new AgentHostOTelService({
+			env: buildAgentHostOTelEnv(
+				{ dbSpanExporterEnabled: true },
+				{},
+				{ enabled: true, exporterType: 'file', outfile: 'synthetic-customer-user-directory/' },
+			),
+		}, new NullLogService(), makeEnvService(userDataPath)));
+		try {
+			deepStrictEqual(await service.getSdkTelemetryConfig(), {
+				exporterType: 'file',
+				filePath: '',
+				otlpEndpoint: undefined,
+				sourceName: undefined,
+				captureContent: undefined,
+			});
+		} finally {
 			await rm(tmp, { recursive: true, force: true });
 		}
 	});
@@ -806,7 +845,23 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 					} else {
 						await rejects(access(outputPath));
 						await rejects(access(join(tmp, kind, String(dbSpanExporterEnabled), 'nested')));
-						ok(warnings.some(message => message.includes(outputPath)));
+						deepStrictEqual({
+							count: warnings.length,
+							hasOperation: warnings.some(message => message.includes('append')),
+							hasCode: warnings.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
+							hasSyscall: warnings.some(message => /\bsyscall=[a-z]+\b/.test(message)),
+							exposesOutputPath: warnings.some(message => message.includes(outputPath)),
+							exposesUniquePathComponent: warnings.some(message => message.includes(tmp)),
+							exposesRawMessage: warnings.some(message => message.includes('no such file')),
+						}, {
+							count: 1,
+							hasOperation: true,
+							hasCode: true,
+							hasSyscall: true,
+							exposesOutputPath: false,
+							exposesUniquePathComponent: false,
+							exposesRawMessage: false,
+						});
 					}
 					strictEqual(service.getSpansDbPath() !== undefined, dbSpanExporterEnabled);
 				}

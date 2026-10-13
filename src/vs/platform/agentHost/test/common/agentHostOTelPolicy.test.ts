@@ -11,6 +11,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { AgentHostOTelEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, readAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
 
 suite('Agent Host OTel managed policy registration', () => {
 
@@ -58,8 +59,8 @@ suite('Agent Host OTel managed policy registration', () => {
 	});
 
 	class PolicyConfigurationService extends TestConfigurationService {
-		constructor(private readonly policyData: IPolicyData) {
-			super();
+		constructor(private readonly policyData: IPolicyData, settings?: Record<string, unknown>) {
+			super(settings);
 		}
 
 		override inspect<T>(key: string): IConfigurationValue<T> {
@@ -191,5 +192,45 @@ suite('Agent Host OTel managed policy registration', () => {
 			metricsProtocol: '',
 			filePath: '',
 		});
+	});
+
+	test('policy readiness uses real OTel registrations and the managed-file composition', () => {
+		const gaps = (managedSettings: NonNullable<IPolicyData['managedSettings']>, settings?: Record<string, unknown>) => {
+			const configurationService = new PolicyConfigurationService({ managedSettings } as IPolicyData, settings);
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			return getAgentHostPolicyGaps(configurationService)
+				.filter(gap => gap.policyName === 'CopilotOtelProtocol')
+				.map(gap => gap.policyName);
+		};
+
+		assert.deepStrictEqual([
+			gaps({ 'telemetry.enabled': false, 'telemetry.protocol': 'grpc' }),
+			gaps({ 'telemetry.filePath': '/managed/copilot.jsonl' }),
+			gaps({ 'telemetry.protocol': 'grpc' }),
+			gaps({}),
+		], [
+			[],
+			[],
+			['CopilotOtelProtocol'],
+			[],
+		]);
+
+		const managedSettings: Record<string, string> = {
+			'telemetry.filePath': '/managed/copilot.jsonl',
+		};
+		const configurationService = new PolicyConfigurationService({ managedSettings } as IPolicyData);
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const removalGaps = () => getAgentHostPolicyGaps(configurationService)
+			.filter(gap => gap.policyName === 'CopilotOtelProtocol')
+			.map(gap => gap.policyName);
+		assert.deepStrictEqual([
+			removalGaps(),
+			(delete managedSettings['telemetry.filePath'], managedSettings['telemetry.protocol'] = 'grpc', removalGaps()),
+			(delete managedSettings['telemetry.protocol'], removalGaps()),
+		], [
+			[],
+			['CopilotOtelProtocol'],
+			[],
+		]);
 	});
 });

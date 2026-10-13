@@ -440,7 +440,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			if (!this._receiver) {
 				// Start failed; we already logged. Fall through to pass-through if
 				// the user also has an external endpoint configured.
-				if (!this._config.otlpEndpoint && this._config.exporterType !== 'console' && !this._config.filePath) {
+				if (!this._config.filePathError && !this._config.otlpEndpoint && this._config.exporterType !== 'console' && !this._config.filePath) {
 					return undefined;
 				}
 			} else {
@@ -600,6 +600,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		return {
 			exporterType: 'otlp-http',
 			otlpEndpoint: this._receiver!.baseUrl,
+			...(this._config.filePathError ? { filePath: '' } : {}),
 			sourceName: this._config.sourceName,
 			captureContent: this._config.captureContent,
 		};
@@ -608,8 +609,8 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _buildPassthroughConfig(): TelemetryConfig {
 		return {
 			exporterType: this._config.exporterType,
-			otlpEndpoint: this._config.otlpEndpoint,
-			filePath: this._config.filePath,
+			otlpEndpoint: this._config.filePathError ? undefined : this._config.otlpEndpoint,
+			filePath: this._config.filePathError ? '' : this._config.filePath,
 			sourceName: this._config.sourceName,
 			captureContent: this._config.captureContent,
 		};

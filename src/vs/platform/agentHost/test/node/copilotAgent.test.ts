@@ -47,6 +47,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostOTelService } from '../../node/otel/agentHostOTelService.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../node/codex/codexAgent.js';
@@ -57,6 +58,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
@@ -1508,6 +1510,57 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	test('rejected managed OTel paths are cleared in the captured Copilot child options', async () => {
+		const rejectedPath = 'synthetic-customer-user-directory/';
+		const pathKeys = ['COPILOT_OTEL_FILE_EXPORTER_PATH', 'copilot_otel_file_exporter_path'] as const;
+		const previous = pathKeys.map(key => [key, process.env[key]] as const);
+		const userDataPath = await fs.mkdtemp(`${os.tmpdir()}/copilot-agent-otel-`);
+		const otelService = new AgentHostOTelService({
+			env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: rejectedPath }),
+		}, new NullLogService(), {
+			_serviceBrand: undefined,
+			userDataPath,
+		} as INativeEnvironmentService);
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			otelService,
+		});
+		try {
+			for (const key of pathKeys) {
+				process.env[key] = rejectedPath;
+			}
+			await agent.getManagedSettingsDiagnostics();
+			const options = getCreatedClientOptions(agent).at(-1);
+			const pathEntries = Object.entries(options?.env ?? {}).filter(([key]) => key.toLowerCase() === 'copilot_otel_file_exporter_path');
+			assert.deepStrictEqual({
+				telemetry: options?.telemetry,
+				pathEntries,
+				parentPath: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
+			}, {
+				telemetry: {
+					exporterType: 'file',
+					filePath: '',
+					otlpEndpoint: undefined,
+					sourceName: undefined,
+					captureContent: undefined,
+				},
+				pathEntries: [],
+				parentPath: rejectedPath,
+			});
+		} finally {
+			await disposeAgent(agent);
+			otelService.dispose();
+			await fs.rm(userDataPath, { recursive: true, force: true });
+			for (const [key, value] of previous) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}
 	});
 
 	suite('session metadata persistence', () => {

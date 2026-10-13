@@ -734,6 +734,8 @@ src/vs/platform/otel/
 
 `buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings, shellEnv)`, and merges the result into the spawned process's environment. Parent-process env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over inherited env**. For identity capture, resolved login-shell env also wins over personal settings. Other OTel keys retain their existing precedence: shell-only values do not override the settings overlay.
 
+The policy-readiness diagnostic evaluates this local Copilot/VS Code registered-policy composition only. Managed `enabled: false` is enforced locally; managed `exporterType: file` has no inherited-protocol gap only when a managed outfile is also present. A clear result does not certify remote hosts, independently fetched runtime policy, or unrelated telemetry consumers.
+
 | Setting | Env var |
 |---|---|
 | `chat.agentHost.otel.enabled` | `COPILOT_OTEL_ENABLED` |

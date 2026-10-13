@@ -229,15 +229,61 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 	}
 
 	private async _append(lines: string): Promise<void> {
-		try {
-			if (this._options.createParentDirectories) {
+		if (this._options.createParentDirectories) {
+			try {
 				await fs.mkdir(dirname(this._options.filePath), { recursive: true });
+			} catch (error) {
+				this._logFailure('mkdir', error);
+				return;
 			}
+		}
+		try {
 			await fs.appendFile(this._options.filePath, lines, { encoding: 'utf8' });
-		} catch (err) {
-			this._logService.warn(`[agentHost-otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);
+		} catch (error) {
+			this._logFailure('append', error);
 		}
 	}
+
+	private _logFailure(operation: 'mkdir' | 'append', error: unknown): void {
+		this._logService.warn(`[agentHost-otel] file ${operation} failed (${formatFileForwarderError(error)})`);
+	}
+}
+
+const nodeErrnoCodes = new Set([
+	'E2BIG', 'EACCES', 'EADDRINUSE', 'EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EAGAIN', 'EALREADY',
+	'EBADF', 'EBADMSG', 'EBUSY', 'ECANCELED', 'ECHILD', 'ECONNABORTED', 'ECONNREFUSED',
+	'ECONNRESET', 'EDEADLK', 'EDESTADDRREQ', 'EDOM', 'EDQUOT', 'EEXIST', 'EFAULT', 'EFBIG',
+	'EHOSTUNREACH', 'EIDRM', 'EILSEQ', 'EINPROGRESS', 'EINTR', 'EINVAL', 'EIO', 'EISCONN',
+	'EISDIR', 'ELOOP', 'EMFILE', 'EMLINK', 'EMSGSIZE', 'EMULTIHOP', 'ENAMETOOLONG', 'ENETDOWN',
+	'ENETRESET', 'ENETUNREACH', 'ENFILE', 'ENOBUFS', 'ENODATA', 'ENODEV', 'ENOENT', 'ENOEXEC',
+	'ENOLCK', 'ENOLINK', 'ENOMEM', 'ENOMSG', 'ENOPROTOOPT', 'ENOSPC', 'ENOSR', 'ENOSTR',
+	'ENOSYS', 'ENOTCONN', 'ENOTDIR', 'ENOTEMPTY', 'ENOTSOCK', 'ENOTSUP', 'ENOTTY', 'ENXIO',
+	'EOPNOTSUPP', 'EOVERFLOW', 'EPERM', 'EPIPE', 'EPROTO', 'EPROTONOSUPPORT', 'EPROTOTYPE',
+	'ERANGE', 'EROFS', 'ESPIPE', 'ESRCH', 'ESTALE', 'ETIME', 'ETIMEDOUT', 'ETXTBSY', 'EXDEV',
+]);
+
+const nodeFileSystemSyscalls = new Set(['mkdir', 'open', 'write']);
+
+function readOwnStringProperty(value: object, key: string): string | undefined {
+	const propertyValue: unknown = Object.getOwnPropertyDescriptor(value, key)?.value;
+	return typeof propertyValue === 'string' ? propertyValue : undefined;
+}
+
+function formatFileForwarderError(error: unknown): string {
+	if (!(error instanceof Error)) {
+		return 'category=unknown';
+	}
+
+	const details: string[] = [];
+	const code = readOwnStringProperty(error, 'code');
+	if (code !== undefined && nodeErrnoCodes.has(code)) {
+		details.push(`code=${code}`);
+	}
+	const syscall = readOwnStringProperty(error, 'syscall');
+	if (syscall !== undefined && nodeFileSystemSyscalls.has(syscall)) {
+		details.push(`syscall=${syscall}`);
+	}
+	return details.length > 0 ? details.join(', ') : 'category=unknown';
 }
 
 // ---------------------------------------------------------------------------
