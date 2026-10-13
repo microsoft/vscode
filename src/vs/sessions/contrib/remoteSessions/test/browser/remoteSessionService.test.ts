@@ -180,7 +180,6 @@ suite('RemoteSessionService', () => {
 		}();
 		const connection = new class extends mock<IAgentConnection>() {
 			override get clientId() { return state.sourceClientId; }
-			override readonly initializeResult = constObservable(undefined);
 			override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } });
 			private readonly subscriptions: { [K in StateComponents]?: () => IAgentSubscription<ComponentToState[K]> } = {
 				[StateComponents.Session]: () => upcastPartial<IAgentSubscription<SessionState>>({

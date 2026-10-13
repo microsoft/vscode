@@ -76,7 +76,6 @@ class TestSubscription<T> implements IAgentSubscription<T> {
 }
 
 class TestConnection extends mock<IAgentHostService>() {
-	override readonly initializeResult = constObservable(undefined);
 	override readonly onAgentHostStart = Event.None;
 	override readonly onAgentHostExit = Event.None;
 	override readonly clientId = 'window-client';

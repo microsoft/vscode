@@ -18,12 +18,6 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
-import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-
-/** A VS Code host that addresses the default chat by its default-shaped URI without advertising it. */
-const vscodeHostInitializeResult = constObservable<InitializeResult | undefined>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true } });
 
 suite('ChatReferenceAttachment', () => {
 
@@ -75,7 +69,6 @@ suite('ChatReferenceAttachment', () => {
 		const disconnectedChat = buildChatUri(encoded, 'disconnected');
 
 		class FakeConnection extends mock<IAgentConnection>() {
-			override readonly initializeResult = vscodeHostInitializeResult;
 			constructor(private readonly _sessions: readonly IAgentSessionMetadata[], private readonly _subscribed?: { readonly session: string; readonly state: SessionState }) {
 				super();
 			}

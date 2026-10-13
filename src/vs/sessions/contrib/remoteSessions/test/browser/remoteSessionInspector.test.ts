@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -42,7 +42,6 @@ const defaultChat = buildDefaultChatUri(backendSession);
 const peerChat = buildChatUri(backendSession, 'peer');
 
 class InspectionConnection extends mock<IAgentHostService>() {
-	override readonly initializeResult = constObservable(undefined);
 	override readonly clientId = 'window-client';
 	override readonly onAgentHostStart = Event.None;
 	override readonly onAgentHostExit = Event.None;

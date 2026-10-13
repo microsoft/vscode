@@ -11,7 +11,6 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAdvertisedDefaultChat } from '../../../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { buildBranchChangesetUri, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -203,7 +202,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				return undefined;
 			}
 			const resolvedTurnSource = turnSource.read(reader);
-			const defaultChat = getAdvertisedDefaultChat(backendSession.toString(), sessionState.defaultChat, this._connection.initializeResult.read(reader));
+			const defaultChat = sessionState.defaultChat;
 			const chat = resolvedTurnSource.chatUri?.toString() ?? defaultChat;
 			if (chat === undefined) {
 				return undefined;
@@ -316,7 +315,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				const workspaceRoots = workspaceRootUris.map(roots => roots.map(root => URI.parse(root)));
 				const chatUris = derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
 					const session = state.read(reader);
-					const defaultChat = getAdvertisedDefaultChat(key, session && !(session instanceof Error) ? session.defaultChat : undefined, this._connection.initializeResult.read(reader));
+					const defaultChat = session && !(session instanceof Error) ? session.defaultChat : undefined;
 					return [...new Set([
 						...(defaultChat !== undefined ? [defaultChat] : []),
 						...(session && !(session instanceof Error) ? session.chats?.map(chat => chat.resource) ?? [] : []),

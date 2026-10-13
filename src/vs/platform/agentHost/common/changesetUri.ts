@@ -138,7 +138,7 @@ export const enum ChangesetKind {
  * A chat that advertises its own Session Changes entry keeps it, scoping
  * Session Changes to that chat. Otherwise the session's cumulative Session
  * Changes entry is projected into the chat catalogue. `defaultChatUri` is the
- * session's advertised default chat (see `getAdvertisedDefaultChat`).
+ * session's advertised default chat (`SessionState.defaultChat`).
  */
 export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
 	if (sessionChangesets === undefined) {

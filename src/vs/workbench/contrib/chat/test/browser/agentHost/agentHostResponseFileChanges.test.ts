@@ -7,13 +7,11 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -51,12 +49,8 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { agentHostChangesetFileToEntryDiff, AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
-/** A VS Code host that addresses the default chat by its default-shaped URI without advertising it. */
-const vscodeHostInitializeResult = constObservable<InitializeResult | undefined>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true } });
-
 class FakeAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
-	override readonly initializeResult = vscodeHostInitializeResult;
 
 	private readonly _emitters = new Map<string, Emitter<unknown>>();
 	private readonly _values = new Map<string, unknown>();
@@ -115,8 +109,9 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		return [{ label: 'This Turn', uriTemplate: buildTurnChangesetUri(owner.toString(), '{turnId}'), changeKind: 'turn' }];
 	}
 
+	/** A session state as the protocol client hands it over: with the host's default chat. */
 	function sessionState(): SessionState {
-		return {} as SessionState;
+		return { defaultChat: defaultChatUri.toString() } as SessionState;
 	}
 
 	function chatStateWithTurnSupport(owner: URI = defaultChatUri): ChatState {
@@ -133,6 +128,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 
 	function adoptedSessionState(lastMigratedTurnId: string): SessionState {
 		return {
+			defaultChat: defaultChatUri.toString(),
 			_meta: { ehcliAdopted: true, ehcliLastMigratedTurn: lastMigratedTurnId },
 		} as unknown as SessionState;
 	}
@@ -320,7 +316,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			project: { uri: URI.file('/repo').toString(), displayName: 'Repo' },
 		});
 		const snapshots = new Map<string, SessionState | ChatState | ChangesetState>([
-			[backendSession.toString(), session],
+			[backendSession.toString(), { ...session, defaultChat: defaultChatUri.toString() }],
 			[chat.resource, chat],
 			...chat.turns.map((turn): [string, ChangesetState] => [
 				turnChangesetUri(turn.id), { status: ChangesetStatus.Computing, files: [] },
@@ -345,7 +341,6 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			return { resource: key, state, fromSeq: 0 };
 		}, () => { }));
 		const connection = new class extends mock<IAgentConnection>() {
-			override readonly initializeResult = vscodeHostInitializeResult;
 			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 				return manager.getSubscription<ComponentToState[T]>(kind, resource, owner);
 			}
@@ -388,6 +383,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn));
 		conn.setState(backendSession.toString(), {
+			defaultChat: defaultChatUri.toString(),
 			changesets: turnChangesetCatalog(backendSession),
 		} as unknown as SessionState);
 		conn.setState(defaultChatUri.toString(), { turns: [] } as unknown as ChatState);
@@ -418,6 +414,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
 		// Older hosts advertise the Turn entry only on the session and publish no chat catalogue.
 		conn.setState(backendSession.toString(), {
+			defaultChat: defaultChatUri.toString(),
 			changesets: turnChangesetCatalog(backendSession),
 		} as unknown as SessionState);
 		conn.setState(peerChatUri.toString(), { turns: [] } as unknown as ChatState);
@@ -782,6 +779,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		ds.add(autorun(reader => outsideWorkspace.push(edits.read(reader)[0].isOutsideWorkspace)));
 		const initialReads = editReads;
 		conn.setState(backendSession.toString(), {
+			defaultChat: defaultChatUri.toString(),
 			...session,
 			title: 'Renamed',
 			project: { ...session.project!, displayName: 'Renamed repo' },
@@ -789,6 +787,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 		const metadataEditReads = editReads - initialReads;
 		conn.setState(backendSession.toString(), {
+			defaultChat: defaultChatUri.toString(),
 			...session,
 			project: { uri: URI.file('/other').toString(), displayName: 'Other repo' },
 			workingDirectories: [URI.file('/other').toString()],
@@ -1358,7 +1357,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
-		conn.setState(backendSession.toString(), { workingDirectories: [URI.file('/repo').toString()], chats: [] } as unknown as SessionState);
+		conn.setState(backendSession.toString(), { defaultChat: defaultChatUri.toString(), workingDirectories: [URI.file('/repo').toString()], chats: [] } as unknown as SessionState);
 		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), {
@@ -1576,6 +1575,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(createProvider(conn));
 		conn.setState(backendSession.toString(), {
+			defaultChat: defaultChatUri.toString(),
 			project: { uri: URI.file('/repo').toString(), displayName: 'repo' },
 			workingDirectories: [],
 			chats: [],

@@ -331,7 +331,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {
-		return this._sessionListStore.getAdvertisedDefaultChat(summary) === chat.resource;
+		return summary.defaultChat === chat.resource;
 	}
 
 	private _resource(rawId: string): URI {

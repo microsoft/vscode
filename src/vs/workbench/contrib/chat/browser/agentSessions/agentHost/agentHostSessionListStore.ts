@@ -11,9 +11,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IObservable } from '../../../../../../base/common/observable.js';
-import { getAdvertisedDefaultChat } from '../../../../../../platform/agentHost/common/agentHostDefaultChat.js';
-import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -24,8 +21,6 @@ import { Schemas } from '../../../../../../base/common/network.js';
  */
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
-	/** The host's initialize result, which identifies VS Code hosts; see {@link getAdvertisedDefaultChat}. */
-	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeChat(chat: URI): Promise<void>;
 	disposeSession(session: URI): Promise<void>;
@@ -181,11 +176,6 @@ export class AgentHostSessionListStore extends Disposable {
 		const scheme = AgentSession.provider(session);
 		const alias = this._options.sessionSchemeAlias;
 		return provider ?? (alias && URI.parse(resource).scheme === alias.backend ? alias.ui : scheme);
-	}
-
-	/** The advertised default chat of a listed session; see {@link getAdvertisedDefaultChat}. */
-	getAdvertisedDefaultChat(summary: Pick<SessionSummary, 'resource' | 'defaultChat'>): string | undefined {
-		return getAdvertisedDefaultChat(summary.resource, summary.defaultChat, this._connection.initializeResult.get());
 	}
 
 	private _sessionUri(provider: string, rawId: string): URI {

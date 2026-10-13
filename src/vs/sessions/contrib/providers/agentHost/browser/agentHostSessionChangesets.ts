@@ -19,7 +19,6 @@ import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/me
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { getAdvertisedDefaultChat } from '../../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
@@ -211,7 +210,7 @@ export function createChatChangesets(
 		if (!chatUri || !chatState || chatState instanceof Error || sessionState instanceof Error) {
 			return undefined;
 		}
-		const defaultChatUri = getAdvertisedDefaultChat(sessionUri.toString(), sessionState?.defaultChat, options.getConnection()?.initializeResult.read(reader)) ?? sessionState?.chats?.[0]?.resource;
+		const defaultChatUri = sessionState?.defaultChat ?? sessionState?.chats?.[0]?.resource;
 		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
@@ -273,7 +272,7 @@ export function createActiveSessionSubscriptionObs<T>(
 /**
  * Selects the URI of the session's most recently modified chat — the one that
  * holds the session's "last turn". Falls back to the session's advertised
- * default chat (`defaultChat`, see {@link getAdvertisedDefaultChat}) when the
+ * default chat (`defaultChat`) when the
  * state is absent/errored or lists no chat.
  *
  * Shared by {@link AgentHostLastTurnChangeset} and the output-stream-derived
@@ -704,7 +703,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			: derivedOpts({ equalsFn: isEqual }, reader => {
 				const sessionState = sessionStateObs?.read(reader).read(reader);
 				const advertised = sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
-				return selectMostRecentChatUri(sessionState, getAdvertisedDefaultChat(sessionUri.toString(), advertised, options.getConnection()?.initializeResult.read(reader)));
+				return selectMostRecentChatUri(sessionState, advertised);
 			});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
@@ -800,7 +799,7 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			constObservable(chatUri ?? toUri(options.getAdvertisedDefaultChat(sessionUri))),
+			constObservable(chatUri ?? toUri(options.getBackendDefaultChat(sessionUri))),
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {

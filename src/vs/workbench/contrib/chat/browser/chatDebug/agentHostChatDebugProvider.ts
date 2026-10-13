@@ -19,7 +19,6 @@ import { IAgentHostService } from '../../../../../platform/agentHost/common/agen
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getAdvertisedDefaultChat } from '../../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { CustomizationType, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -303,7 +302,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		const backendSession = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` });
 		// Turns/usage moved off the session onto its default chat channel.
 		const sessionState = this._agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
-		const defaultChat = getAdvertisedDefaultChat(backendSession.toString(), sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined, this._agentHostService.initializeResult.get());
+		const defaultChat = sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
 		return defaultChat !== undefined ? this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChat)) : undefined;
 	}
 

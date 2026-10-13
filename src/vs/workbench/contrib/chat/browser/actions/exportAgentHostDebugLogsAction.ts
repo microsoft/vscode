@@ -23,8 +23,6 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getAdvertisedDefaultChat } from '../../../../../platform/agentHost/common/agentHostDefaultChat.js';
-import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -224,14 +222,12 @@ export async function resolveAgentHostDebugLogsExportDirectory(
 export function resolveAgentHostDebugLogsChat(
 	activeSession: Pick<IActiveAgentHostSessionForExport, 'backendChatResource' | 'chatId' | 'sessionTitle'>,
 	state: SessionState | Error | undefined,
-	backendSession: URI,
-	host: InitializeResult | undefined,
 ): { backendChat: URI | undefined; sessionTitle: string | undefined } {
 	let backendChat = activeSession.backendChatResource;
 	let sessionTitle = activeSession.sessionTitle;
 	if (state && !(state instanceof Error)) {
 		if (!backendChat) {
-			const backendChatResource = getSessionChatResource(state, activeSession.chatId, getAdvertisedDefaultChat(backendSession.toString(), state.defaultChat, host));
+			const backendChatResource = getSessionChatResource(state, activeSession.chatId, state.defaultChat);
 			if (backendChatResource) {
 				backendChat = URI.parse(backendChatResource);
 			}
@@ -352,7 +348,7 @@ export async function collectAgentHostDebugLogs(
 			connection = sessionResolution.connection;
 			backendSession = sessionResolution.backendSession;
 			const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
-			backendChat = resolveAgentHostDebugLogsChat(activeSession, state, backendSession, connection.initializeResult.get()).backendChat;
+			backendChat = resolveAgentHostDebugLogsChat(activeSession, state).backendChat;
 			if (!backendChat) {
 				const reason = !state || state instanceof Error
 					? 'session state is unavailable'
@@ -684,7 +680,7 @@ function resolveAgentHostDebugLogsExportName(accessor: ServicesAccessor, activeS
 		const sessionResolution = accessor.get(IAgentHostConnectionsService).resolveSessionResource(activeSession.resource);
 		if (sessionResolution) {
 			const state = sessionResolution.connection.getSubscriptionUnmanaged(StateComponents.Session, sessionResolution.backendSession)?.value;
-			sessionTitle = resolveAgentHostDebugLogsChat(activeSession, state, sessionResolution.backendSession, sessionResolution.connection.initializeResult.get()).sessionTitle;
+			sessionTitle = resolveAgentHostDebugLogsChat(activeSession, state).sessionTitle;
 		}
 	}
 	return getAgentHostDebugLogsExportName(sessionTitle, activeSession?.chatTitle, activeSession?.chatId === DEFAULT_CHAT_ID);

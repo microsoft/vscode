@@ -46,12 +46,6 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IProgressNotificationOptions, IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { constObservable } from '../../../../../base/common/observable.js';
-import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-
-/** A VS Code host that addresses the default chat by its default-shaped URI without advertising it. */
-const vscodeHostInitializeResult = constObservable<InitializeResult | undefined>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true } });
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -175,7 +169,6 @@ suite('exportAgentHostDebugLogs progress', () => {
 		const messages: string[] = [];
 		instantiation.stub(IAgentHostConnectionsService, {
 			ambientConnection: upcastPartial<IAgentConnection>({
-				initializeResult: vscodeHostInitializeResult,
 				collectDebugLogs: collection,
 				cancelDebugLogs: async progressToken => { cancelHost.push(progressToken); },
 			}),
@@ -669,8 +662,8 @@ suite('toActiveAgentHostSession', () => {
 		assert.ok(activeSession);
 
 		assert.deepStrictEqual({
-			unavailable: resolveAgentHostDebugLogsChat(activeSession, undefined, URI.parse('copilotcli:/session-1'), undefined),
-			failed: resolveAgentHostDebugLogsChat(activeSession, new Error('disconnected'), URI.parse('copilotcli:/session-1'), undefined),
+			unavailable: resolveAgentHostDebugLogsChat(activeSession, undefined),
+			failed: resolveAgentHostDebugLogsChat(activeSession, new Error('disconnected')),
 		}, {
 			unavailable: { backendChat: undefined, sessionTitle: 'Session one' },
 			failed: { backendChat: undefined, sessionTitle: 'Session one' },
@@ -709,7 +702,6 @@ suite('collectAgentHostDebugLogs', () => {
 			mtime,
 		});
 		const connection = upcastPartial<IAgentConnection>({
-			initializeResult: vscodeHostInitializeResult,
 			collectDebugLogs: async () => hostArtifact,
 			getSubscriptionUnmanaged: () => undefined,
 		});
@@ -1010,7 +1002,6 @@ suite('collectAgentHostDebugLogs', () => {
 				const backendSession = URI.parse(`${provider === 'copilot' ? 'ahp-session' : 'copilotcli'}:/session-1`);
 				const requests: (string | undefined)[] = [];
 				const connection = upcastPartial<IAgentConnection>({
-					initializeResult: vscodeHostInitializeResult,
 					getSubscriptionUnmanaged: () => undefined,
 					collectDebugLogs: async session => {
 						requests.push(session?.toString());

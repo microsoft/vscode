@@ -16,7 +16,6 @@ import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSess
 import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { getAdvertisedDefaultChat } from '../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
@@ -32,7 +31,7 @@ export interface IRemoteSessionChat {
 export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly depth: number;
 	readonly origin: IRemoteSessionOrigin | undefined;
-	/** The source session's advertised default chat; see {@link getAdvertisedDefaultChat}. */
+	/** The source session's advertised default chat (`SessionState.defaultChat`). */
 	readonly defaultChat: string | undefined;
 }
 
@@ -129,7 +128,7 @@ export async function resolveRemoteSessionSource(
 		}
 		checkSource();
 		// A chat listed in the backend session's catalog belongs to that session.
-		const defaultChat = getAdvertisedDefaultChat(source.host.backendSession.toString(), state.defaultChat, source.host.connection.initializeResult.get());
+		const defaultChat = state.defaultChat;
 		const chatResource = getSessionChatResource(state, source.chat.resource.fragment || DEFAULT_CHAT_ID, defaultChat);
 		if (!chatResource || !parseChatUri(chatResource)) {
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));

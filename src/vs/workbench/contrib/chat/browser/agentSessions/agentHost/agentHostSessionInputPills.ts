@@ -24,7 +24,6 @@ import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalog
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { getAdvertisedDefaultChat } from '../../../../../../platform/agentHost/common/agentHostDefaultChat.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -175,7 +174,7 @@ export function resolveAgentHostChangeset(
 
 /**
  * Resolves the chat channel URI a workbench chat resource addresses.
- * `defaultChat` is the session's advertised default chat, see {@link getAdvertisedDefaultChat}.
+ * `defaultChat` is the session's advertised default chat (`SessionState.defaultChat`).
  */
 export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): URI | undefined {
 	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
@@ -565,7 +564,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
 		const defaultChat = derived(this, reader => {
 			const current = resolution.read(reader);
-			return current ? getAdvertisedDefaultChat(current.backendSession.toString(), sessionState.read(reader)?.defaultChat, current.connection.initializeResult.read(reader)) : undefined;
+			return current ? sessionState.read(reader)?.defaultChat : undefined;
 		});
 		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);

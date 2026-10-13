@@ -19,7 +19,8 @@ import type { URI as ProtocolURI } from './state/sessionState.js';
  * catalog without a header, a payload without a default entry, a legacy
  * subagent or provider-native session) after every recorded source was
  * consulted, and records the result; a client calls it only through
- * `getAdvertisedDefaultChat`.
+ * `getOlderHostDefaultChat`, when the protocol client fills the default chat
+ * an older VS Code host did not advertise.
  */
 export function deriveLegacyDefaultChat(session: ProtocolURI | ResourceURI): ProtocolURI {
 	const encoded = encodeBase64(VSBuffer.fromString(session.toString()), false, true);

@@ -25,7 +25,6 @@ import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasInfo, type IAge
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { deriveLegacyDefaultChat } from '../../../../../../platform/agentHost/common/agentHostLegacyDefaultChat.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
@@ -436,16 +435,30 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 
+	/**
+	 * Whether session states advertise the default chat the host minted when a
+	 * fixture leaves `defaultChat` unset, as every VS Code host's protocol client
+	 * hands them to the provider.
+	 */
+	advertisesMintedDefaultChat = true;
+
+	private _advertisedSessionState(resource: URI, state: SessionState): SessionState {
+		return state.defaultChat === undefined && this.advertisesMintedDefaultChat ? { ...state, defaultChat: buildDefaultChatUri(resource) } : state;
+	}
+
 	setSessionState(rawId: string, provider: string, state: SessionState): void {
-		const key = AgentSession.uri(provider, rawId).toString();
-		this._sessionStateValues.set(key, state);
-		this._sessionStateEmitters.get(key)?.fire(state);
+		const resource = AgentSession.uri(provider, rawId);
+		const key = resource.toString();
+		const advertised = this._advertisedSessionState(resource, state);
+		this._sessionStateValues.set(key, advertised);
+		this._sessionStateEmitters.get(key)?.fire(advertised);
 	}
 
 	setSessionStateResource(resource: URI, state: SessionState): void {
 		const key = resource.toString();
-		this._sessionStateValues.set(key, state);
-		this._sessionStateEmitters.get(key)?.fire(state);
+		const advertised = this._advertisedSessionState(resource, state);
+		this._sessionStateValues.set(key, advertised);
+		this._sessionStateEmitters.get(key)?.fire(advertised);
 	}
 
 	fireSessionStateError(resource: URI, error: Error): void {
@@ -793,7 +806,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = opts?.resource ?? AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -809,6 +822,11 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			project: opts?.project,
 			workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
 			changes: opts?.changes,
+			// A VS Code host lists and advertises the default chat it minted.
+			...(opts?.listsMintedDefaultChat !== false ? {
+				chats: [{ resource: buildDefaultChatUri(sessionUri), title: opts?.title ?? `Session ${rawId}`, status: opts?.status ?? ProtocolSessionStatus.Idle }],
+				defaultChat: buildDefaultChatUri(sessionUri),
+			} : {}),
 			...(opts?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		},
 	});
@@ -1779,11 +1797,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('session metadata exposes its creation reference', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('created'));
+		// The creating session is listed with the default chat its host advertises.
+		agentHost.addSession(createSession('creator', { provider: 'claude', chats: [{ chat: URI.parse(buildDefaultChatUri('claude:/creator')), kind: 'default' }] }));
 
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
 		await timeout(0);
-		const session = provider.getSessions()[0]!;
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created')!;
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
@@ -2291,8 +2311,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}
 
 	suite('routing default chat', () => {
-		async function resolveRoutedChats(hostMeta: InitializeResult['_meta'], advertisedDefault: string | undefined, chats: readonly string[]) {
-			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: hostMeta }, undefined);
+		async function resolveRoutedChats(advertisedDefault: string | undefined, chats: readonly string[]) {
 			const backend = AgentSession.uri('copilotcli', 'routing-default');
 			agentHost.addSession({ ...createSession('routing-default'), session: backend, provider: 'copilotcli' });
 			const provider = createProvider(disposables, agentHost);
@@ -2320,21 +2339,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		test('routes to the advertised default chat even when it is not default-shaped', async () => {
 			const advertised = 'conversation://tenant/main';
-			assert.deepStrictEqual(await resolveRoutedChats({ 'vscode.agentHost': true }, advertised, [advertised, shapedDefault, peer]), {
+			assert.deepStrictEqual(await resolveRoutedChats(advertised, [advertised, shapedDefault, peer]), {
 				defaultChat: advertised,
 				peerChat: peer,
 			});
 		});
 
-		test('falls back to the default-shaped chat for an identified older VS Code host that advertises none', async () => {
-			assert.deepStrictEqual(await resolveRoutedChats({ 'vscode.agentHost': true }, undefined, [shapedDefault, peer]), {
-				defaultChat: deriveLegacyDefaultChat(backend),
-				peerChat: peer,
-			});
-		});
-
-		test('has no default chat for an unmarked host that advertises none', async () => {
-			assert.deepStrictEqual(await resolveRoutedChats({}, undefined, [shapedDefault, peer]), {
+		// The protocol client fills the default chat of an older VS Code host, so the provider never derives one.
+		test('has no default chat for a session state that advertises none', async () => {
+			agentHost.advertisesMintedDefaultChat = false;
+			assert.deepStrictEqual(await resolveRoutedChats(undefined, [shapedDefault, peer]), {
 				defaultChat: undefined,
 				peerChat: peer,
 			});
@@ -2904,6 +2918,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
+			defaultChat: buildDefaultChatUri(AgentSession.uri('copilotcli', 'adopt-sub')),
 		};
 		// While adoptable the channel has no subscriber, so pushing a state has
 		// no effect on the client.
@@ -3245,6 +3260,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://resumed', kind: 'agent' });
+	});
+
+	test('restores the draft agent once the session state advertises its default chat', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'resume-late-default', { title: 'Resume Late Default', listsMintedDefaultChat: false });
+		const session = provider.getSessions().find(s => s.title.get() === 'Resume Late Default');
+		assert.ok(session);
+		const defaultChatUri = buildChatUri(AgentSession.uri('copilotcli', 'resume-late-default'), 'main');
+		agentHost.setChatState(defaultChatUri, {
+			resource: defaultChatUri,
+			title: 'Resume Late Default',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [],
+			draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'agent://late' } },
+		});
+
+		// The session state, and with it the default chat, arrives after the subscription opens.
+		provider.getSessionConfig(session!.sessionId);
+		const before = session!.mode.get();
+		agentHost.setSessionState('resume-late-default', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Resume Late Default',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [{ resource: defaultChatUri, title: 'Resume Late Default', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+			defaultChat: defaultChatUri,
+		});
+
+		assert.deepStrictEqual({ before, after: session!.mode.get() }, { before: undefined, after: { id: 'agent://late', kind: 'agent' } });
 	});
 
 	test('does not override a live agent selection with the persisted draft agent', () => {
@@ -3656,13 +3702,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			peerChat: provider.getBackendChatResource(session.resource.with({ fragment: 'peer-1' }))?.toString(),
 			// A peer chat absent from hydrated state has no backend URI.
 			missingPeer: provider.getBackendChatResource(session.resource.with({ fragment: 'ghost' }))?.toString(),
-			// A session whose state has not hydrated yields nothing.
-			notHydrated: provider.getBackendChatResource(unhydrated.resource),
+			// A session whose state has not hydrated resolves only the default chat its summary advertised.
+			notHydrated: provider.getBackendChatResource(unhydrated.resource)?.toString(),
+			notHydratedPeer: provider.getBackendChatResource(unhydrated.resource.with({ fragment: 'peer-1' })),
 		}, {
 			defaultChat: URI.parse(defaultBackend).toString(),
 			peerChat: URI.parse(peerBackend).toString(),
 			missingPeer: undefined,
-			notHydrated: undefined,
+			notHydrated: buildDefaultChatUri(AgentSession.uri('copilotcli', 'no-state')),
+			notHydratedPeer: undefined,
 		});
 	});
 
@@ -8740,7 +8788,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// leaving later writes landing on an instance nothing reads.
 			const metadata = createSession(rawId, { summary: 'Session', workingDirectories });
 			agentHost.addSession(backendSession ? { ...metadata, session: backendSession, provider: 'copilotcli' } : metadata);
-			fireSessionAdded(agentHost, rawId, { resource: backendSession, title: 'Session', workingDirectories: workingDirectories?.map(uri => uri.toString()) });
+			// The session's state advertises its default chat; its summary lists none.
+			fireSessionAdded(agentHost, rawId, { resource: backendSession, title: 'Session', workingDirectories: workingDirectories?.map(uri => uri.toString()), listsMintedDefaultChat: false });
 			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === rawId);
 			assert.ok(session);
 			// Force a session-state subscription so pushed states reach the adapter.
@@ -10616,7 +10665,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				getConnection: () => undefined,
 				agentCapabilities: capabilitiesObs,
 				mapBackendSessionResource: resource => resource.with({ scheme: `agent-host-${resource.scheme}` }),
-				getAdvertisedDefaultChat: session => buildDefaultChatUri(session),
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const adapters = Array.from({ length: 200 }, (_, index) => disposables.add(instantiationService.createInstance(
 				AgentHostSessionAdapter,
