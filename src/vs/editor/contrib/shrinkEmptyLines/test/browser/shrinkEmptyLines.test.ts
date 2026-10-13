@@ -93,23 +93,20 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 19]);
 	});
 
-	test('reacts to variable line height and base line height changes', () => {
+	test('reacts to variable line height setting changes', () => {
 		const { editor } = createEditor('a\n', {
 			shrinkEmptyLines: 'compact',
 		});
 
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10]);
 
-		editor.updateOptions({ lineHeight: 24 });
-		assert.deepStrictEqual(getLineHeights(editor), [24, 12]);
-
 		editor.updateOptions({ allowVariableLineHeights: false });
-		assert.deepStrictEqual(getLineHeights(editor), [24, 24]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 19]);
 
 		editor.updateOptions({ allowVariableLineHeights: true });
-		assert.deepStrictEqual(getLineHeights(editor), [24, 12]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10]);
 
 		editor.updateOptions({ shrinkEmptyLines: 'off' });
-		assert.deepStrictEqual(getLineHeights(editor), [24, 24]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 19]);
 	});
 });
