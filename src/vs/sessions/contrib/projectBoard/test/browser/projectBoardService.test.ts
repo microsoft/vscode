@@ -17,6 +17,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetColor } from '../../../../../workbench/contrib/chat/browser/chatPetColors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -70,7 +71,7 @@ function toggleCardSelection(element: HTMLElement): void {
 }
 
 class TestChat extends mock<IChat>() {
-	override readonly capabilities = observableValue('capabilities', { canRename: false, canDelete: true });
+	override readonly capabilities = observableValue('capabilities', { canRename: false, canArchive: true, canDelete: true });
 	override readonly title = observableValue('title', this.name);
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
 	override readonly changes = constObservable([]);
@@ -222,7 +223,7 @@ suite('ProjectBoardService', () => {
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = withSessionLists ? createListHarness(store, state.sessions).instantiationService : workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatPetService, { variant: constObservable('insiders') });
+		instantiationService.stub(IChatPetService, { color: constObservable('insiders') });
 		const actionWidget = store.add(instantiationService.createInstance(ActionWidgetService));
 		instantiationService.stub(IActionWidgetService, actionWidget);
 		const copy = sinon.stub().resolves();
@@ -743,12 +744,12 @@ suite('ProjectBoardService', () => {
 
 	test('working pets wear the native construction hard hat in animated and static images', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Construction')]);
-		const variant = observableValue<'stable' | 'insiders'>('hatVariant', 'stable');
+		const variant = observableValue<ChatPetColor>('hatVariant', 'stable');
 		const composites = new Set<string>();
-		h.instantiationService.stub(IChatPetService, { variant, enabled: constObservable(false) });
+		h.instantiationService.stub(IChatPetService, { color: variant, enabled: constObservable(false) });
 		h.container.classList.add('monaco-enable-motion');
 		await h.service.open();
-		for (const quality of ['stable', 'insiders'] as const) {
+		for (const quality of ['stable', 'insiders', '#a277e6'] as const) {
 			variant.set(quality, undefined);
 			const icon = h.container.querySelector<HTMLElement>('.project-board-card-status-icon')!;
 			for (let attempt = 0; attempt < 40 && !icon.classList.contains('project-board-card-status-pet'); attempt++) {
@@ -778,7 +779,7 @@ suite('ProjectBoardService', () => {
 				}
 			}
 		}
-		assert.strictEqual(composites.size, 2, 'Each variant retains its own body');
+		assert.strictEqual(composites.size, 3, 'Each preset or custom color retains its own body');
 		assert.strictEqual(h.container.querySelector('.chat-pet'), null);
 	});
 
@@ -3854,7 +3855,7 @@ suite('ProjectBoardService', () => {
 	test('card rename updates the visible chat title without renaming its session or sibling', async () => {
 		const chat = new TestChat('Rename me');
 		const sibling = new TestChat('Sibling');
-		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		chat.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const h = createBoard(mainWindow.document, [sibling, chat]);
 		h.instantiationService.stub(IQuickInputService, {
 			input: async options => {
@@ -3890,7 +3891,7 @@ suite('ProjectBoardService', () => {
 
 	test('F2 renames the visible card', async () => {
 		const chat = new TestChat('Renamable');
-		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		chat.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const h = createBoard(mainWindow.document, [chat]);
 		await h.service.open();
 		h.quickInput.inputValues = ['Renamed with F2'];
@@ -3923,7 +3924,7 @@ suite('ProjectBoardService', () => {
 
 	test('card rename cancellation, unchanged titles and failures preserve the heading', async () => {
 		const chat = new TestChat('Keep this title');
-		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		chat.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const h = createBoard(mainWindow.document, [chat]);
 		await h.service.open();
 		const rename = async () => {
@@ -3951,9 +3952,9 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		const canRename = () => h.container.querySelector('[data-chat-resource]')?.getAttribute('aria-keyshortcuts')?.includes('F2') ?? false;
 		const availability = [canRename()];
-		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		chat.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		availability.push(canRename());
-		chat.capabilities.set({ canRename: false, canDelete: true }, undefined);
+		chat.capabilities.set({ canRename: false, canArchive: true, canDelete: true }, undefined);
 		availability.push(canRename());
 		assert.deepStrictEqual(availability, [false, true, false]);
 	});
@@ -5025,7 +5026,7 @@ suite('ProjectBoardService', () => {
 		const { service, container, instantiationService } = createBoard(mainWindow.document, [chat]);
 		const variant = observableValue<'stable' | 'insiders'>('petVariant', 'stable');
 		const enabled = constObservable(false);
-		instantiationService.stub(IChatPetService, { variant, enabled });
+		instantiationService.stub(IChatPetService, { color: variant, enabled });
 		container.style.cssText = 'height: 500px; width: 900px; position: relative;';
 		container.classList.add('monaco-enable-motion');
 		await service.open();
@@ -5157,7 +5158,7 @@ suite('ProjectBoardService', () => {
 		chats[4].isRead.set(true, undefined);
 		const h = createIndependentChatBoard(mainWindow.document, chats);
 		const variant = observableValue<'stable' | 'insiders'>('summaryPetVariant', 'stable');
-		h.instantiationService.stub(IChatPetService, { variant, enabled: constObservable(false) });
+		h.instantiationService.stub(IChatPetService, { color: variant, enabled: constObservable(false) });
 		h.container.style.cssText = 'height: 500px; width: 900px; position: relative;';
 		h.container.classList.add('monaco-enable-motion');
 		await h.service.open();
@@ -5946,7 +5947,7 @@ suite('ProjectBoardService', () => {
 		expandCardDetails(h.container);
 		h.container.querySelector<HTMLElement>('.chat-pill-button')!.click();
 		h.copy.rejects(new Error('Clipboard unavailable'));
-		h.popup().querySelector<HTMLElement>('[aria-label="Copy path"]')!.click();
+		h.popup().querySelector<HTMLElement>('[aria-label="Copy Path"]')!.click();
 		await timeout(0);
 		assert.ok(notify.calledWith('The context location could not be copied.'));
 		h.actionWidget.acceptSelected();

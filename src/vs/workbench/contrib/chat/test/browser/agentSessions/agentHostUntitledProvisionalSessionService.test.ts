@@ -40,7 +40,7 @@ import { AgentHostUntitledProvisionalSessionService } from '../../../browser/age
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 
 // ---- Mocks -----------------------------------------------------------------
@@ -496,6 +496,23 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.ok(provisional instanceof AgentHostUntitledProvisionalSessionService);
 		provisional.dispose();
 		assert.deepStrictEqual(agentHost.disposed.map(resource => resource.toString()), [abandoned.toString()]);
+	});
+
+	test('publication during replacement rebind survives canonical model disposal', async () => {
+		const ui = untitledChatUri('replacement-published');
+		const original = (await provisional.getOrCreate(ui, 'copilot', undefined))!;
+		agentHost.confirmationError = new ProtocolError(AhpErrorCodes.NotFound, 'Session not found');
+		agentHost.announceDuringCreate = true;
+		const canonical = ui.with({ path: '/replacement-published' });
+		const backend = (await provisional.tryRebind(ui, canonical, 'copilot'))!;
+		onDidDisposeChatSession.fire({ sessionResources: [canonical], reason: 'disposed' });
+		await provisional.waitForPending(canonical);
+		assert.deepStrictEqual({
+			replaced: backend.toString() !== original.toString(),
+			creates: agentHost.createCalls.length,
+			replacementDeleted: agentHost.disposed.some(resource => resource.toString() === backend.toString()),
+			mapping: provisional.get(canonical),
+		}, { replaced: true, creates: 2, replacementDeleted: false, mapping: undefined });
 	});
 
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {

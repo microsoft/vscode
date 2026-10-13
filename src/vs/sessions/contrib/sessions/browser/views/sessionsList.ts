@@ -518,7 +518,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem, reader?: IReader): number {
 		if (isProjectBoardListItem(element)) {
-			return this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
+			return this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
 		}
 		if (isSessionChatItem(element)) {
 			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight(), reader));
@@ -3072,7 +3072,7 @@ class SessionsAccessibilityProvider {
 						: localize('newSessionAriaWithoutKeybinding', "New Session");
 				});
 			}
-			if (element.id === SESSIONS_HEADER_SECTION_ID || element.id === KANBAN_SECTION_ID) {
+			if (element.id === KANBAN_SECTION_ID) {
 				return element.label;
 			}
 			if (element.id === AUTOMATIONS_SECTION_ID) {

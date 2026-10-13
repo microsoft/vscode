@@ -47,7 +47,7 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 			modelSource: constObservable(undefined),
 			mode: constObservable(undefined),
 			lastTurnEnd: constObservable(undefined),
-			capabilities: constObservable({ canRename: false, canDelete: false }),
+			capabilities: constObservable({ canRename: false, canArchive: true, canDelete: false }),
 		}));
 		return {
 			...base,

@@ -45,6 +45,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetColor, getChatPetColoredSprite, getChatPetColorVariant, isDefaultChatPetColor } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ChatPetState, getChatPetSpriteSources } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { ChatPetAccessoryIds, getChatPetAccessory } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { drawChatPetComposite, getChatPetAccessoryImageSource } from '../../../../workbench/contrib/chat/browser/widget/chatPetAccessoryRenderer.js';
@@ -207,7 +209,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	// Retain small snapshots, not extra model references, when idle work rotates settled previews.
 	private readonly metadataSnapshots = new Map<string, {
 		chat: IChat;
-		updatedAt: number;
+		updatedAt: number | undefined;
 		status: SessionStatus;
 		includeCredits: boolean;
 		includeConfiguration: boolean;
@@ -1051,7 +1053,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				return;
 			}
 			this.boardTitle.read(reader);
-			this.chatPetService.variant.read(reader);
+			this.chatPetService.color.read(reader);
 			this.model.setSortingDeferred(this.shouldDeferSorting());
 			this.drafts = this.chatWindows.drafts.read(reader);
 			this.model.updateConfiguration(this.boardState.configuration.read(reader));
@@ -1199,7 +1201,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const current = new Map(this.model.cards.map(card => [card.id, card]));
 		for (const [id, snapshot] of this.metadataSnapshots) {
 			const card = current.get(id);
-			if (!card || card.chat !== snapshot.chat || card.status !== snapshot.status || card.chat.updatedAt.read(reader).getTime() !== snapshot.updatedAt
+			if (!card || card.chat !== snapshot.chat || card.status !== snapshot.status || card.chat.updatedAt.read(reader)?.getTime() !== snapshot.updatedAt
 				|| showCredits && !snapshot.includeCredits || showConfiguration && !snapshot.includeConfiguration) {
 				this.metadataSnapshots.delete(id);
 				this.metadataStates.delete(id);
@@ -1230,7 +1232,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 						const metadata = getProjectBoardLoadedMetadata(model);
 						this.metadataStates.set(card.id, metadata);
 						this.metadataSnapshots.set(card.id, {
-							chat: card.chat, updatedAt: card.chat.updatedAt.read(reader).getTime(), status: card.status,
+							chat: card.chat, updatedAt: card.chat.updatedAt.read(reader)?.getTime(), status: card.status,
 							includeCredits: previous?.includeCredits ?? false, includeConfiguration: previous?.includeConfiguration ?? false,
 							configuration: previous?.configuration,
 						});
@@ -1292,7 +1294,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 			this.metadataStates.set(card.id, metadata);
 			this.metadataSnapshots.set(card.id, {
-				chat: card.chat, updatedAt: card.chat.updatedAt.read(reader).getTime(), status: card.status,
+				chat: card.chat, updatedAt: card.chat.updatedAt.read(reader)?.getTime(), status: card.status,
 				includeCredits: showCredits, includeConfiguration: showConfiguration,
 			});
 			if (metadata.kind === 'ready') {
@@ -3588,7 +3590,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		icon.setAttribute('aria-hidden', 'true');
 		icon.textContent = glyph;
 		if (pet) {
-			const sources = getChatPetSpriteSources(this.chatPetService.variant.get())[pet.state];
+			const color = this.chatPetService.color.get();
+			const sources = getChatPetSpriteSources(getChatPetColorVariant(color))[pet.state];
 			const source = running ? sources.animated : sources.reducedMotion;
 			const frameWidth = source.frameWidth * size / (source.frameHeight ?? 96);
 			icon.dataset.petState = pet.state;
@@ -3620,14 +3623,26 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const showPet = () => {
 				if (images.every(image => image.valid)) {
 					if (accessory && accessoryImage) {
-						const animated = this.getWorkingPetSprite(source, images[0].image, accessoryImage.image, !!accessory.coversAntennae);
-						const reduced = this.getWorkingPetSprite(sources.reducedMotion, images[running ? 1 : 0].image, accessoryImage.image, !!accessory.coversAntennae);
+						const animated = this.getWorkingPetSprite(source, images[0].image, accessoryImage.image, !!accessory.coversAntennae, color);
+						const reduced = this.getWorkingPetSprite(sources.reducedMotion, images[running ? 1 : 0].image, accessoryImage.image, !!accessory.coversAntennae, color);
 						if (!animated || !reduced) {
 							return;
 						}
 						icon.dataset.petAccessory = accessory.id;
 						icon.style.setProperty('--project-board-pet-image', `url("${animated}")`);
 						icon.style.setProperty('--project-board-pet-static', `url("${reduced}")`);
+					} else if (!isDefaultChatPetColor(color)) {
+						try {
+							const animated = getChatPetColoredSprite(images[0].image, color);
+							const reduced = getChatPetColoredSprite(images[running ? 1 : 0].image, color);
+							if (hasKey(animated, { toDataURL: true }) && hasKey(reduced, { toDataURL: true })) {
+								icon.style.setProperty('--project-board-pet-image', `url("${animated.toDataURL()}")`);
+								icon.style.setProperty('--project-board-pet-static', `url("${reduced.toDataURL()}")`);
+							}
+						} catch (error) {
+							this.logService.error('[Agents Hub] Could not recolor pet status sprite', error);
+							return;
+						}
 					}
 					if (duration > 0) {
 						// Rebuilt cards must rejoin the typing cycle instead of restarting at frame zero.
@@ -3646,9 +3661,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return icon;
 	}
 
-	private getWorkingPetSprite(source: ReturnType<typeof getChatPetSpriteSources>['typing']['animated'], body: HTMLImageElement, hat: HTMLImageElement, coversAntennae: boolean): string | undefined {
-		if (this.workingPetSprites.has(source.url)) {
-			return this.workingPetSprites.get(source.url);
+	private getWorkingPetSprite(source: ReturnType<typeof getChatPetSpriteSources>['typing']['animated'], body: HTMLImageElement, hat: HTMLImageElement, coversAntennae: boolean, color: ChatPetColor): string | undefined {
+		const key = `${source.url}:${color}`;
+		if (this.workingPetSprites.has(key)) {
+			return this.workingPetSprites.get(key);
 		}
 		let result: string | undefined;
 		try {
@@ -3667,14 +3683,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				context.beginPath();
 				context.rect(0, 0, source.frameWidth, height);
 				context.clip();
-				drawChatPetComposite(context, body, hat, frame, source.accessoryRigFrame ?? frame, source.frameWidth, height, 'right', 'typing', source.fixedOrientationDecorations, false, true, coversAntennae);
+				drawChatPetComposite(context, body, hat, frame, source.accessoryRigFrame ?? frame, source.frameWidth, height, 'right', 'typing', source.fixedOrientationDecorations, false, true, coversAntennae, color);
 				context.restore();
 			}
 			result = canvas.toDataURL();
 		} catch (error) {
 			this.logService.error('[Agents Hub] Could not compose working pet sprite', error);
 		}
-		this.workingPetSprites.set(source.url, result);
+		this.workingPetSprites.set(key, result);
 		return result;
 	}
 

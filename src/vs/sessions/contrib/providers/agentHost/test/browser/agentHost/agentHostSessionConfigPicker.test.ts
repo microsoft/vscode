@@ -44,7 +44,7 @@ import { IWorkbenchLayoutService } from '../../../../../../../workbench/services
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
-import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../../common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
