@@ -22,6 +22,8 @@ import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContext, ICanvas
  */
 export class CanvasesPillControl extends Disposable {
 
+	/** Whether canvases are enabled and the chat can show them, so its input should offer the canvases pill. */
+	readonly offered: IObservable<boolean>;
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
@@ -37,8 +39,10 @@ export class CanvasesPillControl extends Disposable {
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)),
 			() => configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true,
 		);
+		const offeredContext = derived(this, reader => enabled.read(reader) ? context.read(reader) : undefined);
+		this.offered = derived(this, reader => offeredContext.read(reader) !== undefined);
 		this.sections = derived(this, reader => {
-			const current = enabled.read(reader) ? context.read(reader) : undefined;
+			const current = offeredContext.read(reader);
 			const canvases = current?.canvases.read(reader)?.filter(canvas => canvas.source !== undefined) ?? [];
 			if (!current || canvases.length === 0) {
 				return [];

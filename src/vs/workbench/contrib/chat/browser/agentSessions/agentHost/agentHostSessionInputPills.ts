@@ -825,9 +825,12 @@ export class AgentHostSessionInputPills extends Disposable {
 			compact,
 			targetWindow,
 			enabled: constObservable(true),
-			sources: derived(this, reader => subagentChat.read(reader)
-				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
-				: sources.sources),
+			sources: derived(this, reader => {
+				if (subagentChat.read(reader)) {
+					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
+				}
+				return canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));

@@ -673,7 +673,7 @@ suite('AgentHostSessionInputPills', () => {
 			releasedSubscriptions: harness.connection.released.length === harness.connection.requested.length,
 		}, {
 			hiddenByDefault: [],
-			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes).sort(),
+			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes && kind !== SessionChatPillKind.Canvases).sort(),
 			labels: ['3 Subagents'],
 			dropdown: ['Subagents: In Progress', 'Waiting', 'Running', 'Subagents: Completed', 'Completed'],
 			commands: [{
@@ -713,6 +713,7 @@ suite('AgentHostSessionInputPills', () => {
 			labels: harness.labels(),
 			ariaLabel: harness.persistentContent.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
 		};
+		const offersToggle = harness.menu().some(action => action.id === 'chatInputPills.toggle.canvases');
 		canvases.set([preview, pending, dashboard], undefined);
 		const dropdown = harness.dropdown('2 Canvases');
 		dropdown.find(item => item.label === dashboard.title)?.select();
@@ -721,12 +722,14 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			disabled,
 			single,
+			offersToggle,
 			dropdown: dropdown.map(item => item.label).filter(Boolean),
 			commands: harness.commands,
 			withoutCanvasContext: harness.labels(),
 		}, {
 			disabled: [],
 			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview' },
+			offersToggle: true,
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
 			withoutCanvasContext: [],
