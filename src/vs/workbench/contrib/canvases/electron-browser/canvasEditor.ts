@@ -31,6 +31,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { CanvasInput, ICanvasService } from '../common/canvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
@@ -83,6 +84,7 @@ export class CanvasEditor extends EditorPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(CanvasEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -331,7 +333,10 @@ export class CanvasEditor extends EditorPane {
 		const help = [
 			localize('canvas.help.overview', "This canvas is a private page owned by its conversation. Its content is available while that conversation is shown."),
 			localize('canvas.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
-			localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas."),
+			// Only the Agents window offers an Add Tab menu.
+			this.environmentService.isSessionsWindow
+				? localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.")
+				: localize('canvas.help.closeEditorWindow', "Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again."),
 		].join('\n\n');
 		this.semanticText = localize('canvas.reading', "Reading accessible canvas content…");
 		return new AccessibleContentProvider(

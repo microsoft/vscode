@@ -781,38 +781,6 @@
 	pointer-events: auto;
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model {
-	padding-top: var(--vscode-spacing-size60);
-	padding-bottom: var(--vscode-spacing-size60);
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model > .codicon:first-child {
-	height: var(--vscode-spacing-size200);
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	padding-left: var(--vscode-spacing-size200);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size160);
-	white-space: normal;
-	opacity: 1;
-}
-
-/* WebKit can't float inside a -webkit-box, so a detail with a link is clamped by height, with a spacer pushing the link to the second line. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link {
-	display: block;
-	max-height: 2lh;
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link::before {
-	content: '';
-	float: right;
-	height: 1lh;
-}
-
 .chat-model-picker-welcome {
 	display: flex;
 	flex-direction: column;

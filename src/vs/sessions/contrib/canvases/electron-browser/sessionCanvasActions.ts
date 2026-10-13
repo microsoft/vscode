@@ -13,8 +13,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { getCanvasReferenceKey, ICanvasReference, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, getSessionCanvasInstanceLabels, ISessionCanvasRegistryService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
+import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
@@ -66,12 +66,11 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
 	let commandSequence = 0;
-	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ICanvasReference) => canvasService.revealCanvas(reference)));
 	store.add(autorun(reader => {
 		const definitions = registryService.availableCanvases.read(reader);
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
 		const targets = canvasService.reopenableCanvases.read(reader);
-		const targetLabels = getSessionCanvasInstanceLabels(targets.map(target => target.canvas));
+		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
 		const definitionInstanceIds = new Set(definitions.map(getSessionCanvasDefinitionInstanceId));
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < definitions.length; index++) {

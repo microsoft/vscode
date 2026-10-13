@@ -62,8 +62,8 @@ suite('Agent Host session identity', () => {
 		const state = { defaultChat: 'conversation://tenant/default?revision=3', chats: [{ resource: 'conversation://tenant/peer?revision=4' }] };
 		const fragment = getAgentHostChatId(state.chats[0].resource);
 		assert.deepStrictEqual([
-			getSessionChatResource(state, 'default'),
-			getSessionChatResource(state, fragment),
+			getSessionChatResource(state, 'default', state.defaultChat),
+			getSessionChatResource(state, fragment, state.defaultChat),
 		], [state.defaultChat, state.chats[0].resource]);
 	});
 });

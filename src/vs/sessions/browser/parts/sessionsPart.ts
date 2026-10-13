@@ -23,7 +23,7 @@ import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventT
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun } from '../../../base/common/observable.js';
+import { autorun, derived, observableSignal } from '../../../base/common/observable.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -81,6 +81,11 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private readonly _slotsChanged = observableSignal(this);
+	readonly shownChatCount = derived(this, reader => {
+		this._slotsChanged.read(reader);
+		return this._slots.reduce((count, slot) => count + slot.view.shownChatCount.read(reader), 0);
+	});
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -172,6 +177,7 @@ export class SessionsPart extends Part {
 		this._gridWidget.style({ separatorBorder: this._gridSeparatorBorder });
 		this._gridWidget.reconcile([{ id: placeholder.id, view: placeholder.view }], placeholder.id);
 		this._slots.push(placeholder);
+		this._slotsChanged.trigger(undefined);
 		contentArea.appendChild(this._gridWidget.element);
 
 		// Propagate the grid's maximized-view state to each session view so the
@@ -232,6 +238,7 @@ export class SessionsPart extends Part {
 			return slot;
 		});
 		this._slots.splice(0, this._slots.length, ...next);
+		this._slotsChanged.trigger(undefined);
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;

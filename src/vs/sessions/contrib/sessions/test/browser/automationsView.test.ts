@@ -759,6 +759,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		const external = run({ status: 'running', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
 		const states: boolean[] = [];
+		const toolbarDisabled: boolean[] = [];
 		for (const [runStatus, chatStatus] of [
 			['running', SessionStatus.InProgress],
 			['running', SessionStatus.NeedsInput],
@@ -768,6 +769,7 @@ suite('AutomationsCardsWidget', () => {
 			sessionsManagementService.sessionStatus.set(chatStatus, undefined);
 			automationService.setRuns([{ ...external, status: runStatus }]);
 			await waitForSessionActions();
+			toolbarDisabled.push(getSessionAction(widget, 'Mark as Done')?.getAttribute('aria-disabled') === 'true');
 			dispatchContextMenu(widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item')!);
 			const delegate = contextMenuService.delegate!;
 			const archive = delegate.getActions().find(action => action.label === 'Mark as Done')!;
@@ -777,8 +779,8 @@ suite('AutomationsCardsWidget', () => {
 			}
 			delegate.onHide?.(false);
 		}
-		assert.deepStrictEqual({ states, archived: sessionsManagementService.archived.length, cancelled: sessionsManagementService.cancelCurrentRequestCalls },
-			{ states: [false, false, false, true], archived: 0, cancelled: 0 });
+		assert.deepStrictEqual({ states, toolbarDisabled, archived: sessionsManagementService.archived.length, cancelled: sessionsManagementService.cancelCurrentRequestCalls },
+			{ states: [false, false, false, true], toolbarDisabled: [true, true, true, false], archived: 0, cancelled: 0 });
 	});
 
 	test('local follow-up progress and completion override stale cloud history without losing unread state', async () => {
