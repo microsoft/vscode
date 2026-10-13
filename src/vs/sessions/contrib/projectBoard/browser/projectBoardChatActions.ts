@@ -141,6 +141,7 @@ export class ProjectBoardChatActions extends Disposable {
 			contentIndex: tool ? this.actions.tools.indexOf(tool) : 0, codeBlockStartIndex, treeStartIndex: 0,
 			editorPool: this.editorPool, diffEditorPool: this.diffEditorPool, inlineTextModels: this.inlineTextModels,
 			currentWidth: this.width, onDidChangeVisibility: Event.None, focusInputOnAction: false, showActionKeybindings: false,
+			renderToolConfirmationsInline: true,
 			canRunAction: () => {
 				const allowed = !this._store.isDisposed && this.canAct() && canRunProjectBoardAction(this.actions, tool);
 				if (!allowed) {

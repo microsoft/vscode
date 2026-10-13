@@ -91,6 +91,8 @@ export interface IChatContentPartRenderContext {
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.
 	 */
 	readonly inToolConfirmationCarousel?: boolean;
+	/** Independent action surfaces keep confirmations instead of deferring to a chat input carousel. */
+	readonly renderToolConfirmationsInline?: boolean;
 	/** The image batch owns previews and animation; this part only renders tool details. */
 	readonly inImageGenerationBatch?: boolean;
 	readonly editorPool: EditorPool;
