@@ -23,7 +23,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
@@ -44,6 +44,7 @@ import { ROOT_STATE_URI, SessionLifecycle, type SessionState } from '../../../..
 import { initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 type CreateDetachedWorktreeResult = IAgentHostExtensionCommandMap[typeof CreateAgentHostDetachedWorktreeExtensionMethod]['result'];
 
@@ -86,7 +87,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		// Canonicalized up front: the host resolves the repository root through
 		// git, which reports the real path, and the worktree container is derived
 		// from that root.
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace, `${workspace}.worktrees`);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'seed.txt'), 'seed\n');
@@ -424,9 +425,9 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'archiving a detached worktree removes its checkout and unarchiving recreates it', async function () {
 		const workspace = createGitWorkspace('ahp-detached-archive-');
-		const remote = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-detached-archive-remote-')));
+		const remote = createTestDirectory(join(tmpdir(), 'ahp-detached-archive-remote-'));
 		tempDirs.push(remote);
-		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		git(workspace, 'remote', 'add', 'origin', remote);
 		const sessionUri = await createUnstartedWorktreeSession(workspace, 'detached-archive');
 

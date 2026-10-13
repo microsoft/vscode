@@ -34,6 +34,11 @@ export interface IChatCustomizationMigrationNoticeContext {
 	readonly workspace: URI | undefined;
 }
 
+/** Controls migration discovery behavior for a notice host. */
+export interface IChatCustomizationMigrationNoticeOptions {
+	readonly skipDiscoveryWhenDismissed?: boolean;
+}
+
 export class ChatCustomizationMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
 	private readonly message: HTMLElement;
@@ -50,6 +55,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		private readonly focusInput: () => void,
 		private readonly onDidChangeAvailability: (available: boolean) => void,
 		private readonly onDidChangeVisibility: (visible: boolean) => void,
+		options: IChatCustomizationMigrationNoticeOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICustomizationMigrationService private readonly migrationService: ICustomizationMigrationService,
 		@ICustomizationMigrationTelemetryService private readonly migrationTelemetryService: ICustomizationMigrationTelemetryService,
@@ -107,6 +113,8 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
 			event => event.key === this.dismissalKey,
 		));
+		const getDismissalKey = (workspace: URI | undefined) =>
+			`chat.customizationMigrationNotice.dismissed.${workspace ? uriIdentityService.extUri.getComparisonKey(workspace) : 'noWorkspace'}`;
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
 			customizationsChanged.read(reader);
@@ -122,6 +130,14 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			if (!currentContext || chatEntitlementService.sentimentObs.read(reader).hidden) {
 				this.migrationHint.set(undefined, undefined);
 				return;
+			}
+			if (options?.skipDiscoveryWhenDismissed) {
+				storageChanged.read(reader);
+				const dismissalKey = getDismissalKey(currentContext.workspace);
+				if (storageService.getBoolean(dismissalKey, StorageScope.PROFILE, false)) {
+					this.migrationHint.set(undefined, undefined);
+					return;
+				}
 			}
 			const enabledTypes = categories
 				.filter(category => configurationService.getValue<boolean>(category.enablementSetting) === true)
@@ -141,7 +157,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			const currentContext = context.read(reader);
 			const hint = this.migrationHint.read(reader);
 			const workspace = currentContext?.workspace;
-			this.dismissalKey = `sessions.customizationMigrationNotice.dismissed.${workspace ? uriIdentityService.extUri.getComparisonKey(workspace) : 'noWorkspace'}`;
+			this.dismissalKey = getDismissalKey(workspace);
 			const show = showNotice.read(reader)
 				&& !!currentContext
 				&& !!hint
@@ -166,7 +182,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			this.migrationHint.set(hint, undefined);
 		} catch (error) {
 			if (!isCancellationError(error)) {
-				this.logService.error('Failed to check customization migrations for the chat panel notice', error);
+				this.logService.error('Failed to check customization migrations for the chat notice', error);
 			}
 			if (!token.isCancellationRequested) {
 				this.migrationHint.set(undefined, undefined);

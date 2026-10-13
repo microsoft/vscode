@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildChatUri,
@@ -404,7 +405,9 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			SESSION_URI,
 			{
 				...createOptions(connection),
-				mapDiffUri: (uri, options) => options?.contentRef ? uri.with({ scheme: 'readonly-content' }) : uri,
+				mapDiffUri: (uri, options) => options?.contentRef
+					? toAgentHostContentUri(uri, 'remote', options.fileUri)
+					: toAgentHostUri(uri, 'remote'),
 			},
 			constObservable(true),
 			constObservable(false),
@@ -412,9 +415,10 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			new Map<string, unknown>(),
 		);
 		const changes = output.getLastTurnChanges(CHAT_A);
-		const observed: (string | undefined)[] = [];
+		const observed: { path: string | undefined; content: string | undefined }[] = [];
 		const observer = store.add(autorun(reader => {
-			observed.push(changes.read(reader)[0]?.modifiedUri?.toString());
+			const uri = changes.read(reader)[0]?.modifiedUri;
+			observed.push({ path: uri?.path, content: uri && fromAgentHostUri(uri).toString() });
 		}));
 
 		state = createState('snapshot:/after-2/a.ts');
@@ -422,8 +426,8 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 		observer.dispose();
 
 		assert.deepStrictEqual(observed, [
-			'readonly-content:/after-1/a.ts',
-			'readonly-content:/after-2/a.ts',
+			{ path: '/repo/a.ts', content: 'snapshot:/after-1/a.ts' },
+			{ path: '/repo/a.ts', content: 'snapshot:/after-2/a.ts' },
 		]);
 	});
 

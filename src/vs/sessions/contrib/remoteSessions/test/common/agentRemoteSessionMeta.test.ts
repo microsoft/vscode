@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { parseRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin, supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { parseChatUri, readSessionSpawnDepth, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 suite('Remote session origin metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,7 +77,7 @@ suite('Remote session origin metadata', () => {
 			}, 'source-turn');
 			const delegation = readAgentMessageDelegationMeta({ _meta: metadata });
 			assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-			return { session: delegation.sourceSession, chat: parseChatUri(delegation.sourceChat), turnId: delegation.sourceTurnId };
+			return { session: delegation.sourceSession, chat: { session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, turnId: delegation.sourceTurnId };
 		});
 		assert.deepStrictEqual(results, chats.map(chatId => ({
 			session: origin.session, chat: { session: origin.session, chatId: chatId || 'default' }, turnId: 'source-turn',

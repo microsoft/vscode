@@ -6,9 +6,10 @@
 import { Limiter } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentProvider } from '../common/agent.js';
+import { AgentProvider, AgentSession } from '../common/agent.js';
 import { AgentSessionRegistrationSource, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions } from './agentHostDatabase.js';
 
 export const IAgentSessionRegistry = createDecorator<AgentSessionRegistry>('agentSessionRegistry');
@@ -31,14 +32,27 @@ export interface IStoredRegisteredSession extends Omit<IRegisteredSession, 'exte
 	readonly external: boolean | undefined;
 }
 
+export type IResolvedDiscoveredSessionIdentity =
+	| {
+		readonly status: 'resolved';
+		readonly session: URI;
+		readonly existing: boolean;
+		readonly registered: boolean;
+	}
+	| {
+		readonly status: 'conflict';
+		readonly sessions: readonly URI[];
+		readonly message: string;
+	};
+
 export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Promise<IRegisteredSession | undefined>;
 
 /**
  * A durable, orchestrator-owned index of the sessions that exist, keyed by
- * session URI. Unlike the agents' `listSessions()` (which enumerates their own
- * SDK sessions/threads and maps them to session URIs via invariant I3), this
- * registry is authoritative on the AH side and does not depend on the agent
- * exposing a session whose SDK id equals the session id.
+ * session URI. Native provider discovery enumerates SDK backing IDs, then this
+ * registry resolves them to existing immutable identities or standard AHP URIs.
+ * The registry remains authoritative and does not treat a provider-derived URI
+ * as a second identity for an already registered backing.
  *
  * Provider backfill markers are retained for compatibility/diagnostics.
  * AgentService starts native discovery at provider registration and reruns it
@@ -77,6 +91,14 @@ export class AgentSessionRegistry extends Disposable {
 	/** Records a session using source-aware provenance and tombstone behavior. */
 	register(session: URI, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		return this._database.registerRuntimeSession(session.toString(), sessionOptions, registerOptions);
+	}
+
+	/** Atomically records a provider-native discovery using its canonical and backing identities. */
+	registerDiscovered(session: URI, backingSession: URI, sessionOptions: IAgentHostDatabaseSessionOptions): Promise<boolean> {
+		return this._database.registerRuntimeSession(session.toString(), sessionOptions, {
+			checkTombstone: true,
+			discoveryBackingSession: backingSession.toString(),
+		});
 	}
 
 	/** Claims an external session without changing its creation time. Returns false if it no longer exists. */
@@ -134,6 +156,79 @@ export class AgentSessionRegistry extends Disposable {
 	/** Current and legacy identity keys used only to deduplicate cooling-period discovery. */
 	async listRuntimeCompatibleSessionKeys(): Promise<ReadonlySet<string>> {
 		return new Set(await this._database.listRuntimeCompatibleSessionKeys());
+	}
+
+	/**
+	 * Resolves provider-native discovery resources to their immutable registered
+	 * identities, defaulting previously unseen backing IDs to standard AHP URIs.
+	 */
+	async resolveDiscoveredSessionIdentities(provider: AgentProvider, sessions: readonly URI[]): Promise<ReadonlyMap<string, IResolvedDiscoveredSessionIdentity>> {
+		const [current, legacy, compatibleKeys, exclusions] = await Promise.all([
+			this._database.listSessionV2RegistrationsForImport(),
+			this._database.listSessions(),
+			this._database.listRuntimeCompatibleSessionKeys(),
+			this._database.listAllSessionsV2Exclusions(),
+		]);
+		const compatible = new Set(compatibleKeys);
+		const registrations = new Map<string, Map<AgentProvider, { readonly session: URI; readonly registered: boolean }>>();
+		const addRegistration = (session: string, owner: AgentProvider, registered: boolean): void => {
+			let owners = registrations.get(session);
+			if (!owners) {
+				owners = new Map();
+				registrations.set(session, owners);
+			}
+			const existing = owners.get(owner);
+			owners.set(owner, {
+				session: URI.parse(session),
+				registered: existing?.registered === true || registered,
+			});
+		};
+		for (const registration of [...current, ...legacy]) {
+			addRegistration(registration.session, registration.provider, compatible.has(registration.session));
+		}
+		for (const exclusion of exclusions) {
+			if (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal') {
+				addRegistration(exclusion.session, exclusion.provider, false);
+			}
+		}
+
+		const result = new Map<string, IResolvedDiscoveredSessionIdentity>();
+		for (const session of sessions) {
+			const backingId = AgentSession.id(session);
+			if (!isEqual(session, AgentSession.uri(provider, backingId))) {
+				continue;
+			}
+			const standard = AgentSession.uri('ahp-session', backingId);
+			const legacyOwners = registrations.get(session.toString());
+			const standardOwners = registrations.get(standard.toString());
+			const conflictingOwners = [
+				...[...legacyOwners?.keys() ?? []].filter(owner => owner !== provider),
+				...[...standardOwners?.keys() ?? []].filter(owner => owner !== provider),
+			];
+			const providerIdentities = [
+				legacyOwners?.get(provider),
+				standardOwners?.get(provider),
+			].filter((identity): identity is { readonly session: URI; readonly registered: boolean } => identity !== undefined);
+			if (conflictingOwners.length > 0 || providerIdentities.length > 1) {
+				const identities = providerIdentities.map(identity => identity.session);
+				result.set(session.toString(), {
+					status: 'conflict',
+					sessions: identities,
+					message: conflictingOwners.length > 0
+						? `Session identity for provider ${provider} backing ${backingId} is owned by ${[...new Set(conflictingOwners)].join(', ')}`
+						: `Conflicting session identities for provider ${provider} backing ${backingId}: ${identities.join(', ')}`,
+				});
+				continue;
+			}
+			const registered = providerIdentities[0];
+			result.set(session.toString(), {
+				status: 'resolved',
+				session: registered?.session ?? standard,
+				existing: registered !== undefined,
+				registered: registered?.registered ?? false,
+			});
+		}
+		return result;
 	}
 
 	/**

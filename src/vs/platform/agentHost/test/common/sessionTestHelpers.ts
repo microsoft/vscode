@@ -7,8 +7,9 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type ILocalTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -20,7 +21,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _turns = new Set<string>();
-	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _persistedTurns = new Map<string, IPersistedTurnRecord & { seq: number }>();
 	private readonly _turnUsages = new Map<string, string>();
 	private readonly _turnDelegations = new Map<string, string>();
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
@@ -45,6 +46,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async deleteTurn(turnId: string): Promise<void> {
 		this._turns.delete(turnId);
+		this._persistedTurns.delete(turnId);
 		this._turnDelegations.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
@@ -125,6 +127,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
+		await this.setMetadata(key, update(this._metadata.get(key)));
+	}
+
 	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 		for (const [key, value] of Object.entries(values)) {
 			this.setMetadataCalls.push({ key, value });
@@ -132,8 +138,11 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 		this._validateCatalogSyncSnapshot(snapshot);
+		if (validate && !validate()) {
+			return 'cancelled';
+		}
 		const existing = this._catalogSyncSnapshot;
 		if (existing && snapshot.sessionGeneration !== existing.sessionGeneration) {
 			throw new Error(`Catalog sync snapshot generation ${snapshot.sessionGeneration} does not match stored generation ${existing.sessionGeneration}`);
@@ -162,21 +171,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return 'applied';
 	}
 
-	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
 		this._validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
 		this._validateCatalogSyncSnapshot(snapshot);
 		if (snapshot.sessionGeneration === expectedSessionGeneration) {
 			throw new Error(`Catalog sync generation transition must change the session generation`);
 		}
+		if (validate && !validate()) {
+			return 'cancelled';
+		}
 		if (this._catalogSyncSnapshot?.sessionGeneration !== expectedSessionGeneration) {
-			return false;
+			return 'generationMismatch';
 		}
 		for (const [key, value] of Object.entries(values)) {
 			this.setMetadataCalls.push({ key, value });
 			this._metadata.set(key, value);
 		}
 		this._catalogSyncSnapshot = { ...snapshot, acknowledgedHash: undefined };
-		return true;
+		return 'applied';
 	}
 
 	async getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
@@ -265,7 +277,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
 
 	async hasConversationTurns(): Promise<boolean> {
-		return this._turns.size > 0 || this._localTurns.size > 0;
+		return this._turns.size > 0 || this._persistedTurns.size > 0;
 	}
 
 	async setTurnUsage(turnId: string, usage: string): Promise<void> {
@@ -331,6 +343,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this._deleteTerminalOutputsForTurns(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
+				this._persistedTurns.delete(prunedTurnId);
 			}
 		}
 	}
@@ -344,6 +357,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this._deleteTerminalOutputsForTurns(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
+				this._persistedTurns.delete(prunedTurnId);
 			}
 		}
 	}
@@ -356,32 +370,62 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turnWorkspaceTransitions.clear();
 		this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
 		this._turnEventIds.clear();
-		this._localTurns.clear();
+		this._persistedTurns.clear();
 		this._terminalOutputs.clear();
 	}
 
-	async insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
-		this._localTurns.set(record.turnId, record);
+	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
+		if (record.kind === 'failed') {
+			this._turns.add(record.turnId);
+		}
+		const seq = record.seq ?? Math.max(0, ...[...this._persistedTurns.values()].map(turn => turn.seq)) + 1;
+		this._persistedTurns.set(record.turnId, { ...record, seq });
 	}
 
-	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
-		return [...this._localTurns.values()].sort((a, b) => a.seq - b.seq);
+	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
+		return [...this._persistedTurns.values()].sort((a, b) => a.seq - b.seq);
 	}
 
-	async deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+	async deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
 		for (const id of turnIds) {
-			this._localTurns.delete(id);
+			this._persistedTurns.delete(id);
 		}
 	}
+
 	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
+		const remappedFailedPayloads = new Map<string, string>();
+		for (const [oldId, newId] of mapping) {
+			const persisted = this._persistedTurns.get(oldId);
+			if (persisted?.kind === 'failed') {
+				remappedFailedPayloads.set(oldId, remapPersistedTurnPayload(persisted.payload, oldId, newId));
+			}
+		}
 		for (const turnId of [...this._turns]) {
 			if (!mapping.has(turnId)) {
 				this._turns.delete(turnId);
+				this._persistedTurns.delete(turnId);
 			}
 		}
 		for (const [oldId, newId] of mapping) {
 			if (this._turns.delete(oldId)) {
 				this._turns.add(newId);
+			}
+			const persisted = this._persistedTurns.get(oldId);
+			if (persisted?.kind === 'failed') {
+				this._persistedTurns.delete(oldId);
+				this._persistedTurns.set(newId, {
+					...persisted,
+					turnId: newId,
+					anchorTurnId: persisted.anchorTurnId && mapping.get(persisted.anchorTurnId),
+					payload: remappedFailedPayloads.get(oldId)!,
+				});
+			} else if (persisted) {
+				this._persistedTurns.delete(oldId);
+				this._persistedTurns.set(newId, {
+					...persisted,
+					turnId: newId,
+					anchorTurnId: persisted.anchorTurnId && mapping.get(persisted.anchorTurnId),
+				});
 			}
 		}
 		for (const turnId of [...this._turnDelegations.keys()]) {
@@ -503,6 +547,23 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 }
 
+function remapPersistedTurnPayload(payload: string, oldId: string, newId: string): string {
+	let value: unknown;
+	try {
+		value = JSON.parse(payload);
+	} catch {
+		throw new Error(`Cannot remap persisted turn ${oldId}: invalid JSON`);
+	}
+	if (!isRecord(value) || value.id !== oldId) {
+		throw new Error(`Cannot remap persisted turn ${oldId}: payload id does not match record id`);
+	}
+	return JSON.stringify({ ...value, id: newId });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
 export class TestDiffComputeService implements IDiffComputeService {
 	declare readonly _serviceBrand: undefined;
 
@@ -595,6 +656,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getBranch: async () => undefined,
 		getRefs: async () => [],
 		getBranches: async () => [],
+		hasGitRoot: () => constObservable(undefined),
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },
@@ -627,6 +689,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
 		getFetchRemoteUrls: async () => undefined,
+		getFetchRemotes: async () => undefined,
 		getUntrackedPaths: async () => [],
 		getBranchDiffSafetyInfo: async () => undefined,
 		getDiffPatchBetweenRefs: async () => undefined,
@@ -661,6 +724,8 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+		ensureChatChangesSummary: () => { },
+		refreshChatChangesSummary: () => { },
 	};
 }
 
@@ -671,6 +736,7 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		onDidChangeSessionGitHubState: Event.None,
 		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
 		getMaterializedWorktreeMeta: (_sessionKey: string, _branchName: string) => undefined,
+		setFolderGitState: async () => { },
 		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },

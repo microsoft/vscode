@@ -182,7 +182,12 @@ function projectContent(content: unknown): unknown {
 export function projectModelRequest(request: IReadableAnthropicRequest): IProjectedModelRequest {
 	return {
 		system: request.system,
-		messages: request.messages.map(message => ({ role: message.role, content: projectContent(message.content) })),
+		messages: request.messages
+			.filter(message => !(message.role === 'user'
+				&& typeof message.content === 'string'
+				&& message.content.length > 0
+				&& elideChangeNotices(message.content) === ''))
+			.map(message => ({ role: message.role, content: projectContent(message.content) })),
 	};
 }
 

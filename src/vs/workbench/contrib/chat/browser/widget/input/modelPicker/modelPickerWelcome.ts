@@ -13,7 +13,8 @@ import { IModelPickerDestination } from './modelPickerTabs.js';
 
 /**
  * The body shown when a destination has no models: each waiting provider's icon
- * and name, why it is empty, and the action that fills it, e.g. signing in.
+ * and name, why it is empty, and the action that fills it, e.g. signing in or
+ * trusting the workspace.
  */
 export class ModelPickerWelcome extends DisposableStore {
 
@@ -22,9 +23,9 @@ export class ModelPickerWelcome extends DisposableStore {
 	constructor(destination: IModelPickerDestination) {
 		super();
 		for (const placeholder of destination.placeholders) {
-			const icon = destination.placeholders.length === 1
+			const icon = placeholder.icon ?? (destination.placeholders.length === 1
 				? destination.icon
-				: getProviderIconForIdentity(`${placeholder.label} ${placeholder.vendor}`);
+				: getProviderIconForIdentity(`${placeholder.label} ${placeholder.vendor}`));
 			const entry = dom.append(this.element, dom.$('.chat-model-picker-welcome-provider'));
 			dom.append(entry, dom.$(`span.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(icon)}`));
 			dom.append(entry, dom.$('.chat-model-picker-welcome-title', undefined, placeholder.label));

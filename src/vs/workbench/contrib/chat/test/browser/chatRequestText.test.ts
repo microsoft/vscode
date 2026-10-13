@@ -7,7 +7,7 @@ import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
-import { getChatRequestText } from '../../browser/chatRequestText.js';
+import { getChatRequestText, stripSystemNotificationWrapper } from '../../browser/chatRequestText.js';
 import { getAgentMergeRequestSummary } from '../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 import { IChatRequestViewModel } from '../../common/model/chatViewModel.js';
 
@@ -18,6 +18,39 @@ function request(messageText: string, options: Pick<IChatRequestViewModel, 'isSy
 suite('getChatRequestText', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('unwraps system notification display text without changing user text or the request', () => {
+		const body = 'Shell command "Install dependencies" (shellId: 16) has exited with exit code 1. Use read_bash with shellId "16".';
+		const content = `<system_notification>\n${body}\n</system_notification>`;
+		const systemRequest = request(content, { isSystemInitiated: true });
+
+		assert.deepStrictEqual({
+			systemText: getChatRequestText(systemRequest),
+			userText: getChatRequestText(request(content)),
+			requestText: systemRequest.messageText,
+		}, {
+			systemText: body,
+			userText: content,
+			requestText: content,
+		});
+	});
+
+	test('removes only an outer notification wrapper and one padding newline per edge', () => {
+		const cases = [
+			['<system_notification> body </system_notification>', ' body '],
+			['<system_notification>\r\nbody\r\n</system_notification>', 'body'],
+			['<system_notification>\n\n    body\n\n</system_notification>', '\n    body\n'],
+			[' \n<system_notification>body</system_notification>\n ', 'body'],
+			['<system_notification></system_notification>', ''],
+			['<system_notification><system_notification>body</system_notification></system_notification>', '<system_notification>body</system_notification>'],
+			['Already unwrapped\n', 'Already unwrapped\n'],
+			['<system_notification>Missing closing tag', '<system_notification>Missing closing tag'],
+			['Before <system_notification>body</system_notification> after', 'Before <system_notification>body</system_notification> after'],
+			['&lt;system_notification&gt;body&lt;/system_notification&gt;', '&lt;system_notification&gt;body&lt;/system_notification&gt;'],
+		];
+
+		assert.deepStrictEqual(cases.map(([content]) => stripSystemNotificationWrapper(content)), cases.map(([, expected]) => expected));
+	});
 
 	test('names a request by its own text, an Agent Merge request by its summary', () => {
 		const agentMergePrompt = buildAgentMergePrompt(['addressReviews'], {

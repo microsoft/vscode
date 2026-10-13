@@ -349,6 +349,7 @@ export class ChatRequestTurn2 implements vscode.ChatRequestTurn2 {
 		readonly id: string | undefined,
 		readonly modelId: string | undefined,
 		readonly modeInstructions2: vscode.ChatRequestModeInstructions | undefined,
+		readonly isSystemInitiated?: boolean,
 	) { }
 }
 
@@ -563,6 +564,12 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 		this.content = content;
 		this.isError = isError ?? false;
 	}
+}
+
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
 }
 
 export enum LanguageModelChatMessageRole {

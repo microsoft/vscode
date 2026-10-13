@@ -11,7 +11,6 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { arch } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +21,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
 import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
@@ -92,9 +91,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			getWriteRoots: () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			onDidChangeRoots: this._onDidChangeRoots.event,
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),
-			getWindowsMxcFilesystemPolicy: () => this._resolveWindowsMxcFilesystemPolicy(),
-			getWindowsMxcEnvironment: () => this._resolveWindowsMxcEnvironment(),
-			buildWindowsMxcSandboxPayload: (commandLine, policy, workingDirectory, containerName, containment) => this._resolveWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment),
 			getSandboxSetting: <T>(settingId: string): T | undefined => this._readSandboxSetting<T>(settingId),
 			onDidChangeSandboxSettings: Event.map(onDidChangeSandboxSettings, () => undefined),
 		};
@@ -182,7 +178,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch, nativeModulesDir: 'node_modules' };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, nativeModulesDir: 'node_modules' };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
@@ -190,7 +186,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
 		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch, nativeModulesDir };
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, nativeModulesDir };
 	}
 
 	private _toWindowsPath(uri: URI): string {
@@ -252,39 +248,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			});
 		}
 		return this._sandboxHelperService.checkSandboxDependencies();
-	}
-
-	private async _resolveWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
-				const sandboxHelper = new SandboxHelperChannelClient(channel);
-				return sandboxHelper.getWindowsMxcFilesystemPolicy();
-			});
-		}
-		return this._sandboxHelperService.getWindowsMxcFilesystemPolicy();
-	}
-
-	private async _resolveWindowsMxcEnvironment(): Promise<string[] | undefined> {
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
-				const sandboxHelper = new SandboxHelperChannelClient(channel);
-				return sandboxHelper.getWindowsMxcEnvironment();
-			});
-		}
-		return this._sandboxHelperService.getWindowsMxcEnvironment();
-	}
-
-	private async _resolveWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> {
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
-				const sandboxHelper = new SandboxHelperChannelClient(channel);
-				return sandboxHelper.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
-			});
-		}
-		return this._sandboxHelperService.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
 	}
 
 	// ---- workbench-only flows -----------------------------------------------

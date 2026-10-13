@@ -15,11 +15,12 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { KNOWN_AUTO_APPROVE_VALUES } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getSessionApprovalProperty, getSessionModeProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
 
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	ChatConfiguration.DefaultConfiguration,
@@ -121,33 +122,23 @@ export function renderModePickerTrigger(
 	previous?: IModePickerTrigger,
 ): IModePickerTrigger {
 	const store = new DisposableStore();
-	const modeButton = previous?.modeButton ?? dom.$('a.agent-host-mode-picker-button.agent-host-mode-button');
+	const { primaryButton: modeButton, secondaryButton: permissionsButton } = renderChatInputPickerSplit(trigger, previous?.modeButton, previous?.permissionsButton);
+	modeButton.classList.add('agent-host-mode-picker-button', 'agent-host-mode-button');
+	permissionsButton.classList.add('agent-host-mode-picker-button', 'agent-host-permissions-button');
 	const icon = mode.icon ? renderIcon(getCompactCodicon(mode.icon)) : undefined;
 	if (icon) {
 		icon.ariaHidden = 'true';
 	}
 	dom.reset(modeButton, ...(icon ? [icon] : []), dom.$(`span.${mode.labelClassName}`, undefined, mode.label));
-	const permissionsButton = previous?.permissionsButton ?? dom.$('a.agent-host-mode-picker-button.agent-host-permissions-button');
 	dom.clearNode(permissionsButton);
 	renderModePickerPermissions(permissionsButton, permissions);
-	if (modeButton.parentElement !== trigger || permissionsButton.parentElement !== trigger) {
-		dom.reset(trigger, modeButton, permissionsButton);
-	}
 	trigger.classList.add('agent-host-mode-permissions-trigger');
-	trigger.role = 'group';
-	trigger.tabIndex = -1;
-	trigger.removeAttribute('aria-haspopup');
-	trigger.removeAttribute('aria-expanded');
 	modeButton.ariaLabel = localize('agentHostModePicker.modeButton', "Pick Mode, {0}", mode.label);
 	permissionsButton.ariaLabel = permissions.sandboxed
 		? localize('agentHostModePicker.permissionsButtonSandboxed', "Pick Permissions, {0}, terminal sandboxed", permissions.label)
 		: localize('agentHostModePicker.permissionsButton', "Pick Permissions, {0}", permissions.label);
 	for (const button of [modeButton, permissionsButton]) {
-		button.role = 'button';
-		button.tabIndex = trigger.ariaDisabled === 'true' ? -1 : 0;
-		button.ariaDisabled = trigger.ariaDisabled;
 		button.ariaHasPopup = 'menu';
-		button.ariaExpanded ??= 'false';
 		store.add(Gesture.addTarget(button));
 		const open = () => {
 			if (trigger.ariaDisabled !== 'true') {
@@ -171,20 +162,18 @@ export function renderModePickerTrigger(
 }
 
 export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string'
-		&& Array.isArray(schema.enum)
-		&& schema.enum.includes('default')
-		&& schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return !!getSessionApprovalProperty({ type: 'object', properties: { autoApprove: schema } });
 }
 
 export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string' && Array.isArray(schema.enum) && schema.enum.includes('interactive');
+	return !!getSessionModeProperty({ type: 'object', properties: { mode: schema } });
 }
 
 export function shouldCombineModeAndPermissions(enabled: boolean, isCopilot: boolean, modeSchema: SessionConfigPropertySchema | undefined, permissionSchema: SessionConfigPropertySchema | undefined): boolean {
 	return enabled && isCopilot
 		&& !!modeSchema && !modeSchema.readOnly && !modeSchema.enumDynamic && isWellKnownModeSchema(modeSchema)
-		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic && isWellKnownAutoApproveSchema(permissionSchema);
+		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic
+		&& !!getSessionApprovalProperty({ type: 'object', properties: { [permissionSchema.enum?.includes('manual') ? 'approvalMode' : 'autoApprove']: permissionSchema } });
 }
 
 export function renderModePickerPermissions(trigger: HTMLElement, permissions: IModePickerPermissions): void {

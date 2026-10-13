@@ -14,7 +14,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { buildChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -132,6 +132,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
+		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri));
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
