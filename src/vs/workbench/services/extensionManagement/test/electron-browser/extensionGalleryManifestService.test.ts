@@ -246,11 +246,13 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	// --- Provider routing ---
 
-	test('manifest service exposes Desktop account authorization', async () => {
+	test('manifest service exposes authorization from the resolved account', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(await service.getAccessToken('https://marketplace.example.com'), await accountService.getAccessToken('https://marketplace.example.com'));
+		assert.strictEqual(await service.getAccessToken('https://marketplace.example.com'), 'signin-token');
 	});
 
 	test('GitHub provider — enterprise account → Available', async () => {
@@ -850,6 +852,39 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	// --- No configuredServiceUrl ---
 
+	for (const statusCode of [200, 400, 401]) {
+		test(`Microsoft — sign-out supersedes an in-flight manifest response (${statusCode})`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession()];
+			let releaseRequest!: () => void;
+			const requestBlocked = new Promise<void>(resolve => releaseRequest = resolve);
+			let markRequestStarted!: () => void;
+			const requestStarted = new Promise<void>(resolve => markRequestStarted = resolve);
+			requestHandler = async () => {
+				markRequestStarted();
+				await requestBlocked;
+				return mockResponse(statusCode, createGalleryManifest());
+			};
+
+			const service = createService();
+			const manifestPromise = service.getExtensionGalleryManifest();
+			await requestStarted;
+			microsoftSessions = [];
+			onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+			releaseRequest();
+			await manifestPromise;
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				token: await authorizationService.getAccessToken('https://marketplace.example.com'),
+			}, {
+				status: ExtensionGalleryManifestStatus.RequiresSignIn,
+				token: undefined,
+			});
+		});
+	}
+
 	test('no configuredServiceUrl — uses default gallery manifest', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryServiceUrlConfigKey, '');
 
@@ -1016,7 +1051,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		}());
 	}
 
-	test('Microsoft — gated index negotiates a resource-scoped token and becomes Available', async () => {
+	test('Microsoft — gated index resolves a resource-scoped token and becomes Available', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		stubResourceScopedAuthentication();
@@ -1031,35 +1066,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), 'resource-token');
 	});
 
-	test('Microsoft — follows an explicit resource metadata challenge', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession('signin-token')];
-		stubResourceScopedAuthentication();
-		const resourceMetadataUrl = 'https://marketplace.example.com/auth/resource-metadata';
-		let requestedMetadataUrl: string | undefined;
-		requestHandler = options => {
-			if (options.url === resourceMetadataUrl) {
-				requestedMetadataUrl = options.url;
-				return mockResponse(200, PROTECTED_RESOURCE_METADATA);
-			}
-			return options.headers?.Authorization === 'Bearer resource-token'
-				? mockResponse(200, createGalleryManifest())
-				: mockResponse(401, { message: 'authentication required' }, { 'www-authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"` });
-		};
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.deepStrictEqual({
-			status: service.extensionGalleryManifestStatus,
-			requestedMetadataUrl,
-		}, {
-			status: ExtensionGalleryManifestStatus.Available,
-			requestedMetadataUrl: resourceMetadataUrl,
-		});
-	});
-
-	test('Microsoft — an index that accepts the sign-in token needs no negotiation', async () => {
+	test('Microsoft — an index without protected resource metadata uses the sign-in token', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		let wellKnownRequests = 0;
@@ -1073,10 +1080,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		// Nothing gated the read, so the marketplace is never asked what a token for it looks like.
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-		assert.strictEqual(wellKnownRequests, 0);
-		// The bearer the index accepted is the one carried forward.
+		assert.strictEqual(wellKnownRequests, 1);
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), 'signin-token');
 	});
 
@@ -1094,7 +1099,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
 	});
 
-	test('Microsoft — a marketplace that still refuses the negotiated identity asks to sign in, not an administrator', async () => {
+	test('Microsoft — a marketplace that still refuses the resolved identity asks to sign in, not an administrator', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		// The marketplace advertises its resource, but no resource-scoped session can be acquired
@@ -1146,7 +1151,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
-	test('Microsoft — a negotiated bearer rejected on retry is retracted', async () => {
+	test('Microsoft — a rejected resource-scoped bearer is not published', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		stubResourceScopedAuthentication();
@@ -1163,31 +1168,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		}, {
 			status: ExtensionGalleryManifestStatus.RequiresSignIn,
 			authorization: undefined,
-		});
-	});
-
-	test('Microsoft — stale authorization cleanup preserves the newer snapshot', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession('signin-token')];
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		const { authorizationRevision: previousRevision } = await accountService.resolveMarketplaceAccess(MARKETPLACE_URL);
-		const { authorizationRevision: currentRevision } = await accountService.resolveMarketplaceAccess(MARKETPLACE_URL);
-		assert.ok(previousRevision !== undefined && currentRevision !== undefined);
-
-		await accountService.clearMarketplaceAuthorization(MARKETPLACE_URL, previousRevision);
-		const afterStaleCleanup = await authorizationService.getAccessToken(MARKETPLACE_URL);
-		await accountService.clearMarketplaceAuthorization(MARKETPLACE_URL, currentRevision);
-
-		assert.deepStrictEqual({
-			previousRevisionIsOlder: previousRevision < currentRevision,
-			staleCleanupPreservesAuthorization: afterStaleCleanup === 'signin-token',
-			currentCleanup: await authorizationService.getAccessToken(MARKETPLACE_URL),
-		}, {
-			previousRevisionIsOlder: true,
-			staleCleanupPreservesAuthorization: true,
-			currentCleanup: undefined,
 		});
 	});
 

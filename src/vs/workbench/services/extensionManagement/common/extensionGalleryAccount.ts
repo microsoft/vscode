@@ -31,21 +31,13 @@ export interface IExtensionGalleryAccountProvider {
 	readonly onDidChangeAccount: Event<void>;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
-
-	/** Discovers and silently resolves the bearer required by an authentication challenge. */
-	getMarketplaceAccessToken(serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<string | undefined>;
+	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
 }
 
 export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
-
-export interface IExtensionGalleryAccessResult {
-	readonly status: ExtensionGalleryAccountStatus;
-	readonly authorizationRevision?: number;
-}
 
 /** Identity, entitlement, and authentication for the Private Marketplace. */
 export interface IExtensionGalleryAccountService {
@@ -55,16 +47,8 @@ export interface IExtensionGalleryAccountService {
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
 
-	getAccessToken(targetUrl: string): Promise<string | undefined>;
-
-	/** Resolves the account verdict and publishes the authorization that request services may use. */
-	resolveMarketplaceAccess(serviceIndexUrl: string): Promise<IExtensionGalleryAccessResult>;
-
-	/** Publishes replacement authorization for a rejected request, returning its revision when available. */
-	negotiateMarketplaceAccess(serviceIndexUrl: string, wwwAuthenticate?: string): Promise<number | undefined>;
-
-	/** Clears the reported authorization if it is still current. */
-	clearMarketplaceAuthorization(serviceIndexUrl: string, authorizationRevision: number): Promise<void>;
+	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
+	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */
 	signIn(): Promise<void>;

@@ -25,8 +25,8 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeExtensionGalleryManifest = Event.None;
 	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
-	private extensionGalleryAccessToken: string | undefined;
-	private extensionGalleryServiceIndexUrl: string | undefined;
+	protected extensionGalleryAccessToken: string | undefined;
+	protected extensionGalleryServiceIndexUrl: string | undefined;
 
 	get extensionGalleryManifestStatus(): ExtensionGalleryManifestStatus {
 		return !!this.productService.extensionsGallery?.serviceUrl ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.Unavailable;
