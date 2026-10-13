@@ -6,6 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import type { RootState } from '../../state/protocol/state.js';
 
+export const CODEX_ACCOUNT_REFRESH_REQUEST_KEY = 'vscode.codexAccount.refreshRequest';
 export const CODEX_ACCOUNT_META_KEY = 'vscode.codexAccount';
 export const CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY = 'vscode.codexAccount.signInRequest';
 export const CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY = 'vscode.codexAccount.signOutRequest';
@@ -42,6 +43,8 @@ export interface ICodexAccountInfo {
 	/** Summary window retained for clients that only display one limit. */
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
 	readonly rateLimits?: readonly ICodexAccountRateLimitInfo[];
+	/** Unix milliseconds at which rate limits were observed, never the publication time. */
+	readonly observedAt?: number;
 	readonly authUrl?: string;
 	readonly authUrlNonce?: string;
 }
@@ -62,6 +65,7 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 		planType: typeof account.planType === 'string' ? account.planType : undefined,
 		profileImage: readProfileImageReference(account.profileImage),
 		requiresOpenaiAuth: typeof account.requiresOpenaiAuth === 'boolean' ? account.requiresOpenaiAuth : undefined,
+		observedAt: typeof account.observedAt === 'number' && Number.isFinite(account.observedAt) && account.observedAt >= 0 ? account.observedAt : undefined,
 		rateLimit: readRateLimitInfo(account.rateLimit),
 		rateLimits: Array.isArray(account.rateLimits) ? account.rateLimits.map(readRateLimitInfo).filter(limit => limit !== undefined) : undefined,
 		authUrl: typeof account.authUrl === 'string' ? account.authUrl : undefined,

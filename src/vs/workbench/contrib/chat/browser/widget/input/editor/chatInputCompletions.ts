@@ -39,6 +39,7 @@ import { Registry } from '../../../../../../../platform/registry/common/platform
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../../common/contributions.js';
 import { EditorsOrder, isDiffEditorInput } from '../../../../../../common/editor.js';
+import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -81,7 +82,7 @@ const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
  * Returns `true` when the widget's chat session is backed by an agent
  * host (local or remote). For these sessions, completions are delegated
  * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process providers (file/symbol/tool/agent) short-circuit.
+ * default in-process file/symbol/tool providers short-circuit.
  */
 function isAgentHostBackedWidget(widget: IChatWidget): boolean {
 	const sessionResource = widget.viewModel?.model.sessionResource;
@@ -339,7 +340,7 @@ class SlashCommandCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
 
-class AgentCompletions extends Disposable {
+export class AgentCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -359,7 +360,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -369,7 +371,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = this.getCurrentAgentForWidget(widget);
-				if (!usedAgent || usedAgent.command) {
+				if (!usedAgent || usedAgent.command || (agentHostSession && (usedAgent.agent.isCore || usedAgent.agent.isDefault || this.chatSessionsService.getChatSessionContribution(usedAgent.agent.id)))) {
 					// Only one allowed
 					return;
 				}
@@ -400,11 +402,11 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
-
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !agentHostSession) {
 					return null;
 				}
 
@@ -419,7 +421,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location));
+					.filter(a => a.locations.includes(widget.location))
+					.filter(a => !agentHostSession || (!a.isCore && !a.isDefault));
 
 				// Filter out chatSessions contributions for slash command completions
 				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
@@ -612,7 +615,7 @@ class AgentCompletions extends Disposable {
 	}
 
 	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
-		if (widget.lockedAgentId) {
+		if (widget.lockedAgentId && !isAgentHostBackedWidget(widget)) {
 			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
 			return usedAgent && { agent: usedAgent };
 		}

@@ -497,7 +497,7 @@ CommandsRegistry.registerCommand({
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
-				const extension = extensionsWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id, uuid: version }));
+				const extension = (await extensionsWorkbenchService.queryLocal()).find(e => areSameExtensions(e.identifier, { id, uuid: version }));
 				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
 					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
 					if (!gallery) {

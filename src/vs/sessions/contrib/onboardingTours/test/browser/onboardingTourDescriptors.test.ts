@@ -8,7 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { NEW_SESSION_TOUR_ID } from '../../browser/tours/newSessionTour.js';
 import { NEW_SESSION_VIEW_TOUR_ID } from '../../browser/tours/newSessionViewTour.js';
-import { NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID, NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_VARIATIONS } from '../../browser/tours/newSessionViewV2Tour.js';
+import { NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_VARIATIONS } from '../../browser/tours/newSessionViewV2Tour.js';
+import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATIONS } from '../../browser/tours/newSessionViewV3Tour.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../browser/tours/sessionArchiveTour.js';
 
@@ -23,7 +24,7 @@ suite('OnboardingTourDescriptors', () => {
 			NEW_SESSION_TOUR_ID,
 			NEW_SESSION_VIEW_TOUR_ID,
 			NEW_SESSION_VIEW_V2_TOUR_ID,
-			NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID,
+			AGENTS_WINDOW_INVITATION_TOUR_ID,
 			NEW_SESSION_VIEW_V3_TOUR_ID,
 			SESSION_ARCHIVE_TOUR_ID,
 		].filter(id => !descriptors.has(id)), []);

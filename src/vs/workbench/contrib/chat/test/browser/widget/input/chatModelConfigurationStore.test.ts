@@ -13,18 +13,18 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { extractSchemaDefaults } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
-import { ModelPickerConfiguration } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
+import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { ChatModeKind } from '../../../../common/constants.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 const schema: ILanguageModelConfigurationSchema = {
 	properties: {
@@ -53,6 +53,24 @@ function createStubService(global?: IStringDictionary<unknown>): ILanguageModels
 
 suite('ChatModelConfigurationStore', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the production input delegate supplies the active chat and resolved owner to the picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({ connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/owner') }),
+		});
+		const widget = { viewModel: { sessionResource: URI.parse('agent-host-copilotcli:/owner#peer-one') } };
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			agentHostConnectionsService: instantiationService.get(IAgentHostConnectionsService),
+			_widget: widget,
+		});
+		const delegate = input['_createModelPickerDelegate']();
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-one', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/owner#peer-two');
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-two', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/untitled-draft');
+		assert.strictEqual(delegate.getAgentSessionId?.(), undefined);
+	});
 
 	function createStore(storage: InMemoryStorageService, service: ILanguageModelsService, isEmpty = () => true, managedSettings: IManagedSettingsService = new NullManagedSettingsService(), useAgentHostManagedDefault = false): ChatModelConfigurationStore {
 		return store.add(new ChatModelConfigurationStore(() => KEY, isEmpty, constObservable(useAgentHostManagedDefault), service, storage, managedSettings, new NullLogService()));
@@ -291,6 +309,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined;
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const untouched = createStore(storage, control.service, () => true, managed, true);
 			const selected = createStore(storage, control.service, () => true, managed, true);
@@ -339,6 +358,7 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel(vendor);
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'intelligence',
+				getManagedSettings: () => ({ autoTier: 'intelligence' }),
 			};
 			const editor = createStore(storage, control.service, () => true, managed, sameMachine);
 			assert.deepStrictEqual({
@@ -360,6 +380,7 @@ suite('ChatModelConfigurationStore', () => {
 		let value: string | boolean | undefined = '"intelligence"';
 		const managed: IManagedSettingsService = {
 			_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 		};
 		const errors: string[] = [];
 		const log = new class extends NullLogService {
@@ -391,6 +412,7 @@ suite('ChatModelConfigurationStore', () => {
 		let value: string | undefined = 'intelligence';
 		const managed: IManagedSettingsService = {
 			_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 		};
 		const makeEditor = () => store.add(new ChatModelConfigurationStore(() => KEY, () => true, scope, control.service, storage, managed, new NullLogService()));
 		const inherited = makeEditor();
@@ -455,6 +477,7 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel();
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'intelligence',
+				getManagedSettings: () => ({ autoTier: 'intelligence' }),
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.restoreModelConfiguration(MODEL, { tier: 'unsupported', ...(tierSource ? { tierSource } : {}) }, false);
@@ -473,6 +496,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined = 'intelligence';
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.getModelConfiguration(MODEL);
@@ -500,6 +524,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined = 'intelligence';
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.restoreModelConfiguration(MODEL, { tier: 'intelligence', tierSource });
@@ -528,20 +553,12 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel(vendor);
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => policy,
+				getManagedSettings: (): ManagedSettingsData => policy === undefined ? {} : { autoTier: policy },
 			};
 			const configuration = createStore(storage, control.service, () => true, managed, true);
 			const selectedModel = { identifier: MODEL, metadata: control.service.lookupLanguageModel(MODEL)! };
 			const button = $('a');
-			const picker = new ModelPickerConfiguration({
-				getSelectedModel: () => selectedModel,
-				getConfigurationAccess: () => configuration,
-				getChatSessionId: () => undefined,
-				isDisabled: () => false,
-				shouldShowCacheBreakHint: () => false,
-				getCacheBreakLearnMoreLink: () => undefined,
-				dismissCacheBreakHint() { },
-			}, upcastPartial<IActionWidgetService>({}), NullTelemetryService, control.service);
-			store.add(configuration.onDidChange(() => picker.renderButton(button, false, false)));
+			store.add(configuration.onDidChange(() => renderModelConfigurationButton(button, selectedModel, configuration, false)));
 			const initial: IChatModelInputState = {
 				selectedModel, attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
 				inputText: '', selections: [], contrib: {},

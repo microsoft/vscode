@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -37,6 +37,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
 	getMaterializedWorktreeMeta(): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
@@ -102,7 +103,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				workingDirectories: ['file:///repo'],
 			};
 			if (sessionAgentMergeEnabled) {
-				stateManager.restoreSession(session, []);
+				stateManager.restoreSession(session, [], creationTimeChatStorageResource);
 			} else {
 				stateManager.createSession(session);
 			}
@@ -237,9 +238,9 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
-		}, []);
+		}, [], creationTimeChatStorageResource);
 		const peerChat = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///other'] });
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat), { workingDirectories: ['file:///other'] });
 		const peerScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///other']));
 		const defaultScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
 		const recordedGitHubStates: [string, ISessionGitHubState][] = [];
@@ -249,6 +250,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			onDidChangeSessionGitHubState: Event.None,
 			refreshSessionGitState: async () => { },
 			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
 			setSessionGitHubState: async (key, state) => { recordedGitHubStates.push([key, state]); },
 			recordSessionMerge: async () => { },
@@ -302,9 +304,9 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
-		}, []);
+		}, [], creationTimeChatStorageResource);
 		const peerChat = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///repo'] });
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat), { workingDirectories: ['file:///repo'] });
 		const sharedFolderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
 		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,

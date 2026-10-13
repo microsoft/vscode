@@ -33,6 +33,8 @@ function automation(providerId: string): IAutomationDescriptor {
 }
 
 class TestAuthority extends mock<ISessionsProviderAutomations>() {
+	override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	override readonly enabled = observableValue(this, true);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly canCreateAutomation = this.catalogueState.map(state => state === 'ready');
 	override readonly unavailableReason = observableValue<string | undefined>(this, undefined);
@@ -124,6 +126,19 @@ suite('ProviderAutomationService', () => {
 		assert.deepStrictEqual(states, ['loading', 'unavailable']);
 	});
 
+	test('history completeness is reactive and independent of definition readiness', () => {
+		const cloud = new TestAuthority('cloud');
+		const { service } = setup([provider(cloud)]);
+		const states: AutomationCatalogueState[] = [];
+		disposables.add(autorun(reader => states.push(service.historyState.read(reader))));
+		cloud.historyState.set('loading', undefined);
+		cloud.historyState.set('error', undefined);
+		assert.deepStrictEqual({ states, catalogue: service.catalogueState.get(), canRun: service.canRunAutomation('cloud-automation') },
+			{ states: ['ready', 'loading', 'error'], catalogue: 'ready', canRun: true });
+		cloud.enabled.set(false, undefined);
+		assert.strictEqual(service.historyState.get(), 'ready');
+	});
+
 	test('routes customization choices to the target owner, not the saved automation owner', async () => {
 		const local = new TestAuthority('local');
 		const remote = new TestAuthority('remote');
@@ -181,6 +196,25 @@ suite('ProviderAutomationService', () => {
 		addProvider(provider(store));
 		store.catalogueState.set('unavailable', undefined);
 		assert.deepStrictEqual(available, [[], ['local'], []]);
+	});
+
+	test('disabled provider is absent from every aggregate and command route without affecting other hosts', async () => {
+		const local = new TestAuthority('local');
+		const cloud = new TestAuthority('cloud');
+		const { service } = setup([provider(local), provider(cloud)]);
+		const catalogues: string[][] = [];
+		disposables.add(autorun(reader => catalogues.push(service.automations.read(reader).map(item => item.id))));
+		cloud.enabled.set(false, undefined);
+		assert.throws(() => service.createAutomation(automation('cloud')), AutomationUnavailableError);
+		assert.throws(() => service.runAutomation('cloud-automation'), AutomationUnavailableError);
+		await service.createAutomation(automation('local'));
+		assert.deepStrictEqual({
+			catalogues, cloud: service.getAutomation('cloud-automation'), available: service.availableProviders.get(),
+			canCreate: service.canCreateAutomation('cloud'), canRun: service.canRunAutomation('cloud-automation'), calls: [local.calls, cloud.calls],
+		}, {
+			catalogues: [['local-automation', 'cloud-automation'], ['local-automation']], cloud: undefined, available: [{ id: 'local', label: 'local' }],
+			canCreate: false, canRun: false, calls: [['create'], []],
+		});
 	});
 
 	test('preserves incompatible host upgrade guidance in the unavailable catalogue', () => {

@@ -6,11 +6,11 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
-import { buildOpenSessionLinkForChatResource } from '../../../common/openSessionLink.js';
+import { buildOpenSessionLinkForChat } from '../../../common/openSessionLink.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 
-function createMarkdownPlanRichLinksInstruction(chat: IOutgoingTurn['chat']): string {
-	const currentChatLink = buildOpenSessionLinkForChatResource(chat);
+function createMarkdownPlanRichLinksInstruction(turn: IOutgoingTurn): string {
+	const currentChatLink = buildOpenSessionLinkForChat(turn.session, turn.chat);
 	return [
 		'<rich_plan_markdown>',
 		'When creating or editing a Markdown plan document, use these formats when the exact target is known:',
@@ -40,7 +40,7 @@ export class MarkdownPlanRichLinksContribution extends Disposable implements IAg
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
-			? { instructions: [createMarkdownPlanRichLinksInstruction(turn.chat)] }
+			? { instructions: [createMarkdownPlanRichLinksInstruction(turn)] }
 			: undefined;
 	}
 }

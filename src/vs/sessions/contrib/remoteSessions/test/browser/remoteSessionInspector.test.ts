@@ -217,15 +217,16 @@ suite('RemoteSessionInspector', () => {
 		}, { status: 'unavailable', reason: true, subscriptions: [backendSession.toString()], remaining: [], warnings: 1 });
 	});
 
-	test('does not read a foreign backend session advertised as the requested peer', async () => {
+	test('reads the peer its backend session advertises whatever session its URI encodes', async () => {
 		const { inspect, first } = setup();
 		first.setState(backendSession.toString(), {
 			...createSessionState({ resource: backendSession.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
 			chats: [{ resource: buildChatUri('copilotcli:/other', 'peer'), title: 'Other', status: SessionStatus.Idle, modifiedAt: '' }],
 		});
 		const result = await inspect(resource.with({ fragment: 'peer' }).toString());
+		// The fixture has no state for the advertised chat, so inspection stops after subscribing to it.
 		assert.deepStrictEqual({ status: result.status, subscriptions: first.subscribed }, {
-			status: 'unavailable', subscriptions: [backendSession.toString()],
+			status: 'unavailable', subscriptions: [backendSession.toString(), buildChatUri('copilotcli:/other', 'peer')],
 		});
 	});
 

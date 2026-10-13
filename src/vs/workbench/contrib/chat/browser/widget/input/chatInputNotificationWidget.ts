@@ -510,7 +510,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._lastShownTelemetryData = data;
 		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
 		try {
-			notification.onDidShow?.();
+			notification.onDidShow?.(this._getContext());
 		} catch (error) {
 			this._logError(error);
 		}

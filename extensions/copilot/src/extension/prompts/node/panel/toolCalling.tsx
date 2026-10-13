@@ -27,6 +27,7 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { thinkingOriginFromMetadata } from '../../../../platform/thinking/common/thinking';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
+import { getImageMimeTypeFromBytes } from '../../../../util/common/imageUtils';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
 import { getExtensionForMimeType } from '../../../../util/vs/base/common/mime';
@@ -568,6 +569,13 @@ enum ToolInvocationOutcome {
 	Cancelled = 'cancelled',
 }
 
+/**
+ * Text sent to the model in place of a tool result image whose bytes are not a supported image.
+ */
+export function getInvalidImagePlaceholder(declaredMimeType: string): string {
+	return `The image could not be included because its contents are not a valid image (declared type: ${declaredMimeType}).`;
+}
+
 export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToken?: string, urlOrRequestMetadata?: string | RequestMetadata, logService?: ILogService, imageService?: IImageService) {
 	if (isImageDataPart(part)) {
 		let imageData: Uint8Array = part.data;
@@ -581,6 +589,19 @@ export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToke
 			} catch (error) {
 				logService?.warn(`Image resize failed, using original: ${error}`);
 			}
+		}
+
+		// The declared MIME type usually comes from a file extension or a tool's own claim, so it
+		// can disagree with the bytes. Providers validate the bytes and reject the whole request,
+		// and since the image stays in history every later turn fails too.
+		const detectedMimeType = getImageMimeTypeFromBytes(imageData);
+		if (!detectedMimeType) {
+			logService?.warn(`Omitting image declared as ${part.mimeType}: data is not a recognized image format`);
+			return getInvalidImagePlaceholder(part.mimeType);
+		}
+		if (detectedMimeType !== mimeType) {
+			logService?.trace(`Image declared as ${mimeType} is actually ${detectedMimeType}; using the detected type`);
+			mimeType = detectedMimeType;
 		}
 
 		const base64 = Buffer.from(imageData).toString('base64');

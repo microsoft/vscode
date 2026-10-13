@@ -124,6 +124,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly resource = sessionResource.with({ path: `${sessionResource.path}/chat/main` });
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();

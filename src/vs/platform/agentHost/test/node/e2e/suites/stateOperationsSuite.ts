@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -30,12 +29,13 @@ import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineStateOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; chatUri: string; clientId: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-state-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-state-${prefix}-`));
 		tempDirs.push(workspace);
 		const clientId = `${prefix}-${config.provider}`;
 		const sessionUri = await createRealSession(context.client, config, clientId, createdSessions, URI.file(workspace));
@@ -45,6 +45,11 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 	async function sessionState(sessionUri: string): Promise<SessionState> {
 		const result = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		return result.snapshot!.state as SessionState;
+	}
+
+	/** Host-reported read-only values are outside the client's replacement payload. */
+	function writableConfigValues(state: SessionState): Record<string, unknown> | undefined {
+		return state.config && Object.fromEntries(Object.entries(state.config.values).filter(([key]) => !state.config?.schema.properties[key]?.readOnly));
 	}
 
 	async function chatState(chatUri: string): Promise<ChatState> {
@@ -190,7 +195,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			replace: true,
 		});
 
-		assert.deepStrictEqual((await sessionState(sessionUri)).config?.values, {
+		assert.deepStrictEqual(writableConfigValues(await sessionState(sessionUri)), {
 			[SessionConfigKey.AutoApprove]: 'default',
 		});
 	});
@@ -208,7 +213,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			replace: true,
 		});
 
-		assert.deepStrictEqual((await sessionState(sessionUri)).config?.values, {});
+		assert.deepStrictEqual(writableConfigValues(await sessionState(sessionUri)), {});
 	});
 
 	conformanceTest(context, 'active client set adds a session participant', async function () {

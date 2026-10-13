@@ -117,6 +117,22 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 The rule checks static imports, re-exports, import types, literal dynamic imports, and literal `require` calls, resolving relative paths and `vs/` aliases. Run its tests with `node --test .eslint-plugin-local/tests/code-no-private-agent-host-meta-import.test.ts`.
 
 
+## Asynchronous production filesystem operations
+
+`local/code-no-sync-fs` rejects synchronous Node filesystem calls in core and built-in extension production code, including `original-fs` and the synchronous `pfs` helpers. It follows named and namespace imports, local aliases, destructuring, literal `require`/dynamic imports, and `createRequire` bindings. Tests, development scripts, top-level `src/` bootstrap files, the Electron main entry point, the AMD loader, and the isolated desktop/server CLI and Git askpass entry points are excluded by the ESLint configuration.
+
+The configuration also excludes the synchronous helper implementations in `pfs.ts` and designated core startup/shutdown files: `wait.ts`, `remoteExtensionHostAgentServer.ts`, `server.main.ts`, `extHostCLIServer.ts`, `extHostExtensionService.ts`, and `extHostStoragePaths.ts`. These are exact-file exclusions, not directory exclusions; production callers of synchronous `pfs` helpers remain checked.
+
+**Do not disable this rule unless absolutely necessary.** Synchronous filesystem calls block the event loop and can stall unrelated work throughout the process. Use `fs/promises` or the existing asynchronous filesystem helpers; difficulty propagating `async` is not by itself a justification for disabling the rule.
+
+Existing suppressions document audited legacy constraints and deferred work, not permission to add more synchronous calls. Outside the designated startup/shutdown exclusions, an unavoidable exception must be limited to the call site, with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment stating why asynchronous I/O cannot be used. Do not exempt additional runtime services. Deferred runtime conversions must identify the contract or ordering that needs review.
+
+Justifications must explain the concrete failure or lifecycle constraint an async replacement would introduce, not merely describe the synchronous operation. Temporary migration TODOs must name the readiness, sequencing, or ownership change needed to remove the suppression; they do not establish that synchronous I/O is permanently required.
+
+Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
+
+(Written by Copilot)
+
 ## Adding fixes to custom rules
 Fixes are a useful way to mechanically fix basic linting issues, such as auto inserting semicolons. These fixes typically work at the AST level, so they are a more reliable way to perform bulk fixes compared to find/replaces.
 

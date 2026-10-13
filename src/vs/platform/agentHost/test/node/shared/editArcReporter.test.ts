@@ -89,6 +89,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 				devDeviceId: 'client-dev-device-id',
 			},
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -156,6 +157,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: buildSubagentChatUri('copilotcli:/session-1', 'parent-tool'),
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -164,6 +166,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			completionTime: Date.now(),
 		});
+
 		await timeout(10);
 
 		assert.deepStrictEqual({
@@ -177,6 +180,19 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 	});
 
+	test('standard session edit reports retain their explicit provider', async () => {
+		const resource = URI.file('/workspace/standard.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
+		await service.reportEdit({
+			sessionUri: 'ahp-session:/standard', ownerSessionUri: 'ahp-session:/standard', provider: 'copilotcli', turnId: 'turn-1', toolCallId: 'tool-1',
+			filePath: resource.fsPath, beforeText: 'hello', afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] }, completionTime: Date.now(),
+		});
+		await timeout(10);
+		assert.deepStrictEqual([telemetry.events[0].data.provider, telemetry.events[0].data.agentSessionId], ['copilotcli', 'standard']);
+	});
+
 	test('updates older reporters before starting the next reporter', async () => {
 		const resource = URI.file('/workspace/order.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
@@ -185,6 +201,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -205,6 +222,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('Abase'));
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -247,6 +265,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		const service = disposables.add(new EditArcReporterService([0, 60_000], fileService, diffComputeService, createNoopGitService(), config, new NullLogService(), telemetry));
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -259,6 +278,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		const secondReport = service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -288,6 +308,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		for (let index = 0; index <= 200; index++) {
 			await service.reportEdit({
 				sessionUri: 'claude:/session-1',
+				ownerSessionUri: 'claude:/session-1',
 				turnId: `turn-${index}`,
 				toolCallId: `tool-${index}`,
 				filePath: `/workspace/file-${index}.ts`,
@@ -308,6 +329,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -349,6 +371,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -380,6 +403,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -421,6 +445,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -449,6 +474,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -485,6 +511,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getEffectiveWorkingDirectories: () => undefined,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
+		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => undefined,
 		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
