@@ -777,6 +777,23 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('native cloud rows announce the status shown before the time', async () => {
+		const { widget, automationService, sessionsManagementService } = setup();
+		automationService.setAutomations([automation()]);
+		const external = run({ externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		const labels: (string | undefined)[] = [];
+		for (const [status, sessionStatus] of [['running', SessionStatus.InProgress], ['failed', SessionStatus.Error]] as const) {
+			sessionsManagementService.sessionStatus.set(sessionStatus, undefined);
+			automationService.setRuns([{ ...external, status }]);
+			await waitForSessionActions();
+			const row = widget.element.querySelector('.automations-run-session-list .monaco-list-row');
+			const normalize = (text: string | null | undefined) => text?.replace(/\s/g, ' ').trim();
+			const visual = normalize(row?.querySelector('.session-description')?.textContent);
+			labels.push(visual && normalize(row?.getAttribute('aria-label'))?.includes(visual) ? visual : undefined);
+		}
+		assert.deepStrictEqual(labels, ['Running on GitHub', 'Failed']);
+	});
+
 	test('cloud Done actions stay disabled until both projected and backing conversation states are terminal', async () => {
 		const { widget, automationService, sessionsManagementService, contextMenuService } = setup('done');
 		automationService.setAutomations([automation()]);

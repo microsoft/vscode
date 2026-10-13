@@ -3023,9 +3023,11 @@ class SessionsAccessibilityProvider {
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
 			}
-			const completedStatusMessage = status === SessionStatus.Completed ? this.options?.getCompletedStatusMessage?.(element, reader) : undefined;
-			if (completedStatusMessage) {
-				label = localize('sessionItemCompletedStatusAria', "{0}, {1}", label, completedStatusMessage);
+			// History rows show their status next to the time, so their label reads it too.
+			const historyStatusMessage = (showMetadataWhileActive ? getSessionStatusMessage(status, element.description.read(reader)) : undefined)
+				?? (status === SessionStatus.Completed ? this.options?.getCompletedStatusMessage?.(element, reader) : undefined);
+			if (historyStatusMessage) {
+				label = localize('sessionItemHistoryStatusAria', "{0}, {1}", label, typeof historyStatusMessage === 'string' ? historyStatusMessage : renderAsPlaintext(historyStatusMessage, { omitMarkdownSyntax: true }));
 			}
 			const eligible = isExternalApplicationBadgeEligible(element, reader);
 			if (eligible) {
