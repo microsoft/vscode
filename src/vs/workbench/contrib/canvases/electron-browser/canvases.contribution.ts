@@ -7,6 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -16,11 +17,13 @@ import { EditorExtensions } from '../../../common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ICanvasService, CanvasInput } from '../common/canvas.js';
+import { ICanvasService, CanvasInput, ICanvasReference, REVEAL_CANVAS_COMMAND_ID } from '../common/canvas.js';
 import { CanvasEditor, SessionCanvasFocusedContext } from './canvasEditor.js';
 import { CanvasService } from './canvasService.js';
 
 registerSingleton(ICanvasService, CanvasService, InstantiationType.Delayed);
+
+CommandsRegistry.registerCommand(REVEAL_CANVAS_COMMAND_ID, (accessor, reference: ICanvasReference) => accessor.get(ICanvasService).revealCanvas(reference));
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CanvasEditor, CanvasInput.EDITOR_ID, localize('canvas.editor', "Canvas")),
