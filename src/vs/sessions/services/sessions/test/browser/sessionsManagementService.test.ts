@@ -5832,7 +5832,7 @@ suite('SessionsManagementService', () => {
 			let created: ISession | undefined;
 			const first = disposables.add(await service.createSessionDraft(folder, {
 				metadata, modelId: 'model', modeId: 'plan', permissionLevel: 'default', branch: 'main',
-				onSessionCreated: session => created = session,
+				onSessionCreated: session => { created = session; },
 			}));
 			const second = disposables.add(await service.createSessionDraft(folder));
 			const firstSession = first.session;

@@ -43,7 +43,8 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { CHAT_CARD_LARGE_CLASS, createChatCardIconButton } from '../chatCard.js';
+import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
+import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
 import { ChatCardListbox } from '../chatCardListbox.js';
 import { appendChatQuestionOptionLabel, ChatQuestionContent } from './chatQuestionContent.js';
 import './media/chatQuestionCarousel.css';
@@ -536,7 +537,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.appendChild(titleRow);
 		if (acknowledgement.description) {
 			const description = dom.append(this.domNode, dom.$('.chat-question-description'));
-			const renderedDescription = acknowledgementStore.add(this._markdownRenderer.render(acknowledgement.description));
+			const markdownRenderer = this._instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const renderedDescription = acknowledgementStore.add(markdownRenderer.render(acknowledgement.description));
 			description.appendChild(renderedDescription.element);
 		}
 		this.domNode.setAttribute('aria-label', acknowledgement.message);

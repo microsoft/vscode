@@ -24,7 +24,6 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { localize } from '../../../nls.js';
 import { INativeWorkbenchEnvironmentService } from '../../../workbench/services/environment/electron-browser/environmentService.js';
 
 export class NativeTitlebarPart extends TitlebarPart {

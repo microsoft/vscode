@@ -1697,7 +1697,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._sessionsSidePaneDivider?.classList.remove(SESSIONS_SIDE_PANE_DIVIDER_CLASS);
 		this._sessionsSidePaneDivider = undefined;
 
-		const sessionsElement = this.sessionsPartView.element;
+		const sessionsElement = this.customViewGridPartView.element.closest('.split-view-view')?.classList.contains('visible')
+			? this.customViewGridPartView.element
+			: this.sessionsPartView.element;
 		const editorElement = this.editorPartView.element;
 		let splitView = sessionsElement.closest<HTMLElement>('.monaco-split-view2.horizontal');
 
@@ -1711,9 +1713,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const views = Array.from(viewContainer.children).filter(isHTMLElement);
 				const sessionsIndex = views.findIndex(view => view.contains(sessionsElement));
 				const editorIndex = views.findIndex(view => view.contains(editorElement));
-				if (sessionsIndex >= 0 && editorIndex === sessionsIndex + 1) {
+				if (sessionsIndex >= 0 && editorIndex > sessionsIndex && views.slice(sessionsIndex + 1, editorIndex).every(view => !view.classList.contains('visible'))) {
 					const sashes = Array.from(sashContainer.children).filter(isHTMLElement);
-					this._sessionsSidePaneDivider = sashes[sessionsIndex];
+					this._sessionsSidePaneDivider = sashes[editorIndex - 1];
 					this._sessionsSidePaneDivider?.classList.add(SESSIONS_SIDE_PANE_DIVIDER_CLASS);
 					return;
 				}
@@ -2872,7 +2874,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					const editorSize = maximizedEditorWidth ?? this._viewMoveSizing(this.editorPartView, 'width');
 					const customViewGridSize = this._viewMoveSizing(this.customViewGridPartView, 'width');
 					this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
-					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);
+					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Left);
 					if (typeof sessionsWidth === 'number') {
 						this.workbenchGrid.resizeView(this.sessionsPartView, {
 							width: sessionsWidth,

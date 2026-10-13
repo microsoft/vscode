@@ -17,11 +17,13 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry } from '../../../../workbench/browser/chatDropdownPill.js';
 import { ChatPillsWidget, IChatPill, IChatPillSection, getChatPillLocationHover, getChatPillResourceLocation } from '../../../../workbench/browser/chatPills.js';
 import { sessionPullRequestsPillOptions, sessionReferencesPillOptions } from '../../../../workbench/contrib/chat/browser/sessionChatPillOptions.js';
 import { chatArtifactPillOptions } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { buildSessionArtifactSections, ISessionArtifactActions } from '../../chat/browser/sessionArtifacts.js';
 import { computePullRequestIcon, getPullRequestStatusFromIcon } from '../../github/common/types.js';
 import { IProjectBoardCard } from '../common/projectBoardModel.js';
@@ -82,6 +84,7 @@ export class ProjectBoardContextPills extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = document.adoptNode(mainWindow.document.createElement('div'));
@@ -124,6 +127,7 @@ export class ProjectBoardContextPills extends Disposable {
 		this.previous = next;
 		const context = getProjectBoardContext(card, metadata);
 		const actions: ISessionArtifactActions = {
+			recordOpen: artifact => logSessionArtifactOpen(this.telemetryService, card.session.sessionId, artifact.kind, artifact.isArtifact),
 			openExternal: uri => { void this.open(uri, true); },
 			openResource: uri => { void this.open(uri, false); },
 			openImages: (images, index) => { void this.open(images[index].uri, false); },

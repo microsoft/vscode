@@ -29,6 +29,7 @@ suite('ProjectBoardViewState', () => {
 		const messages: string[] = [];
 		const notifications = new class extends mock<INotificationService>() {
 			override prompt(...args: Parameters<INotificationService['prompt']>): INotificationHandle {
+				assert.ok(typeof args[1] === 'string');
 				messages.push(args[1]);
 				prompts.push(args[2]);
 				return new class extends mock<INotificationHandle>() { }();

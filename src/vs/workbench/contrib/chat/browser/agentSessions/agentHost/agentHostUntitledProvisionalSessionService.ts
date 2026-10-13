@@ -1054,13 +1054,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// awaiting in `dispose()` to keep workbench teardown synchronous.
 		for (const [, entry] of this._entries) {
 			entry.disposed = true;
-<<<<<<< HEAD
 			entry.lifetime.dispose();
-			if (entry.generation) {
-=======
-			entry.activeClientBinding.dispose();
 			if (entry.generation && !entry.generation.materialized) {
->>>>>>> cf2681c1d68 (chat: preserve published sessions when provisional models close)
 				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
 			}
 		}

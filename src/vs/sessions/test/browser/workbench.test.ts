@@ -13,7 +13,7 @@ import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestView } from '../../../base/test/browser/ui/grid/util.js';
-import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -37,7 +37,6 @@ import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 import '../../browser/parts/media/chatCompositeBar.css';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../platform/storage/common/storage.js';
 import { AbstractCustomView } from '../../services/customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../services/customView/browser/customViewService.js';
 
@@ -1268,7 +1267,7 @@ suite('Sessions - Workbench', () => {
 				[
 					Parts.SIDEBAR_PART,
 					[
-						[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART],
+						[Parts.SESSIONS_PART, Parts.CUSTOM_VIEW_GRID_PART, Parts.EDITOR_PART],
 						Parts.PANEL_PART,
 					],
 				],
@@ -1278,8 +1277,8 @@ suite('Sessions - Workbench', () => {
 				[
 					Parts.SIDEBAR_PART,
 					[Parts.SESSIONS_PART, Parts.PANEL_PART],
-					Parts.EDITOR_PART,
 					Parts.CUSTOM_VIEW_GRID_PART,
+					Parts.EDITOR_PART,
 				],
 			],
 		});
@@ -1794,7 +1793,7 @@ suite('Sessions - Workbench', () => {
 		return { harness, setEditorHiddenCalls };
 	}
 
-	for (const [label, reveal] of [['grid', revealEditorOnOpen], ['single pane', revealEditorOnOpenSinglePane]] as const) {
+	for (const [label, reveal] of [['grid', revealEditorOnOpen], ['single pane', revealEditorOnOpenDesktop]] as const) {
 		test(`opening Settings dismisses a custom view on main editor opens only (${label})`, () => {
 			let hidden = 0;
 			const { harness, setEditorHiddenCalls } = createWillOpenHarness({
@@ -3581,7 +3580,7 @@ suite('Sessions - Workbench', () => {
 			moves: [
 				{ view: 'panel', size: 320, reference: 'sessions', direction: Direction.Down },
 				{ view: 'editor', size: 720, reference: 'sessions', direction: Direction.Right },
-				{ view: 'customViewGrid', size: 640, reference: 'editor', direction: Direction.Right },
+				{ view: 'customViewGrid', size: 640, reference: 'editor', direction: Direction.Left },
 			],
 			resizes: [
 				{ view: 'sessions', size: { width: 640, height: 800 } },
@@ -3719,7 +3718,8 @@ suite('Sessions - Workbench', () => {
 
 			const sessionsPartView = views.get(Parts.SESSIONS_PART)!;
 			const editorPartView = views.get(Parts.EDITOR_PART)!;
-			const markerHost = { workbenchGrid: grid, sessionsPartView, editorPartView };
+			const customViewGridPartView = views.get(Parts.CUSTOM_VIEW_GRID_PART)!;
+			const markerHost = { workbenchGrid: grid, sessionsPartView, editorPartView, customViewGridPartView };
 			updateSessionsSidePaneDivider.call(markerHost);
 			localStore.add(grid.onDidChange(() => updateSessionsSidePaneDivider.call(markerHost)));
 
@@ -3779,9 +3779,13 @@ suite('Sessions - Workbench', () => {
 			setPanelAlignment.call(alignmentHost, 'justify');
 
 			assert.deepStrictEqual({ centered, justified: getDividerPosition() }, {
-				centered: { dividerCount: 1, dividerIndex: 1, sessionsIndex: 1, editorIndex: 2 },
-				justified: { dividerCount: 1, dividerIndex: 0, sessionsIndex: 0, editorIndex: 1 },
+				centered: { dividerCount: 1, dividerIndex: 2, sessionsIndex: 1, editorIndex: 3 },
+				justified: { dividerCount: 1, dividerIndex: 1, sessionsIndex: 0, editorIndex: 2 },
 			});
+			grid.setViewVisible(sessionsPartView, false);
+			grid.setViewVisible(customViewGridPartView, true);
+			updateSessionsSidePaneDivider.call(markerHost);
+			assert.deepStrictEqual(getDividerPosition(), { dividerCount: 1, dividerIndex: 1, sessionsIndex: 0, editorIndex: 2 });
 		} finally {
 			root.remove();
 			localStore.dispose();
@@ -4029,8 +4033,8 @@ suite('Sessions - Workbench', () => {
 					[
 						Parts.SIDEBAR_PART,
 						[Parts.SESSIONS_PART, Parts.PANEL_PART],
-						Parts.EDITOR_PART,
 						Parts.CUSTOM_VIEW_GRID_PART,
+						Parts.EDITOR_PART,
 					],
 				],
 				justify: [
@@ -4038,7 +4042,7 @@ suite('Sessions - Workbench', () => {
 					[
 						Parts.SIDEBAR_PART,
 						[
-							[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART],
+							[Parts.SESSIONS_PART, Parts.CUSTOM_VIEW_GRID_PART, Parts.EDITOR_PART],
 							Parts.PANEL_PART,
 						],
 					],
@@ -4126,7 +4130,7 @@ suite('Sessions - Workbench', () => {
 			Workbench.prototype.setPartHidden.call(host as unknown as Workbench, false, Parts.AUXILIARYBAR_PART);
 			const opened = service.auxiliaryBarVisible.get();
 			if (single) {
-				toggleSecondarySideBarSinglePane.call(host);
+				toggleSecondarySideBarDesktop.call(host);
 			} else {
 				toggleSecondarySideBar.call(host);
 			}
@@ -4171,7 +4175,7 @@ suite('Sessions - Workbench', () => {
 			service.showCustomView('board');
 			service.setAuxiliaryBarVisible(true);
 			if (single) {
-				SinglePaneWorkbench.prototype.setDockedAuxiliaryBarWidth.call(host as unknown as SinglePaneWorkbench, 420);
+				DesktopWorkbench.prototype.setDockedAuxiliaryBarWidth.call(host as unknown as DesktopWorkbench, 420);
 				onEditorNodeResized.call(host, 420);
 			} else {
 				host.workbenchGrid.resizeView(host.auxiliaryBarPartView, { width: 420, height: 800 });
@@ -4197,7 +4201,7 @@ suite('Sessions - Workbench', () => {
 	}
 
 	test('single-pane custom view keeps auxiliary host height while hiding editor content', () => {
-		const layoutDockedAuxiliaryBar = SinglePaneMainEditorPart.prototype.layoutDockedAuxiliaryBar;
+		const layoutDockedAuxiliaryBar = DesktopMainEditorPart.prototype.layoutDockedAuxiliaryBar;
 		let customViewVisible = true;
 		const editorNode = mainWindow.document.createElement('div');
 		store.add(toDisposable(() => editorNode.remove()));
@@ -4211,10 +4215,10 @@ suite('Sessions - Workbench', () => {
 			agentWorkbenchLayoutService: { isVisible: () => customViewVisible },
 			_dockedAuxBar: { layout: () => auxiliaryHeights.push(editorNode.getBoundingClientRect().height) },
 		};
-		layoutDockedAuxiliaryBar.call(host as unknown as SinglePaneMainEditorPart);
+		layoutDockedAuxiliaryBar.call(host as unknown as DesktopMainEditorPart);
 		const hidden = { visibility: container.style.visibility, inert: container.inert };
 		customViewVisible = false;
-		layoutDockedAuxiliaryBar.call(host as unknown as SinglePaneMainEditorPart);
+		layoutDockedAuxiliaryBar.call(host as unknown as DesktopMainEditorPart);
 
 		assert.deepStrictEqual({
 			hidden,

@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ObservableSet, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -578,8 +578,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let provider = initialProvider;
 		await this._checkSessionDraftTarget(provider, sessionTypeId, folderUri);
 		let session = folderUri
-			? provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options))
-			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
+			? provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options))
+			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
 		this._unlistedNewSessions.set(session.resource, session);
 		this._sessionDrafts.add(session);
 		try {
