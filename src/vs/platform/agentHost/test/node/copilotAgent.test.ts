@@ -6120,7 +6120,9 @@ suite('CopilotAgent', () => {
 					pluginDirectory: () => activeClient.pluginController.directory?.toString(),
 					restore: async () => {
 						await disposeAgent(agent);
-						const { agent: restored } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig, fileService });
+						// A disposed agent releases its file system providers asynchronously, so the restored agent needs its own file service.
+						const { agent: restored, fileService: restoredFileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
+						disposables.add(restoredFileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 						await bindChats(restored);
 						return restored;
 					},
@@ -6688,14 +6690,15 @@ suite('CopilotAgent', () => {
 					const replacementDiscovery = client.skillDiscoveryRequests.at(-1)?.projectPaths;
 					const additionalDirectories = activeClient.pluginController.additionalDirectories.map(directory => directory.toString());
 					await disposeAgent(agent);
-					restored = createTestAgentContext(disposables, {
+					const restoredContext = createTestAgentContext(disposables, {
 						sessionDataService: fixture.sessionDataService,
 						copilotClient: client,
 						useRealResumePath: true,
 						worktreeIsolation: fixture.worktreeIsolation,
 						rootConfig: { [AgentHostCopilotMultiRootEnabledConfigKey]: true },
-						fileService: fixture.fileService,
-					}).agent;
+					});
+					disposables.add(restoredContext.fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
+					restored = restoredContext.agent;
 					await restored.authenticate('https://api.github.com', 'token');
 					await restored.materializeChat(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' }));
 					await restored.chats.sendMessage(chats[0], 'Continue after reopening', [secondary], undefined, undefined, undefined, context);
