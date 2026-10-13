@@ -2107,6 +2107,26 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('legacy create_chat mints an opaque chat in an opaque-default session and links it by its short id', async () => {
+		const opaqueDefault = 'ahp-chat:/11111111-2222-4333-8444-555555555555';
+		let createdChat: URI | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+			getDefaultChat: () => opaqueDefault,
+			getChatOwner: () => 'copilot:/s1',
+			onCreateChat: (_session, chat) => { createdChat = chat; },
+		});
+		const result = await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'do it' }, URI.parse(opaqueDefault), 'turn-1');
+		const uuid = URI.parse(result.chat).path.slice(1);
+		assert.deepStrictEqual({
+			scheme: URI.parse(result.chat).scheme,
+			authority: URI.parse(result.chat).authority,
+			created: createdChat?.toString() === result.chat,
+			openLink: result.openLink === `agent-host-session://copilot/s1?chat=${uuid}`,
+			uuidShape: /^[0-9a-f-]{36}$/.test(uuid),
+		}, { scheme: 'ahp-chat', authority: '', created: true, openLink: true, uuidShape: true });
+	});
+
 	test('rename titles normalize presentation without truncating agent input', () => {
 		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
 		assert.deepStrictEqual({
