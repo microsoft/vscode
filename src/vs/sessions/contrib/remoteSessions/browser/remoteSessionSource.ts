@@ -125,9 +125,9 @@ export async function resolveRemoteSessionSource(
 			throw new CancellationError();
 		}
 		checkSource();
+		// A chat listed in the backend session's catalog belongs to that session.
 		const chatResource = getSessionChatResource(state, source.chat.resource.fragment || DEFAULT_CHAT_ID);
-		const identity = chatResource ? parseChatUri(chatResource) : undefined;
-		if (!identity || !isEqual(URI.parse(identity.session), source.host.backendSession)) {
+		if (!chatResource || !parseChatUri(chatResource)) {
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));
 		}
 		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state) };

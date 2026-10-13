@@ -34,6 +34,7 @@ import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { mintedTestChatOwner } from '../../../common/mintedChatUri.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -489,7 +490,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const subagentChatUri = subagentRef.resource as unknown as string;
 		const parsedSubagentChat = parseChatUri(subagentChatUri);
 		assert.ok(
-			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+			parsedSubagentChat !== undefined && mintedTestChatOwner(subagentChatUri) === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
 			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
 		);
 
@@ -615,7 +616,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const subagentChatUri = subagentRef.resource as unknown as string;
 		const parsedSubagentChat = parseChatUri(subagentChatUri);
 		assert.ok(
-			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+			parsedSubagentChat !== undefined && mintedTestChatOwner(subagentChatUri) === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
 			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
 		);
 		const subagentToolCallId = parsedSubagentChat.chatId.slice('subagent/'.length);

@@ -16,9 +16,10 @@ import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolve
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { isAhpChatChannel, isDefaultChatUri, parseChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Resolved git context shared by the review operations: the repository root,
@@ -51,6 +52,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 
@@ -123,15 +125,15 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 		const sourceOwner = buildFolderChangesetOwnerUri(
-			parseChatUri(sourceSession)?.session ?? sourceSession,
+			this._containingSession(sourceSession),
 			getWorkingDirectoryScopeId(sourceWorkingDirectories.map(uri => uri.toString())),
 		);
 		const targetOwner = buildFolderChangesetOwnerUri(
-			parseChatUri(targetSession)?.session ?? targetSession,
+			this._containingSession(targetSession),
 			getWorkingDirectoryScopeId(targetWorkingDirectories.map(uri => uri.toString())),
 		);
 		const sourceRef = buildReviewedRefName(this._sanitizedOwnerId(sourceOwner));
-		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(parseChatUri(sourceSession)?.session ?? sourceSession));
+		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(this._containingSession(sourceSession)));
 		const targetRef = buildReviewedRefName(this._sanitizedOwnerId(targetOwner));
 		const seenRepositories = new Set<string>();
 		for (const workingDirectory of targetWorkingDirectories) {
@@ -273,7 +275,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 
-		const containingSession = parseChatUri(session)?.session ?? session;
+		const containingSession = this._containingSession(session);
 		const reviewedOwners = new Set<ProtocolURI>([
 			session,
 			buildFolderChangesetOwnerUri(containingSession, getWorkingDirectoryScopeId(workingDirectories)),
@@ -318,14 +320,19 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		}
 	}
 
+	/** The session that owns a chat (from the registry), or the session itself. */
+	private _containingSession(sessionOrChat: ProtocolURI): ProtocolURI {
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.requireChatOwner(sessionOrChat) : sessionOrChat;
+	}
+
 	private _sanitizedOwnerId(owner: ProtocolURI): string {
 		const workspace = parseFolderChangesetOwnerUri(owner);
 		if (workspace) {
 			const sessionId = AgentSession.id(workspace.sessionUri).replace(/[^a-zA-Z0-9_.-]/g, '-');
 			return `${sessionId}-workspace-${workspace.scopeId}`;
 		}
-		const chat = parseChatUri(owner);
-		const sessionId = AgentSession.id(chat?.session ?? owner).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		const chat = isAhpChatChannel(owner);
+		const sessionId = AgentSession.id(this._containingSession(owner)).replace(/[^a-zA-Z0-9_.-]/g, '-');
 		if (!chat) {
 			return sessionId;
 		}

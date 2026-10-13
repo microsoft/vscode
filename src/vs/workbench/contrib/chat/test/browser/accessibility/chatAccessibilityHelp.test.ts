@@ -262,7 +262,8 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true });
+			ensemble: help.includes('When Auto is presented as Ensemble, its details hold a "Thinking Level" setting instead'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, ensemble: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {

@@ -96,7 +96,7 @@ function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModel
 			configurationSchema: {
 				properties: {
 					tier: {
-						type: 'string', group: 'navigation', title: 'Optimize for',
+						type: 'string', group: 'navigation', title: 'Thinking Level',
 						enum: ['balance', 'intelligence'],
 						enumItemLabels: ['Balance', 'High'],
 						default: 'balance',
@@ -676,9 +676,9 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	/** The labels of the options in the open details' "Optimize for" control. */
+	/** The labels of the options in the open details' tier control: Auto's "Optimize for", or Ensemble's "Thinking Level". */
 	function autoTiers(popup: HTMLElement): string[] {
-		return Array.from(popup.querySelectorAll('.tabbed-action-list-details [role="radiogroup"][aria-label="Optimize for"] [role="radio"]'), option => option.textContent ?? '');
+		return Array.from(popup.querySelectorAll('.tabbed-action-list-details :is([role="radiogroup"][aria-label="Optimize for"], [role="radiogroup"][aria-label="Thinking Level"]) [role="radio"]'), option => option.textContent ?? '');
 	}
 
 	function chooseOption(popup: HTMLElement, label: string): void {
@@ -1216,7 +1216,7 @@ suite('TabbedModelPicker', () => {
 	for (const { name, routing, requested, expected } of [
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
-		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Optimize for'] } },
+		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Thinking Level'] } },
 		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },

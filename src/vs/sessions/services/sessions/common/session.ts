@@ -936,6 +936,8 @@ export interface ISessionCapabilities {
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether chats in this session can update their read state independently. */
+	readonly supportsIndependentChatReadState?: boolean;
 	/**
 	 * Whether this session supports forking a chat from a turn into a new peer
 	 * chat. The agents-window fork gesture gates on this flag rather than on the

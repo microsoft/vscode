@@ -18,7 +18,7 @@ import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHos
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IsDevelopmentContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { IsDevelopmentContext, ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -67,16 +67,20 @@ suite('Mission Control native provider inventory', () => {
 		assert.deepStrictEqual(labels, ['Environments', 'Connect to Environment...']);
 	});
 
-	for (const { name, development, hostsEnabled, chatEnabled, aiDisabled, available } of [
-		{ name: 'source', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
-		{ name: 'normal built product', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
-		{ name: 'remote hosts disabled', development: false, hostsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
-		{ name: 'chat disabled', development: false, hostsEnabled: true, chatEnabled: false, aiDisabled: false, available: false },
-		{ name: 'AI master setting disabled', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: true, available: false },
+	for (const { name, quality, development, hostsEnabled, chatEnabled, aiDisabled, available } of [
+		{ name: 'source', quality: '', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'built OSS', quality: '', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'Insiders', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'Stable', quality: 'stable', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'Stable in development mode', quality: 'stable', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'remote hosts disabled', quality: 'insider', development: false, hostsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
+		{ name: 'chat disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: false, aiDisabled: false, available: false },
+		{ name: 'AI master setting disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: true, available: false },
 	]) {
 		test(`command and workspace picker availability: ${name}`, () => {
 			const context = new Context(0, null);
 			context.setValue(IsDevelopmentContext.key, development);
+			context.setValue(ProductQualityContext.key, quality);
 			context.setValue(ChatContextKeys.enabled.key, chatEnabled);
 			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, hostsEnabled);
 			context.setValue('config.chat.disableAIFeatures', aiDisabled);
@@ -88,7 +92,7 @@ suite('Mission Control native provider inventory', () => {
 				assert.ok(item);
 				return (item.when?.evaluate(context) ?? true) && (item.command.precondition?.evaluate(context) ?? true);
 			});
-			assert.deepStrictEqual(availability, [available, available]);
+			assert.deepStrictEqual(availability, [available, available && quality !== 'stable']);
 		});
 	}
 

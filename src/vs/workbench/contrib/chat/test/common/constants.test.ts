@@ -84,6 +84,76 @@ suite('ChatConfiguration defaults', () => {
 		})));
 	});
 
+	suite('temporary Local harness policy', () => {
+		teardown(() => sinon.restore());
+
+		function createConfiguration(policyValue: boolean | undefined, userValue = false) {
+			const configuration = new TestConfigurationService({
+				[ChatConfiguration.DefaultToCopilotHarness]: true,
+				[ChatConfiguration.EditorPreferCopilotHarness]: true,
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+				[ChatConfiguration.TemporaryDefaultToLocalHarness]: userValue,
+			});
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			sinon.stub(configuration, 'inspect').callThrough()
+				.withArgs(ChatConfiguration.TemporaryDefaultToLocalHarness).returns({ policyValue, userValue });
+			return configuration;
+		}
+
+		test('keeps Local visible and usable despite rollout settings, sandbox and permission routing', () => {
+			const configuration = createConfiguration(true);
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const results = [localWorkspace, createWorkspace(URI.parse('virtual:/workspace'))].flatMap(workspace =>
+				[false, true].flatMap(enabled =>
+					[false, true].flatMap(sandbox =>
+						[false, true].map(permissions => ({
+							computed: getComputedDefaultSessionType(configuration, sessions, workspace, enabled, sandbox, permissions),
+							newChat: getDefaultNewChatSessionType(configuration, sessions, storage, workspace, enabled, undefined, sandbox, permissions),
+							currentLocal: getDefaultNewChatSessionType(configuration, sessions, storage, workspace, enabled, { currentSessionType: localChatSessionType }, sandbox, permissions),
+							usable: isNewChatSessionTypeUsable(localChatSessionType, configuration, sessions, workspace, enabled, sandbox, permissions),
+							visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, workspace, sandbox, enabled, permissions),
+						})))));
+			assert.deepStrictEqual(results, Array.from({ length: 16 }, () => ({
+				computed: localChatSessionType, newChat: localChatSessionType, currentLocal: localChatSessionType, usable: true, visible: true,
+			})));
+		});
+
+		test('preserves explicit, remembered and current harness choices without changing storage', () => {
+			const configuration = createConfiguration(true);
+			const types = [localChatSessionType, SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex];
+			const sessions = createChatSessionsService(...types);
+			const results = types.map(type => {
+				const storage = disposables.add(new TestStorageService());
+				const current = getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, { currentSessionType: type }, true, true);
+				storeUserSelectedSessionType(storage, type);
+				return {
+					explicit: getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, { explicitOverride: type }, true, true),
+					remembered: getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, undefined, true, true),
+					current,
+					stored: getRememberedSessionType(storage),
+				};
+			});
+			assert.deepStrictEqual(results, types.map(type => ({ explicit: type, remembered: type, current: type, stored: type })));
+		});
+
+		test('absent or false policy does not opt out even when the user sets the hidden setting', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const results = [undefined, false].map(value => {
+				const configuration = createConfiguration(value, true);
+				return {
+					default: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true),
+					required: getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, { explicitOverride: localChatSessionType }, true, true),
+					local: isEditorLocalAgentEnabled(configuration, localWorkspace),
+				};
+			});
+			assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
+				default: SessionType.AgentHostCopilot, required: SessionType.AgentHostCopilot, local: false,
+			})));
+		});
+	});
+
 	suite('enterprise policy diagnostics preserve existing rollout selection', () => {
 		const legacyRequirements = [
 			{ policy: 'ChatMCP', setting: 'chat.mcp.access', value: 'none', reportsGap: true },

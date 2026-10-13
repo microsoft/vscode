@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { ManagedSettingsData } from '../../../../../../base/common/policy.js';
 import { constObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
@@ -21,7 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -266,6 +267,33 @@ suite('ChatService', () => {
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
 	] as const) {
+		test(`${policyKey} allows Local with the enterprise escape hatch and blocks it again on withdrawal`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let optOut = true;
+			const getSettings = (): ManagedSettingsData => ({ [policyKey]: policyValue, [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: optOut });
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => getSettings()[key],
+				getManagedSettings: getSettings,
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const result = await service.sendRequest(model.sessionResource, 'Local escape hatch');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
+			const allowed = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
+			optOut = false;
+			changes.fire();
+			const blocked = await service.sendRequest(restored.sessionResource, 'withdrawn escape hatch');
+			assert.deepStrictEqual({
+				allowed, blocked: blocked.kind,
+				history: restored.getRequests().length,
+				inputBlocked: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
+			}, { allowed: [false, false], blocked: 'rejected', history: 1, inputBlocked: [true, true] });
+		});
+
 		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let rules: string | boolean | undefined;
@@ -339,6 +367,37 @@ suite('ChatService', () => {
 				}, { result: 'rejected', blocked: true, requests: 0 });
 			});
 		}
+
+		test(`${policyKey} Local request blocking reacts to the effective configuration policy escape hatch`, async () => {
+			const configuration = new TestConfigurationService();
+			testDisposables.add(configuration.onDidChangeConfigurationEmitter);
+			let optOut = false;
+			const inspection = stub(configuration, 'inspect').callThrough();
+			inspection.withArgs(TemporaryDefaultToLocalHarnessSettingId).callsFake(() => ({ policyValue: optOut }));
+			testDisposables.add(toDisposable(() => inspection.restore()));
+			instantiationService.stub(IConfigurationService, configuration);
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
+				getManagedSettingValue: key => key === policyKey ? policyValue : undefined,
+				getManagedSettings: () => ({ [policyKey]: policyValue }),
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const blocked = model.isInputBlocked.get();
+			optOut = true;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.DEFAULT,
+				affectsConfiguration: key => key === TemporaryDefaultToLocalHarnessSettingId,
+				affectedKeys: new Set([TemporaryDefaultToLocalHarnessSettingId]),
+				change: { keys: [TemporaryDefaultToLocalHarnessSettingId], overrides: [] },
+			});
+			const result = await service.sendRequest(model.sessionResource, 'policy escape hatch');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			assert.deepStrictEqual({ blocked, unblocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
+				blocked: true, unblocked: false, requests: 1,
+			});
+		});
 
 		test(`${policyKey} preserves editor inline activation, sending and retry while policy initializes`, async () => {
 			const ready = new DeferredPromise<void>();

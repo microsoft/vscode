@@ -451,22 +451,27 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 };
 
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
-	return mcpServerCustomizationMigrationRemovableProperties
+	const inputWarnings = server.environmentVariables?.length
+		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
+		: [];
+	return [...inputWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
-		.map(property => {
+		.flatMap(property => {
 			switch (property) {
 				case 'gallery':
+					// `gallery: false` already disables auto-updates, so migrating changes nothing for the user.
 					return server.removedProperties?.gallery === false
-						? localize('mcpMigrationRemoveDisabledGallery', "Removes 'gallery'. Registry updates are already off.")
-						: localize('mcpMigrationRemoveGallery', "Removes 'gallery'. Registry updates will stop.");
+						? []
+						: [localize('mcpMigrationStopsRegistryUpdates', "Migrating will stop auto-updates from the MCP registry.")];
 				case 'version':
-					return localize('mcpMigrationRemoveVersion', "Removes 'version'. Version pins are kept.");
+					// Version metadata only affects registry updates, which the gallery warning already covers.
+					return [];
 				case 'dev':
-					return localize('mcpMigrationRemoveDev', "Removes 'dev'. Development mode will stop.");
+					return [localize('mcpMigrationRemoveDev', "Removes 'dev'. Development mode will stop.")];
 				case 'sandboxEnabled':
-					return localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel);
+					return [localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel)];
 			}
-		});
+		})];
 }
 
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
