@@ -19,12 +19,13 @@ import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorOpenSource, EditorResolution } from '../../../../../platform/editor/common/editor.js';
+import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { extractSelection } from '../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -174,20 +175,26 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, context: unknown) {
+		async run(accessor: ServicesAccessor, context: unknown) {
 			if (!isChatContextMenuActionContext(context) || !context.linkTarget) {
 				return;
 			}
 
+			const editorService = accessor.get(IEditorService);
+			const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 			const { uri: resource, selection } = extractSelection(URI.parse(context.linkTarget));
-			return accessor.get(IEditorService).openEditor({
+			const options = await editorPicker.pick({
 				resource,
 				options: {
-					override: EditorResolution.PICK,
 					source: EditorOpenSource.USER,
 					selection,
 				},
 			});
+			if (!options) {
+				return;
+			}
+
+			return editorService.openEditor({ resource, options });
 		}
 	});
 
