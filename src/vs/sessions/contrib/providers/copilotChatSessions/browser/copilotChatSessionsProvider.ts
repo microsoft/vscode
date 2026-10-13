@@ -576,7 +576,6 @@ function resolveGitHubRepositoryId(folder: ISessionFolder): string | undefined {
  */
 class AgentSessionAdapter implements ICopilotChatSession {
 	readonly application: ISettableObservable<ReturnType<typeof getSessionApplication>>;
-	lastObservedLocalCompletion: number | undefined;
 
 	readonly sessionId: string;
 	readonly resource: URI;
@@ -1230,10 +1229,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 						// Replayed history completes without a timestamp or with its original, earlier one.
 						const completionTimestamp = response?.completionTimestamp;
 						if (completed && response?.isComplete && !response.isCanceled
-							&& completionTimestamp !== undefined && startedAt !== undefined && completionTimestamp >= startedAt) {
-							if (session instanceof AgentSessionAdapter) {
-								session.lastObservedLocalCompletion = completionTimestamp;
-							}
+							&& completionTimestamp !== undefined && startedAt !== undefined && completionTimestamp >= startedAt
+							&& session instanceof AgentSessionAdapter && session.isAutomation.read(undefined)) {
 							this.agentSessionsService.getSession(model.sessionResource)?.setRead(false);
 						}
 					}));
@@ -2659,16 +2656,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const existing = this._sessionCache.get(key);
 			if (existing) {
 				const previousStatus = existing.status.get();
-				const previousEnd = existing.lastTurnEnd.get()?.getTime();
 				if (existing.update(session)) {
 					changedData.push(existing);
 				}
-				// Completion timestamps also catch short turns missed between polls.
+				// A completed turn (InProgress → terminal) marks the session
+				// unread. Copilot read state is owned by the agent session model,
+				// so route through `setRead(false)`; the adapter mirrors it back.
 				const currentStatus = existing.status.get();
-				const completedAt = existing.lastTurnEnd.get()?.getTime();
-				const localCompletion = existing instanceof AgentSessionAdapter ? existing.lastObservedLocalCompletion : undefined;
-				if ((previousStatus === SessionStatus.InProgress || completedAt !== undefined && (previousEnd === undefined || completedAt > previousEnd))
-					&& (localCompletion === undefined || completedAt !== undefined && completedAt > localCompletion)
+				if (previousStatus === SessionStatus.InProgress
 					&& currentStatus !== SessionStatus.InProgress
 					&& currentStatus !== SessionStatus.Untitled
 					&& existing.isRead.get()) {
