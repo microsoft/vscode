@@ -201,12 +201,19 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			managed: false,
 			available: true,
 		};
+		const unavailableMarketplace = {
+			name: 'unavailable-kit',
+			source: 'GitHub: microsoft/unavailable-kit',
+			isDefault: false,
+			managed: false,
+			available: false,
+		};
 		const queries: ICustomizationMarketplaceSourceQuery[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: providerChanges.event,
 			list: async () => {
 				listCalls++;
-				return [marketplace];
+				return [marketplace, unavailableMarketplace];
 			},
 			add: async () => marketplace,
 			queryMarketplace: async (_marketplace, options) => {
@@ -242,7 +249,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		);
 		await Event.toPromise(service.onDidChangeSources);
 		const sourceId = getProviderMarketplaceSourceId(marketplace.name);
+		const unavailableSourceId = getProviderMarketplaceSourceId(unavailableMarketplace.name);
+		const allSources = service.allSources.map(source => [source.id, source.displayName]);
 		const enabledSources = service.sources.map(source => [source.id, source.displayName]);
+		await assert.rejects(service.query({ sourceIds: [unavailableSourceId] }, CancellationToken.None), isCancellationError);
 		const page = await service.query({ sourceIds: [sourceId] }, CancellationToken.None);
 		const contentChanged = Event.toPromise(service.onDidChangeSources);
 		providerChanges.fire();
@@ -250,12 +260,19 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await setEnabled(configuration, ChatConfiguration.PluginsEnabled, false);
 
 		assert.deepStrictEqual({
+			allSources,
 			enabledSources,
 			disabledSources: service.sources.map(source => [source.id, source.displayName]),
 			items: page.items.map(item => [item.sourceId, item.displayName]),
 			queries,
 			listCalls,
 		}, {
+			allSources: [
+				[sourceId, 'vscode-team-kit'],
+				[unavailableSourceId, 'unavailable-kit'],
+				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, 'GitHub Copilot'],
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
 			enabledSources: [
 				[sourceId, 'vscode-team-kit'],
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
