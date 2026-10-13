@@ -8,13 +8,13 @@ import { appendFile, mkdir } from 'fs/promises';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { detectPluginFormat, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
@@ -124,6 +124,7 @@ function throwIfCancelled(token: CancellationToken): void {
 interface IWatchSpec {
 	readonly recursive: boolean;
 	readonly resourcesToWatch: ResourceSet;
+	readonly exactResourcesToWatch: ResourceSet;
 }
 
 /**
@@ -131,16 +132,16 @@ interface IWatchSpec {
  * trigger URIs. If a non-recursive entry already exists and `recursive` is
  * true, upgrade it to recursive while preserving the accumulated trigger URIs.
  */
-function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI): void {
+function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI, exact = false): void {
 	let entry = map.get(watchUri);
 	if (!entry) {
-		entry = { recursive, resourcesToWatch: new ResourceSet() };
+		entry = { recursive, resourcesToWatch: new ResourceSet(), exactResourcesToWatch: new ResourceSet() };
 		map.set(watchUri, entry);
 	} else if (recursive && !entry.recursive) {
-		entry = { recursive: true, resourcesToWatch: entry.resourcesToWatch };
+		entry = { recursive: true, resourcesToWatch: entry.resourcesToWatch, exactResourcesToWatch: entry.exactResourcesToWatch };
 		map.set(watchUri, entry);
 	}
-	entry.resourcesToWatch.add(resourceToWatch);
+	(exact ? entry.exactResourcesToWatch : entry.resourcesToWatch).add(resourceToWatch);
 }
 
 /**
@@ -154,14 +155,17 @@ function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolea
  * discovered through multiple paths (de-duped by URI).
  *
  * `_workingDirectories` is primary-first when non-empty: index 0 is the primary
- * root and indices 1..N are additional multi-root folders. An empty set performs
- * user-home discovery only, which keeps workspace-less scratch content inert.
+ * root and indices 1..N are additional multi-root folders. Missing roots are
+ * excluded until recreated; an empty available set performs user-home discovery only.
  */
 export class SessionCustomizationDiscovery extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly _missingWorkingDirectories = new ResourceSet();
+	private _availableWorkingDirectories: readonly URI[] | undefined;
+	private _workingDirectoryWatchRoots: readonly { parent: URI; resource: URI }[] | undefined;
 	private _discoveredDirectories: readonly IDiscoveredDirectory[] | undefined = undefined;
 
 	private readonly _watchers = new ResourceMap<IWatchSpec & { readonly disposable: IDisposable }>();
@@ -177,18 +181,77 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
-				for (const uri of watcher.resourcesToWatch) {
-					if (e.affects(uri)) {
-						this._scheduleRefresh();
-						return;
-					}
+				if (watcher.resourcesToWatch.size > 0 && this._handleFileChanges(e, watcher)) {
+					return;
 				}
 			}
 		}));
 	}
 
+	private _handleFileChanges(event: FileChangesEvent, watcher: IWatchSpec): boolean {
+		const rootsChanged = [...watcher.exactResourcesToWatch].some(uri => event.contains(uri, FileChangeType.ADDED, FileChangeType.DELETED));
+		if (rootsChanged) {
+			this._invalidateWorkingDirectories();
+			for (const [uri, entry] of this._watchers) {
+				if (event.contains(uri, FileChangeType.DELETED)) {
+					entry.disposable.dispose();
+					this._watchers.delete(uri);
+				}
+			}
+		}
+		if (rootsChanged || [...watcher.resourcesToWatch].some(uri => event.affects(uri))) {
+			this._scheduleRefresh();
+			return true;
+		}
+		return false;
+	}
+
 	private _scheduleRefresh(): void {
 		this._onDidChange.fire();
+	}
+
+	private _invalidateWorkingDirectories(): void {
+		this._availableWorkingDirectories = undefined;
+		this._workingDirectoryWatchRoots = undefined;
+		this._discoveredDirectories = undefined;
+	}
+
+	private async _isExistingDirectory(resource: URI, token: CancellationToken): Promise<boolean> {
+		try {
+			return (await raceCancellationError(this._fileService.stat(resource), token)).isDirectory;
+		} catch (err) {
+			if (err instanceof Error && (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND || toFileOperationResult(err) === FileOperationResult.FILE_NOT_DIRECTORY)) {
+				return false;
+			}
+			throw err;
+		}
+	}
+
+	private async _getAvailableWorkingDirectories(token: CancellationToken): Promise<readonly URI[]> {
+		if (this._availableWorkingDirectories) {
+			return this._availableWorkingDirectories;
+		}
+
+		const available: URI[] = [];
+		for (const directory of this._workingDirectories) {
+			throwIfCancelled(token);
+			if (await this._isExistingDirectory(directory, token)) {
+				available.push(directory);
+			}
+		}
+		throwIfCancelled(token);
+
+		const availableRoots = new ResourceSet(available);
+		for (const directory of this._workingDirectories) {
+			if (availableRoots.has(directory)) {
+				this._missingWorkingDirectories.delete(directory);
+			} else if (!this._missingWorkingDirectories.has(directory)) {
+				this._missingWorkingDirectories.add(directory);
+				this._logService.debug(`[SessionCustomizationDiscovery] Skipping missing working directory: ${directory.toString()}`);
+			}
+		}
+		this._availableWorkingDirectories = available;
+		return available;
 	}
 
 	/**
@@ -246,7 +309,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 * This may expand to all roots in the future — see `MULTI_ROOT_CHANGES.md`.
 	 */
 	private get _hookWorkingDirectories(): readonly URI[] {
-		return this._workingDirectories.slice(0, 1);
+		return this._workingDirectories.slice(0, 1).filter(root => !this._missingWorkingDirectories.has(root));
 	}
 
 	private async writeCustomizationDiscoveryDebugLog(payload: Record<string, unknown>): Promise<void> {
@@ -265,10 +328,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async getDiscoveredDirectories(client: CopilotClient, token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
+	private async getDiscoveredDirectories(client: CopilotClient, p: AgentsDiscoverRequest, token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
 		throwIfCancelled(token);
 
-		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectories.map(uri => uri.fsPath) };
 		const result = this.getHooksDiscoveryPaths();
 		const workspaceAgentInstructionFilesByRoot = new ResourceMap<IDiscoveredFile[]>();
 		const userAgentInstructionFiles: IDiscoveredFile[] = [];
@@ -399,6 +461,29 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private async _updateWatchers(discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
 		const nextWatchRootUris = new ResourceMap<IWatchSpec>();
+		if (!this._workingDirectoryWatchRoots) {
+			const watchRoots: { parent: URI; resource: URI }[] = [];
+			for (const directory of this._workingDirectories) {
+				let current = directory;
+				while (true) {
+					throwIfCancelled(token);
+					const parent = uriDirname(current);
+					if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
+						break;
+					}
+					if (await this._isExistingDirectory(parent, token)) {
+						watchRoots.push({ parent, resource: current });
+						break;
+					}
+					current = parent;
+				}
+			}
+			throwIfCancelled(token);
+			this._workingDirectoryWatchRoots = watchRoots;
+		}
+		for (const { parent, resource } of this._workingDirectoryWatchRoots) {
+			addWatch(nextWatchRootUris, parent, false, resource, true);
+		}
 		const toResolve = new ResourceSet();
 		const recursiveByDirectory = new ResourceMap<boolean>();
 
@@ -487,25 +572,36 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 
+		throwIfCancelled(token);
 		this._reconcileWatchers(nextWatchRootUris);
 	}
 
 
-	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly SessionDiscoveredCustomization[]> {
+	public async discover(client: CopilotClient, cancellationToken: CancellationToken): Promise<readonly SessionDiscoveredCustomization[]> {
 		await this.writeCustomizationDiscoveryDebugLog({
 			method: 'discover',
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
 			userHome: this._userHome.toString(),
 		});
-		if (!this._discoveredDirectories) {
-			this._discoveredDirectories = await this.getDiscoveredDirectories(client, token);
-		}
-
-		throwIfCancelled(token);
-
+		const discoveryCts = new CancellationTokenSource(cancellationToken);
+		const token = discoveryCts.token;
 		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectories.map(uri => uri.fsPath) };
 
 		try {
+			throwIfCancelled(token);
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			if (!this._availableWorkingDirectories) {
+				await this._updateWatchers([], token);
+			}
+			const workingDirectories = await this._getAvailableWorkingDirectories(token);
+			p.projectPaths = workingDirectories.map(uri => uri.fsPath);
+			if (!this._discoveredDirectories) {
+				this._discoveredDirectories = await this.getDiscoveredDirectories(client, p, token);
+			}
+			throwIfCancelled(token);
+
 			const pluginFiles = new ResourceSet();
 			const [agents, rules, skills, hooks] = await Promise.all([
 				this.discoverAgents(p, client, pluginFiles, token),
@@ -543,8 +639,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 				throw err;
 			}
 
+			this._invalidateWorkingDirectories();
 			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}, projectPaths: ${(p.projectPaths ?? []).join(', ')}`);
 			return [];
+		} finally {
+			discoveryCts.dispose(true);
 		}
 	}
 
@@ -591,8 +690,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			} else {
 				// Resolve the relative source against the workspace root the SDK attributed
 				// it to (`projectPath` disambiguates same-named files across multiple roots).
-				// Fall back to the primary root for sources without an attributed project.
-				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
+				// Fall back to the first available root for sources without an attributed project.
+				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._rootForProjectPath(discoveryRequest.projectPaths?.[0]) ?? this._userHome;
 				uri = joinPath(anchor, instruction.sourcePath);
 			}
 			if (instruction.type === 'plugin' || instruction.location === 'plugin') {
@@ -952,10 +1051,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 
 	private _reconcileWatchers(nextWatchRootUris: ResourceMap<IWatchSpec>): void {
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		// Dispose watchers that are gone or whose recursive flag changed.
 		for (const [rootUri, watcher] of this._watchers.entries()) {
 			const next = nextWatchRootUris.get(rootUri);
-			if (!next || next.recursive !== watcher.recursive) {
+			if (!next || next.recursive !== watcher.recursive || (next.resourcesToWatch.size === 0) !== (watcher.resourcesToWatch.size === 0)) {
 				watcher.disposable.dispose();
 				this._watchers.delete(rootUri);
 			}
@@ -969,12 +1071,25 @@ export class SessionCustomizationDiscovery extends Disposable {
 				for (const uri of next.resourcesToWatch) {
 					existing.resourcesToWatch.add(uri);
 				}
+				existing.exactResourcesToWatch.clear();
+				for (const uri of next.exactResourcesToWatch) {
+					existing.exactResourcesToWatch.add(uri);
+				}
 				continue;
 			}
+			const store = new DisposableStore();
+			const entry = { ...next, disposable: store };
+			this._watchers.set(rootUri, entry);
 			try {
-				const disposable = this._fileService.watch(rootUri, { recursive: next.recursive, excludes: [] });
-				this._watchers.set(rootUri, { recursive: next.recursive, resourcesToWatch: next.resourcesToWatch, disposable });
+				if (!next.recursive && next.resourcesToWatch.size === 0) {
+					const watcher = store.add(this._fileService.createWatcher(rootUri, { recursive: false, excludes: [] }));
+					store.add(watcher.onDidChange(event => this._handleFileChanges(event, entry)));
+				} else {
+					store.add(this._fileService.watch(rootUri, { recursive: next.recursive, excludes: [] }));
+				}
 			} catch (err) {
+				store.dispose();
+				this._watchers.delete(rootUri);
 				this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
