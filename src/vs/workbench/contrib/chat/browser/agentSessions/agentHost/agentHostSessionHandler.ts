@@ -122,7 +122,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -994,9 +994,10 @@ export interface IAgentHostSessionHandlerConfig {
 	/**
 	 * Optional callback to resolve a working directory for a new session.
 	 * If not provided or unresolved, session resource resolvers are consulted before
-	 * falling back to the first workspace folder.
+	 * falling back to the first workspace folder. An explicit `null` means the host
+	 * must choose the directory, so no local fallback is substituted.
 	 */
-	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
+	readonly resolveWorkingDirectory?: (sessionResource: URI) => RequestedWorkingDirectory;
 	/** Prepares a new session's directory before resolving its customization scope and creating it. */
 	readonly prepareSession?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
@@ -6557,7 +6558,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {
-		return this._config.resolveWorkingDirectory?.(sessionResource)
+		const configured = this._config.resolveWorkingDirectory?.(sessionResource);
+		if (configured === null) {
+			return undefined;
+		}
+		return configured
 			?? this._newSessionFolderService?.getFolder(sessionResource)
 			?? this._workingDirectoryResolver?.resolve(sessionResource)
 			?? this._newSessionFolderService?.getDefaultFolder()

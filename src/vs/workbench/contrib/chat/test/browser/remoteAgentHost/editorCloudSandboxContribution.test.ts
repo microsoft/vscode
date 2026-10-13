@@ -50,7 +50,7 @@ import { GitRepositoryState, IGitRepository, IGitService } from '../../../../git
 import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
@@ -380,9 +380,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			});
 		}
 	})));
-	const resolvers = new Map<string, { resolve: (resource: URI) => URI | undefined; isNew: (resource: URI) => boolean }>();
+	const resolvers = new Map<string, { resolve: (resource: URI) => RequestedWorkingDirectory; isNew: (resource: URI) => boolean }>();
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
-		override registerResolver(type: string, resolve: (resource: URI) => URI | undefined, isNew: (resource: URI) => boolean = () => false) {
+		override registerResolver(type: string, resolve: (resource: URI) => RequestedWorkingDirectory, isNew: (resource: URI) => boolean = () => false) {
 			resolvers.set(type, { resolve, isNew });
 			return toDisposable(() => resolvers.delete(type));
 		}
@@ -802,7 +802,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
 	});
 
-	test('creating a session without a repository starts in the host default directory', async () => {
+	test('creating a session without a repository leaves the working directory to the host', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
 			createSession: async () => created,
@@ -821,7 +821,7 @@ suite('Editor cloud sandbox discovery', () => {
 		}, {
 			label: created.taskId,
 			createRequests: [{ repoNwo: undefined, prompt: '' }],
-			workingDirectory: undefined,
+			workingDirectory: null,
 		});
 	});
 

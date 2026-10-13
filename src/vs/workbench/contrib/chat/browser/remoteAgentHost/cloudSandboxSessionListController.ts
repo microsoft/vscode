@@ -27,6 +27,7 @@ import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
+import { RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ICloudSandboxSessionList } from './cloudSandboxSessionContribution.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
 
@@ -190,18 +191,15 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}
 	}
 
-	resolveWorkingDirectory(resource: URI): URI | undefined {
+	resolveWorkingDirectory(resource: URI): RequestedWorkingDirectory {
 		const rawId = AgentSession.id(resource);
 		const connection = this._connection.get();
 		if (this.isNewSession(resource) && this._provisionalRepositories.has(rawId)) {
-			// Session preparation clones the requested repository and yields its host directory;
-			// a workspaceless sandbox starts in the host's default directory rather than a local folder.
+			// Session preparation clones the requested repository and yields its host directory.
+			// A workspaceless sandbox explicitly leaves the choice to the host so a local
+			// workspace folder is never substituted.
 			const repoNwo = this._provisionalRepositories.get(rawId);
-			if (repoNwo) {
-				return URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` });
-			}
-			const defaultDirectory = connection?.initializeResult.get()?.defaultDirectory;
-			return defaultDirectory ? connection?.resourceUris.fromAgentHost(URI.parse(defaultDirectory)) : undefined;
+			return repoNwo ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` }) : null;
 		}
 		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === rawId);
 		const directory = entry?.summary.workingDirectories?.[0];
