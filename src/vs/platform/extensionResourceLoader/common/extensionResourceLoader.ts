@@ -12,7 +12,6 @@ import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
-import { resolveMarketplaceAuthorizationHeaders } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils.js';
@@ -144,7 +143,10 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
 		}
-		Object.assign(headers, await resolveMarketplaceAuthorizationHeaders(resource.toString(true), this._extensionGalleryManifestService));
+		const accessToken = await this._extensionGalleryManifestService.getAccessToken(resource.toString(true));
+		if (accessToken) {
+			headers.Authorization = `Bearer ${accessToken}`;
+		}
 		return headers;
 	}
 

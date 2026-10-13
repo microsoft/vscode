@@ -24,7 +24,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess } from '../../request/common/request.js';
-import { resolveMarketplaceAuthorizationHeaders, resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -1919,8 +1919,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	private async getRequestHeaders(url: string, headers?: IHeaders): Promise<IHeaders> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.extensionGalleryManifestService);
-		return { ...commonHeaders, ...headers, ...authorizationHeaders };
+		const accessToken = await this.extensionGalleryManifestService.getAccessToken(url);
+		return { ...commonHeaders, ...headers, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
 	}
 
 	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
@@ -1989,11 +1989,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
-		const authHeader = await resolveMarketplaceAuthorizationHeaders(this.extensionsControlUrl, this.extensionGalleryManifestService);
+		const accessToken = await this.extensionGalleryManifestService.getAccessToken(this.extensionsControlUrl);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			headers: authHeader,
+			headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
 			timeout: this.getRequestTimeout(),
 			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);

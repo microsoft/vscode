@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
-import { resolveMarketplaceAuthorizationHeaders, resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
+import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
@@ -282,10 +282,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this);
+		const accessToken = await this.getAccessToken(url);
 		const headers: IHeaders = {
 			...commonHeaders,
-			...authorizationHeaders,
+			...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
 			'Content-Type': 'application/json',
 			'Accept-Encoding': 'gzip',
 		};
