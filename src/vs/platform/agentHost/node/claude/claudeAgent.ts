@@ -117,7 +117,7 @@ interface IClaudeModelSupports {
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
 	const supports = m.capabilities?.supports;
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
-	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
+	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts, m.id);
 	const policyState = m.policy?.state as PolicyState | undefined;
 	const billing = normalizeCAPIBilling(m.billing);
 	// priceCategory may appear as a top-level model field depending on the CAPI version.
@@ -169,7 +169,7 @@ function isSdkDefaultModel(m: ModelInfo): boolean {
  */
 export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentModelInfo {
 	const supportedEfforts = (m.supportedEffortLevels ?? []).filter(isClaudeEffortLevel);
-	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
+	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts, m.value);
 	return {
 		provider,
 		// SDK-canonical id (`m.value`, e.g. `claude-sonnet-4-5-20250929`). Native
