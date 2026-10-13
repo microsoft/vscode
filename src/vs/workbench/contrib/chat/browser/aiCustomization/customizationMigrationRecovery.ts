@@ -248,7 +248,7 @@ export async function restoreCustomizationMigrationSources(
 				await fileService.del(staging, { recursive: entry.source.kind === 'directory' });
 			}
 			if (restoreVerified && sourceDisplaced && await fileService.exists(displacedSource)) {
-				await fileService.del(displacedSource, { recursive: entry.source.kind === 'directory' });
+				await fileService.del(displacedSource, { recursive: true });
 			}
 		}
 		restored++;

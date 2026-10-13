@@ -129,4 +129,27 @@ suite('Customization migration recovery', () => {
 
 		assert.strictEqual((await fileService.readFile(source)).value.toString(), 'changed after confirmation');
 	});
+
+	test('removes a directory that displaced an original file', async () => {
+		const fileService = createFileService();
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/customizationMigrations/flow-4' });
+		const source = URI.from({ scheme: Schemas.inMemory, path: '/user/agent.agent.md' });
+		await fileService.writeFile(source, VSBuffer.fromString('original'));
+		const recovery = await prepareCustomizationMigrationRecovery(fileService, root, 'flow-4', { id: 'copilot', label: 'Copilot' }, [
+			{ uri: source, storage: PromptsStorage.user, type: PromptsType.agent },
+		]);
+		await fileService.del(source);
+		await fileService.writeFile(URI.joinPath(source, 'nested.md'), VSBuffer.fromString('replacement'));
+		const plan = await createCustomizationMigrationRecoveryPlan(fileService, recovery.manifestResource);
+
+		const result = await restoreCustomizationMigrationSources(fileService, plan, true);
+
+		assert.deepStrictEqual({
+			result,
+			content: (await fileService.readFile(source)).value.toString(),
+		}, {
+			result: { restored: 1, unchanged: 0 },
+			content: 'original',
+		});
+	});
 });

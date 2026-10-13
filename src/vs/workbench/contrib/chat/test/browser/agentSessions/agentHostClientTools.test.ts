@@ -237,23 +237,23 @@ suite('AgentHostClientTools', () => {
 		const source = URI.parse('agent-host-test:/draft');
 		const target = URI.parse('agent-host-test:/session');
 		const other = URI.parse('agent-host-test:/other');
-		const sourceTools = service.observeSessionTools(source);
-		const targetTools = service.observeSessionTools(target);
-		const otherTools = service.observeSessionTools(other);
+		const sourceTools = disposables.add(service.acquireSessionTools(source));
+		const targetTools = disposables.add(service.acquireSessionTools(target));
+		const otherTools = disposables.add(service.acquireSessionTools(other));
 		const ordinaryScope = disposables.add(service.acquireScope('agent-host-test', []));
 
 		service.setSessionTools(source, [tool.id]);
 		const beforeMove = {
 			ordinary: ordinaryScope.tools.get().map(tool => tool.name),
-			source: sourceTools.get().map(tool => tool.name),
-			target: targetTools.get().map(tool => tool.name),
-			other: otherTools.get().map(tool => tool.name),
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
 		};
 		service.moveSessionTools(source, target);
 		const afterMove = {
-			source: sourceTools.get().map(tool => tool.name),
-			target: targetTools.get().map(tool => tool.name),
-			other: otherTools.get().map(tool => tool.name),
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
 		};
 		service.clearSessionTools(target);
 
@@ -261,13 +261,24 @@ suite('AgentHostClientTools', () => {
 			beforeMove,
 			afterMove,
 			afterClear: {
-				source: sourceTools.get().map(tool => tool.name),
-				target: targetTools.get().map(tool => tool.name),
+				source: sourceTools.object.get().map(tool => tool.name),
+				target: targetTools.object.get().map(tool => tool.name),
 			},
 		}, {
 			beforeMove: { ordinary: [], source: ['session_tool'], target: [], other: [] },
 			afterMove: { source: ['session_tool'], target: ['session_tool'], other: [] },
 			afterClear: { source: [], target: [] },
+		});
+
+		test('releases empty session tool observations', () => {
+			const { service } = createActiveClientService();
+			const session = URI.parse('agent-host-test:/ordinary');
+			const first = service.acquireSessionTools(session);
+			const firstObservable = first.object;
+			first.dispose();
+			const second = disposables.add(service.acquireSessionTools(session));
+
+			assert.notStrictEqual(second.object, firstObservable);
 		});
 	});
 

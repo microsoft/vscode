@@ -1049,7 +1049,7 @@ class ActiveClientEntry extends Disposable {
 
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
-		sessionTools: IObservable<readonly ToolDefinition[]>,
+		sessionTools: IReference<IObservable<readonly ToolDefinition[]>>,
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
@@ -1061,7 +1061,7 @@ class ActiveClientEntry extends Disposable {
 			const activeClient = scopedActiveClient.read(reader);
 			const tools = [...activeClient.tools];
 			const toolNames = new Set(tools.map(tool => tool.name));
-			for (const tool of sessionTools.read(reader)) {
+			for (const tool of sessionTools.object.read(reader)) {
 				if (!toolNames.has(tool.name)) {
 					tools.push(tool);
 					toolNames.add(tool.name);
@@ -1071,6 +1071,7 @@ class ActiveClientEntry extends Disposable {
 		});
 		this._publishDelayer = this._register(new Delayer<void>(debounceDelay));
 		this._register(_scope);
+		this._register(sessionTools);
 		this._register(toDisposable(() => this._cancellation.dispose(true)));
 		this._register(autorun(reader => {
 			if (!this._scope.isResolved.read(reader)) {
@@ -2537,7 +2538,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
 		const entry = new ActiveClientEntry(
 			scope,
-			this._activeClientService.observeSessionTools(sessionResource),
+			this._activeClientService.acquireSessionTools(sessionResource),
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),

@@ -117,14 +117,18 @@ export interface ICustomizationMigrationAgentReport {
 	readonly outcomes: readonly ICustomizationMigrationAgentOutcome[];
 }
 
+interface IPendingCustomizationMigrationResult {
+	readonly inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>;
+	readonly lifecycle: ICustomizationMigrationSessionLifecycle;
+	readonly disposables: DisposableStore;
+	terminalStatus?: 'completed' | 'cancelled';
+	finishIfStopped?: () => void;
+}
+
 export class CustomizationMigrationTelemetryService extends Disposable implements ICustomizationMigrationTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly agentMigrationResults = new Map<string, {
-		readonly inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>;
-		readonly lifecycle: ICustomizationMigrationSessionLifecycle;
-		readonly disposables: DisposableStore;
-	}>();
+	private readonly agentMigrationResults = new Map<string, IPendingCustomizationMigrationResult>();
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -203,7 +207,7 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 			return;
 		}
 		const finishIncompleteMigration = (cancelled: boolean): void => {
-			if (this.agentMigrationResults.get(migrationFlowId) !== pending) {
+			if (this.agentMigrationResults.get(migrationFlowId) !== pending || pending.terminalStatus !== undefined) {
 				return;
 			}
 			this.deleteAgentMigrationResult(migrationFlowId);
@@ -223,6 +227,7 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 				}
 			};
 			pending.disposables.add(model.onDidChange(finishWhenStopped));
+			pending.finishIfStopped = finishWhenStopped;
 			finishWhenStopped();
 		} else {
 			finishIncompleteMigration(false);
@@ -241,8 +246,18 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 			throw new Error('No pending customization migration matches this result.');
 		}
 		const report = parseCustomizationMigrationAgentResult(result, migrationFlowId, pending.inventoryCounts);
-		await pending.lifecycle.onDidFinish?.(report.cancelled ? 'cancelled' : 'completed');
-		this.deleteAgentMigrationResult(migrationFlowId);
+		if (pending.terminalStatus !== undefined) {
+			throw new Error('No pending customization migration matches this result.');
+		}
+		pending.terminalStatus = report.cancelled ? 'cancelled' : 'completed';
+		try {
+			await pending.lifecycle.onDidFinish?.(pending.terminalStatus);
+		} catch (error) {
+			pending.terminalStatus = undefined;
+			pending.finishIfStopped?.();
+			throw error;
+		}
+		this.deleteAgentMigrationResult(migrationFlowId, pending);
 		for (const outcome of report.outcomes) {
 			if (outcome.requestedCount > 0 || report.cancelled) {
 				this.migrationCompleted(
@@ -258,12 +273,14 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 		}
 	}
 
-	private deleteAgentMigrationResult(migrationFlowId: string): void {
+	private deleteAgentMigrationResult(migrationFlowId: string, expected?: IPendingCustomizationMigrationResult): boolean {
 		const pending = this.agentMigrationResults.get(migrationFlowId);
-		if (pending) {
+		if (pending && (!expected || pending === expected)) {
 			this.agentMigrationResults.delete(migrationFlowId);
 			pending.disposables.dispose();
+			return true;
 		}
+		return false;
 	}
 
 	private send(event: CustomizationMigrationEvent): void {

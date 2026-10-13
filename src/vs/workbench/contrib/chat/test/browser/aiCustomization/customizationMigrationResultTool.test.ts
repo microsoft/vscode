@@ -93,4 +93,32 @@ suite('Customization migration result tool', () => {
 		}, undefined as never, undefined as never, CancellationToken.None), /Invalid result/);
 		assert.deepStrictEqual(cleared, []);
 	});
+
+	test('reports a background result without an invocation context', async () => {
+		const reports: unknown[] = [];
+		const tool = new CustomizationMigrationResultTool(
+			new class extends mock<ICustomizationMigrationTelemetryService>() {
+				override async reportAgentMigrationResult(result: unknown): Promise<void> {
+					reports.push(result);
+				}
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+		);
+		const parameters = { migrationFlowId: 'flow' };
+
+		const result = await tool.invoke({
+			callId: 'call',
+			toolId: CustomizationMigrationResultToolData.id,
+			parameters,
+			context: undefined,
+		}, undefined as never, undefined as never, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			reports,
+			result,
+		}, {
+			reports: [parameters],
+			result: { content: [{ kind: 'text', value: 'Customization migration outcome reported.' }] },
+		});
+	});
 });

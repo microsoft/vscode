@@ -8,7 +8,7 @@ import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
@@ -80,7 +80,7 @@ export interface IAgentHostActiveClientService {
 	setSessionTools(sessionResource: URI, toolIds: readonly string[]): void;
 	moveSessionTools(source: URI, target: URI): void;
 	clearSessionTools(sessionResource: URI): void;
-	observeSessionTools(sessionResource: URI): IObservable<readonly ToolDefinition[]>;
+	acquireSessionTools(sessionResource: URI): IReference<IObservable<readonly ToolDefinition[]>>;
 }
 
 /** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
@@ -286,6 +286,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 	private readonly _sessionTools = new ResourceMap<ISettableObservable<readonly ToolDefinition[]>>();
+	private readonly _sessionToolObservers = new ResourceMap<number>();
 	private readonly _sessionToolAliases = new ResourceMap<readonly URI[]>();
 	private readonly _scopes = new Map<string, AgentCustomizationScope>();
 	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
@@ -423,8 +424,29 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		}
 	}
 
-	observeSessionTools(sessionResource: URI): IObservable<readonly ToolDefinition[]> {
-		return this._getSessionTools(sessionResource);
+	acquireSessionTools(sessionResource: URI): IReference<IObservable<readonly ToolDefinition[]>> {
+		const tools = this._getSessionTools(sessionResource);
+		this._sessionToolObservers.set(sessionResource, (this._sessionToolObservers.get(sessionResource) ?? 0) + 1);
+		let disposed = false;
+		return {
+			object: tools,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const observers = (this._sessionToolObservers.get(sessionResource) ?? 1) - 1;
+				if (observers > 0) {
+					this._sessionToolObservers.set(sessionResource, observers);
+				} else {
+					this._sessionToolObservers.delete(sessionResource);
+					if (this._sessionTools.get(sessionResource) === tools && tools.get().length === 0) {
+						this._sessionTools.delete(sessionResource);
+						this._sessionToolAliases.delete(sessionResource);
+					}
+				}
+			},
+		};
 	}
 
 	private _getSessionTools(sessionResource: URI): ISettableObservable<readonly ToolDefinition[]> {

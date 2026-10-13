@@ -96,12 +96,11 @@ export class CustomizationMigrationResultTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: never, _progress: never, _token: CancellationToken): Promise<IToolResult> {
-		const sessionResource = invocation.context?.sessionResource;
-		if (!sessionResource) {
-			throw new Error('Cannot report a customization migration without a session.');
-		}
 		await this.telemetryService.reportAgentMigrationResult(invocation.parameters);
-		this.activeClientService.clearSessionTools(sessionResource);
+		const sessionResource = invocation.context?.sessionResource;
+		if (sessionResource) {
+			this.activeClientService.clearSessionTools(sessionResource);
+		}
 		return {
 			content: [{ kind: 'text', value: localize('customizationMigrationResultTool.success', "Customization migration outcome reported.") }],
 		};

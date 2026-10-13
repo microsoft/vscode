@@ -298,6 +298,7 @@ suite('aiCustomizationManagementEditor', () => {
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileService: IFileService;
 		environmentService: { workspaceStorageHome: URI };
+		workspaceContextService: { getWorkspace(): { id: string } };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
 		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		getActiveHarnessLabel(): string;
@@ -456,6 +457,7 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
 			isSessionsWindow: false,
 		};
+		editor.workspaceContextService = { getWorkspace: () => ({ id: 'workspace-id' }) };
 		editor.commandService = { executeCommand: async () => undefined };
 		editor.chatWidgetService = { getWidgetBySessionResource: () => undefined };
 		editor.viewsService = { openView: async () => undefined };
@@ -567,7 +569,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
-		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/customizationMigrations' });
+		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
 		await fileService.writeFile(source, VSBuffer.fromString('original'));
 		editor.fileService = fileService;
 		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
@@ -666,7 +668,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
-		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'customizationMigrations');
+		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'workspace-id', 'customizationMigrations');
 		editor.fileService = fileService;
 		editor.environmentService = { workspaceStorageHome };
 

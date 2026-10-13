@@ -1201,7 +1201,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		setSessionTools: () => { },
 		moveSessionTools: () => { },
 		clearSessionTools: () => { },
-		observeSessionTools: () => constObservable([]),
+		acquireSessionTools: () => ({ object: constObservable([]), dispose() { } }),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
