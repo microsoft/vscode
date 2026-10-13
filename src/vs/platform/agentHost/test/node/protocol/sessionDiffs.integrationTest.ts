@@ -14,7 +14,8 @@ import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChan
 import { ListSessionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ChangesetContentChangedAction, SessionAddedParams, SessionSummaryChangedParams } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { ROOT_STATE_URI, buildDefaultChatUri, type SessionState } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
+import { defaultChatChannel } from '../hostDefaultChats.js';
 import {
 	dispatchTurnStarted,
 	getAgentHostE2ETestTimeout,
@@ -104,7 +105,7 @@ const hasGit = (() => {
 		// subscription does not receive Branch or Session Changes updates.
 		const branchChangesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionUri, getWorkingDirectoryScopeId([workingDirectory])));
 		const sessionChangesetUri = buildSessionChangesetUri(sessionUri);
-		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		await client.call<SubscribeResult>('subscribe', { channel: branchChangesetUri });
 		await client.call<SubscribeResult>('subscribe', { channel: sessionChangesetUri });
 		client.clearReceived();
