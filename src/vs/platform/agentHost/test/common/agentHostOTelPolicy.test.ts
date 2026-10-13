@@ -63,7 +63,7 @@ suite('Agent Host OTel managed policy registration', () => {
 		}
 
 		override inspect<T>(key: string): IConfigurationValue<T> {
-				const properties = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
+			const properties = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
 			return {
 				...super.inspect<T>(key),
 				policyValue: properties[key]?.policy?.value?.(this.policyData) as T | undefined,
