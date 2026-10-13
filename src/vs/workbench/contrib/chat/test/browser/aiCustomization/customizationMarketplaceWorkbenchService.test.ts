@@ -557,12 +557,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				sections: [{
 					id: feedIds.editorsPicks,
 					title: 'Editor\'s picks',
-					presentation: 'hero',
 					items: [entry('first'), entry('second')].map(item => ({ ...item, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id })),
 				}, {
 					id: feedIds.connectYourWork,
 					title: 'Connect your work',
-					presentation: 'list',
 					items: [{ ...entry('third'), sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id }],
 				}],
 				error: 'Plan feed unavailable',

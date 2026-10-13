@@ -921,7 +921,6 @@ function curatedMarketplaceResource(
 const curatedMarketplaceSections = [{
 	id: 'editors',
 	title: 'Editor\'s picks',
-	presentation: 'hero' as const,
 	items: [
 		curatedMarketplaceResource('curated/impeccable', 'Impeccable', 'Polish frontend interfaces with focused design reviews and concrete implementation guidance.', CustomizationMarketplaceMediaType.Skill, 'pbakaus'),
 		curatedMarketplaceResource('curated/foundry', 'Microsoft Foundry canvas', 'Design and inspect hosted agents with project-aware tools and an integrated canvas.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
@@ -929,7 +928,6 @@ const curatedMarketplaceSections = [{
 }, {
 	id: 'plan',
 	title: 'Plan, build, and ship',
-	presentation: 'compact' as const,
 	items: [
 		curatedMarketplaceResource('curated/figma', 'Figma MCP', 'Bring design context into implementation.', CustomizationMarketplaceMediaType.McpServer, 'Figma'),
 		curatedMarketplaceResource('curated/playwright', 'Playwright MCP', 'Automate browsers through accessible page snapshots.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
@@ -939,7 +937,6 @@ const curatedMarketplaceSections = [{
 }, {
 	id: 'connect',
 	title: 'Connect your work',
-	presentation: 'list' as const,
 	items: [
 		curatedMarketplaceResource('curated/workiq', 'WorkIQ', 'Find answers across Microsoft 365 mail, meetings, documents, and Teams.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
 		curatedMarketplaceResource('curated/sentry', 'Sentry canvas', 'Investigate and triage application issues from Sentry.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Sentry'),
@@ -2074,8 +2071,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
-		const expectedFeaturedIconSize = options.curatedFeedsEnabled ? 56 : 40;
-		assert(!cardIcon || cardIcon.offsetWidth === expectedFeaturedIconSize && cardIcon.offsetHeight === expectedFeaturedIconSize, 'Discover cards must use the presentation-appropriate marketplace icon size.');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
 		if (options.curatedFeedsEnabled) {
 			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
 			const actualOrder = renderedSections.flatMap(section => [
@@ -2084,7 +2080,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			]);
 			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
 			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
-			assert(['hero', 'compact', 'list'].every((presentation, index) => renderedSections[index]?.classList.contains(presentation)), 'Discover must preserve the saved feed presentation order.');
+			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
 		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
@@ -3956,14 +3952,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BrowseCuratedFeeds: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: [
-			'Browse shows Editor\'s picks as two spacious hero cards, Plan, build, and ship as a compact two-column grid, and Connect your work as four single-column list rows. All sections preserve their curated item order and remain visually calm, focused, and aligned with the shared content measure.',
+			'Browse uses the existing customization card layout unchanged while replacing its content with the three curated feed sections in feed order. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
 		],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			curatedFeedsEnabled: true,
 			width: 1200,
-			height: 820,
+			height: 760,
 		}),
 	}),
 

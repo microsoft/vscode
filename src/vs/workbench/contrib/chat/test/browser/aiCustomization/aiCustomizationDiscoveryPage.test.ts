@@ -2221,7 +2221,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}]);
 	});
 
-	test('renders curated Browse sections in feed and presentation order', async () => {
+	test('renders curated Browse sections in feed order using existing cards', async () => {
 		const editorsPicks = [
 			resource('impeccable', { displayName: 'Impeccable', mediaType: CustomizationMarketplaceMediaType.Skill, description: 'Improve interface design.' }),
 			resource('foundry', { displayName: 'Foundry canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, description: 'Design hosted agents.' }),
@@ -2245,17 +2245,14 @@ suite('AICustomizationDiscoveryPage', () => {
 				sections: [{
 					id: 'editors',
 					title: 'Editor\'s picks',
-					presentation: 'hero',
 					items: editorsPicks,
 				}, {
 					id: 'plan',
 					title: 'Plan, build, and ship',
-					presentation: 'compact',
 					items: planBuildAndShip,
 				}, {
 					id: 'connect',
 					title: 'Connect your work',
-					presentation: 'list',
 					items: connectYourWork,
 				}],
 			},
@@ -2266,7 +2263,6 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		const sections = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-section')].map(section => ({
 			title: section.querySelector('.customization-discovery-section-title')?.textContent,
-			presentation: ['hero', 'compact', 'list'].find(candidate => section.classList.contains(candidate)),
 			featured: section.classList.contains('featured'),
 			items: [...section.querySelectorAll('.customization-discovery-card-name')].map(element => element.textContent),
 		}));
@@ -2285,17 +2281,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			sections: [{
 				title: 'Editor\'s picks',
-				presentation: 'hero',
 				featured: true,
 				items: ['Impeccable', 'Foundry canvas'],
 			}, {
 				title: 'Plan, build, and ship',
-				presentation: 'compact',
 				featured: false,
 				items: ['Figma MCP', 'Playwright MCP'],
 			}, {
 				title: 'Connect your work',
-				presentation: 'list',
 				featured: false,
 				items: ['WorkIQ', 'Azure DevOps MCP'],
 			}],
