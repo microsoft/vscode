@@ -21,6 +21,7 @@ export interface IProjectBoardViewState {
 	readonly collapsedRows: readonly string[];
 	readonly collapsedColumns: readonly string[];
 	readonly unassignedCollapsed: boolean;
+	readonly topicsCollapsed?: boolean;
 	readonly visibleCounts: readonly (readonly [string, number])[];
 }
 
@@ -33,16 +34,18 @@ export function validateProjectBoardViewState(value: unknown): IProjectBoardView
 	const counts = (value: unknown): value is [string, number][] => Array.isArray(value) && value.every(entry =>
 		Array.isArray(entry) && entry.length === 2 && isIdentifier(entry[0]) && Number.isSafeInteger(entry[1]) && entry[1] > 0)
 		&& new Set(value.map(entry => entry[0])).size === value.length;
-	if (!hasKeys(value, ['version', 'expandedCards', 'expandedChats', 'collapsedRows', 'collapsedColumns', 'unassignedCollapsed', 'visibleCounts'])
+	if (!hasKeys(value, ['version', 'expandedCards', 'expandedChats', 'collapsedRows', 'collapsedColumns', 'unassignedCollapsed', 'visibleCounts'], ['topicsCollapsed'])
 		|| value.version !== 1 || !identifiers(value.expandedCards) || !identifiers(value.expandedChats)
 		|| !identifiers(value.collapsedRows) || !identifiers(value.collapsedColumns)
-		|| typeof value.unassignedCollapsed !== 'boolean' || !counts(value.visibleCounts)) {
+		|| typeof value.unassignedCollapsed !== 'boolean' || !counts(value.visibleCounts)
+		|| Object.hasOwn(value, 'topicsCollapsed') && typeof value.topicsCollapsed !== 'boolean') {
 		throw new Error(localize('projectBoard.invalidViewState', "The saved Agents Hub view state is invalid."));
 	}
 	return {
 		version: 1, expandedCards: value.expandedCards, expandedChats: value.expandedChats,
 		collapsedRows: value.collapsedRows, collapsedColumns: value.collapsedColumns,
 		unassignedCollapsed: value.unassignedCollapsed, visibleCounts: value.visibleCounts,
+		...(typeof value.topicsCollapsed === 'boolean' ? { topicsCollapsed: value.topicsCollapsed } : {}),
 	};
 }
 

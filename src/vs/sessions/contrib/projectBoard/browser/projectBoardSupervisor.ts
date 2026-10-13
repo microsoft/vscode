@@ -11,6 +11,8 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -97,6 +99,7 @@ export class ProjectBoardSupervisor extends Disposable {
 	private readonly model = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly scheduled = this._register(new RunOnceScheduler(() => { void this.refresh(false); }, projectBoardSupervisorLimits.refreshInterval));
 	private request: CancellationTokenSource | undefined;
+	private readonly signInRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private active = true;
 	private sources = new Map<string, IProjectBoardTopicSource>();
 	private readonly pending = new Map<string, IProjectBoardTopicSource>();
@@ -106,6 +109,8 @@ export class ProjectBoardSupervisor extends Disposable {
 	enabled = false;
 	busy = false;
 	error: string | undefined;
+	waitingForModel = false;
+	signingIn = false;
 	topics: readonly IProjectBoardTopic[] = [];
 
 	get total(): number { return this.sources.size; }
@@ -129,8 +134,58 @@ export class ProjectBoardSupervisor extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
+		this._register(languageModelsService.onDidChangeLanguageModels(vendor => {
+			if (vendor === 'copilot') {
+				this.resumeWhenModelAvailable();
+			}
+		}));
+	}
+
+	private resumeWhenModelAvailable(): void {
+		if (!this.waitingForModel || !this.enabled || !this.active || this._store.isDisposed || !this.languageModelsService.getLanguageModelIds().some(id => {
+			const model = this.languageModelsService.lookupLanguageModel(id);
+			return model?.vendor === 'copilot' && model.id === 'copilot-utility-small';
+		})) {
+			return;
+		}
+		this.waitingForModel = false;
+		this.error = undefined;
+		// The missing-model lookup consumed no inference; registration can unblock the first batch immediately.
+		this.lastAttempt = undefined;
+		this.changed.fire();
+		this.schedule();
+	}
+
+	async signIn(): Promise<void> {
+		if (!this.enabled || !this.active || !this.waitingForModel || this.signingIn || this._store.isDisposed) {
+			return;
+		}
+		const request = new CancellationTokenSource();
+		this.signInRequest.value = request;
+		this.signingIn = true;
+		this.changed.fire();
+		try {
+			const success = await raceCancellationError(this.commandService.executeCommand<boolean>(CHAT_SETUP_ACTION_ID, undefined, {
+				cancellationToken: request.token,
+			}), request.token);
+			if (success && !request.token.isCancellationRequested && this.enabled && this.active) {
+				await this.refresh(false);
+			}
+		} catch (error) {
+			if (!request.token.isCancellationRequested) {
+				this.logService.error('[ProjectBoard] Supervisor Copilot sign-in failed', error);
+				this.notificationService.error(localize('projectBoard.supervisor.signInFailed', "Could not sign in to Copilot for board analysis. Try Sign In to Copilot again."));
+			}
+		} finally {
+			if (this.signInRequest.value === request) {
+				this.signInRequest.clear();
+				this.signingIn = false;
+				this.changed.fire();
+			}
+		}
 	}
 
 	update(sources: readonly IProjectBoardTopicSource[]): void {
@@ -194,6 +249,7 @@ export class ProjectBoardSupervisor extends Disposable {
 		}
 		this.active = active;
 		if (active) {
+			this.resumeWhenModelAvailable();
 			this.schedule();
 		} else {
 			this.cancel();
@@ -219,6 +275,7 @@ export class ProjectBoardSupervisor extends Disposable {
 
 	private cancel(): void {
 		this.scheduled.cancel();
+		this.signInRequest.value?.cancel();
 		this.request?.cancel();
 		this.request = undefined;
 		this.analyzing.clear();
@@ -234,6 +291,7 @@ export class ProjectBoardSupervisor extends Disposable {
 		}
 		this.scheduled.cancel();
 		this.error = undefined;
+		this.waitingForModel = false;
 		if (force && !this.pending.size) {
 			for (const source of this.sources.values()) {
 				this.enqueue(source, true);
@@ -256,7 +314,8 @@ export class ProjectBoardSupervisor extends Disposable {
 		try {
 			const models = await raceCancellationError(this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' }), request.token);
 			if (!models.length) {
-				throw new Error(localize('projectBoard.supervisor.noModel', "The Copilot summary model is unavailable. Sign in to Copilot and retry."));
+				this.waitingForModel = true;
+				throw new Error(localize('projectBoard.supervisor.noModel', "The Copilot summary model is unavailable in this window. Sign in to Copilot here; queued analysis resumes when the model becomes available."));
 			}
 			const input = JSON.stringify({ knownTopics: this.topics.map(topic => topic.label), chats: sources.map((source, id) => ({ ...source, id })) });
 			const response = await raceCancellationError(this.languageModelsService.sendChatRequest(models[0], undefined, [

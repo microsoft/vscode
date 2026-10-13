@@ -826,17 +826,79 @@ suite('ProjectBoardService', () => {
 		assert.ok([...header.children].indexOf(h.container.querySelector('.project-board-filter')!) < [...header.children].indexOf(h.container.querySelector('.project-board-tools')!));
 	});
 
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} Topics tray is below the banner, outside search, folds by its label and restores on reopen`, async () => {
+			const h = createBoard(mainWindow.document, [new TestChat('Quiet topic layout')]);
+			h.container.style.cssText = 'width: 1000px; height: 800px;';
+			const header = mainWindow.document.createElement('div');
+			if (surface === 'embedded') {
+				h.container.before(header);
+				store.add(toDisposable(() => header.remove()));
+			}
+			let view = surface === 'embedded' ? h.service.createView(h.container, header) : undefined;
+			if (view) {
+				store.add(view);
+			} else {
+				await h.service.open();
+			}
+			const topics = () => h.currentContainer.querySelector<HTMLElement>('.project-board-topics-tray')!;
+			const toggle = () => topics().querySelector<HTMLElement>('[data-board-control="collapse:topics"]')!;
+			assert.ok(topics());
+			assert.strictEqual((surface === 'embedded' ? header : h.currentContainer).querySelector('.project-board-filter .project-board-topics'), null);
+			assert.deepStrictEqual([...topics().parentElement!.children].slice(0, 3).map(e => e.className), [
+				'project-board-selection-tools', 'project-board-card-group project-board-topics-tray', 'project-board-card-group project-board-unassigned',
+			]);
+			const body = topics().querySelector<HTMLElement>('.project-board-topics-scrollable')!;
+			const expandedHeight = topics().getBoundingClientRect().height;
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'true');
+			toggle().querySelector<HTMLElement>('.project-board-axis-label')!.click();
+			assert.strictEqual(body.hidden, true);
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+			assert.ok(topics().getBoundingClientRect().height < expandedHeight, 'Folding Topics removes its body from the pinned layout, not just its contents');
+			assert.ok(topics().querySelector('.project-board-topics-summary')?.textContent);
+			h.session.title.set('Updated while topics folded', undefined);
+			assert.strictEqual(topics().querySelector<HTMLElement>('.project-board-topics-scrollable')!.hidden, true);
+			if (view) {
+				view.dispose();
+				view = store.add(h.service.createView(h.container, header));
+			} else {
+				h.closeBoard();
+				await h.service.open();
+			}
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+			assert.deepStrictEqual({ opened: h.opened, read: h.session.isRead.get(), deleted: h.state.deletedSessions }, { opened: [], read: false, deleted: [] });
+		});
+	}
+
+	test('Topics tray folding stays independent between embedded and standalone surfaces', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Independent topics')]);
+		const embedded = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embedded);
+		store.add(toDisposable(() => embedded.remove()));
+		store.add(h.service.createView(embedded));
+		await h.service.open();
+		const disclosure = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-board-control="collapse:topics"]')!;
+		disclosure(h.container).click();
+		assert.deepStrictEqual([disclosure(h.container).getAttribute('aria-expanded'), disclosure(embedded).getAttribute('aria-expanded')], ['false', 'true']);
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(disclosure(h.currentContainer).getAttribute('aria-expanded'), 'false');
+	});
+
 	test('topic chips filter exact chats independently of words and preserve query composition', async () => {
 		const chats = [new TestChat('Alpha request'), new TestChat('Beta request')];
 		const h = createIndependentChatBoard(mainWindow.document, chats);
 		const changed = store.add(new Emitter<void>());
 		let sources: readonly IProjectBoardTopicSource[] = [];
 		let transcriptOpens = 0;
+		let signIns = 0;
 		let waiting = 0;
 		const supervisor = new class extends mock<ProjectBoardSupervisor>() {
 			override enabled = false;
 			override busy = false;
 			override error: string | undefined = undefined;
+			override waitingForModel = false;
+			override signingIn = false;
 			override get total() { return sources.length; }
 			override get completed() { return 0; }
 			override get waiting() { return waiting; }
@@ -850,6 +912,7 @@ suite('ProjectBoardService', () => {
 			override setActive() { }
 			override async refresh() { }
 			override async openTranscript() { transcriptOpens++; }
+			override async signIn() { signIns++; }
 			override dispose() { }
 		}();
 		h.instantiationService.stubInstance(ProjectBoardSupervisor, supervisor);
@@ -859,6 +922,20 @@ suite('ProjectBoardService', () => {
 		await timeout(0);
 		assert.strictEqual(supervisor.enabled, true);
 		assert.strictEqual(sources.length, 2);
+		supervisor.waitingForModel = true;
+		supervisor.error = 'The Copilot summary model is unavailable in this window.';
+		changed.fire();
+		await timeout(0);
+		const signIn = () => h.container.querySelector<HTMLElement>('[data-topic-control="signIn"]')!;
+		assert.strictEqual(signIn().textContent, 'Sign In to Copilot');
+		assert.ok(h.container.querySelector('.project-board-card-summary')?.textContent?.includes('Summary waiting for Copilot'));
+		signIn().click();
+		assert.strictEqual(signIns, 1);
+		supervisor.signingIn = true;
+		changed.fire();
+		assert.deepStrictEqual({ label: signIn().textContent, disabled: signIn().getAttribute('aria-disabled') }, { label: 'Signing In…', disabled: 'true' });
+		supervisor.waitingForModel = false;
+		supervisor.signingIn = false;
 		supervisor.error = 'The summary model returned no text answer. Try Refresh Topics.';
 		waiting = 2;
 		changed.fire();
@@ -869,12 +946,30 @@ suite('ProjectBoardService', () => {
 			error: 'Topic analysis unavailable. The summary model returned no text answer. Try Refresh Topics.',
 			coverage: 'Summaries: 0/2 chats · 2 waiting for details · 0 queued. Topics include completed analyses; updates are incremental.',
 		});
+		assert.strictEqual(h.container.querySelector('[data-topic-control="signIn"]'), null, 'A response-schema failure is not an authentication failure');
 		supervisor.error = undefined;
 		waiting = 0;
 		supervisor.topics = [{ label: 'Unrelated display label', cardIds: new Set([getProjectBoardCardId(h.state.sessions[1], chats[1])]) }];
 		changed.fire();
 		h.container.querySelector<HTMLElement>('[data-topic-control="topic-0"]')!.click();
 		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(node => node.textContent), ['Beta request']);
+		const topicsDisclosure = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:topics"]')!;
+		assert.notStrictEqual(topicsDisclosure().getAttribute('aria-disabled'), 'true', 'Topics may be folded even while a topic filter is active');
+		topicsDisclosure().click();
+		supervisor.busy = true;
+		changed.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			expanded: topicsDisclosure().getAttribute('aria-expanded'),
+			hidden: h.container.querySelector<HTMLElement>('.project-board-topics-scrollable')!.hidden,
+			enabled: supervisor.enabled,
+			titles: [...h.container.querySelectorAll('h4')].map(node => node.textContent),
+		}, { expanded: 'false', hidden: true, enabled: true, titles: ['Beta request'] });
+		assert.ok(h.container.querySelector('.project-board-topics-summary')?.textContent?.includes('Analyzing…'));
+		assert.ok(h.container.querySelector('.project-board-topics-summary')?.textContent?.includes('Filtered: Unrelated display label'));
+		assert.ok(h.service.getAccessibleContent().includes('Topics (collapsed)'));
+		supervisor.busy = false;
+		topicsDisclosure().click();
 		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, '1 chat · ⚙️ 1 Busy');
 		assert.strictEqual(sources.length, 2, 'The supervisor monitors the board, not its current filter');
 		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:busy"]')!.click();
