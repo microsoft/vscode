@@ -1,5 +1,7 @@
 # Mission Control security and contract requirements
 
+Desktop sharing is an explicit machine-filesystem access opt-in: authenticated owner clients can read and modify files beneath `/` on macOS/Linux and available drive-letter roots on Windows, plus explicitly shared local project roots. Home is the browsing default, not an access boundary. This includes sensitive files accessible to the host OS user; it does not elevate the process, waive OS permissions, or change non-filesystem content authorization. The project catalogue remains separate from the granted roots.
+
 Requirement sources, VS Code enforcement and verification. See [remaining gaps](https://github.com/microsoft/vscode/blob/roblou%2Fagents%2Ftypescript-vscode-agent-host-prototype/src/vs/platform/agentHost/node/missionControl/MISSION_CONTROL_PRODUCTION_GAPS.md) and [operation and configuration](https://github.com/microsoft/vscode/blob/roblou%2Fagents%2Ftypescript-vscode-agent-host-prototype/src/vs/platform/agentHost/node/missionControl/MISSION_CONTROL.md).
 
 ## Requirement sources

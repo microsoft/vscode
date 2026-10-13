@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -404,6 +404,35 @@ suite('agentHostSchema', () => {
 				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 1 }]),
 				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, 'nope'),
 			], [true, true, false, false, false, false]);
+		});
+
+		test('validates sensitive edit locations as read-only mutable session config', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.SensitiveEditLocations];
+			assert.deepStrictEqual({
+				results: [
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, []),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks', isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks' }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 42, isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, 'custom-hooks'),
+				],
+				readOnly: property.readOnly,
+				sessionMutable: property.sessionMutable,
+			}, {
+				results: [true, true, false, false, false],
+				readOnly: true,
+				sessionMutable: true,
+			});
+		});
+
+		test('omits client-derived values from persisted session config', () => {
+			assert.deepStrictEqual(omitTransientSessionConfigValues({
+				[SessionConfigKey.Mode]: 'interactive',
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'x' }],
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			}), {
+				[SessionConfigKey.Mode]: 'interactive',
+			});
 		});
 
 		test('is marked read-only so it stays out of the session settings file', () => {

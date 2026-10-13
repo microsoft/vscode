@@ -183,10 +183,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
-				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
