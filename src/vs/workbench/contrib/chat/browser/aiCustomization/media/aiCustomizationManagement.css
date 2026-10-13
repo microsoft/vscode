@@ -993,16 +993,11 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.ai-customization-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button,
-.mcp-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button {
-	align-self: stretch;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	box-sizing: border-box;
+.ai-customization-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button {
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
-	padding: 0;
+	height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-sizeNone);
 }
 
 .ai-customization-list-widget .section-title-header .section-title-back-slot,

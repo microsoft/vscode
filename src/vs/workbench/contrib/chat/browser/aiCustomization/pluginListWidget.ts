@@ -906,7 +906,7 @@ export class PluginListWidget extends Disposable {
 		this.marketplaceActionsButton.element.classList.add('section-title-more-action');
 		this.marketplaceActionsButton.element.setAttribute('aria-haspopup', 'menu');
 		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
-		this.marketplaceActionsButton.icon = Codicon.ellipsis;
+		this.marketplaceActionsButton.label = `$(${Codicon.ellipsis.id})`;
 		this._register(this.marketplaceActionsButton.onDidClick(() => this.showMarketplaceActions()));
 		this.updateHeaderActions();
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
