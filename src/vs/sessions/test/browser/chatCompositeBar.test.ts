@@ -376,9 +376,35 @@ suite('Sessions - ChatCompositeBar', () => {
 		const rtl = getSpacing();
 
 		assert.deepStrictEqual({ ltr, rtl }, {
-			ltr: { paddingLeft: '8px', paddingRight: '4px', marginLeft: '2px', marginRight: '0px' },
-			rtl: { paddingLeft: '4px', paddingRight: '8px', marginLeft: '0px', marginRight: '2px' },
+			ltr: { paddingLeft: '8px', paddingRight: '2px', marginLeft: '2px', marginRight: '0px' },
+			rtl: { paddingLeft: '2px', paddingRight: '8px', marginLeft: '0px', marginRight: '2px' },
 		});
+	});
+
+	test('connected chat actions retain a compact trailing gutter across densities and directions', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		const tab = harness.tabs[1];
+		const actions = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions')!;
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const compact of [false, true]) {
+				root.classList.toggle('modern-ui-compact', compact);
+				harness.editorGroupsService.setTabHeight(compact ? 'compact' : 'default');
+				for (const direction of ['ltr', 'rtl']) {
+					root.dir = direction;
+					const tabBounds = tab.getBoundingClientRect();
+					const actionBounds = actions.getBoundingClientRect();
+					results.push({
+						theme, compact, direction,
+						trailingInset: direction === 'rtl' ? actionBounds.left - tabBounds.left : tabBounds.right - actionBounds.right,
+					});
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, trailingInset: 2 })));
 	});
 
 	for (const connected of [false, true]) {

@@ -682,7 +682,7 @@
 }
 
 .modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab.has-chat-tab-actions {
-	padding-inline-end: var(--vscode-spacing-size40);
+	padding-inline-end: var(--vscode-spacing-size20);
 }
 
 .modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions::before {

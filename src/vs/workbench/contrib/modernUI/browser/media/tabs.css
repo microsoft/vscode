@@ -216,25 +216,38 @@
 /* Persistent dirty/pin indicators always reserve their overlay column. Clean tabs reserve
  * the transient close/unpin action only while visible or when requested (https://github.com/microsoft/vscode/issues/329605). */
 .modern-ui-tabs .part.editor .tab-actions-reserve-space .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within):not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within):not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
 	padding-right: var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) !important;
 }
 
 .modern-ui-tabs .part.editor .tab-actions-reserve-space .tabs-container > .tab.tab-actions-left:not(.sticky-compact):not(.close-action-off),
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-actions-left:not(.sticky-compact):not(.close-action-off),
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-actions-left:not(.sticky-compact):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact):not(.close-action-off.dirty-border-top),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) !important;
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-action-sizing-rest:not(.sticky-compact):not(.tab-actions-left) {
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off):not(.tab-actions-left) > .tab-label {
+	max-width: calc(100% - var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) + var(--vscode-spacing-size80));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off).tab-actions-left > .tab-label {
+	max-width: calc(100% - var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) + var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)));
+	left: calc(var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) - var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container:dir(rtl) > .tab:is(.sizing-fixed, .sizing-shrink):is(.active, :hover, :focus-within):not(.dirty):not(.sticky):not(.close-action-off):not(.tab-actions-left) > .tab-label {
+	right: calc(var(--modern-ui-tab-action-padding, var(--vscode-spacing-size280)) - var(--vscode-spacing-size80));
+}
+
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-action-sizing-rest:not(.sticky-compact):not(.tab-actions-left) {
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
-.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab:is(.active, :hover, :focus-within).tab-action-sizing-rest.tab-actions-left:not(.sticky-compact) {
+.modern-ui-tabs .part.editor .title:not(.tab-actions-reserve-space) .tabs-container > .tab.sizing-fit:is(.active, :hover, :focus-within).tab-action-sizing-rest.tab-actions-left:not(.sticky-compact) {
 	padding-left: var(--modern-ui-editor-tab-left-inset, var(--vscode-spacing-size60)) !important;
 }
 

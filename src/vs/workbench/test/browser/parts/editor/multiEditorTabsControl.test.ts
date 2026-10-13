@@ -1176,6 +1176,86 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, cachedCssWidth: true, stableTargetWidth: true, focused: result.trigger === 'focus' ? true : undefined })));
 	});
 
+	test('uncached fit widths release all wrapping constraints before measuring and restore them together', async () => {
+		const group = connectedGroup();
+		openNamedEditors(Array.from({ length: 20 }, (_, index) => `long-fit-label-${index}.ts`));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', tabActionReserveSpace: false };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 300);
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const writes: { index: number; value: string }[] = [];
+		for (const [index, tab] of tabs.entries()) {
+			tab.style.removeProperty('--tab-sizing-fit-width');
+			tab.style.maxWidth = `${200 + index}px`;
+			const descriptor = Object.getOwnPropertyDescriptor(tab.style, 'maxWidth');
+			Object.defineProperty(tab.style, 'maxWidth', {
+				configurable: true,
+				get: () => tab.style.getPropertyValue('max-width'),
+				set: (value: string) => {
+					writes.push({ index, value });
+					tab.style.setProperty('max-width', value);
+				},
+			});
+			disposables.add(toDisposable(() => {
+				if (descriptor) {
+					Object.defineProperty(tab.style, 'maxWidth', descriptor);
+				} else {
+					Reflect.deleteProperty(tab.style, 'maxWidth');
+				}
+			}));
+		}
+		await layoutConnectedGroup(group, 300);
+		assert.deepStrictEqual({
+			firstMeasurementWrites: writes.slice(0, tabs.length * 2),
+			originalConstraintsRestored: tabs.every((tab, index) => tab.style.maxWidth === `${200 + index}px`),
+			allWidthsCached: tabs.every(tab => Number.parseFloat(tab.style.getPropertyValue('--tab-sizing-fit-width')) > 0),
+		}, {
+			firstMeasurementWrites: [
+				...tabs.map((_tab, index) => ({ index, value: 'none' })),
+				...tabs.map((_tab, index) => ({ index, value: `${200 + index}px` })),
+			],
+			originalConstraintsRestored: true,
+			allWidthsCached: true,
+		});
+	});
+
+	test('transient actions do not resize fixed or shrink tabs with reservation on or off', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(Array.from({ length: 8 }, (_, index) => `tab-label-for-action-reservation-${index}.ts`));
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabSizing of ['fixed', 'shrink'] as const) {
+				for (const tabActionReserveSpace of [false, true]) {
+					for (const wrapTabs of [false, true]) {
+						for (const { tabActionLocation, direction } of (['left', 'right'] as const).flatMap(tabActionLocation => ['ltr', 'rtl'].map(direction => ({ tabActionLocation, direction })))) {
+							root.dir = direction;
+							const oldOptions = partOptions;
+							partOptions = { ...partOptions, tabSizing, tabActionReserveSpace, wrapTabs, tabActionLocation, tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 120 };
+							control.updateOptions(oldOptions, partOptions);
+							await layoutConnectedGroup(group, wrapTabs ? 500 : 1400);
+							const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tab'));
+							const before = tabs.map(tab => tab.getBoundingClientRect().width);
+							const action = tabs[1].querySelector<HTMLElement>('.action-label')!;
+							action.focus();
+							const text = tabs[1].querySelector<HTMLElement>('.monaco-icon-label-container')!.getBoundingClientRect();
+							const actionBounds = action.getBoundingClientRect();
+							results.push({
+								connected, tabSizing, tabActionReserveSpace, wrapTabs, tabActionLocation, direction,
+								stableWidths: tabs.every((tab, index) => Math.abs(tab.getBoundingClientRect().width - before[index]) < 1 / 32),
+								textClearOfAction: tabActionLocation === 'right' ? text.right <= actionBounds.left + 1 / 32 : text.left >= actionBounds.right - 1 / 32,
+							});
+							action.blur();
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, stableWidths: true, textClearOfAction: true })), JSON.stringify(results.filter(result => !result.textClearOfAction)));
+	});
+
 	test('unreserved fit tab widths and wrapping stay stable when differently named clean tabs are activated', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;

@@ -2136,7 +2136,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabs.push(tab);
 			}
 		});
-		const widths = tabs.map(tab => this.getFitTabWidth(tab));
+		const widths = this.getFitTabWidths(tabs);
 		for (const [index, tab] of tabs.entries()) {
 			const width = widths[index];
 			tab.style.setProperty('--tab-sizing-fit-width', `${width}px`);
@@ -2150,38 +2150,46 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		tab.classList.toggle('tab-action-sizing-rest', !tab.classList.contains('dirty') && !tab.classList.contains('sticky'));
-		tab.style.setProperty('--tab-sizing-fit-width', `${this.getFitTabWidth(tab)}px`);
+		tab.style.setProperty('--tab-sizing-fit-width', `${this.getFitTabWidths([tab])[0]}px`);
 		tab.classList.remove('tab-action-sizing-rest');
 	}
 
-	private getFitTabWidth(tab: HTMLElement): number {
+	private getFitTabWidths(tabs: readonly HTMLElement[]): number[] {
 		// Cache intrinsic width, not the current wrapped row's constraint.
-		const maxWidth = tab.style.maxWidth;
-		tab.style.maxWidth = 'none';
-		try {
-			const targetWindow = getWindow(tab);
-			const style = targetWindow.getComputedStyle(tab);
-			const width = Number.parseFloat(style.width);
-			if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
-				return width;
-			}
-			const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
-			const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
-			/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
-			const label = tab.querySelector<HTMLElement>('.tab-label');
-			const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
-			const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
-			/* eslint-enable no-restricted-syntax */
-			const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
-			const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
-			const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);
-			const shortNameWidth = Math.max(Number.parseFloat(style.fontSize), MultiEditorTabsControl.TAB_WIDTH.fit - labelPadding - actionPadding - adornmentWidth - borderWidth);
-			const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, shortNameWidth);
-			// Keep short fit names complete without reserving the action column on naturally wider tabs.
-			return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
-		} finally {
-			tab.style.maxWidth = maxWidth;
+		const maxWidths = tabs.map(tab => tab.style.maxWidth);
+		for (const tab of tabs) {
+			tab.style.maxWidth = 'none';
 		}
+		try {
+			return tabs.map(tab => this.getFitTabWidth(tab));
+		} finally {
+			for (const [index, tab] of tabs.entries()) {
+				tab.style.maxWidth = maxWidths[index];
+			}
+		}
+	}
+
+	private getFitTabWidth(tab: HTMLElement): number {
+		const targetWindow = getWindow(tab);
+		const style = targetWindow.getComputedStyle(tab);
+		const width = Number.parseFloat(style.width);
+		if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
+			return width;
+		}
+		const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
+		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
+		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		const label = tab.querySelector<HTMLElement>('.tab-label');
+		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
+		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
+		/* eslint-enable no-restricted-syntax */
+		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
+		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
+		const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);
+		const shortNameWidth = Math.max(Number.parseFloat(style.fontSize), MultiEditorTabsControl.TAB_WIDTH.fit - labelPadding - actionPadding - adornmentWidth - borderWidth);
+		const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, shortNameWidth);
+		// Keep short fit names complete without reserving the action column on naturally wider tabs.
+		return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
