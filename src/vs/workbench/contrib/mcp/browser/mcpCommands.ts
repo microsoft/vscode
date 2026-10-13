@@ -69,7 +69,7 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpConfigurationDestination } from './mcpConfigurationDestination.js';
@@ -1463,17 +1463,41 @@ export class McpBrowseCommand extends Action2 {
 			category,
 			icon: Codicon.search,
 			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		await accessor.get(ICommandService).executeCommand(
+			AICustomizationManagementCommands.OpenMarketplace,
+			AICustomizationManagementSection.McpServers,
+		);
+	}
+}
+
+export class McpBrowsePageCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowsePage,
+			title: localize2('mcp.command.browse', "MCP Servers"),
+			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
+			category,
+			icon: Codicon.search,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+			}, {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				group: 'navigation',
 			}],
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
+		await accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
 	}
 }
 
@@ -1498,10 +1522,10 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		await accessor.get(ICommandService).executeCommand(
-			AICustomizationManagementCommands.OpenEditor,
-			AICustomizationManagementSection.McpServers,
-		);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const viewsService = accessor.get(IViewsService);
+		await extensionsWorkbenchService.openSearch('');
+		await viewsService.openView(InstalledMcpServersViewId, true);
 	}
 }
 
