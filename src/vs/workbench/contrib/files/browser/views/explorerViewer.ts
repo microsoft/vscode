@@ -23,6 +23,8 @@ import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } fro
 import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../../nls.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { CANCEL_EXPLORER_EDIT_COMMAND_ID } from '../fileConstants.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
@@ -844,7 +846,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -1057,6 +1060,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		(label.element.firstElementChild as HTMLElement).style.display = 'none';
 
 		// Input field for name
+		const cancelKeybinding = this.keybindingService.lookupKeybinding(CANCEL_EXPLORER_EDIT_COMMAND_ID)?.getAriaLabel();
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
@@ -1072,7 +1076,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					};
 				}
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
+			ariaLabel: cancelKeybinding
+				? localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or {0} to cancel.", cancelKeybinding)
+				: localize('fileInputAriaLabelNoCancel', "Type file name. Press Enter to confirm."),
 			inputBoxStyles: defaultInputBoxStyles,
 		});
 
@@ -1134,8 +1140,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					if (!inputBox.validate()) {
 						done(true, true);
 					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
