@@ -22,7 +22,7 @@ import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHove
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
-import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCanvasesPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -69,6 +69,7 @@ export interface IStandardChatInputPillsData {
 	readonly artifacts?: IStandardChatInputPillSections;
 	readonly references?: IStandardChatInputPillSections;
 	readonly customizations?: IStandardChatInputPillSections;
+	readonly canvases?: IStandardChatInputPillSections;
 	readonly browsers?: IStandardChatInputPillSections;
 	readonly subagents?: IStandardChatInputPillSections;
 	readonly backgroundShells?: IStandardChatInputPillSections;
@@ -157,6 +158,7 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Artifacts, data.artifacts, chatArtifactPillOptions);
 		addSections(SessionChatPillKind.References, data.references, sessionReferencesPillOptions);
 		addSections(SessionChatPillKind.Customizations, data.customizations, sessionCustomizationsPillOptions);
+		addSections(SessionChatPillKind.Canvases, data.canvases, sessionCanvasesPillOptions);
 		addSections(SessionChatPillKind.Browsers, data.browsers, sessionBrowsersPillOptions);
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
 		addSections(SessionChatPillKind.BackgroundShells, data.backgroundShells, sessionBackgroundShellsPillOptions);
@@ -293,7 +295,9 @@ export class ChatInputPills extends Disposable {
 	}
 
 	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, targetKind?: SessionChatPillKind) {
-		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, this._options.offeredKinds);
+		const sourceKinds = new Set(this._options.sources.get().flatMap(source => source.kind ? [source.kind] : []));
+		const offeredKinds = this._options.offeredKinds.filter(kind => sourceKinds.has(kind));
+		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, offeredKinds);
 		const restoreFocus = () => this._row.restoreFocus(() => {
 			const pills = this._pills.getPillElements();
 			const target = targetKind ? pills.find(pill => this._getTargetKind(pill) === targetKind) : undefined;

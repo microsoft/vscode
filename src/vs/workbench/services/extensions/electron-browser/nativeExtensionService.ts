@@ -25,6 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, IPromptChoice, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
@@ -165,6 +166,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					Severity.Error,
 					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
 					[{
+						telemetryId: NotificationActionTelemetryId.Relaunch,
 						label: nls.localize('relaunch', "Relaunch VS Code"),
 						run: () => {
 							this._instantiationService.invokeFunction((accessor) => {
@@ -172,7 +174,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 								hostService.restart();
 							});
 						}
-					}]
+					}], { telemetry: NotificationTelemetryId.ExtensionHostVersionMismatch }
 				);
 				return;
 			}
@@ -206,6 +208,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				}
 
 				choices.push({
+					telemetryId: NotificationActionTelemetryId.RestartExtensionHost,
 					label: nls.localize('restart', "Restart Extension Host"),
 					run: () => this.startExtensionHosts()
 				});
@@ -222,7 +225,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					});
 				}
 
-				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."), choices);
+				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."), choices, { telemetry: NotificationTelemetryId.ExtensionHostCrashRepeated });
 			}
 		}
 	}

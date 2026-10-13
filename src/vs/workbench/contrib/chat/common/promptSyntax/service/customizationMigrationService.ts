@@ -67,6 +67,27 @@ export interface IMcpServerCustomizationMigrationItem {
 
 export const mcpServerCustomizationMigrationRemovableProperties = ['gallery', 'version', 'dev', 'sandboxEnabled'] as const;
 
+/**
+ * The parts of an `inputs` declaration that determine how an `${input:id}` reference
+ * is migrated to an environment variable.
+ */
+export interface IMcpServerCustomizationMigrationInputDeclaration {
+	readonly type: 'promptString' | 'pickString';
+	readonly default?: string;
+	/** The values of a `pickString` input's options. */
+	readonly options?: readonly string[];
+}
+
+/** An input that a migrated server reads from an environment variable instead. */
+export interface IMcpServerCustomizationMigrationVariable {
+	/** The input id. */
+	readonly id: string;
+	/** The environment variable that replaces it. */
+	readonly name: string;
+	/** Its declaration, retained to revalidate it before writing. */
+	readonly declaration: IMcpServerCustomizationMigrationInputDeclaration;
+}
+
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
@@ -75,6 +96,17 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly projectedConfiguration: IMcpServerConfiguration;
+	/**
+	 * Configuration written to the destination when it differs from {@link projectedConfiguration},
+	 * because `${env:NAME}` references are rewritten to `${NAME}` instead of their current values.
+	 */
+	readonly migratedConfiguration?: IMcpServerConfiguration;
+	/**
+	 * The inputs that the server reads from environment variables once migrated, in order of first
+	 * appearance. Retained to revalidate them before writing, since a change such as to an input's type
+	 * can leave {@link migratedConfiguration} unchanged.
+	 */
+	readonly environmentVariables?: readonly IMcpServerCustomizationMigrationVariable[];
 	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
 	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
 }
@@ -115,6 +147,24 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	InvalidSource = 'invalidSource',
 	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
+	/** An `${env:}` reference is used in an environment variable or header name, which the destination never expands. */
+	EnvironmentVariableInName = 'environmentVariableInName',
+	/** An `${env:}` reference does not name a variable matching `[A-Za-z_][A-Za-z0-9_]*`, so it cannot be written as `${NAME}`. */
+	InvalidEnvironmentVariableName = 'invalidEnvironmentVariableName',
+	/** A value with an `${env:}` reference would be too long for the destination to expand it. */
+	EnvironmentVariableValueTooLong = 'environmentVariableValueTooLong',
+	/** An `${env:}` reference is in a URL position that the destination rejects, such as the port or the whole URL. */
+	UnsupportedEnvironmentVariableInUrl = 'unsupportedEnvironmentVariableInUrl',
+	/** An `${input:}` reference is to a password or command input, or to an input that is not declared in the same file. */
+	UnsupportedInputType = 'unsupportedInputType',
+	/** An `${input:}` id does not convert to an environment variable name, such as an empty id. */
+	InvalidInputName = 'invalidInputName',
+	/** An input converts to the same environment variable as a different input or `${env:}` reference in the same file, or as an `env` entry of the server. */
+	VariableNameCollision = 'variableNameCollision',
+	/** The configuration uses a variable that cannot be migrated, such as `${command:}`, or a workspace variable in a user server. */
+	UnsupportedVariable = 'unsupportedVariable',
+	/** An input's default cannot be written to the destination, or a `pickString` default is not one of its options. */
+	UnsupportedInputDefault = 'unsupportedInputDefault',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',
 	/** An existing destination cannot be read or parsed as a supported MCP configuration document. */
@@ -155,8 +205,10 @@ export interface IMcpServerCustomizationMigrationResult {
 export const enum FileCustomizationMigrationFailureReason {
 	/** The source customization file could not be read. */
 	SourceReadFailed = 'sourceReadFailed',
-	/** A destination folder or available destination name could not be resolved. */
+	/** A destination folder could not be resolved. */
 	TargetResolutionFailed = 'targetResolutionFailed',
+	/** A customization already exists at the migration destination. */
+	TargetAlreadyExists = 'targetAlreadyExists',
 	/** A prompt file could not be converted to a skill. */
 	ConversionFailed = 'conversionFailed',
 	/** The migrated customization could not be written to its destination. */

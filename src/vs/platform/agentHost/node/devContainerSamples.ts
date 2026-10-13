@@ -8,10 +8,12 @@ import { readFile, rename, rm, writeFile } from 'fs/promises';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
+import { IGitHubRepositoryFile } from '../../github/common/anonymousClient.js';
 import { DevContainerSample, getDevContainerSampleFolder, getDevContainerSampleUrl, IDevContainerRepository } from '../common/devContainerSamples.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
+import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
 
 interface ICommandResult {
 	readonly stdout: string;
@@ -22,7 +24,7 @@ interface ICommandResult {
 interface ISampleCommands {
 	readonly docker: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
-	readonly fetch: (url: string) => Promise<string>;
+	readonly readSource: () => Promise<IGitHubRepositoryFile>;
 	readonly onContainerStarted: (containerId: string) => void;
 }
 
@@ -92,7 +94,7 @@ function checked(result: ICommandResult, operation: string): string {
 	return result.stdout;
 }
 
-export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands): Promise<IPreparedDevContainerSample> {
+export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false): Promise<IPreparedDevContainerSample> {
 	await prepareOwnerOnlyDirectory(cacheDirectory);
 	const sourcePath = join(cacheDirectory, 'source.json');
 	let sourceContent: string | undefined;
@@ -105,13 +107,9 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	}
 	const folder = getDevContainerSampleFolder(sample);
 	if (sourceContent === undefined) {
-		const commit: unknown = JSON.parse(await commands.fetch(`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`));
-		if (!isRecord(commit) || typeof commit.sha !== 'string' || !/^[a-f0-9]{40}$/.test(commit.sha)) {
-			throw new Error(localize('devContainerSample.invalidCommit', "GitHub returned an invalid sample revision."));
-		}
-		const content = await commands.fetch(`https://raw.githubusercontent.com/microsoft/${folder}/${commit.sha}/.devcontainer/devcontainer.json`);
+		const { commitSha, content } = await commands.readSource();
 		parseDevContainerSampleConfiguration(content);
-		sourceContent = JSON.stringify({ commit: commit.sha, content });
+		sourceContent = JSON.stringify({ commit: commitSha, content });
 		await writeAtomic(sourcePath, sourceContent);
 	}
 	const source: unknown = JSON.parse(sourceContent);
@@ -140,6 +138,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 		workspaceFolder: workspace,
 		workspaceMount: `type=volume,source=${repository.volumeName},target=/workspaces`,
 		updateRemoteUserUID: false,
+		...(sandboxEnabled ? { runArgs: devContainerSandboxRunArgs } : {}),
 	}));
 	await writeConfig(config);
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];

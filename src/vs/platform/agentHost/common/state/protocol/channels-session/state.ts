@@ -540,11 +540,6 @@ export interface SessionChatSummary {
 	 */
 	status?: SessionStatus;
 	/**
-	 * @deprecated AHP 0.9 compatibility. Use {@link SessionChatSummary.status}
-	 * with {@link SessionStatus.IsArchived} in AHP 0.10 and newer.
-	 */
-	archived?: boolean;
-	/**
 	 * Aggregate summary of file changes associated with this chat.
 	 *
 	 * Servers may populate this so session lists can show per-chat change

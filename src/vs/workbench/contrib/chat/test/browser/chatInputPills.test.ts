@@ -86,6 +86,7 @@ suite('StandardChatInputPillSources', () => {
 			artifacts: { sections },
 			references: { sections },
 			customizations: { sections },
+			canvases: { sections },
 			browsers: { sections },
 			subagents: { sections },
 			backgroundShells: { sections },
@@ -97,6 +98,7 @@ suite('StandardChatInputPillSources', () => {
 			SessionChatPillKind.Issues,
 			SessionChatPillKind.Artifacts,
 			SessionChatPillKind.References,
+			SessionChatPillKind.Canvases,
 			SessionChatPillKind.Browsers,
 		];
 		const subset = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, supportedKinds));
@@ -525,7 +527,7 @@ suite('StandardChatInputPillSources', () => {
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
 			.filter(action => action instanceof SubmenuAction).map(action => action.label);
 		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
-		const toggles = ['Pull Requests', ...otherKinds, '', 'Background Shells'];
+		const toggles = ['Pull Requests', ...otherKinds];
 		const expectedMenus = [
 			['Pull Requests Options', '', ...toggles],
 			...otherKinds.map(label => [`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles]),

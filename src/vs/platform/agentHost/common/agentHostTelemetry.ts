@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { vEnum } from '../../../base/common/validation.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentHostProviderMilestone, AgentHostProviderOperation, IAgentProviderOperationTiming } from './agentHostProviderTiming.js';
 
 export const enum AgentHostLaunchKind {
 	VSCodeMainProcess = 'vscode_main_process',
@@ -23,8 +25,22 @@ export const enum AgentHostClientConnectionKind {
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
 	WebPubSub = 'web_pub_sub',
+	MissionControl = 'mission_control',
 	Unknown = 'unknown',
 }
+
+export const agentHostClientConnectionKindValidator = vEnum(
+	AgentHostClientConnectionKind.Local,
+	AgentHostClientConnectionKind.DirectWebSocket,
+	AgentHostClientConnectionKind.DevTunnel,
+	AgentHostClientConnectionKind.DevContainer,
+	AgentHostClientConnectionKind.SSH,
+	AgentHostClientConnectionKind.WSL,
+	AgentHostClientConnectionKind.RemoteExtensionHost,
+	AgentHostClientConnectionKind.WebPubSub,
+	AgentHostClientConnectionKind.MissionControl,
+	AgentHostClientConnectionKind.Unknown,
+);
 
 export const enum AgentHostTransportKind {
 	MessagePort = 'message_port',
@@ -101,7 +117,7 @@ export type AgentHostProviderSendStage =
 	| 'refresh'
 	/** Per-turn preparation after the session is ready and before the SDK send. */
 	| 'turnPrepare'
-	/** From the SDK send until the first visible progress (model latency). */
+	/** From the SDK send until the first visible progress, including runtime and model waiting. */
 	| 'modelResponse';
 
 /**
@@ -110,6 +126,8 @@ export type AgentHostProviderSendStage =
  */
 export interface IAgentProviderSendStageRecorder {
 	mark(stage: AgentHostProviderSendStage): void;
+	startOperation?(operation: AgentHostProviderOperation): IAgentProviderOperationTiming | undefined;
+	markMilestone?(milestone: AgentHostProviderMilestone): void;
 }
 
 export interface IAgentHostClientTelemetryContext {
@@ -127,6 +145,16 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
 	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
 	readonly chatgptWeeklyUsedPercentBucket?: number;
+	readonly chatgptFiveHourQuotaState: 'available' | 'unavailable' | 'missing' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptFiveHourUsedPercentBucket?: number;
+}
+
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
 }
 
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
@@ -165,20 +193,7 @@ export function toAgentHostClientMeta(connectionKind: AgentHostClientConnectionK
 }
 
 export function readClientConnectionKind(meta: Record<string, unknown> | undefined): AgentHostClientConnectionKind {
-	const value = meta?.[CLIENT_CONNECTION_KIND_META_KEY];
-	switch (value) {
-		case AgentHostClientConnectionKind.Local:
-		case AgentHostClientConnectionKind.DirectWebSocket:
-		case AgentHostClientConnectionKind.DevTunnel:
-		case AgentHostClientConnectionKind.DevContainer:
-		case AgentHostClientConnectionKind.SSH:
-		case AgentHostClientConnectionKind.WSL:
-		case AgentHostClientConnectionKind.RemoteExtensionHost:
-		case AgentHostClientConnectionKind.WebPubSub:
-			return value;
-		default:
-			return AgentHostClientConnectionKind.Unknown;
-	}
+	return agentHostClientConnectionKindValidator.validate(meta?.[CLIENT_CONNECTION_KIND_META_KEY]).content ?? AgentHostClientConnectionKind.Unknown;
 }
 
 export function readClientTelemetryLevel(meta: Record<string, unknown> | undefined): TelemetryLevel | undefined {

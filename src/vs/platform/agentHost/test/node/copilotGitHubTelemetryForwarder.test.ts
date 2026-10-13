@@ -92,6 +92,57 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('enriches SDK events with discovery identity without replacing the optional runtime identity', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		for (const kind of ['response.success', 'response.error', 'tool_call_executed']) {
+			for (const runtimeId of [undefined, 'runtime-id']) {
+				forwarder.forward({
+					sessionId: 'sdk-session', restricted: false,
+					event: { kind, properties: {}, metrics: {}, copilot_tracking_id: runtimeId },
+				}, 'turn-1', undefined, { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
+			}
+		}
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, copilotSku: data?.copilotSku, trackingId: data?.['common.copilotTrackingId'], runtimeId: data?.copilot_tracking_id,
+		})), ['response.success', 'response.error', 'tool_call_executed'].flatMap(kind => [undefined, 'runtime-id'].map(runtimeId => ({
+			eventName: `copilotSdk/${kind}`, copilotSku: 'sku-a', trackingId: 'analytics-a', runtimeId,
+		}))));
+	});
+
+	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		for (const toolName of ['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload']) {
+			forwarder.forward({
+				sessionId: 'sdk-session', restricted: false,
+				event: { kind: 'tool_call_executed', properties: { tool_name: toolName, invoke_outcome: 'success' }, metrics: { duration_ms: 42 } },
+			});
+		}
+		const skillNameHash = '33b7d9f0b8715b9f10e8185fb3fd5405e7ca6ac4e5e005885982b019378097f1';
+		forwarder.forward({
+			sessionId: 'sdk-session', restricted: false,
+			event: { kind: 'skill_invoked', properties: { skill_name_hash: skillNameHash }, metrics: { skill_content_length: 200, allowed_tools_count: 0 } },
+		});
+		forwarder.forward({
+			sessionId: 'sdk-session', restricted: true,
+			event: { kind: 'skill_invoked', properties: { skill_name: 'create-canvas', skill_path: '/private/skill.md' }, metrics: {} },
+		});
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, restricted: data?.restricted, toolName: data?.tool_name, durationMs: data?.duration_ms,
+			skillNameHash: data?.skill_name_hash, skillContentLength: data?.skill_content_length, allowedToolsCount: data?.allowed_tools_count,
+		})), [
+			...['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload'].map(toolName => ({
+				eventName: 'copilotSdk/tool_call_executed', restricted: false, toolName, durationMs: 42,
+				skillNameHash: undefined, skillContentLength: undefined, allowedToolsCount: undefined,
+			})),
+			{
+				eventName: 'copilotSdk/skill_invoked', restricted: false, toolName: undefined, durationMs: undefined,
+				skillNameHash, skillContentLength: 200, allowedToolsCount: 0,
+			},
+		]);
+	});
+
 	test('forwards HydraFusion route, failure, phase, and turn events', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
@@ -100,7 +151,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			restricted: false,
 			event: { kind, properties, metrics },
 		});
-
 		forwarder.forward(notification('hydrafusion_route', {
 			fusion_id: 'fusion-1',
 			synthetic_model: 'hydrafusion',
@@ -452,6 +502,26 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			eventName: 'agentHost.modelCallTurnCorrelated',
 			data: { sdkSessionId: 'sdk-session', modelCallId: 'call', turnId: 'host-turn', mappingStatus: 'late' },
 		}]);
+	});
+
+	test('forwards the runtime Auto tier and HydraFusion phase on successes unchanged', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => true, telemetryService);
+		const routing = { fusionId: 'fusion-1', fusionPattern: 'cascade', fusionPhaseKind: 'judge' };
+		// The runtime hashes a custom tier on standard rows and sends it raw only on restricted rows.
+		forwarder.forward({ sessionId: 'sdk-session', restricted: false, event: { kind: 'response.success', properties: { autoTier: 'sha256-of-custom', ...routing }, metrics: { isAuto: 1 } } });
+		forwarder.forward({ sessionId: 'sdk-session', restricted: true, event: { kind: 'response.success', properties: { autoTier: 'custom-tier', ...routing }, metrics: { isAuto: 1 } } });
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			restricted: event.data?.restricted,
+			autoTier: event.data?.autoTier,
+			fusionId: event.data?.fusionId,
+			fusionPattern: event.data?.fusionPattern,
+			fusionPhaseKind: event.data?.fusionPhaseKind,
+		})), [
+			{ restricted: false, autoTier: 'sha256-of-custom', ...routing },
+			{ restricted: true, autoTier: 'custom-tier', ...routing },
+		]);
 	});
 
 	test('reports usage availability on successes and errors without changing counters', () => {

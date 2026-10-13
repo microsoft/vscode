@@ -13,7 +13,7 @@ import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../comm
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerDisplayName, readMcpServerSource, withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -40,6 +40,14 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('validates the explicit native tool input contract', () => {
+		const key = 'vscode.toolInputContract';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
+			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
 
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
 		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
@@ -151,17 +159,50 @@ suite('Agent host _meta readers', () => {
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
 				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
 				readMcpServerSource(server(undefined)),
 			],
 			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
 			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
-			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
+			unchanged: true,
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpServerDisplayName': 'Mail' },
+		});
+	});
+
+	test('validates MCP source plugins and controlling settings and removes them once they no longer apply', () => {
+		const customization = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'computer-use',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		});
+		const opaque = { 'test.opaque': 'kept' };
+		const recorded = withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(opaque, 'computer-use'), 'chat.example.enabled');
+
+		assert.deepStrictEqual({
+			read: [readMcpServerSourcePlugin(customization(recorded)), readMcpServerControllingSetting(customization(recorded))],
+			invalidPlugins: [undefined, '', ' ', 1, {}].map(value => readMcpServerSourcePlugin(customization({ 'agentHost.mcpServerSourcePlugin': value }))),
+			invalidSettings: [undefined, '', 1, {}].map(value => readMcpServerControllingSetting(customization({ 'vscode.mcpServerControllingSetting': value }))),
+			recorded,
+			cleared: withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(recorded, undefined), undefined),
+			emptied: withMcpServerSourcePluginMeta({ 'agentHost.mcpServerSourcePlugin': 'computer-use' }, undefined),
+			unchanged: withMcpServerSourcePluginMeta(opaque, undefined) === opaque && withMcpServerSourcePluginMeta(recorded, 'computer-use') === recorded,
+		}, {
+			read: ['computer-use', 'chat.example.enabled'],
+			invalidPlugins: [undefined, undefined, undefined, undefined, undefined],
+			invalidSettings: [undefined, undefined, undefined, undefined],
+			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerSourcePlugin': 'computer-use', 'vscode.mcpServerControllingSetting': 'chat.example.enabled' },
+			cleared: { 'test.opaque': 'kept' },
+			emptied: undefined,
 			unchanged: true,
 		});
 	});
@@ -264,15 +305,19 @@ suite('Agent host _meta readers', () => {
 			});
 		});
 
-		test('round trips the namespaced Fusion description and drops malformed values', () => {
+		test('round trips the namespaced Fusion description and drops malformed Fusion values', () => {
 			assert.deepStrictEqual({
 				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
 				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
 				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+				emptyModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': '' } }).fusionModel,
+				invalidModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': 1 } }).fusionModel,
 			}, {
 				valid: 'Workflow description.',
 				empty: '',
 				invalid: undefined,
+				emptyModel: undefined,
+				invalidModel: undefined,
 			});
 		});
 	});
@@ -526,6 +571,27 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
+	suite('usage info Auto mode resolution', () => {
+		function usage(autoModeResolved: unknown): UsageInfo {
+			return { _meta: { autoModeResolved } };
+		}
+
+		test('reads the selection reason only when it is a non-empty string', () => {
+			const selectionReason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			assert.deepStrictEqual([
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: '  ' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: 42 })).autoModeResolved,
+			], [
+				{ chosenModel: 'gpt-5.4-mini', selectionReason },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+			]);
 		});
 	});
 
