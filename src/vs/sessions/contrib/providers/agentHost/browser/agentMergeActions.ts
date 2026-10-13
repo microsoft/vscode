@@ -208,6 +208,7 @@ abstract class AgentMergeActionBase extends Action2 {
 			fixCI: effective.fixCI,
 			resolveConflicts: effective.resolveConflicts,
 			mergePullRequest: effective.mergePullRequest,
+			mergeMethod: effective.mergeMethod,
 			...patch,
 		};
 		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
@@ -471,7 +472,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		}
 		// The merge choice is an enum rather than a checkbox, so it is carried
 		// through untouched instead of being reset by this multi-select.
-		const overrides = result.reset ? undefined : toOverrides(result.actions, effective.mergePullRequest);
+		const overrides = result.reset ? undefined : { ...toOverrides(result.actions, effective.mergePullRequest), mergeMethod: effective.mergeMethod };
 		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
 		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${result.reset}, enabledActions=${[...result.actions].sort().join(',') || 'none'}`);
 		notificationService.info(result.reset

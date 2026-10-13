@@ -31,14 +31,18 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { AgentMergeSessionOverrides, AgentMergeSettingId } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService, SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ArchiveSessionAction, MOVE_SESSION_ON_HOLD_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
+import { ChatInteractivity, IChat, ISession, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ArchiveSessionAction, MARK_SESSION_READY_TO_MERGE_COMMAND_ID, MOVE_SESSION_ON_HOLD_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
@@ -269,7 +273,7 @@ suite('Sessions - Session management actions', () => {
 		focusedChat?: ISessionChatItem,
 		focusedGroupChat?: IChat,
 		renameFocusedTab = false,
-		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[]; viewFocusedSessions?: readonly ISession[] } = {},
+		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[]; viewFocusedSessions?: readonly ISession[]; agentHostProvider?: IAgentHostSessionsProvider; agentMergeEnabled?: boolean } = {},
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
@@ -310,6 +314,12 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
 		}));
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				const provider = options.agentHostProvider?.id === providerId ? options.agentHostProvider : undefined;
+				return provider as T | undefined;
+			}
+		}());
 		const sessionView = activeSession ? upcastPartial<SessionView>({
 			getSession: () => activeSession,
 			getFocusedChat: () => focusedGroupChat,
@@ -345,9 +355,15 @@ suite('Sessions - Session management actions', () => {
 				inboxDispositions.delete(session.sessionId);
 			}
 		}());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		const configurationService = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				await this.setUserConfiguration(key, value);
+			}
+		}({
 			[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: options.confettiEnabled ?? true,
-		}));
+			[AgentMergeSettingId.Enabled]: options.agentMergeEnabled ?? true,
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
 			override isMotionReduced(): boolean {
 				return options.reducedMotion ?? false;
@@ -364,7 +380,7 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, dialogService, playedSignals, inboxDispositions, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, configurationService, dialogService, playedSignals, inboxDispositions, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
 
 	test('moves a session between the Inbox and On Hold', async () => {
@@ -385,6 +401,58 @@ suite('Sessions - Session management actions', () => {
 		}, {
 			held: SessionInboxDisposition.OnHold,
 			restored: undefined,
+		});
+	});
+
+	test('marks Agent Host pull request sessions Ready to Merge with autonomous squash merging', async () => {
+		const base = createTestSession('Ready').session;
+		const session: ISession = {
+			...base,
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			artifacts: constObservable([{
+				id: 'pr',
+				kind: SessionArtifactKind.PullRequest,
+				label: 'Ready PR',
+				isArtifact: true,
+				isGitHub: true,
+				link: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			}]),
+		};
+		const overrides: AgentMergeSessionOverrides[] = [];
+		const enabled: boolean[] = [];
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override async setAgentMergeOverrides(_sessionId: string, value: AgentMergeSessionOverrides | undefined): Promise<void> {
+				if (value) {
+					overrides.push(value);
+				}
+			}
+			override async setAgentMergeEnabled(_sessionId: string, value: boolean): Promise<void> {
+				enabled.push(value);
+			}
+		}();
+		const harness = createActionHarness(undefined, undefined, undefined, undefined, false, { agentHostProvider: provider, agentMergeEnabled: false });
+		const markReady = CommandsRegistry.getCommand(MARK_SESSION_READY_TO_MERGE_COMMAND_ID)?.handler;
+		assert.ok(markReady);
+
+		await markReady(harness.instantiationService, session);
+
+		assert.deepStrictEqual({
+			overrides,
+			enabled,
+			agentMergeFeatureEnabled: harness.configurationService.getValue<boolean>(AgentMergeSettingId.Enabled),
+			disposition: harness.inboxDispositions.get(session.sessionId),
+		}, {
+			overrides: [{
+				addressReviews: true,
+				fixCI: true,
+				resolveConflicts: true,
+				mergePullRequest: 'always',
+				mergeMethod: 'squash',
+			}],
+			enabled: [true],
+			agentMergeFeatureEnabled: true,
+			disposition: SessionInboxDisposition.ReadyToMerge,
 		});
 	});
 

@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { getReadyToMergeTransition, IReadyToMergeLifecycleSnapshot, ReadyToMergeTransition } from '../../browser/sessionInboxDisposition.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { getReadyToMergeTransition, hasPendingSessionQuestion, IReadyToMergeLifecycleSnapshot, ReadyToMergeTransition } from '../../browser/sessionInboxDisposition.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Session Inbox disposition', () => {
@@ -19,36 +25,52 @@ suite('Session Inbox disposition', () => {
 	};
 	const snapshot = (overrides: Partial<IReadyToMergeLifecycleSnapshot> = {}): IReadyToMergeLifecycleSnapshot => ({
 		isArchived: false,
-		status: SessionStatus.Completed,
-		updatedAt: 100,
-		hasFailingCI: false,
+		hasPendingQuestion: false,
 		pullRequests: [{ key: 'owner/repo#1', state: 'open' }],
 		...overrides,
 	});
 
-	test('keeps, wakes, or completes Ready to Merge sessions from actionable state', () => {
+	test('keeps Ready to Merge sessions deferred unless they ask a question or merge', () => {
 		assert.deepStrictEqual({
 			open: getReadyToMergeTransition(state, snapshot()),
 			unresolved: getReadyToMergeTransition(state, snapshot({ pullRequests: [{ key: 'owner/repo#1', state: undefined }] })),
 			merged: getReadyToMergeTransition(state, snapshot({ pullRequests: [{ key: 'owner/repo#1', state: 'merged' }] })),
-			mergedWithMetadataUpdate: getReadyToMergeTransition(state, snapshot({ updatedAt: 101, pullRequests: [{ key: 'owner/repo#1', state: 'merged' }] })),
-			needsInput: getReadyToMergeTransition(state, snapshot({ status: SessionStatus.NeedsInput })),
-			newActivity: getReadyToMergeTransition(state, snapshot({ updatedAt: 101 })),
-			failingCI: getReadyToMergeTransition(state, snapshot({ hasFailingCI: true })),
+			askUser: getReadyToMergeTransition(state, snapshot({ hasPendingQuestion: true })),
 			closed: getReadyToMergeTransition(state, snapshot({ pullRequests: [{ key: 'owner/repo#1', state: 'closed' }] })),
-			newPullRequest: getReadyToMergeTransition(state, snapshot({ pullRequests: [{ key: 'owner/repo#2', state: 'open' }] })),
+			newPullRequest: getReadyToMergeTransition(state, snapshot({ pullRequests: [{ key: 'owner/repo#1', state: 'open' }, { key: 'owner/repo#2', state: 'open' }] })),
 			missingPullRequest: getReadyToMergeTransition(state, snapshot({ pullRequests: [] })),
 		}, {
 			open: ReadyToMergeTransition.None,
 			unresolved: ReadyToMergeTransition.None,
 			merged: ReadyToMergeTransition.MarkDone,
-			mergedWithMetadataUpdate: ReadyToMergeTransition.MarkDone,
-			needsInput: ReadyToMergeTransition.MoveToInbox,
-			newActivity: ReadyToMergeTransition.MoveToInbox,
-			failingCI: ReadyToMergeTransition.MoveToInbox,
-			closed: ReadyToMergeTransition.MoveToInbox,
-			newPullRequest: ReadyToMergeTransition.MoveToInbox,
-			missingPullRequest: ReadyToMergeTransition.MoveToInbox,
+			askUser: ReadyToMergeTransition.MoveToInbox,
+			closed: ReadyToMergeTransition.None,
+			newPullRequest: ReadyToMergeTransition.None,
+			missingPullRequest: ReadyToMergeTransition.None,
 		});
+	});
+
+	test('detects only an unused Ask User question carousel', async () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test-chat:/ready') });
+		const session = upcastPartial<ISession>({ mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const carousel = new ChatQuestionCarouselData([{ id: 'q1', title: 'Choice', message: 'Choose', type: 'text' }], false);
+		const model = upcastPartial<IChatModel>({
+			getRequests: () => [upcastPartial<IChatRequestModel>({
+				response: upcastPartial<IChatResponseModel>({
+					response: upcastPartial<IResponse>({ value: [carousel] }),
+				}),
+			})],
+		});
+		const chatService = new class extends mock<IChatService>() {
+			override getSession() {
+				return model;
+			}
+		}();
+
+		const pending = hasPendingSessionQuestion(session, chatService, undefined);
+		carousel.dismiss({ q1: 'Answer' });
+		const answered = hasPendingSessionQuestion(session, chatService, undefined);
+
+		assert.deepStrictEqual({ pending, answered }, { pending: true, answered: false });
 	});
 });

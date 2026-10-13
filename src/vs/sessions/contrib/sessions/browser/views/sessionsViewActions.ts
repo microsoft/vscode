@@ -22,6 +22,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
@@ -31,7 +32,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSe
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionHasPullRequestContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionHasPullRequestContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionInboxDispositionContext, SessionItemStatusContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -41,6 +42,7 @@ import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { AgentMergeSessionOverrides, AgentMergeSettingId } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -58,6 +60,8 @@ import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { ISessionsListModelService, SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { getSessionOwnedPullRequests } from '../../../github/common/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
+import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 
 AccessibleViewRegistry.register({
 	name: 'sessions-list-notification',
@@ -1054,6 +1058,7 @@ registerAction2(class MarkSessionReadyToMergeAction extends Action2 {
 					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
 					SessionHasPullRequestContext,
 					ContextKeyExpr.equals(SessionItemStatusContext.key, SessionStatus.Completed),
+					ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 				),
 			}, {
 				id: SessionItemContextMenuId,
@@ -1066,25 +1071,54 @@ registerAction2(class MarkSessionReadyToMergeAction extends Action2 {
 					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
 					SessionHasPullRequestContext,
 					ContextKeyExpr.equals(SessionItemStatusContext.key, SessionStatus.Completed),
+					ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 				),
 			}],
 		});
 	}
 
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessions = context ? (Array.isArray(context) ? context : [context]) : [];
 		const listModelService = accessor.get(ISessionsListModelService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const notificationService = accessor.get(INotificationService);
+		const configurationService = accessor.get(IConfigurationService);
+		const agentMergeOverrides: AgentMergeSessionOverrides = {
+			addressReviews: true,
+			fixCI: true,
+			resolveConflicts: true,
+			mergePullRequest: 'always',
+			mergeMethod: 'squash',
+		};
+		if (configurationService.getValue<boolean>(AgentMergeSettingId.Enabled) !== true) {
+			try {
+				await configurationService.updateValue(AgentMergeSettingId.Enabled, true, ConfigurationTarget.USER);
+			} catch (error) {
+				notificationService.error(localize('sessionReadyToMergeEnableFeatureFailed', "Could not enable Agent Merge: {0}", toErrorMessage(error)));
+				return;
+			}
+		}
 		let changed = 0;
 		for (const session of sessions) {
 			const pullRequests = getSessionOwnedPullRequests(session, undefined);
 			const states = pullRequests?.map(ref => ref.liveState ?? ref.state);
+			const provider = sessionsProvidersService.getProvider(session.providerId);
 			if (
 				session.isArchived.get()
 				|| session.status.get() !== SessionStatus.Completed
 				|| !pullRequests?.length
 				|| states?.some(state => state === 'closed')
 				|| !states?.some(state => state !== 'merged')
+				|| !provider
+				|| !isAgentHostProvider(provider)
 			) {
+				continue;
+			}
+			try {
+				await provider.setAgentMergeOverrides(session.sessionId, agentMergeOverrides);
+				await provider.setAgentMergeEnabled(session.sessionId, true);
+			} catch (error) {
+				notificationService.error(localize('sessionReadyToMergeAgentMergeFailed', "Could not enable Agent Merge for {0}: {1}", session.title.get(), toErrorMessage(error)));
 				continue;
 			}
 			listModelService.setSessionInboxDisposition(
@@ -1096,8 +1130,8 @@ registerAction2(class MarkSessionReadyToMergeAction extends Action2 {
 		}
 		if (changed > 0) {
 			status(changed === 1
-				? localize('sessionReadyToMerge', "Moved 1 session to Ready to Merge.")
-				: localize('sessionsReadyToMerge', "Moved {0} sessions to Ready to Merge.", changed));
+				? localize('sessionReadyToMerge', "Moved 1 session to Ready to Merge. Agent Merge will address feedback and failures, then squash-merge the pull request.")
+				: localize('sessionsReadyToMerge', "Moved {0} sessions to Ready to Merge. Agent Merge will address feedback and failures, then squash-merge the pull requests.", changed));
 		}
 	}
 });

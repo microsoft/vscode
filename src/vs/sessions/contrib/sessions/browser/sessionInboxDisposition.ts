@@ -5,15 +5,15 @@
 
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionsListModelService, ISessionInboxDispositionState, SessionInboxDisposition } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 import { getSessionOwnedPullRequests } from '../../github/common/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../github/common/utils.js';
 
@@ -25,9 +25,7 @@ export const enum ReadyToMergeTransition {
 
 export interface IReadyToMergeLifecycleSnapshot {
 	readonly isArchived: boolean;
-	readonly status: SessionStatus;
-	readonly updatedAt: number;
-	readonly hasFailingCI: boolean;
+	readonly hasPendingQuestion: boolean;
 	readonly pullRequests: readonly {
 		readonly key: string;
 		readonly state: 'open' | 'closed' | 'merged' | undefined;
@@ -35,28 +33,37 @@ export interface IReadyToMergeLifecycleSnapshot {
 }
 
 export function getReadyToMergeTransition(state: ISessionInboxDispositionState, snapshot: IReadyToMergeLifecycleSnapshot): ReadyToMergeTransition {
-	if (
-		snapshot.isArchived
-		|| snapshot.status !== SessionStatus.Completed
-		|| snapshot.hasFailingCI
-	) {
+	if (snapshot.isArchived || snapshot.hasPendingQuestion) {
 		return ReadyToMergeTransition.MoveToInbox;
 	}
 	const trackedKeys = state.pullRequestKeys;
 	if (!snapshot.pullRequests?.length || !trackedKeys?.length) {
-		return ReadyToMergeTransition.MoveToInbox;
+		return ReadyToMergeTransition.None;
 	}
-	const currentKeys = snapshot.pullRequests.map(pullRequest => pullRequest.key).sort();
-	if (currentKeys.length !== trackedKeys.length || currentKeys.some((key, index) => key !== trackedKeys[index])) {
-		return ReadyToMergeTransition.MoveToInbox;
-	}
-	if (snapshot.pullRequests.some(pullRequest => pullRequest.state === 'closed')) {
-		return ReadyToMergeTransition.MoveToInbox;
-	}
-	if (snapshot.pullRequests.every(pullRequest => pullRequest.state === 'merged')) {
+	const currentByKey = new Map(snapshot.pullRequests.map(pullRequest => [pullRequest.key, pullRequest.state]));
+	if (trackedKeys.every(key => currentByKey.get(key) === 'merged')) {
 		return ReadyToMergeTransition.MarkDone;
 	}
-	return snapshot.updatedAt > state.updatedAt ? ReadyToMergeTransition.MoveToInbox : ReadyToMergeTransition.None;
+	return ReadyToMergeTransition.None;
+}
+
+export function hasPendingSessionQuestion(session: ISession, chatService: IChatService, reader: IReader | undefined): boolean {
+	const chats = [session.mainChat.read(reader), ...session.chats.read(reader)];
+	const seen = new Set<string>();
+	for (const chat of chats) {
+		const key = chat.resource.toString();
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		const model = chatService.getSession(chat.resource);
+		for (const request of model?.getRequests() ?? []) {
+			if (request.response?.response.value.some(part => part instanceof ChatQuestionCarouselData && !part.isUsed)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 export class SessionInboxDispositionContribution extends Disposable implements IWorkbenchContribution {
@@ -68,17 +75,16 @@ export class SessionInboxDispositionContribution extends Disposable implements I
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
-		const blockedSessions = this._register(instantiationService.createInstance(BlockedSessions));
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const listModelChanged = observableSignalFromEvent(this, this.sessionsListModelService.onDidChange);
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
 			listModelChanged.read(reader);
-			const failingCISessionIds = new Set(blockedSessions.failingCISessions.read(reader).map(session => session.sessionId));
+			this.chatService.chatModels.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				const state = this.sessionsListModelService.getSessionInboxDispositionState(session);
 				if (!state) {
@@ -92,12 +98,11 @@ export class SessionInboxDispositionContribution extends Disposable implements I
 				if (state.disposition !== SessionInboxDisposition.ReadyToMerge) {
 					continue;
 				}
+				session.status.read(reader);
 				const pullRequests = getSessionOwnedPullRequests(session, reader);
 				const transition = getReadyToMergeTransition(state, {
 					isArchived,
-					status: session.status.read(reader),
-					updatedAt: session.updatedAt.read(reader).getTime(),
-					hasFailingCI: failingCISessionIds.has(session.sessionId),
+					hasPendingQuestion: hasPendingSessionQuestion(session, this.chatService, reader),
 					pullRequests: pullRequests?.map(ref => ({
 						key: getPullRequestKey(ref.owner, ref.repo, ref.number),
 						state: ref.liveState ?? ref.state,
@@ -121,7 +126,6 @@ export class SessionInboxDispositionContribution extends Disposable implements I
 			await this.sessionsManagementService.archiveSession(session);
 			this.sessionsListModelService.clearSessionInboxDisposition(session);
 		} catch (error) {
-			this.sessionsListModelService.clearSessionInboxDisposition(session);
 			this.notificationService.error(localize('readyToMergeArchiveFailed', "Failed to mark the merged session as done: {0}", toErrorMessage(error)));
 		} finally {
 			this.archivingSessionIds.delete(session.sessionId);
