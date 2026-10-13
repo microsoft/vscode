@@ -22,17 +22,10 @@ export interface IMcpSourceFile {
 	readonly inputs: unknown;
 }
 
-/** How an `${input:id}` reference is written to the destination. */
-export interface IMcpInputVariable {
-	/** The environment variable that replaces the input. */
-	readonly name: string;
-	readonly declaration: IMcpServerCustomizationMigrationInputDeclaration;
-}
-
-/** The `${input:}` references of a server that are migrated to environment variables. */
-export interface IMcpMigratedVariables {
-	/** By input id. */
-	readonly inputs: ReadonlyMap<string, IMcpInputVariable>;
+/** The parts of a parsed source document that its servers are analyzed with, or `undefined` if it has no `servers` object. */
+export function getMcpSourceFile(document: Record<string, unknown>): IMcpSourceFile | undefined {
+	const servers = document.servers;
+	return isJsonObject(servers) ? { servers, inputs: document.inputs } : undefined;
 }
 
 /** Environment variable names that the Copilot runtime and the local harness expand in `${NAME}`. */
@@ -146,10 +139,10 @@ function getInputDeclaration(id: string, inputs: unknown): IMcpServerCustomizati
  * every server shares, so an input must not map to the same variable as a different input or `${env:}`
  * reference in the same file: they hold different values today.
  */
-export function getMigratedVariables(inputIds: ReadonlySet<string>, sourceFile: IMcpSourceFile): IMcpMigratedVariables | McpServerCustomizationMigrationFailureReason {
-	const inputs = new Map<string, IMcpInputVariable>();
+export function getMigratedVariables(inputIds: ReadonlySet<string>, sourceFile: IMcpSourceFile): IMcpServerCustomizationMigrationVariable[] | McpServerCustomizationMigrationFailureReason {
+	const variables: IMcpServerCustomizationMigrationVariable[] = [];
 	if (inputIds.size === 0) {
-		return { inputs };
+		return variables;
 	}
 	const fileEnvironmentVariableNames = new Set<string>();
 	const fileInputIds = new Set<string>();
@@ -176,15 +169,9 @@ export function getMigratedVariables(inputIds: ReadonlySet<string>, sourceFile: 
 		if (fileEnvironmentVariableNames.has(name) || [...fileInputIds].some(other => other !== id && getVariableName(other) === name)) {
 			return McpServerCustomizationMigrationFailureReason.VariableNameCollision;
 		}
-		inputs.set(id, { name, declaration });
+		variables.push({ id, name, declaration });
 	}
-	return { inputs };
-}
-
-/** The inputs that a server reads from environment variables once migrated, or `undefined` if none. */
-export function getEnvironmentVariables(variables: IMcpMigratedVariables): IMcpServerCustomizationMigrationVariable[] | undefined {
-	const result = [...Iterable.map(variables.inputs, ([id, input]) => ({ id, name: input.name, declaration: input.declaration }))];
-	return result.length > 0 ? result : undefined;
+	return variables;
 }
 
 /**
@@ -212,30 +199,10 @@ export function replaceConfigurationVariables(value: string, replace: (variable:
 	return result + value.slice(copied);
 }
 
-/** The VS Code variables in every string and property name of a JSON value, except within the values in `excluded`. */
-function getConfigurationVariables(value: unknown, excluded: ReadonlySet<unknown> = new Set()): Replacement[] {
-	const variables: Replacement[] = [];
-	const visitString = (text: string) => replaceConfigurationVariables(text, variable => {
-		variables.push(variable);
-		return variable.id;
-	});
-	const visit = (item: unknown) => {
-		if (excluded.has(item)) {
-			return;
-		}
-		if (typeof item === 'string') {
-			visitString(item);
-		} else if (Array.isArray(item)) {
-			item.forEach(visit);
-		} else if (isJsonObject(item)) {
-			for (const [key, child] of Object.entries(item)) {
-				visitString(key);
-				visit(child);
-			}
-		}
-	};
-	visit(value);
-	return variables;
+/** The VS Code variables in every string and property name of a JSON value. */
+export function getConfigurationVariables(value: unknown): Iterable<Replacement> {
+	// Wrapped, so that `windows`, `osx` and `linux` properties of the value are not applied as platform overrides.
+	return ConfigurationResolverExpression.parse({ value }).unresolved();
 }
 
 /**
@@ -253,7 +220,8 @@ export function removeUnreferencedInputs(content: string, ids: ReadonlySet<strin
 	const removed: number[] = [];
 	for (const id of ids) {
 		const declarations = inputs.filter(input => isJsonObject(input) && input.id === id);
-		const isReferenced = getConfigurationVariables(document, new Set(declarations)).some(variable => variable.name === 'input' && variable.arg === id);
+		const others = { ...document, inputs: inputs.filter(input => !declarations.includes(input)) };
+		const isReferenced = Iterable.some(getConfigurationVariables(others), variable => variable.name === 'input' && variable.arg === id);
 		if (!isReferenced) {
 			removed.push(...declarations.map(declaration => inputs.indexOf(declaration)));
 		}
@@ -292,11 +260,11 @@ function removeNode(content: string, node: Node): string {
 	return content.slice(0, start) + content.slice(end);
 }
 
-function parseJsonContent(content: string): unknown {
+export function parseJsonContent(content: string): unknown {
 	return parse(content, [], { allowTrailingComma: true, allowEmptyContent: false });
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
+export function isJsonObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
