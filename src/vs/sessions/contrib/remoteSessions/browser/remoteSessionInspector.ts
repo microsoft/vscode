@@ -36,7 +36,7 @@ export class RemoteSessionInspector {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const { resource, identity } = resolveRemoteSessionReference(reference, this.connectionsService);
+		const { resource, identity } = await resolveRemoteSessionReference(reference, this.connectionsService);
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider =>
 			provider.remoteAddress !== undefined && agentHostAuthority(provider.remoteAddress) === identity.connectionAuthority);
 		if (!provider) {

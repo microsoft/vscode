@@ -254,11 +254,11 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		assert.deepStrictEqual({ result, opened }, { result: true, opened: ['chat:copilotcli:/session-1'] });
 	});
 
-	for (const [name, defaultChat, peerChat, defaultId, peerId] of [
+	for (const [name, defaultChat, peerChat, defaultId, peerId, cached] of ([
 		['shaped', 'ahp-chat://default/c2Vzc2lvbi0x', 'ahp-chat://peer-1/c2Vzc2lvbi0x', 'ahp-chat://default/c2Vzc2lvbi0x', 'peer-1'],
 		['opaque', 'ahp-chat:/11111111-1111-4111-8111-111111111111', 'ahp-chat:/22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
-	]) {
-		test(`a link whose chat id resolves to the ${name} default chat selects the main chat, a peer link is unchanged`, async () => {
+	] as const).flatMap(row => [true, false].map(cached => [...row, cached] as const))) {
+		test(`a link whose chat id resolves to the ${name} default chat (${cached ? 'cached state' : 'session listing'}) selects the main chat, a peer link is unchanged`, async () => {
 			let registeredOpener: IOpener | undefined;
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const mainChat = upcastPartial<IChat>({ resource: sessionResource });
@@ -272,7 +272,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				override resolveSessionResource() {
 					return upcastPartial<IAgentHostSessionResolution>({
 						backendSession: sessionResource,
-						connection: upcastPartial<IAgentConnection>({ getSubscriptionUnmanaged: () => upcastPartial<IAgentSubscription<any>>({ value: state }) }),
+						connection: upcastPartial<IAgentConnection>(cached
+							? { getSubscriptionUnmanaged: () => upcastPartial<IAgentSubscription<any>>({ value: state }) }
+							: { getSubscriptionUnmanaged: () => undefined, listSessions: async () => [upcastPartial<IAgentSessionMetadata>({ session: sessionResource, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peerChat), kind: 'peer' }] })] }),
 					});
 				}
 			};

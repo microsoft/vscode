@@ -146,7 +146,7 @@ export class RemoteSessionMessageRouter {
 			}
 			targetReference = origin.chat;
 		}
-		const { resource: targetResource } = resolveRemoteSessionReference(targetReference, this.connectionsService);
+		const { resource: targetResource } = await resolveRemoteSessionReference(targetReference, this.connectionsService);
 		const target = this.resolveChat(targetResource);
 		if (isEqual(source.chat, target.chat)) {
 			throw new Error(localize('remoteMessage.self', "A chat cannot send a remote message to itself."));
