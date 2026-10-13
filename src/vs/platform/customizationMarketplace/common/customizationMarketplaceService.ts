@@ -133,6 +133,21 @@ export interface ICustomizationMarketplacePage {
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
+export type CustomizationMarketplaceBrowseSectionPresentation = 'hero' | 'compact' | 'list';
+
+export interface ICustomizationMarketplaceBrowseSection {
+	readonly id: string;
+	readonly title: string;
+	readonly presentation: CustomizationMarketplaceBrowseSectionPresentation;
+	readonly items: readonly ICustomizationMarketplaceResource[];
+}
+
+export interface ICustomizationMarketplaceBrowseSections {
+	readonly sourceId: string;
+	readonly sections: readonly ICustomizationMarketplaceBrowseSection[];
+	readonly error?: string;
+}
+
 export interface ICustomizationMarketplaceSourceError {
 	readonly sourceId: string;
 	readonly message: string;
@@ -220,6 +235,8 @@ export interface ICustomizationMarketplaceService {
 	/** Fires when non-configuration inputs change source availability or query identity. */
 	readonly onDidChangeSources?: Event<void>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	/** Optional ordered editorial sections for queryless Browse. */
+	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
