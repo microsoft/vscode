@@ -6186,6 +6186,34 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('createChat accepts any ahp-chat URI in an opaque session and rejects opaque or foreign URIs otherwise', async () => {
+			const opaqueSession = 'copilot:/opaque-session';
+			const opaqueDefault = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+			stateManager.createSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefault });
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const [channel, chat] of [
+				[opaqueSession, 'ahp-chat:/x/y'],
+				[opaqueSession, buildChatUri(opaqueSession, 'shaped-peer')],
+				[sessionUri, 'ahp-chat:/22222222-2222-4222-8222-222222222222'],
+				[sessionUri, 'file:///not-a-chat'],
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+				created: ['ahp-chat:/x/y', buildChatUri(opaqueSession, 'shaped-peer')],
+			});
+		});
+
 		test('createChat rejects a source without kind', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
