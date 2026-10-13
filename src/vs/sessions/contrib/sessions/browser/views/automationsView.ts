@@ -597,8 +597,8 @@ class AutomationCardsSection extends Disposable {
 		}));
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
-		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
+		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
 		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));

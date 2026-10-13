@@ -1336,6 +1336,9 @@ suite('AutomationsCardsWidget', () => {
 			runner.whenDispatched = dispatched.p;
 			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
 			const icon = widget.element.querySelector<HTMLElement>('.automations-card-name .codicon-modifier-spin')!;
+			const title = widget.element.querySelector<HTMLElement>('.automations-card-name-text')!;
+			widget.layout(800, 600);
+			const titleLeft = title.getBoundingClientRect().left;
 			const state = () => ({
 				disabled: runButton.getAttribute('aria-disabled'),
 				label: runButton.getAttribute('aria-label'),
@@ -1344,6 +1347,11 @@ suite('AutomationsCardsWidget', () => {
 			});
 			runButton.click();
 			const starting = state();
+			assert.deepStrictEqual({
+				titleHasWidth: title.getBoundingClientRect().width > 0,
+				titleLeft: title.getBoundingClientRect().left,
+				spinnerOnRight: icon.getBoundingClientRect().left >= title.getBoundingClientRect().right,
+			}, { titleHasWidth: true, titleLeft, spinnerOnRight: true });
 			await dispatched.complete({ kind: 'accepted' });
 			await clock.tickAsync(10_000);
 			automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
