@@ -131,6 +131,7 @@ export interface ICustomizationMarketplaceManagementProvider {
 	readonly onDidChange: Event<void>;
 	list(): Promise<readonly ICustomizationMarketplaceInfo[]>;
 	add(source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	remove(name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
 	refresh(name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
 }
@@ -398,6 +399,11 @@ export interface ICustomizationHarnessService {
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
 
 	/**
+	 * Finds the harness descriptor that owns the given session resource.
+	 */
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined;
+
+	/**
 	 * Changes the active session. The new session's type must be present in
 	 * `availableHarnesses`.
 	 */
@@ -631,13 +637,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined {
+		return this.findHarnessById(getChatSessionType(sessionResource));
+	}
+
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
+		const descriptor = this.getDescriptorForSession(this._activeSessionResource.get());
 		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 

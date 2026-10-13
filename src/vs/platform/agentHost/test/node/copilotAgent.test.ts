@@ -606,7 +606,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
-			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'remove' | 'refresh'>;
+			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
@@ -752,6 +752,10 @@ class TestCopilotClient implements ITestCopilotClient {
 					this.pluginMarketplaceAddRequests.push(params);
 					return { name: this.pluginMarketplaceAddName };
 				},
+				browse: async params => {
+					this.pluginMarketplaceBrowseRequests.push(params);
+					return { plugins: this.pluginMarketplaceBrowsePlugins };
+				},
 				remove: async params => {
 					this.pluginMarketplaceRemoveRequests.push(params);
 					return this.pluginMarketplaceRemoveResult;
@@ -779,6 +783,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
 	pluginMarketplaceAddName = 'marketplace';
 	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
+	pluginMarketplaceBrowsePlugins: Awaited<ReturnType<CopilotPluginMarketplaces['browse']>>['plugins'] = [];
+	readonly pluginMarketplaceBrowseRequests: Parameters<CopilotPluginMarketplaces['browse']>[0][] = [];
 	pluginMarketplaceRemoveResult: Awaited<ReturnType<CopilotPluginMarketplaces['remove']>> = { removed: true };
 	readonly pluginMarketplaceRemoveRequests: Parameters<CopilotPluginMarketplaces['remove']>[0][] = [];
 	pluginMarketplaceRefreshResults: Awaited<ReturnType<CopilotPluginMarketplaces['refresh']>>['results'] = [];
@@ -1724,21 +1730,25 @@ suite('CopilotAgent', () => {
 			available: true,
 		}];
 		client.pluginMarketplaceAddName = 'marketplace';
+		client.pluginMarketplaceBrowsePlugins = [{ name: 'plugin', description: 'Plugin description' }];
 		client.pluginMarketplaceRemoveResult = { removed: false, dependentPlugins: ['plugin'] };
 		client.pluginMarketplaceRefreshResults = [{ name: 'marketplace', success: true }];
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		try {
 			const listed = await agent.listPluginMarketplaces();
 			const added = await agent.addPluginMarketplace('owner/repository');
+			const browsed = await agent.browsePluginMarketplace('marketplace');
 			const removed = await agent.removePluginMarketplace('marketplace', true);
 			const refreshed = await agent.refreshPluginMarketplaces('marketplace');
 
 			assert.deepStrictEqual({
 				listed,
 				added,
+				browsed,
 				removed,
 				refreshed,
 				addRequests: client.pluginMarketplaceAddRequests,
+				browseRequests: client.pluginMarketplaceBrowseRequests,
 				removeRequests: client.pluginMarketplaceRemoveRequests,
 				refreshRequests: client.pluginMarketplaceRefreshRequests,
 			}, {
@@ -1756,9 +1766,11 @@ suite('CopilotAgent', () => {
 					managed: true,
 					available: true,
 				},
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
 				removed: { removed: false, dependentPlugins: ['plugin'] },
 				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
 				addRequests: [{ source: 'owner/repository' }],
+				browseRequests: [{ name: 'marketplace' }],
 				removeRequests: [{ name: 'marketplace', force: true }],
 				refreshRequests: [{ name: 'marketplace' }],
 			});

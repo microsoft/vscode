@@ -188,6 +188,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				available: true,
 			}],
 			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
 			remove: async (name, force) => {
 				removeCalls.push({ name, force });
 				return force ? { removed: true } : { removed: false, dependentPlugins: ['sample-plugin'] };
@@ -235,6 +236,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				addCalls.push(source);
 				return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
 			},
+			queryMarketplace: async () => ({ items: [], total: 0 }),
 			remove: async () => ({ removed: true }),
 			refresh: async () => [],
 		};

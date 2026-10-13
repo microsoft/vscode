@@ -146,6 +146,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, source));
 	}
 
+	browsePluginMarketplace(provider: AgentProvider, name: string) {
+		if (!this._agentService.browsePluginMarketplace) {
+			throw new Error('Agent Host plugin marketplace browse is unavailable');
+		}
+		return this._agentService.browsePluginMarketplace(provider, name);
+	}
+
 	removePluginMarketplace(provider: AgentProvider, name: string, force?: boolean) {
 		if (!this._agentService.removePluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace removal is unavailable');

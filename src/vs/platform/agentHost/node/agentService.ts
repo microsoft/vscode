@@ -5431,6 +5431,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.addPluginMarketplace(source);
 	}
 
+	browsePluginMarketplace(providerId: AgentProvider, name: string) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.browsePluginMarketplace) {
+			throw new Error(`Plugin marketplace browse is unavailable for provider '${providerId}'.`);
+		}
+		return provider.browsePluginMarketplace(name);
+	}
+
 	removePluginMarketplace(providerId: AgentProvider, name: string, force?: boolean) {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.removePluginMarketplace) {

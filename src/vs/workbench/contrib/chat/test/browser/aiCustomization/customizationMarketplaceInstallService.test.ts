@@ -342,19 +342,24 @@ suite('CustomizationMarketplaceInstallService', () => {
 				connectorDisconnected.fire(name);
 			}
 		}();
+		const harnessDescriptor: IHarnessDescriptor = {
+			id: 'test-harness',
+			label: 'Test Harness',
+			icon: Codicon.copilot,
+			marketplaceInstallProvider: options.installProvider,
+		};
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, 'test-harness');
 			override readonly activeSessionResource = observableValue(this, URI.parse('test-harness:///session'));
+			override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [harnessDescriptor]);
 			override getActiveDescriptor(): IHarnessDescriptor {
 				return this.findHarnessById(this.activeHarness.get())!;
 			}
+			override getDescriptorForSession(): IHarnessDescriptor {
+				return harnessDescriptor;
+			}
 			override findHarnessById(id: string): IHarnessDescriptor | undefined {
-				return {
-					id,
-					label: 'Test Harness',
-					icon: Codicon.copilot,
-					marketplaceInstallProvider: id === 'test-harness' ? options.installProvider : undefined,
-				};
+				return id === harnessDescriptor.id ? harnessDescriptor : undefined;
 			}
 		}();
 		const sentimentChanges = store.add(new Emitter<void>());

@@ -53,6 +53,13 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						available: true,
 					};
 				}
+				override async browsePluginMarketplace(provider: string, name: string) {
+					calls.push({ operation: 'browse', args: [provider, name] });
+					return [
+						{ name: 'plugin', description: 'Plugin description' },
+						{ name: 'plugin-next', description: 'Next plugin' },
+					];
+				}
 				override async removePluginMarketplace(provider: string, name: string, force?: boolean) {
 					calls.push({ operation: 'remove', args: [provider, name, force] });
 					return { removed: force === true, dependentPlugins: force ? undefined : ['plugin'] };
@@ -77,6 +84,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 		const listed = await provider.list();
 		const added = await provider.add('owner/repository');
+		const page = await provider.queryMarketplace(listed[0], { pageSize: 1 }, CancellationToken.None);
+		const nextPage = await provider.queryMarketplace(listed[0], { pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
 		const refused = await provider.remove('marketplace');
 		const removed = await provider.remove('marketplace', true);
 		const refreshed = await provider.refresh('marketplace');
@@ -84,6 +93,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		assert.deepStrictEqual({
 			listed,
 			added,
+			page,
+			nextPage,
 			refused,
 			removed,
 			refreshed,
@@ -104,6 +115,44 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				managed: false,
 				available: true,
 			},
+			page: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin"]',
+					displayName: 'plugin',
+					description: 'Plugin description',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+					},
+				}],
+				total: 2,
+				nextCursor: '1',
+			},
+			nextPage: {
+				items: [{
+					identifier: '["GitHub: owner/repository","marketplace","plugin-next"]',
+					displayName: 'plugin-next',
+					description: 'Next plugin',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					installation: {
+						kind: 'providerPlugin',
+						name: 'plugin-next',
+						marketplace: 'marketplace',
+						marketplaceSource: 'GitHub: owner/repository',
+					},
+				}],
+				total: 2,
+				nextCursor: undefined,
+			},
 			refused: { removed: false, dependentPlugins: ['plugin'] },
 			removed: { removed: true, dependentPlugins: undefined },
 			refreshed: [{ name: 'marketplace', success: true }],
@@ -111,6 +160,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			calls: [
 				{ operation: 'list', args: ['copilotcli'] },
 				{ operation: 'add', args: ['copilotcli', 'owner/repository'] },
+				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
+				{ operation: 'browse', args: ['copilotcli', 'marketplace'] },
 				{ operation: 'remove', args: ['copilotcli', 'marketplace', undefined] },
 				{ operation: 'remove', args: ['copilotcli', 'marketplace', true] },
 				{ operation: 'refresh', args: ['copilotcli', 'marketplace'] },

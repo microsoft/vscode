@@ -413,6 +413,11 @@ export interface IAgentPluginMarketplace {
 	readonly available: boolean;
 }
 
+export interface IAgentPluginMarketplaceItem {
+	readonly name: string;
+	readonly description?: string;
+}
+
 export interface IAgentPluginMarketplaceRemoveResult {
 	readonly removed: boolean;
 	readonly dependentPlugins?: readonly string[];
@@ -1498,6 +1503,9 @@ export interface IAgent {
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
 	addPluginMarketplace?(source: string): Promise<IAgentPluginMarketplace>;
+
+	/** Browse one plugin marketplace through the provider that owns marketplace state. */
+	browsePluginMarketplace?(name: string): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(name: string, force?: boolean): Promise<IAgentPluginMarketplaceRemoveResult>;

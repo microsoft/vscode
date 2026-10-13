@@ -2821,6 +2821,10 @@ suite('AgentService (node dispatcher)', () => {
 				calls.push(['add', source]);
 				return { name: 'marketplace', source, isDefault: false, managed: false, available: true };
 			};
+			provider.browsePluginMarketplace = async name => {
+				calls.push(['browse', name]);
+				return [{ name: 'plugin', description: 'Plugin description' }];
+			};
 			provider.removePluginMarketplace = async (name, force) => {
 				calls.push(['remove', name, force]);
 				return { removed: true };
@@ -2834,23 +2838,27 @@ suite('AgentService (node dispatcher)', () => {
 
 			const listed = await managementService.listPluginMarketplaces(provider.id);
 			const added = await managementService.addPluginMarketplace(provider.id, 'owner/repository');
+			const browsed = await managementService.browsePluginMarketplace(provider.id, 'marketplace');
 			const removed = await managementService.removePluginMarketplace(provider.id, 'marketplace', true);
 			const refreshed = await managementService.refreshPluginMarketplaces(provider.id, 'marketplace');
 
 			assert.deepStrictEqual({
 				listed,
 				added,
+				browsed,
 				removed,
 				refreshed,
 				calls,
 			}, {
 				listed: [{ name: 'marketplace', source: 'owner/repository', isDefault: false, managed: false, available: true }],
 				added: { name: 'marketplace', source: 'owner/repository', isDefault: false, managed: false, available: true },
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
 				removed: { removed: true },
 				refreshed: [{ name: 'marketplace', success: true }],
 				calls: [
 					['list'],
 					['add', 'owner/repository'],
+					['browse', 'marketplace'],
 					['remove', 'marketplace', true],
 					['refresh', 'marketplace'],
 				],

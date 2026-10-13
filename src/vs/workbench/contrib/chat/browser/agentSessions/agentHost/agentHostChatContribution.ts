@@ -349,6 +349,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const marketplaceManagementProvider = marketplaceInstallProvider
 			&& this._agentHostService.listPluginMarketplaces
 			&& this._agentHostService.addPluginMarketplace
+			&& this._agentHostService.browsePluginMarketplace
 			&& this._agentHostService.removePluginMarketplace
 			&& this._agentHostService.refreshPluginMarketplaces
 			? marketplaceInstallProvider

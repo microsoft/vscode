@@ -21,7 +21,7 @@ import { CustomizationMarketplaceSources } from '../../../../../../platform/cust
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { getGitHubMcpRegistryIcon } from '../../aiCustomization/githubMcpRegistryIcons.js';
@@ -96,6 +96,45 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const result = await this.agentHostService.addPluginMarketplace(this.providerId, source);
 		this._onDidChange.fire();
 		return result;
+	}
+
+	async queryMarketplace(marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
+		this.throwIfCancelled(token);
+		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.CopilotPlugin) {
+			return { items: [], total: 0 };
+		}
+		if (!this.agentHostService.browsePluginMarketplace) {
+			throw new Error(localize('agentHost.marketplaceManagement.browseUnavailable', "The selected agent does not support browsing marketplaces."));
+		}
+		const plugins = await this.agentHostService.browsePluginMarketplace(this.providerId, marketplace.name);
+		this.throwIfCancelled(token);
+		const query = options.query?.trim().toLowerCase();
+		const matching = query
+			? plugins.filter(plugin => plugin.name.toLowerCase().includes(query) || plugin.description?.toLowerCase().includes(query))
+			: plugins;
+		const offset = Number(options.cursor ?? 0);
+		const start = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+		const pageSize = options.pageSize ?? matching.length;
+		const end = Math.min(start + pageSize, matching.length);
+		return {
+			items: matching.slice(start, end).map(plugin => ({
+				identifier: JSON.stringify([marketplace.source, marketplace.name, plugin.name]),
+				displayName: plugin.name,
+				description: plugin.description ?? '',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				installation: {
+					kind: 'providerPlugin' as const,
+					name: plugin.name,
+					marketplace: marketplace.name,
+					marketplaceSource: marketplace.source,
+				},
+			})),
+			total: matching.length,
+			nextCursor: end < matching.length ? String(end) : undefined,
+		};
 	}
 
 	async remove(name: string, force?: boolean) {
