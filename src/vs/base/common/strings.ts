@@ -603,15 +603,18 @@ export class GraphemeIterator {
 		const iterator = this._iterator;
 		const initialOffset = iterator.offset;
 
-		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
+		let codePoint = iterator.nextCodePoint();
+		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(codePoint);
 		while (!iterator.eol()) {
 			const offset = iterator.offset;
-			const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
-			if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+			const nextCodePoint = iterator.nextCodePoint();
+			const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(nextCodePoint);
+			if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType, codePoint, nextCodePoint)) {
 				// move iterator back
 				iterator.setOffset(offset);
 				break;
 			}
+			codePoint = nextCodePoint;
 			graphemeBreakType = nextGraphemeBreakType;
 		}
 		return (iterator.offset - initialOffset);
@@ -622,15 +625,18 @@ export class GraphemeIterator {
 		const iterator = this._iterator;
 		const initialOffset = iterator.offset;
 
-		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
+		let codePoint = iterator.prevCodePoint();
+		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(codePoint);
 		while (iterator.offset > 0) {
 			const offset = iterator.offset;
-			const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
-			if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType)) {
+			const prevCodePoint = iterator.prevCodePoint();
+			const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(prevCodePoint);
+			if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType, prevCodePoint, codePoint)) {
 				// move iterator back
 				iterator.setOffset(offset);
 				break;
 			}
+			codePoint = prevCodePoint;
 			graphemeBreakType = prevGraphemeBreakType;
 		}
 		return (initialOffset - iterator.offset);
@@ -1007,7 +1013,7 @@ export function getGraphemeBreakType(codePoint: number): GraphemeBreakType {
 	return graphemeBreakTree.getGraphemeBreakType(codePoint);
 }
 
-function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB: GraphemeBreakType): boolean {
+function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB: GraphemeBreakType, codePointA: number, codePointB: number): boolean {
 	// http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundary_Rules
 
 	// !!! Let's make the common case a bit faster
@@ -1069,6 +1075,14 @@ function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB
 		return false; // GB9b
 	}
 
+	// Do not break within Indic conjuncts.
+	// GB9c    \p{InCB=Consonant} [\p{InCB=Extend}\p{InCB=Linker}]* \p{InCB=Linker} [\p{InCB=Extend}\p{InCB=Linker}]* × \p{InCB=Consonant}
+	if ((breakTypeA === GraphemeBreakType.Extend || breakTypeA === GraphemeBreakType.SpacingMark) && isIndicConjunctLinker(codePointA) && isIndicConjunctConsonant(codePointB)) {
+		// Note: we are not implementing the rule entirely here to avoid introducing states
+		// (no consonant is required before the linker, and no InCB=Extend such as ZWJ may follow it)
+		return false; // GB9c
+	}
+
 	// Do not break within emoji modifier sequences or emoji zwj sequences.
 	// GB11    \p{Extended_Pictographic} Extend* ZWJ × \p{Extended_Pictographic}
 	if (breakTypeA === GraphemeBreakType.ZWJ && breakTypeB === GraphemeBreakType.Extended_Pictographic) {
@@ -1085,6 +1099,56 @@ function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB
 
 	// GB999                                     Any ÷ Any
 	return true;
+}
+
+/**
+ * [start, end] code point ranges with InCB=Consonant: the `; InCB; Consonant` lines of
+ * https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt in file order (sorted, none adjacent),
+ * with a single code point X written as X, X.
+ * Scripts newer than the grapheme break table (such as Kawi and Tulu-Tigalari) have their linkers classified
+ * as `Other` there, so they take the fast path in `breakBetweenGraphemeBreakType` and are not joined yet.
+ */
+const INDIC_CONJUNCT_CONSONANTS: readonly number[] = [
+	0x0915, 0x0939, 0x0958, 0x095F, 0x0978, 0x097F, 0x0995, 0x09A8, 0x09AA, 0x09B0, 0x09B2, 0x09B2,
+	0x09B6, 0x09B9, 0x09DC, 0x09DD, 0x09DF, 0x09DF, 0x09F0, 0x09F1, 0x0A95, 0x0AA8, 0x0AAA, 0x0AB0,
+	0x0AB2, 0x0AB3, 0x0AB5, 0x0AB9, 0x0AF9, 0x0AF9, 0x0B15, 0x0B28, 0x0B2A, 0x0B30, 0x0B32, 0x0B33,
+	0x0B35, 0x0B39, 0x0B5C, 0x0B5D, 0x0B5F, 0x0B5F, 0x0B71, 0x0B71, 0x0C15, 0x0C28, 0x0C2A, 0x0C39,
+	0x0C58, 0x0C5A, 0x0D15, 0x0D3A, 0x1000, 0x102A, 0x103F, 0x103F, 0x1050, 0x1055, 0x105A, 0x105D,
+	0x1061, 0x1061, 0x1065, 0x1066, 0x106E, 0x1070, 0x1075, 0x1081, 0x108E, 0x108E, 0x1780, 0x17B3,
+	0x1A20, 0x1A54, 0x1B0B, 0x1B0C, 0x1B13, 0x1B33, 0x1B45, 0x1B4C, 0x1B83, 0x1BA0, 0x1BAE, 0x1BAF,
+	0x1BBB, 0x1BBD, 0xA989, 0xA98B, 0xA98F, 0xA9B2, 0xA9E0, 0xA9E4, 0xA9E7, 0xA9EF, 0xA9FA, 0xA9FE,
+	0xAA60, 0xAA6F, 0xAA71, 0xAA73, 0xAA7A, 0xAA7A, 0xAA7E, 0xAA7F, 0xAAE0, 0xAAEA, 0xABC0, 0xABDA,
+	0x10A00, 0x10A00, 0x10A10, 0x10A13, 0x10A15, 0x10A17, 0x10A19, 0x10A35, 0x11103, 0x11126, 0x11144, 0x11144,
+	0x11147, 0x11147, 0x11380, 0x11389, 0x1138B, 0x1138B, 0x1138E, 0x1138E, 0x11390, 0x113B5, 0x11900, 0x11906,
+	0x11909, 0x11909, 0x1190C, 0x11913, 0x11915, 0x11916, 0x11918, 0x1192F, 0x11A00, 0x11A00, 0x11A0B, 0x11A32,
+	0x11A50, 0x11A50, 0x11A5C, 0x11A83, 0x11F04, 0x11F10, 0x11F12, 0x11F33,
+];
+
+function isIndicConjunctLinker(codePoint: number): boolean {
+	// InCB=Linker: the `; InCB; Linker` lines of https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
+	switch (codePoint) {
+		case 0x094D: case 0x09CD: case 0x0ACD: case 0x0B4D: case 0x0C4D: case 0x0D4D: case 0x1039:
+		case 0x17D2: case 0x1A60: case 0x1B44: case 0x1BAB: case 0xA9C0: case 0xAAF6: case 0x10A3F:
+		case 0x11133: case 0x113D0: case 0x1193E: case 0x11A47: case 0x11A99: case 0x11F42:
+			return true;
+	}
+	return false;
+}
+
+function isIndicConjunctConsonant(codePoint: number): boolean {
+	let low = 0;
+	let high = INDIC_CONJUNCT_CONSONANTS.length / 2 - 1;
+	while (low <= high) {
+		const mid = (low + high) >>> 1;
+		if (codePoint < INDIC_CONJUNCT_CONSONANTS[2 * mid]) {
+			high = mid - 1;
+		} else if (codePoint > INDIC_CONJUNCT_CONSONANTS[2 * mid + 1]) {
+			low = mid + 1;
+		} else {
+			return true;
+		}
+	}
+	return false;
 }
 
 export const enum GraphemeBreakType {
