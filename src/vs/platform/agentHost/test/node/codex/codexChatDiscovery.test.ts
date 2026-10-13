@@ -848,7 +848,7 @@ suite('Codex chat discovery', () => {
 			const chat = URI.parse(buildDefaultChatUri(session));
 			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
 			client.turns = [turn('Working')];
-			const initial = await agent.chats.getMessages(chat, session);
+			const initial = await agent.chats.getMessages(chat, { resource: session, configurationResource: session });
 			const observed = agent as import('../../../common/agent.js').IAgent;
 			let refreshed: ReturnType<typeof retainedContent>;
 			if (observed.onDidChangeChatHistory) {

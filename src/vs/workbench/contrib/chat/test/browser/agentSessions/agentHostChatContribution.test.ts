@@ -58,7 +58,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agent
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -150,6 +150,7 @@ import { messageAttachmentsToVariableData } from '../../../browser/agentSessions
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
+import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -565,7 +566,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// Hydrate synchronously with a default state. For a default-chat channel
 		// serve a ChatState carrying the conversation fields the test seeded on
 		// the owning session; otherwise serve the SessionState.
-		const sessionForChat = parseDefaultChatUri(resourceStr)
+		const sessionForChat = mintedTestChatOwner(resourceStr)
 			?? [...this._liveSubscriptions].find(([, entry]) => hasKey(entry.state, { chats: true }) && entry.state.defaultChat === resourceStr)?.[0];
 		let initialState: SessionState | ChatState;
 		const seededChat = _kind === StateComponents.Chat ? this.chatStates.get(resourceStr) : undefined;
@@ -750,7 +751,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 		const chatUri = this.defaultChatUri ?? buildDefaultChatUri(resource);
 		const additionalChats = [...this.sessionStates.keys()]
-			.filter(uri => uri !== chatUri && parseDefaultChatUri(uri) === resource)
+			.filter(uri => uri !== chatUri && mintedTestChatOwner(uri) === resource)
 			.map(uri => createDefaultChatSummary(summary, uri));
 		return {
 			...state,
@@ -1795,7 +1796,8 @@ suite('AgentHostChatContribution', () => {
 					action: {
 						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'write-permission', approved: true,
 						selectedOptionId: 'approve-for-session', confirmed: ToolCallConfirmationReason.UserAction,
-						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+						// The host-assigned chat resolves through the session state that lists it, so the tool call's metadata is preserved.
+						_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' }, 'agentHost.permissionDecisionSource': 'human_response' },
 					},
 				});
 			});
@@ -5926,7 +5928,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			assert.strictEqual(agentHostService.turnActions[0].action.type, 'chat/turnStarted');
 			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.text, 'Hello');
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'new-turntest');
 		}));
@@ -5985,7 +5987,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'existing-session-42');
 		}));
@@ -6020,7 +6022,7 @@ suite('AgentHostChatContribution', () => {
 
 			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
-			const parentSession = parseDefaultChatUri(dispatch.channel.toString());
+			const parentSession = mintedTestChatOwner(dispatch.channel.toString());
 			assert.strictEqual(parentSession, newBackend.toString());
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
@@ -7588,7 +7590,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			fire({
@@ -7707,7 +7709,7 @@ suite('AgentHostChatContribution', () => {
 				});
 
 				const parentToolCallId = `tc-sub-auto-${hideAutoExplainability}`;
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 				fire({
@@ -7775,7 +7777,7 @@ suite('AgentHostChatContribution', () => {
 					languageModels, languageModelsServiceOverride: { onDidChangeLanguageModels: onDidChangeLanguageModels.event },
 				});
 				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const childChat = buildSubagentChatUri(parentSession, 'launch');
 				fire({
@@ -17473,7 +17475,7 @@ suite('AgentHostChatContribution', () => {
 				});
 				const sessionResource = URI.parse('agent-host-copilot:/new-late-child');
 				const { turnPromise, collected, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const childChat = buildSubagentChatUri(parentSession, 'launch');
 				agentHostService.sessionStates.set(childChat, {
@@ -17688,7 +17690,7 @@ suite('AgentHostChatContribution', () => {
 					parts = chatSession.history.flatMap(item => item.type === 'response' ? item.parts : []);
 				} else {
 					const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-					const backend = parseDefaultChatUri(session);
+					const backend = mintedTestChatOwner(session);
 					assert.ok(backend);
 					const childChat = buildSubagentChatUri(backend, parentToolCallId);
 					agentHostService.sessionStates.set(childChat, makeChildState(childChat, childToolCallId));
@@ -17730,7 +17732,7 @@ suite('AgentHostChatContribution', () => {
 					},
 				});
 				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const calls = () => collected.flat().filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
 				for (const toolCallId of ['first-launch', 'second-launch']) {
@@ -17796,7 +17798,7 @@ suite('AgentHostChatContribution', () => {
 			// call fires, so that when the handler subscribes to it the inner tool
 			// is already present.
 			const parentToolCallId = 'tc-parent-task';
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
@@ -17855,7 +17857,7 @@ suite('AgentHostChatContribution', () => {
 			test(`clears ${completed ? 'completed' : 'active'} subagent availability after a hydrated subscription errors`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const toolCallId = 'tc-parent-task';
 				const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
@@ -17932,7 +17934,7 @@ suite('AgentHostChatContribution', () => {
 			test(`retries a ${startsPending ? 'pending' : 'hydrated'} failed subagent subscription when its discovery content arrives`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-				const parentSession = parseDefaultChatUri(session);
+				const parentSession = mintedTestChatOwner(session);
 				assert.ok(parentSession);
 				const parentToolCallId = 'tc-parent-task';
 				const childChatUri = buildSubagentChatUri(parentSession, parentToolCallId);
@@ -17987,7 +17989,7 @@ suite('AgentHostChatContribution', () => {
 		test('recovers a late background subagent from the chat catalog after its task tool completed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const parentToolCallId = 'tc-background-task';
 			const childChatUri = buildSubagentChatUri(parentSession, parentToolCallId);
@@ -18061,7 +18063,7 @@ suite('AgentHostChatContribution', () => {
 		test('subagent catalog discovery scopes reused tool ids to the spawning chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const toolCallId = 'reused-task-id';
 			const childChatUri = buildSubagentChatUri(parentSession, 'correct-child');
@@ -18104,7 +18106,7 @@ suite('AgentHostChatContribution', () => {
 		test('switches subagent observation from a provisional URI to the discovered chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const parentToolCallId = 'tc-parent-task';
 			const provisionalChatUri = buildSubagentChatUri(parentSession, parentToolCallId);
@@ -18149,7 +18151,7 @@ suite('AgentHostChatContribution', () => {
 		test('failed subagent tool calls release child chat subscriptions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const toolCallId = 'tc-failed-task';
 			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
@@ -18188,7 +18190,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			const parentToolCallId = 'tc-parent-task';
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
@@ -18267,7 +18269,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			const parentToolCallId = 'tc-parent-task';
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-skill', {
@@ -18325,7 +18327,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Now the SDK emits subagent_started → handler dispatches a content
 			// change with a Subagent content block carrying the agent name.
-			const parentSession = parseDefaultChatUri(session);
+			const parentSession = mintedTestChatOwner(session);
 			assert.ok(parentSession);
 			agentHostService.fireAction({
 				channel: buildSubagentChatUri(parentSession, parentToolCallId),
@@ -18859,7 +18861,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: seq.v++, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
 
 			if (opts?.customizations) {
-				const sessionChannel = parseDefaultChatUri(dispatch.channel.toString())!;
+				const sessionChannel = mintedTestChatOwner(dispatch.channel.toString())!;
 				agentHostService.fireAction({
 					channel: sessionChannel,
 					action: { type: ActionType.SessionCustomizationsChanged, customizations: opts.customizations } as unknown as SessionAction,

@@ -36,7 +36,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -2180,6 +2180,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return this._defaultChatBackendUri.get();
 		}
 		return chatResource.fragment ? this._additionalChats.get(chatResource.fragment)?.backendUri : undefined;
+	}
+
+	/** Whether `chat` is one of the backend chats this session's catalog lists. */
+	ownsBackendChat(chat: string): boolean {
+		const defaultChat = this._defaultChatBackendUri.get()?.toString() ?? buildDefaultChatUri(this.backendUri);
+		return defaultChat === chat || [...this._additionalChats.values()].some(entry => entry.backendUri.toString() === chat);
 	}
 
 	/** Mark a peer chat new so it shows as `Untitled` until its first request. */
@@ -6170,7 +6176,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessionContextReference(chatResource: URI): string | undefined {
 		const backendResource = this.getBackendChatResource(chatResource);
-		return backendResource ? buildOpenSessionLinkForChatResource(backendResource) : undefined;
+		const owner = this._getBackendSessionUri(toSessionId(this.id, chatResource.with({ fragment: '' })));
+		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource) : undefined;
 	}
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
@@ -7341,13 +7348,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _keepChatSessionStateAlive(chatChannel: string): void {
-		const parsedChat = parseChatUri(chatChannel);
-		if (!parsedChat) {
-			return;
-		}
-		const cached = this._sessionCache.get(parsedChat.session);
-		if (cached) {
-			this._keepSessionStateAlive(cached.sessionId);
+		for (const cached of this._sessionCache.values()) {
+			if (cached.ownsBackendChat(chatChannel)) {
+				this._keepSessionStateAlive(cached.sessionId);
+				return;
+			}
 		}
 	}
 

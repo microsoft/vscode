@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
-import { AUTOMATION_CATALOG_URI, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, isDefaultChatUri, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
@@ -838,8 +838,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			&& action.type !== ActionType.ChatError) {
 			return;
 		}
-		const session = parseRequiredSessionUriFromChatUri(envelope.channel);
-		const run = [...this._runs.values()].find(candidate => candidate.sessions.includes(session) && !isTerminalLifecycle(candidate.lifecycle));
+		// Match the run's recorded sessions to their default chats, so a run still completes after its session left the registry.
+		const run = [...this._runs.values()].find(candidate => !isTerminalLifecycle(candidate.lifecycle)
+			&& candidate.sessions.some(session => this._stateManager.getDefaultChatUri(session) === envelope.channel));
 		if (!run) {
 			return;
 		}

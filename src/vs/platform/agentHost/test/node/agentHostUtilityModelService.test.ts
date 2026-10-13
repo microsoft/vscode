@@ -23,6 +23,7 @@ import { AgentHostUtilityModelService, AgentHostUtilityModelUnavailableError } f
 import type { IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'agent:/session';
 
@@ -126,7 +127,7 @@ suite('AgentHostUtilityModelService', () => {
 				state: TurnState.Complete,
 			}]);
 		}
-		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService());
+		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService(), createTestChatOwnershipService(stateManager));
 
 		let result: string;
 		try {

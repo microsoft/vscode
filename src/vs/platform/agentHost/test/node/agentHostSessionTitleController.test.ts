@@ -17,7 +17,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -33,6 +33,7 @@ import { sessionServerToolDefinitions } from '../../node/shared/sessionServerToo
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -183,7 +184,7 @@ suite('AgentHostSessionTitleController', () => {
 	test('queues matching parent catalog overrides for automatic and manual peer titles', () => {
 		const { controller, stateManager, session, catalogSyncs } = setup();
 		const chat = buildChatUri(session.toString(), 'peer-catalog-title');
-		stateManager.addChat(session.toString(), chat, {});
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat), {});
 
 		controller.markTitleAuto(session.toString(), chat, 'Automatic title');
 		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
@@ -334,7 +335,7 @@ suite('AgentHostSessionTitleController', () => {
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
 		controller.refineTitleFromFirstTurn(session.toString());
 		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
-		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer')), {});
 		controller.markTitleAuto(session.toString(), defaultChat, 'Add dark mode');
 		const whilePending = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
 		await pendingTitle.complete('Dark mode setting');
@@ -392,7 +393,7 @@ suite('AgentHostSessionTitleController', () => {
 		for (let i = 0; i < 3; i++) {
 			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
 		}
-		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer')), {});
 		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
 		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
 		assert.deepStrictEqual(offered, [true, true, true, false]);
@@ -406,7 +407,7 @@ suite('AgentHostSessionTitleController', () => {
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
 		const offered: boolean[] = [];
 		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
-		stateManager.addChat(session.toString(), peer, {});
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), {});
 		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
 		for (let i = 0; i < 2; i++) {
 			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
@@ -459,7 +460,7 @@ suite('AgentHostSessionTitleController', () => {
 			controller.refineTitleFromFirstTurn(session.toString());
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
 
-			stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+			stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer')), {});
 			if (rename !== undefined) {
 				stateManager.updateChatTitle(session.toString(), defaultChat, rename);
 				controller.markTitleRenamed(session.toString(), defaultChat, rename);
@@ -600,11 +601,11 @@ suite('AgentHostSessionTitleController', () => {
 			const peer = buildChatUri(session.toString(), 'peer');
 			const chat = target === 'peer' ? peer : defaultChat;
 			if (target !== 'defaultBeforePeer') {
-				stateManager.addChat(session.toString(), peer, {});
+				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), {});
 			}
 			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat);
 			if (target === 'defaultBeforePeer') {
-				stateManager.addChat(session.toString(), peer, {});
+				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), {});
 			}
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z', message: { text: 'Add dark mode', origin: { kind: MessageKind.User } } });
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: textPart('Done') });
@@ -671,7 +672,7 @@ suite('AgentHostSessionTitleController', () => {
 		const { stateManager, session, db, copilotApiService } = setupDeferred();
 		const chat = buildChatUri(session, 'deferred-peer');
 		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
-		stateManager.addChat(session.toString(), chat, { title: 'Fork seed', turns: [inherited] });
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat), { title: 'Fork seed', turns: [inherited] });
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
 		await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.registerChatCatalogV2(session.toString(), {
@@ -679,7 +680,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService());
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined));
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
@@ -695,7 +696,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		const freshState = disposables.add(new AgentHostStateManager(new NullLogService()));
 		freshState.createSession(createSummary(session, 'Owner header'));
-		freshState.addChat(session.toString(), chat, { title: 'Fork seed', turns: [inherited] });
+		freshState.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat), { title: 'Fork seed', turns: [inherited] });
 		const restored = disposables.add(new AgentHostSessionTitleController(freshState, options, new NullLogService()));
 		await restored.restoreTitleGenerationStrategy(session.toString(), chat);
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
@@ -900,7 +901,7 @@ suite('AgentHostSessionTitleController', () => {
 		const copilotApiService = new TestCopilotApiService();
 		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const chat = buildChatUri(session.toString(), 'peer-1');
-		stateManager.addChat(session.toString(), chat, {});
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat), {});
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
@@ -915,14 +916,14 @@ suite('AgentHostSessionTitleController', () => {
 	test('multi-chat default uses its own persisted title provenance after controller recreation', async () => {
 		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const defaultChat = buildDefaultChatUri(independentlyRenamed.session);
-		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), {});
+		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), creationTimeChatStorageResource(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer')), {});
 		await independentlyRenamed.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 		await independentlyRenamed.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AGENT);
 
 		const independentRenameInstruction = await independentlyRenamed.controller.prepareInstructionForAgent(independentlyRenamed.session.toString(), defaultChat);
 
 		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
-		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), {});
+		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), creationTimeChatStorageResource(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer')), {});
 		await independentlyAutomatic.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
 		await independentlyAutomatic.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AUTO);
 		const independentAutoInstruction = await independentlyAutomatic.controller.prepareInstructionForAgent(independentlyAutomatic.session.toString(), defaultChat);
@@ -940,7 +941,7 @@ suite('AgentHostSessionTitleController', () => {
 		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
 		const defaultChat = buildDefaultChatUri(session);
 		const chat = buildChatUri(session.toString(), 'peer-clear');
-		stateManager.addChat(session.toString(), chat, {});
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat), {});
 		controller.markTitleAuto(session.toString(), defaultChat, 'Default fallback');
 		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
 		await waitForCondition(async () =>
@@ -964,8 +965,8 @@ suite('AgentHostSessionTitleController', () => {
 		const { controller, stateManager, session } = setup(copilotApiService);
 		const provisionalChat = buildChatUri(session.toString(), 'peer-provisional');
 		const renamedChat = buildChatUri(session.toString(), 'peer-renamed');
-		stateManager.addChat(session.toString(), provisionalChat, {});
-		stateManager.addChat(session.toString(), renamedChat, {});
+		stateManager.addChat(session.toString(), provisionalChat, creationTimeChatStorageResource(session.toString(), provisionalChat), {});
+		stateManager.addChat(session.toString(), renamedChat, creationTimeChatStorageResource(session.toString(), renamedChat), {});
 		controller.seedTitleFromFirstMessage(session.toString(), 'Generate a title');
 		controller.seedProvisionalTitle(session.toString(), 'Provisional', provisionalChat);
 		controller.markTitleAuto(session.toString(), renamedChat, 'Automatic');
