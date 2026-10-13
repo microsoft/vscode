@@ -128,7 +128,7 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
  * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
  * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
  */
-export function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
+function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
 	if (typeof assignmentContext !== 'string' || !assignmentContext) {
 		return {};
 	}
