@@ -4643,9 +4643,15 @@ suite('AutomationsWorkspacePicker', () => {
 		const picker = createTestPicker(disposables, providersService, undefined, undefined, TestAutomationsWorkspacePicker);
 		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
 		picker.setCloudMode(constObservable(true));
-		assert.deepStrictEqual(picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label), [
-			'No known Git repositories', 'Add repository',
-		]);
+		const container = document.createElement('div');
+		picker.render(container);
+		assert.deepStrictEqual({
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			items: picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label),
+		}, {
+			label: 'Select a repository',
+			items: ['No known Git repositories', 'Add repository'],
+		});
 	});
 
 	for (const mobile of [false, true]) {

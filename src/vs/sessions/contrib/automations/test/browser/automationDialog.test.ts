@@ -64,7 +64,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
@@ -96,16 +96,20 @@ suite('Automation dialog creation', () => {
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }));
 		instantiationService.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: ChatEntitlement.Pro }));
 		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => repository }));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
-			onDidChangeProviders: Event.None,
-			getProviders: () => [],
-			getProvider: () => undefined,
-		}));
 		const types = [{
 			providerId: 'host',
 			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
 		}];
 		const cloudTypes = [{ providerId: 'cloud', sessionType: { ...types[0].sessionType, id: 'cloud-agent', label: 'Cloud' } }];
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			onDidChangeProviders: Event.None,
+			getProviders: () => [],
+			getProvider: <T extends ISessionsProvider>(id: string) => id === 'cloud' && cloudConfiguration ? upcastPartial<ISessionsProvider>({
+				id,
+				sessionTypes: cloudTypes.map(type => type.sessionType),
+				getSessionTypes: () => cloudTypes.map(type => type.sessionType),
+			}) as T : undefined,
+		}));
 		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
 		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -286,7 +290,7 @@ suite('Automation dialog creation', () => {
 			checked: toggle.getAttribute('aria-checked'),
 			label: dialog.container.querySelector('.automation-cloud-label')?.textContent,
 			beforeTarget: !!(toggle.compareDocumentPosition(dialog.container.querySelector('.automation-target-row')!) & Node.DOCUMENT_POSITION_FOLLOWING),
-			privateHintVisible: dialog.container.querySelector<HTMLElement>('.automation-target-row > .automation-cloud-description')?.style.display !== 'none',
+			privateHint: dialog.container.querySelector('.automation-target-row > .automation-cloud-description'),
 		});
 		const off = snapshot();
 		toggle.click();
@@ -295,9 +299,39 @@ suite('Automation dialog creation', () => {
 		toggle.click();
 		await timeout(0);
 		assert.deepStrictEqual([off, on, snapshot()], [
-			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: false },
-			{ checked: 'true', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: true },
-			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: false },
+			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'true', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+		]);
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('empty cloud target is quiet but cannot save, while selected repository errors remain visible', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { disabledReason: 'Repository access denied.' });
+		const dialog = openDialog({}, cloudConfiguration(target));
+		dialog.setName('Hello world');
+		dialog.setPrompt('Say hello world');
+		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+		await timeout(0);
+		const snapshot = () => ({
+			error: dialog.container.querySelector('#automation-target-error')?.textContent,
+			errorDisplay: dialog.container.querySelector<HTMLElement>('#automation-target-error')?.style.display,
+			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		});
+		const empty = snapshot();
+		await dialog.selectWorkspace(REPOSITORY);
+		const denied = snapshot();
+		target.set({ workspace: REPOSITORY }, undefined);
+		await timeout(0);
+		const valid = snapshot();
+		await dialog.selectWorkspace(undefined);
+		assert.deepStrictEqual([empty, denied, valid, snapshot()], [
+			{ error: '', errorDisplay: 'none', invalid: null, saveDisabled: 'true' },
+			{ error: 'Repository access denied.', errorDisplay: '', invalid: 'true', saveDisabled: 'true' },
+			{ error: '', errorDisplay: 'none', invalid: null, saveDisabled: 'false' },
+			{ error: '', errorDisplay: 'none', invalid: null, saveDisabled: 'true' },
 		]);
 		dialog.cancelButton.click();
 		await dialog.result;
@@ -512,9 +546,11 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('Tools section explains tool selection and cloud guidance appears beside the footer actions', async () => {
+	test('Tools section omits helper text and cloud guidance appears beside the footer actions', async () => {
 		const description = 'Runs even when your computer is off, triggered on a schedule.';
 		const dialog = openDialog({}, { ...cloudConfiguration(), description });
+		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+		await timeout(0);
 		await dialog.selectWorkspace(REPOSITORY);
 		const section = dialog.container.querySelector('.automation-provider-details')!;
 		const button = section.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
@@ -535,12 +571,12 @@ suite('Automation dialog creation', () => {
 			noteBeforeActions: note.nextElementSibling === actions,
 			saveDescribedBy: dialog.saveButton.getAttribute('aria-describedby'),
 		}, {
-			order: ['automation-form-label', 'P', 'automation-provider-tools', 'automation-provider-tools-status'],
+			order: ['automation-form-label', 'automation-provider-tools', 'automation-provider-tools-status'],
 			group: 'group',
 			heading: 'Tools',
-			help: 'Select which tools the agent can use. Built-in tools are always available.',
+			help: undefined,
 			label: 'Configure allowed tools',
-			buttonDescribedBy: 'automation-tools-description',
+			buttonDescribedBy: null,
 			count: '2 of 2 tools selected',
 			cloudDescriptionInline: false,
 			infoButton: null,

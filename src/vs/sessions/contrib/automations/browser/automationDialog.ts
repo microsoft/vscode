@@ -1490,12 +1490,6 @@ export function renderForm(
 	}));
 
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
-	const privateRepositoryHint = DOM.append(targetRow, $('span.automation-cloud-description', {
-		role: 'status',
-	}, localize('automation.form.cloudRepositoryHint', "Select a private GitHub repository to run in the cloud.")));
-	disposables.add(autorun(reader => {
-		setAutomationControlVisible(privateRepositoryHint, runInCloud.read(reader));
-	}));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
 		'aria-label': localize('automation.form.target', "Target"),
@@ -1711,12 +1705,10 @@ export function renderForm(
 
 	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
-	DOM.append(providerDetails, $('p', { id: 'automation-tools-description' }, localize('automation.toolsDescription', "Select which tools the agent can use. Built-in tools are always available.")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
 	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true }));
 	toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 	toolsButton.element.setAttribute('aria-haspopup', 'dialog');
-	toolsButton.element.setAttribute('aria-describedby', 'automation-tools-description');
 	const toolsNotReported = DOM.append(toolsContainer, $('p', undefined, localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")));
 	const toolsStatus = DOM.append(providerDetails, $('.automation-provider-tools-status', { role: 'status', 'aria-live': 'polite' }));
 	const toolsStatusText = DOM.append(toolsStatus, $('span'));
@@ -1914,6 +1906,9 @@ export function renderForm(
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
+			if (!isEdit && runInCloud.get() && !state.folderUri) {
+				message = undefined;
+			}
 			const text = message ?? '';
 			const pending = state.targetPending;
 			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
@@ -2523,7 +2518,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const label = noWorkspace
 			? this._getNoWorkspaceLabel()
 			: workspace?.label ?? (this.cloudMode?.get()
-				? localize('automation.form.selectPrivateRepository', "Select private repository")
+				? localize('automation.form.selectRepository', "Select a repository")
 				: localize('automation.form.selectWorkspace', "Select workspace"));
 		const icon = noWorkspace ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
