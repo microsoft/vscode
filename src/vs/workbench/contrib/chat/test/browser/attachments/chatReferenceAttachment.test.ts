@@ -163,6 +163,7 @@ suite('ChatReferenceAttachment', () => {
 			readonly onAgentHostExit = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
+			override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
 			override async listSessions(): Promise<IAgentSessionMetadata[]> {
 				return [{ session: URI.parse(shared), provider: 'copilotcli', startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(sharedDefault), kind: 'default' }, { chat: URI.parse(sharedPeer), kind: 'peer' }] }];
 			}
