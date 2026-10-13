@@ -18,7 +18,7 @@ const $ = DOM.$;
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionResource?: URI;
-	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache' | 'wirelog';
+	readonly viewHint?: 'home' | 'overview' | 'logs' | 'sessionTimeline' | 'flowchart' | 'cache' | 'wirelog';
 	/** When set, automatically applies this text as the log filter. */
 	readonly filter?: string;
 }
@@ -27,6 +27,7 @@ export const enum ViewState {
 	Home = 'home',
 	Overview = 'overview',
 	Logs = 'logs',
+	SessionTimeline = 'sessionTimeline',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
 	WireLog = 'wirelog',
@@ -42,6 +43,7 @@ export const CHAT_DEBUG_KIND_TOOL_CALL = new RawContextKey<boolean>('chatDebug.k
 export const CHAT_DEBUG_KIND_MODEL_TURN = new RawContextKey<boolean>('chatDebug.kindModelTurn', true);
 export const CHAT_DEBUG_KIND_PROMPT_DISCOVERY = new RawContextKey<boolean>('chatDebug.kindPromptDiscovery', true);
 export const CHAT_DEBUG_KIND_SUBAGENT = new RawContextKey<boolean>('chatDebug.kindSubagent', true);
+export const CHAT_DEBUG_SESSION_TIMELINE_FOCUSED = new RawContextKey<boolean>('chatDebugSessionTimelineFocused', false);
 
 // Filter toggle command IDs
 export const CHAT_DEBUG_CMD_TOGGLE_TOOL_CALL = 'chatDebug.filter.toggleToolCall';
