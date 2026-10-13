@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -18,9 +18,9 @@ import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
-import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
-import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
+import { AgentHostOTelSpansDbSubPath, buildAgentHostOTelEnv } from '../../../common/agentService.js';
 
 interface IPostResponse {
 	statusCode: number;
@@ -97,6 +97,7 @@ interface ISavedEnv {
 
 const OTEL_ENV_KEYS = [
 	'COPILOT_OTEL_ENABLED',
+	'COPILOT_OTEL_CAPTURE_IDENTITY',
 	'COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED',
 	'COPILOT_OTEL_EXPORTER_TYPE',
 	'COPILOT_OTEL_ENDPOINT',
@@ -143,6 +144,321 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		strictEqual(cfg.enabled, false);
 		strictEqual(cfg.dbSpanExporter, false);
 		strictEqual(cfg.exporterType, 'otlp-http');
+	});
+
+	test('identity capture is independent of content and does not enable telemetry', () => {
+		for (const captureContent of ['true', 'false']) {
+			for (const captureIdentity of [undefined, 'false', 'true']) {
+				const cfg = readAgentHostOTelEnv({
+					COPILOT_OTEL_CAPTURE_IDENTITY: captureIdentity,
+					OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: captureContent,
+					OTEL_RESOURCE_ATTRIBUTES: 'user.name=synthetic-account,process.user.name=synthetic-user,host.name=synthetic-host,custom=kept',
+				});
+				deepStrictEqual({
+					enabled: cfg.enabled,
+					captureIdentity: cfg.captureIdentity,
+					resourceAttributes: cfg.resourceAttributes,
+				}, {
+					enabled: false,
+					captureIdentity: captureIdentity === 'true',
+					resourceAttributes: {
+						...(captureIdentity === 'true' ? { 'user.name': 'synthetic-account', 'process.user.name': 'synthetic-user', 'host.name': 'synthetic-host' } : {}),
+						custom: 'kept',
+						'service.namespace': 'vscode.agent-host',
+						'service.name': 'vscode-agent-host',
+					},
+				});
+			}
+		}
+	});
+
+	test('identity denial strips resource, scope, span, event, and link attributes before forwarding', () => {
+		const attributes = [
+			{ key: 'user.name', value: { stringValue: 'synthetic-account' } },
+			{ key: 'process.user.name', value: { stringValue: 'synthetic-user' } },
+			{ key: 'host.name', value: { stringValue: 'synthetic-host' } },
+			{ key: 'custom', value: { stringValue: 'kept' } },
+		];
+		const payload = {
+			resourceSpans: [{
+				resource: { attributes },
+				scopeSpans: [{
+					scope: { attributes },
+					spans: [{ attributes, events: [{ attributes }], links: [{ attributes }] }],
+				}],
+			}],
+		};
+		for (const captureIdentity of [false, true]) {
+			const normalized = normalizeAgentHostOtlpBody(Buffer.from(JSON.stringify(payload)), captureIdentity);
+			const result: typeof payload = JSON.parse(normalized.body.toString());
+			const resource = result.resourceSpans[0];
+			const scope = resource.scopeSpans[0];
+			const span = scope.spans[0];
+			const expected = captureIdentity ? attributes : [attributes[3]];
+			deepStrictEqual({
+				resource: resource.resource.attributes,
+				scope: scope.scope.attributes,
+				span: span.attributes,
+				event: span.events[0].attributes,
+				link: span.links[0].attributes,
+			}, {
+				resource: [...expected, { key: 'service.namespace', value: { stringValue: 'vscode.agent-host' } }],
+				scope: expected, span: expected, event: expected, link: expected,
+			});
+		}
+	});
+
+	for (const exporterType of ['otlp-http', 'file', 'console']) {
+		for (const captureIdentity of [false, true]) {
+			test(`identity ${captureIdentity}: host and ingested spans reach SQLite and ${exporterType} with the identity gate applied`, async () => {
+				const saved = saveEnv();
+				const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-identity-'));
+				let svc: AgentHostOTelService | undefined;
+				try {
+					process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+					process.env.COPILOT_OTEL_CAPTURE_IDENTITY = String(!captureIdentity);
+					Object.assign(process.env, buildAgentHostOTelEnv({ captureIdentity: !captureIdentity }, process.env, { captureIdentity }));
+					process.env.COPILOT_OTEL_EXPORTER_TYPE = exporterType;
+					process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector.invalid:4318';
+					process.env.COPILOT_OTEL_FILE_EXPORTER_PATH = join(tmp, 'spans.jsonl');
+					process.env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = 'false';
+					process.env.OTEL_RESOURCE_ATTRIBUTES = 'host.name=synthetic-override,custom=kept';
+					const exported: string[] = [];
+					const log = new class extends NullLogService {
+						override info(message: string): void { exported.push(message); }
+					};
+					let identityReads = 0;
+					svc = store.add(new AgentHostOTelService({
+						fetchFn: async (_input, init) => {
+							exported.push(await new Response(init?.body).text());
+							return new Response(null, { status: 200 });
+						},
+						readOSUsername: () => { identityReads++; return 'synthetic-os-user'; },
+						readHostname: () => { identityReads++; return 'synthetic-host'; },
+					}, log, makeEnvService(tmp)));
+					const config = await svc.getSdkTelemetryConfig();
+					ok(config?.otlpEndpoint);
+					deepStrictEqual((await svc.getNativeSdkTelemetryConfig())?.resourceAttributes, {
+						...(captureIdentity ? { 'host.name': 'synthetic-override' } : {}),
+						custom: 'kept',
+						'service.namespace': 'vscode.agent-host',
+					});
+					const context = svc.getSessionTraceContext('synthetic-conversation', 'copilot:/synthetic-session');
+					ok(context);
+					svc.emitSessionTitleChanged('synthetic-conversation', 'copilot:/synthetic-session', 'not-captured');
+					const traceId = '1122334455667788aabbccddeeff0011';
+					const spanId = '0000000000000001';
+					const payload = makeOtlpRequest(traceId, spanId);
+					const providerSpan = payload.resourceSpans![0].scopeSpans![0].spans![0];
+					const response = await postOtlp(config.otlpEndpoint, {
+						resourceSpans: [{
+							resource: { attributes: [{ key: 'process.user.name', value: { stringValue: 'synthetic-provider-os' } }] },
+							scopeSpans: [{
+								spans: [{
+									...providerSpan,
+									attributes: [...providerSpan.attributes!, { key: 'user.name', value: { stringValue: 'synthetic-provider-account' } }],
+									events: [{ name: 'synthetic-event', timeUnixNano: providerSpan.startTimeUnixNano, attributes: [{ key: 'host.name', value: { stringValue: 'synthetic-event-host' } }] }],
+								}]
+							}],
+						}],
+					});
+					strictEqual(response.statusCode, 200);
+					await svc.flush();
+					if (exporterType === 'file') {
+						exported.push(await readFile(process.env.COPILOT_OTEL_FILE_EXPORTER_PATH, 'utf8'));
+					}
+					const reader = new OTelSqliteStore(svc.getSpansDbPath()!.fsPath);
+					try {
+						deepStrictEqual({
+							identityReads,
+							hostUser: reader.getSpanAttribute(context.spanId, 'process.user.name'),
+							hostName: reader.getSpanAttribute(context.spanId, 'host.name'),
+							hostAccount: reader.getSpanAttribute(context.spanId, 'user.name'),
+							custom: reader.getSpanAttribute(context.spanId, 'custom'),
+							providerUser: reader.getSpanAttribute(spanId, 'user.name'),
+							providerResource: reader.getSpanAttribute(spanId, 'process.user.name'),
+							hostSpans: reader.getSpansByTraceId(context.traceId).length,
+						}, {
+							identityReads: captureIdentity ? 2 : 0,
+							hostUser: captureIdentity ? 'synthetic-os-user' : null,
+							hostName: captureIdentity ? 'synthetic-override' : null,
+							hostAccount: null,
+							custom: 'kept',
+							providerUser: captureIdentity ? 'synthetic-provider-account' : null,
+							providerResource: captureIdentity ? 'synthetic-provider-os' : null,
+							hostSpans: 1,
+						});
+						strictEqual(JSON.stringify(reader.getSpanEvents(spanId)).includes('synthetic-event-host'), captureIdentity);
+					} finally {
+						reader.close();
+					}
+					const output = exported.join('\n');
+					for (const value of ['synthetic-os-user', 'synthetic-override', 'synthetic-provider-account', 'synthetic-provider-os', 'synthetic-event-host']) {
+						strictEqual(output.includes(value), captureIdentity && exporterType !== 'console', `${exporterType}: ${value}`);
+					}
+					strictEqual(output.includes('custom'), exporterType !== 'console');
+					ok(!output.includes('not-captured'));
+				} finally {
+					svc?.dispose();
+					restoreEnv(saved);
+					await rm(tmp, { recursive: true, force: true });
+				}
+			});
+		}
+	}
+
+	test('identity normalization failure rejects the entire payload before SQLite and external export', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-identity-rejection-'));
+		let svc: AgentHostOTelService | undefined;
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.COPILOT_OTEL_CAPTURE_IDENTITY = 'false';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector.invalid:4318';
+			const exported: string[] = [];
+			const warnings: string[] = [];
+			svc = store.add(new AgentHostOTelService({
+				fetchFn: async (_input, init) => {
+					exported.push(await new Response(init?.body).text());
+					return new Response(null, { status: 200 });
+				},
+			}, new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}, makeEnvService(tmp)));
+			const config = await svc.getSdkTelemetryConfig();
+			ok(config?.otlpEndpoint);
+			const traceId = '1122334455667788aabbccddeeff0011';
+			const spanId = '0000000000000001';
+			const resourceSpan = makeOtlpRequest(traceId, spanId).resourceSpans![0];
+			const payload = {
+				resourceSpans: [{
+					...resourceSpan,
+					resource: {
+						attributes: [
+							...resourceSpan.resource!.attributes!,
+							{ key: 'user.name', value: { stringValue: 'synthetic-private-identity' } },
+						],
+					},
+				}],
+			};
+			const response = await postOtlp(config.otlpEndpoint, {
+				resourceSpans: [
+					...payload.resourceSpans!,
+					{ resource: { attributes: { unexpected: 'synthetic-private-identity' } } },
+				],
+			});
+			strictEqual(response.statusCode, 400);
+			await svc.flush();
+			strictEqual(exported.length, 0);
+			strictEqual(warnings.length, 1);
+			ok(!warnings[0].includes('synthetic-private-identity'));
+			const reader = new OTelSqliteStore(svc.getSpansDbPath()!.fsPath);
+			try {
+				deepStrictEqual(reader.getSpansByTraceId(traceId), []);
+				strictEqual((await postOtlp(config.otlpEndpoint, payload)).statusCode, 200);
+				await svc.flush();
+				strictEqual(reader.getSpansByTraceId(traceId).length, 1);
+				strictEqual(reader.getSpanAttribute(spanId, 'user.name'), null);
+				strictEqual(exported.length, 1);
+				ok(!exported[0].includes('synthetic-private-identity'));
+			} finally {
+				reader.close();
+			}
+		} finally {
+			svc?.dispose();
+			restoreEnv(saved);
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	test('identity detection failure logs without leaking the error and preserves explicit resources', async () => {
+		const saved = saveEnv();
+		try {
+			process.env.COPILOT_OTEL_ENABLED = 'true';
+			process.env.COPILOT_OTEL_CAPTURE_IDENTITY = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector.invalid:4318';
+			process.env.OTEL_RESOURCE_ATTRIBUTES = 'process.user.name=synthetic-explicit';
+			const output: string[] = [];
+			const warnings: string[] = [];
+			const log = new class extends NullLogService {
+				override info(message: string): void { output.push(message); }
+				override warn(message: string): void { warnings.push(message); }
+			};
+			const svc = store.add(new AgentHostOTelService({
+				fetchFn: async (_input, init) => {
+					output.push(await new Response(init?.body).text());
+					return new Response(null, { status: 200 });
+				},
+				readOSUsername: () => { throw new Error('do-not-export-error'); },
+				readHostname: () => 'synthetic-host',
+			}, log, makeEnvService('/unused')));
+			svc.getSessionTraceContext('synthetic-conversation', 'copilot:/synthetic-session');
+			await svc.flush();
+			strictEqual(warnings.length, 1);
+			ok(!warnings[0].includes('do-not-export-error'));
+			ok(output.join('\n').includes('synthetic-explicit'));
+			ok(output.join('\n').includes('synthetic-host'));
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	for (const explicitHostname of [undefined, 'synthetic-override']) {
+		test(`hostname detection failure preserves username and explicit hostname ${explicitHostname}`, async () => {
+			const saved = saveEnv();
+			try {
+				process.env.COPILOT_OTEL_ENABLED = 'true';
+				process.env.COPILOT_OTEL_CAPTURE_IDENTITY = 'true';
+				process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector.invalid:4318';
+				if (explicitHostname !== undefined) {
+					process.env.OTEL_RESOURCE_ATTRIBUTES = `host.name=${explicitHostname}`;
+				}
+				const output: string[] = [];
+				const warnings: string[] = [];
+				const svc = store.add(new AgentHostOTelService({
+					fetchFn: async (_input, init) => {
+						output.push(await new Response(init?.body).text());
+						return new Response(null, { status: 200 });
+					},
+					readOSUsername: () => 'synthetic-user',
+					readHostname: () => { throw new Error('do-not-export-error'); },
+				}, new class extends NullLogService {
+					override warn(message: string): void { warnings.push(message); }
+				}, makeEnvService('/unused')));
+				ok(svc.getSessionTraceContext('synthetic-conversation', 'copilot:/synthetic-session'));
+				await svc.flush();
+				strictEqual(warnings.length, 1);
+				ok(!warnings[0].includes('do-not-export-error'));
+				strictEqual(output.length, 1);
+				const payload: IOtlpExportTraceServiceRequest = JSON.parse(output[0]);
+				const attributes = payload.resourceSpans![0].resource!.attributes!;
+				strictEqual(attributes.find(attribute => attribute.key === 'process.user.name')?.value?.stringValue, 'synthetic-user');
+				strictEqual(attributes.find(attribute => attribute.key === 'host.name')?.value?.stringValue, explicitHostname);
+				ok(!output[0].includes('do-not-export-error'));
+			} finally {
+				restoreEnv(saved);
+			}
+		});
+	}
+
+	test('identity opt-in alone neither detects identity nor starts a telemetry pipeline', async () => {
+		const saved = saveEnv();
+		try {
+			process.env.COPILOT_OTEL_CAPTURE_IDENTITY = 'true';
+			let identityReads = 0;
+			const svc = store.add(new AgentHostOTelService({
+				readOSUsername: () => { identityReads++; return 'synthetic-user'; },
+				readHostname: () => { identityReads++; return 'synthetic-host'; },
+			}, new NullLogService(), makeEnvService('/unused')));
+			deepStrictEqual({
+				sdk: await svc.getSdkTelemetryConfig(),
+				native: await svc.getNativeSdkTelemetryConfig(),
+				context: svc.getSessionTraceContext('synthetic', 'copilot:/synthetic'),
+				identityReads,
+			}, { sdk: undefined, native: undefined, context: undefined, identityReads: 0 });
+		} finally {
+			restoreEnv(saved);
+		}
 	});
 
 	test('readAgentHostOTelEnv: db mode implies enabled', () => {
@@ -457,6 +773,53 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
+	test('DB mode: adds bounded comparison metadata to the session anchor', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		const cleanup = () => rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			await svc.getSdkTelemetryConfig();
+			svc.setSessionComparisonMetadata('claude:/attempt', {
+				id: 'comparison-id',
+				role: 'attempt',
+				attemptIndex: 1,
+				attemptCount: 3,
+			});
+			svc.getSessionTraceContext('conversation', 'claude:/attempt');
+			await svc.flush();
+
+			const dbPath = svc.getSpansDbPath();
+			ok(dbPath);
+			const reader = new OTelSqliteStore(dbPath!.fsPath);
+			try {
+				const anchor = reader.getSpansByConversationId('conversation').find(span => span.name === AgentHostSessionSpanName);
+				ok(anchor);
+				deepStrictEqual({
+					comparisonId: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonIdAttribute),
+					role: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonRoleAttribute),
+					attemptIndex: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptIndexAttribute),
+					attemptCount: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptCountAttribute),
+				}, {
+					comparisonId: 'comparison-id',
+					role: 'attempt',
+					attemptIndex: '1',
+					attemptCount: '3',
+				});
+			} finally {
+				reader.close();
+			}
+		} finally {
+			restoreEnv(saved);
+			await cleanup();
+		}
+	});
+
 	test('DB mode: emits session title metadata spans when content capture is enabled', async () => {
 		const saved = saveEnv();
 		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
@@ -510,9 +873,11 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				const di = store.add(new TestInstantiationService());
 				di.set(ILogService, new NullLogService());
 				di.set(INativeEnvironmentService, makeEnvService(tmp));
-				const svc = store.add(di.createInstance(AgentHostOTelService, async () => {
-					fetchCalls++;
-					return new Response(null, { status: 200 });
+				const svc = store.add(di.createInstance(AgentHostOTelService, {
+					fetchFn: async () => {
+						fetchCalls++;
+						return new Response(null, { status: 200 });
+					},
 				}));
 				const config = await svc.getSdkTelemetryConfig();
 				const res = await postOtlp(config!.otlpEndpoint!, makeOtlpRequest('ffeeddccbbaa99887766554433221100', '00000000000000aa'));

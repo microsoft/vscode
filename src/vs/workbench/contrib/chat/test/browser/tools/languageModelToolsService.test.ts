@@ -251,7 +251,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 function setupRiskGateTool(
 	setup: TestToolsServiceSetup,
 	store: any,
-	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string },
+	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; capture?: { invocation?: ChatToolInvocation } },
 ): { invoke: (token?: CancellationToken) => Promise<{ content: { value: string }[] }>; wasInvoked: () => boolean } {
 	const withConfirmation = opts?.withConfirmation ?? true;
 	const permissionLevel = opts?.permissionLevel ?? ChatPermissionLevel.Autopilot;
@@ -269,6 +269,14 @@ function setupRiskGateTool(
 
 	const sessionId = 'riskGateSession';
 	stubGetSession(setup.chatService, sessionId, { requestId: 'req-risk', modeInfo: { permissionLevel } });
+	const capture = opts?.capture;
+	if (capture) {
+		setup.chatService.appendProgress = (_request, progress) => {
+			if (progress instanceof ChatToolInvocation) {
+				capture.invocation = progress;
+			}
+		};
+	}
 
 	return {
 		invoke: (token: CancellationToken = CancellationToken.None) => setup.service.invokeTool(tool.makeDto({ x: 1 }, { sessionId }), async () => 0, token) as Promise<{ content: { value: string }[] }>,
@@ -1926,7 +1934,8 @@ suite('LanguageModelToolsService', () => {
 		const setup = createTestToolsService(store);
 		setup.riskAssessmentService.enabled = true;
 		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Red, explanation: 'Deletes source files irreversibly.' };
-		const t = setupRiskGateTool(setup, store);
+		const capture: { invocation?: ChatToolInvocation } = {};
+		const t = setupRiskGateTool(setup, store, { capture });
 
 		const result = await t.invoke();
 
@@ -1935,8 +1944,9 @@ suite('LanguageModelToolsService', () => {
 				invoked: t.wasInvoked(),
 				assessCalls: setup.riskAssessmentService.assessCalls.length,
 				mentionsRisk: String(result.content[0].value).includes('Deletes source files irreversibly.'),
+				confirmation: capture.invocation && IChatToolInvocation.executionConfirmedOrDenied(capture.invocation.toJSON()),
 			},
-			{ invoked: false, assessCalls: 1, mentionsRisk: true },
+			{ invoked: false, assessCalls: 1, mentionsRisk: true, confirmation: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' } },
 		);
 	});
 
@@ -4953,6 +4963,25 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(state.reason, ToolConfirmKind.Denied);
 				assert.strictEqual(state.reasonMessage, 'Denied by PreToolUse hook: Destructive operations require approval');
 			}
+			assert.deepStrictEqual(IChatToolInvocation.executionConfirmedOrDenied(invocation.toJSON()), { type: ToolConfirmKind.Denied, source: 'hook' });
+		});
+
+		test('hook denial preserves its source on an existing streaming invocation', async () => {
+			let invoked = false;
+			const tool = registerToolForTest(hookService, store, 'streamingHookDeny', {
+				invoke: async () => { invoked = true; return { content: [] }; },
+			});
+			stubGetSession(hookChatService, 'hook-stream', { requestId: 'req-hook-stream' });
+			const dto = tool.makeDto({}, { sessionId: 'hook-stream' });
+			const invocation = hookService.beginToolCall({ toolId: 'streamingHookDeny', toolCallId: dto.callId, force: true });
+			assert.ok(invocation);
+			dto.preToolUseResult = { permissionDecision: 'deny', permissionDecisionReason: 'Blocked by hook' };
+			const result = await hookService.invokeTool(dto, async () => 0, CancellationToken.None);
+			assert.deepStrictEqual({
+				invoked,
+				error: result.toolResultError,
+				confirmation: IChatToolInvocation.executionConfirmedOrDenied(invocation.toJSON()),
+			}, { invoked: false, error: 'Blocked by hook', confirmation: { type: ToolConfirmKind.Denied, source: 'hook' } });
 		});
 
 		test('when hook allows, tool executes normally', async () => {

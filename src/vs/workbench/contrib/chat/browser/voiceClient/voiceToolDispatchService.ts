@@ -405,7 +405,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			markPendingIdResolved(pendingId);
 			const confirmed = IChatToolInvocation.confirmWith(
 				part as IChatToolInvocation,
-				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
+				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied, source: 'user' },
 			);
 			return confirmed ? { ok: true } : { ok: false, reason: 'stale_pending' };
 		}

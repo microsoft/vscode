@@ -27,6 +27,7 @@ registerOpenAgentsWindowCommand();
 
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
+import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
 
 //#endregion
 
@@ -51,6 +52,7 @@ import '../workbench/services/host/electron-browser/nativeHostService.js';
 import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
+import '../platform/github/electron-browser/githubService.js';
 import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -175,6 +177,10 @@ import '../workbench/contrib/terminal/electron-browser/terminal.contribution.js'
 // Themes
 import '../workbench/contrib/themes/browser/themes.test.contribution.js';
 import '../workbench/services/themes/electron-browser/themes.contribution.js';
+
+// Frosted glass overlays
+import '../workbench/contrib/modernUI/electron-browser/frostedGlass.contribution.js';
+
 // Tags
 import '../workbench/contrib/tags/electron-browser/workspaceTagsService.js';
 import '../workbench/contrib/tags/electron-browser/tags.contribution.js';
@@ -258,6 +264,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/agentHost/browser/codexContinuation.contribution.js';
 import './contrib/providers/agentHost/electron-browser/localAgentHostLifecycle.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';

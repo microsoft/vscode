@@ -4,12 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatDebugModelTurnEvent, IChatDebugEventFileListContent, IChatDebugEventCustomizationSummaryContent } from '../../common/chatDebugService.js';
-import { buildCustomizationDebugEvents, convertAgentHostEventsToDebugEvents, parseJsonl } from '../../browser/chatDebug/agentHostChatDebugProvider.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME } from '../../browser/copilotCliEventsUri.js';
-import { CustomizationType, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import type { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { createChatState, createSessionState, CustomizationType, SessionStatus, StateComponents, type ChatState, type ComponentToState, type Customization, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import type { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import type { IPathService } from '../../../../services/path/common/pathService.js';
+import { IChatDebugModelTurnEvent, IChatDebugEventFileListContent, IChatDebugEventCustomizationSummaryContent, type IChatDebugLogProvider, type IChatDebugService } from '../../common/chatDebugService.js';
+import { AgentHostAgentDebugLogEnabledSettingId } from '../../common/promptSyntax/promptTypes.js';
+import type { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AgentHostChatDebugContribution, buildCustomizationDebugEvents, convertAgentHostEventsToDebugEvents, parseJsonl } from '../../browser/chatDebug/agentHostChatDebugProvider.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../browser/copilotCliEventsUri.js';
 
 suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => {
 
@@ -352,4 +370,142 @@ suite('AgentHostChatDebugProvider - parseJsonl', () => {
 		// or builds `new Date(record.timestamp)`.
 		assert.deepStrictEqual(parseJsonl(text).map(r => r.id), ['a']);
 	});
+});
+
+suite('AgentHostChatDebugContribution - live refresh', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const sessionResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/raw-id' });
+	const backendSession = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/raw-id' });
+	// The recorded default chats do not have the `default` URI shape.
+	const defaultChat = 'ahp-chat:/recorded-default';
+	const recreatedDefaultChat = 'ahp-chat:/recorded-default?generation=1';
+
+	/** A live AHP subscription whose state the test controls. */
+	function fakeSubscription<T>(initial: T | undefined) {
+		const onDidChange = disposables.add(new Emitter<T>());
+		const subscription = new class extends mock<IAgentSubscription<T>>() {
+			override value: T | Error | undefined = initial;
+			override readonly onDidChange = onDidChange.event;
+		}();
+		const update = (value: T) => {
+			subscription.value = value;
+			onDidChange.fire(value);
+		};
+		return { subscription, update };
+	}
+
+	function sessionState(chat: string): SessionState {
+		return {
+			...createSessionState({
+				resource: backendSession.toString(),
+				provider: 'copilotcli',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			}),
+			defaultChat: chat,
+		};
+	}
+
+	function chatState(chat: string): ChatState {
+		return createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() });
+	}
+
+	function setup(sessionSub: IAgentSubscription<SessionState>, chatSubs: ReadonlyMap<string, IAgentSubscription<ChatState>>) {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		let provider: IChatDebugLogProvider | undefined;
+		const refreshes: string[] = [];
+		const chatDebugService = new class extends mock<IChatDebugService>() {
+			override readonly onDidEndSession = Event.None;
+			override registerProvider(value: IChatDebugLogProvider): IDisposable {
+				provider = value;
+				return toDisposable(() => provider = undefined);
+			}
+			override registerAvailableSessionsFetcher(): IDisposable {
+				return Disposable.None;
+			}
+			override async invokeProviders(resource: URI): Promise<void> {
+				refreshes.push(resource.toString());
+			}
+		}();
+		const agentHostService = new class extends mock<IAgentHostService>() {
+			override readonly onDidAction = Event.None;
+			override readonly onDidNotification = Event.None;
+			override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+				const subscription = kind === StateComponents.Session && resource.toString() === backendSession.toString() ? sessionSub
+					: kind === StateComponents.Chat ? [...chatSubs].find(([chat]) => URI.parse(chat).toString() === resource.toString())?.[1]
+						: undefined;
+				return subscription as IAgentSubscription<ComponentToState[T]> | undefined;
+			}
+		}();
+		const pathService = new class extends mock<IPathService>() {
+			override userHome(): URI;
+			override userHome(): Promise<URI>;
+			override userHome(): URI | Promise<URI> {
+				return URI.file('/home/user');
+			}
+		}();
+		const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+			override readonly userRoamingDataHome = URI.file('/user');
+		}();
+		const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+		}();
+		disposables.add(new AgentHostChatDebugContribution(
+			chatDebugService,
+			fileService,
+			pathService,
+			new NullRemoteAgentHostService(),
+			agentHostService,
+			new TestConfigurationService({ [AgentHostAgentDebugLogEnabledSettingId]: true }),
+			new NullLogService(),
+			environmentService,
+			customizationService,
+		));
+		const open = async () => {
+			await provider?.provideChatDebugLog(sessionResource, CancellationToken.None);
+		};
+		/** Lets the debounced provider refresh run and returns how many refreshes have been scheduled so far. */
+		const settled = async () => {
+			await timeout(1000);
+			return refreshes.length;
+		};
+		return { open, settled };
+	}
+
+	test('binds the default chat once the session state that was still loading advertises it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const sessionSub = fakeSubscription<SessionState>(undefined);
+		const chatSub = fakeSubscription(chatState(defaultChat));
+		const { open, settled } = setup(sessionSub.subscription, new Map([[defaultChat, chatSub.subscription]]));
+
+		await open();
+		const whileLoading = await settled();
+		sessionSub.update(sessionState(defaultChat));
+		const afterStateArrives = await settled();
+		chatSub.update(chatState(defaultChat));
+		const afterChatChange = await settled();
+
+		assert.deepStrictEqual({ whileLoading, afterStateArrives, afterChatChange }, { whileLoading: 0, afterStateArrives: 1, afterChatChange: 2 });
+	}));
+
+	test('rebinds to a recreated default chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const sessionSub = fakeSubscription(sessionState(defaultChat));
+		const oldChatSub = fakeSubscription(chatState(defaultChat));
+		const newChatSub = fakeSubscription(chatState(recreatedDefaultChat));
+		const { open, settled } = setup(sessionSub.subscription, new Map([[defaultChat, oldChatSub.subscription], [recreatedDefaultChat, newChatSub.subscription]]));
+
+		await open();
+		const afterOpen = await settled();
+		sessionSub.update(sessionState(recreatedDefaultChat));
+		const afterRecreate = await settled();
+		oldChatSub.update(chatState(defaultChat));
+		const afterOldChatChange = await settled();
+		newChatSub.update(chatState(recreatedDefaultChat));
+		const afterNewChatChange = await settled();
+
+		assert.deepStrictEqual({ afterOpen, afterRecreate, afterOldChatChange, afterNewChatChange }, { afterOpen: 1, afterRecreate: 2, afterOldChatChange: 2, afterNewChatChange: 3 });
+	}));
 });

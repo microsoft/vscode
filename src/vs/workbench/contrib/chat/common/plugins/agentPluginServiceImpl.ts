@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ParseError, parse as parseJSONC } from '../../../../../base/common/json.js';
@@ -19,12 +20,13 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -48,12 +50,13 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
-import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, CopilotCliPluginInstallSource, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation } from './agentPluginService.js';
+import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
@@ -97,12 +100,10 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
+		@IAgentPluginEnablementService baseEnablementModel: IAgentPluginEnablementService,
 		@ILogService logService: ILogService,
 	) {
 		super();
-
-		const baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
 
 		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
 
@@ -246,6 +247,7 @@ interface IPluginManifest {
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	readonly copilotCliInstallation?: ICopilotCliPluginInstallation;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
 	/** Whether to keep file watchers inside this plugin and reuse its entry between discovery refreshes. */
@@ -315,7 +317,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.copilotCliInstallation, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -336,7 +338,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, copilotCliInstallation: ICopilotCliPluginInstallation | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -448,6 +450,11 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			try {
+				const stat = await this._fileService.resolve(uri);
+				if (!stat.isDirectory) {
+					await this._refreshPlugins();
+					return;
+				}
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
 				if (latestFormat.format !== format.format) {
 					await this._refreshPlugins();
@@ -455,6 +462,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 				manifest.set(await readPluginManifest(uri, format, this._fileService), undefined);
 			} catch (error) {
+				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+					await this._refreshPlugins();
+					return;
+				}
 				manifest.set(undefined, undefined);
 				this._logService.warn(`[AgentPluginDiscovery] Rejected updated plugin '${uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -502,6 +513,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			mcpServerDefinitions,
 			automations,
 			fromMarketplace,
+			copilotCliInstallation,
 		};
 
 		if (this._isCurrentRefresh(version)) {
@@ -776,6 +788,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
@@ -789,7 +802,21 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		this._enablementModel = enablementModel;
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
-			this._pluginMarketplaceService.installedPlugins.read(reader);
+			const installed = this._pluginMarketplaceService.installedPlugins.read(reader);
+			const watchedParents: URI[] = [];
+			for (const entry of installed) {
+				const parent = dirname(entry.pluginUri);
+				if (watchedParents.some(candidate => isEqual(candidate, parent))) {
+					continue;
+				}
+				watchedParents.push(parent);
+				const watcher = reader.store.add(this._fileService.createWatcher(parent, { recursive: false, excludes: [] }));
+				reader.store.add(watcher.onDidChange(change => {
+					if (installed.some(candidate => isEqual(dirname(candidate.pluginUri), parent) && change.affects(candidate.pluginUri))) {
+						scheduler.schedule();
+					}
+				}));
+			}
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -821,18 +848,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				repositoryUri,
 				remove: async () => {
 					this._enablementModel.remove(stat.resource.toString());
-					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-
-					// Pass remaining installed descriptors so the repository service
-					// can skip deletion when other plugins share the same cache dir.
-					const remaining = this._pluginMarketplaceService.installedPlugins.get();
-					this._pluginRepositoryService.cleanupPluginSource(
-						entry.plugin,
-						remaining.map(e => e.plugin.sourceDescriptor),
-					).catch(error => {
-						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
-					});
-					return true;
+					return this._pluginInstallService.uninstallPlugin(entry.pluginUri);
 				},
 			});
 		}
@@ -859,7 +875,76 @@ interface ICopilotCliInstalledPlugin {
 	readonly uri: URI;
 	readonly name: string;
 	readonly marketplace: string;
+	readonly directSourceId?: string;
+	readonly source?: CopilotCliPluginInstallSource;
 	readonly revision: string;
+}
+
+/** Mirrors the Copilot runtime's canonical direct-source identity contract. */
+async function getCopilotCliDirectSourceId(source: unknown): Promise<string | undefined> {
+	const normalized = typeof source === 'string'
+		? { source: 'github', repo: source }
+		: source && typeof source === 'object' && !Array.isArray(source)
+			? source
+			: undefined;
+	if (!normalized) {
+		return undefined;
+	}
+
+	const field = (name: string): string => {
+		const value = Reflect.get(normalized, name);
+		return typeof value === 'string' ? value : '';
+	};
+	const kind = field('source');
+	let canonical: string;
+	if (kind === 'github' || kind === 'url') {
+		const descriptor: Record<string, string> = {
+			source: kind,
+			[kind === 'github' ? 'repo' : 'url']: field(kind === 'github' ? 'repo' : 'url'),
+			ref: field('ref'),
+		};
+		if (typeof Reflect.get(normalized, 'sha') === 'string') {
+			descriptor.sha = field('sha');
+		}
+		descriptor.path = field('path');
+		canonical = JSON.stringify(descriptor);
+	} else if (kind === 'local') {
+		canonical = JSON.stringify({ source: kind, path: field('path') });
+	} else {
+		return undefined;
+	}
+
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+	return encodeHex(VSBuffer.wrap(new Uint8Array(digest)));
+}
+
+function toCopilotCliPluginInstallSource(source: unknown): CopilotCliPluginInstallSource | undefined {
+	const normalized = typeof source === 'string'
+		? { source: 'github', repo: source }
+		: source && typeof source === 'object' && !Array.isArray(source)
+			? source
+			: undefined;
+	if (!normalized) {
+		return undefined;
+	}
+	const field = (name: string): string | undefined => {
+		const value = Reflect.get(normalized, name);
+		return typeof value === 'string' && value ? value : undefined;
+	};
+	const kind = field('source');
+	if (kind === 'github') {
+		const repository = field('repo');
+		return repository ? { kind, repository, ref: field('ref'), sha: field('sha'), path: field('path') } : undefined;
+	}
+	if (kind === 'url') {
+		const url = field('url');
+		return url ? { kind, url, ref: field('ref'), sha: field('sha'), path: field('path') } : undefined;
+	}
+	if (kind === 'local') {
+		const path = field('path');
+		return path ? { kind, path } : undefined;
+	}
+	return undefined;
 }
 
 class CopilotCliInstalledPluginsStore extends Disposable {
@@ -1006,10 +1091,14 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 				continue;
 			}
 			seen.add(key);
+			const rawSource = Reflect.get(entry, 'source');
+			const directSourceId = marketplace ? undefined : await getCopilotCliDirectSourceId(rawSource);
 			result.push({
 				uri,
 				name,
 				marketplace,
+				directSourceId,
+				source: toCopilotCliPluginInstallSource(rawSource),
 				revision: JSON.stringify({
 					version: Reflect.get(entry, 'version'),
 					installedAt: Reflect.get(entry, 'installed_at'),
@@ -1051,6 +1140,8 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 			plugin.uri.toString() === second[index].uri.toString()
 			&& plugin.name === second[index].name
 			&& plugin.marketplace === second[index].marketplace
+			&& plugin.directSourceId === second[index].directSourceId
+			&& JSON.stringify(plugin.source) === JSON.stringify(second[index].source)
 			&& plugin.revision === second[index].revision
 		);
 }
@@ -1067,6 +1158,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
 		this._installedPlugins = this._register(new CopilotCliInstalledPluginsStore(
@@ -1092,10 +1184,26 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				if (!stat.isDirectory) {
 					continue;
 				}
+				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({
 					uri: stat.resource,
 					fromMarketplace: undefined,
+					copilotCliInstallation: {
+						name: installedPlugin.name,
+						marketplace: installedPlugin.marketplace,
+						directSourceId: installedPlugin.directSourceId,
+						source: installedPlugin.source,
+					},
 					watchPluginContents: false,
+					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
+						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {
+							name: installedPlugin.name,
+							marketplace: installedPlugin.marketplace,
+							...(installedPlugin.directSourceId ? { directSourceId: installedPlugin.directSourceId } : {}),
+						});
+						this._enablementModel.remove(stat.resource.toString());
+						return true;
+					} : undefined,
 				});
 			} catch {
 				continue;

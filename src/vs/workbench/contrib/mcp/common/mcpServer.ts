@@ -961,7 +961,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			throw new UserInteractionRequiredError('sandbox-suggestion');
 		}
 
-		const existingSandboxConfig = this._fullDefinitions.get().collection?.sandbox;
+		const launch = this._fullDefinitions.get().server?.launch ?? cnx.definition.launch;
+		const existingSandboxConfig = launch.type === McpServerTransportType.Stdio ? launch.sandbox : undefined;
 		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks, existingSandboxConfig);
 		if (!suggestion) {
 			// clear potential blocks as there are no suggestions for them.

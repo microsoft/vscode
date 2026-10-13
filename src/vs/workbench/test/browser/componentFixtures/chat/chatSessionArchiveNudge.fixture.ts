@@ -69,7 +69,7 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 				persistentContent.classList.add('chat-persistent-content-visible');
 				row.content.appendChild(pills.element);
 				row.observe(persistentContent);
-				row.observe(pills.element);
+				row.observe(pills.element, () => pills.getPillElements());
 			}
 
 			inputPart.setSessionArchiveNudge({

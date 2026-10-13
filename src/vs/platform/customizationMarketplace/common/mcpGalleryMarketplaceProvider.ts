@@ -12,8 +12,8 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
@@ -26,17 +26,12 @@ function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationSe
 	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
 }
 
-export function getCustomizationMarketplaceSourceInfos(configurationService: IConfigurationService, productService: IProductService): readonly ICustomizationMarketplaceSourceInfo[] {
-	const sources = getAllMcpGalleryMarketplaceSourceInfos();
-	const hasCustomGallery = getConfiguredCustomMcpGalleryUrl(configurationService, productService) !== undefined;
-	const usesDefaultGallery = configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true;
-	return hasCustomGallery || usesDefaultGallery
-		? sources
-		: sources.filter(source => source.id !== CustomizationMarketplaceSources.McpGallery.id);
+export function getCustomizationMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
+	return getAllMcpGalleryMarketplaceSourceInfos();
 }
 
 export function getAllMcpGalleryMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
-	return [CustomizationMarketplaceSources.McpGallery, CustomizationMarketplaceSources.AgentFinderPublicFeed];
+	return [CustomizationMarketplaceSources.McpGallery];
 }
 
 export function createMcpGalleryMarketplaceProviders(instantiationService: IInstantiationService): readonly ICustomizationMarketplaceProvider[] {
@@ -69,7 +64,12 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 	const webUrl = safeWebUri(server.webUrl);
 	const repository = safeWebUri(server.repositoryUrl);
 	const url = webUrl ?? repository;
-	const icon = safeWebUri(server.icon?.light);
+	const lightIcon = safeWebUri(server.icon?.light);
+	const darkIcon = safeWebUri(server.icon?.dark);
+	const publisherUrl = safeWebUri(server.publisherUrl);
+	const icon: CustomizationMarketplaceIcon | undefined = lightIcon && darkIcon
+		? { light: lightIcon, dark: darkIcon }
+		: lightIcon ?? darkIcon;
 	return {
 		identifier: `${registry}:${server.name}`,
 		displayName: server.displayName || server.name,
@@ -82,6 +82,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		...(repository ? { repository } : {}),
 		...(icon ? { icon } : {}),
 		publisher: server.publisherDisplayName ?? server.publisher,
+		...(publisherUrl ? { publisherUrl } : {}),
 		version: server.version,
 		stars: server.starsCount,
 		priority: registry === 'custom' ? 1 : 0,
@@ -108,10 +109,6 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			return { items: [] };
 		}
 		const configuredUrl = getConfiguredCustomMcpGalleryUrl(this.configurationService, this.productService);
-		if (this.registry === 'default' &&
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true) {
-			return { items: [], total: 0 };
-		}
 		const manifest = this.registry === 'default'
 			? this.productService.mcpGallery
 				? await this.manifestService.getDefaultMcpGalleryManifest()

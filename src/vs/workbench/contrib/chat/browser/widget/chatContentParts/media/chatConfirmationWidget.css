@@ -21,6 +21,33 @@
 	user-select: text;
 }
 
+.chat-tool-output-metadata {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: center;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size120) 0 0;
+	padding: var(--vscode-spacing-size80) 0;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-tool-output-metadata-field {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-tool-output-metadata dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-tool-output-metadata dd {
+	margin: 0;
+	color: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
 .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
 	width: 100%;
 	border-radius: 3px;
@@ -60,6 +87,8 @@
 .chat-confirmation-widget .chat-confirmation-widget-title-inner {
 	flex-grow: 1;
 	flex-basis: 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p,
@@ -80,7 +109,8 @@
 
 	.monaco-button-mdlabel {
 		display: flex;
-		width: 100%;
+		flex: 1;
+		min-width: 0;
 		text-align: left;
 		align-items: center;
 	}
@@ -533,6 +563,8 @@
 
 		&.monaco-button {
 			width: fit-content;
+			max-width: 100%;
+			min-width: 0;
 			outline: none;
 			gap: 4px;
 		}

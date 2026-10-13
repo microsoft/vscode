@@ -1,6 +1,6 @@
 ---
 name: component-fixtures
-description: Use when creating or updating component fixtures for screenshot testing, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, and common pitfalls.
+description: Use when creating or updating component fixtures for screenshot testing or their shared infrastructure, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, validation, and common pitfalls.
 ---
 
 # Component Fixtures
@@ -56,7 +56,7 @@ function renderMyComponent({ container, disposableStore, theme }: ComponentFixtu
 
 Key points:
 - **`defineThemedFixtureGroup`** automatically creates Dark and Light variants for each fixture
-- **`defineComponentFixture`** wraps your render function with theme setup and shadow DOM isolation
+- **`defineComponentFixture`** wraps your render function with theme setup, async readiness, and disposable management
 - **`createEditorServices`** provides a `TestInstantiationService` with base editor services pre-registered
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
@@ -97,7 +97,11 @@ function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentF
 
 ## CSS Scoping
 
-Fixtures render inside shadow DOM. The component-explorer automatically adopts the global VS Code stylesheets and theme CSS.
+Fixtures share the document and workbench stylesheets (`isolation: 'none'`). The helpers scope theme and file-icon styles, but DOM, CSS, and process-wide registrations are not isolated automatically.
+
+### Shared theme initialization
+
+`fixtureUtilsCss.ts` loads the shared workbench color and size registrations before generating and caching theme CSS, including the agent tokens in `vs/workbench/common/agentsColors.ts` and `agentsSizes.ts`. Keep required product-wide registrations in this shared bootstrap, not in individual fixtures: discovering another fixture must not change an existing fixture's typography or colors. Reuse lightweight registration modules from the owning shared layer rather than importing product entry points or higher-layer contributions.
 
 ### Matching production CSS selectors
 
@@ -161,9 +165,27 @@ const element = new class extends mock<IChatRequestViewModel>() { }();
 
 ## Async Rendering
 
-The component explorer waits **2 animation frames** after the synchronous render function returns. For most components, this is sufficient.
+The component explorer awaits the render promise, then waits two animation frames. Those frames are not a readiness guarantee for image decoding, native resize observers, delayed layout, or scrollbar idle timers.
 
-If your render function returns a `Promise`, the component explorer waits for the promise to resolve.
+The render promise must resolve only when the fixture represents its named state:
+
+- Await assets that affect the screenshot. An editor's `setInput()` may return before its main image or thumbnails have loaded; wait for the expected image count and await `decode()`, failing on missing or broken images.
+- Finish layout-changing actions before positioning the viewport. Wait for content height, scroll height, scroll position, and finite animations to settle, then scroll and settle again. Assert that an "offscreen" header is actually offscreen and a "visible" header is not covered by sticky content.
+- Account for transient visuals such as auto-hiding scrollbars. A stable height does not mean a stable screenshot.
+- Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
+- Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
+
+Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image. Wait for auto-hiding scrollbars to reach their intended idle state, not merely for content height to stabilize.
+
+Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
+
+For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.
+
+### Validating fixtures
+
+Do not add automated tests whose subject is fixtures or fixture infrastructure (including fixture-only unit, Playwright, and screenshot-stability tests). Validate fixture changes with the existing Component Explorer rendering, screenshot, stability, and error tools, plus direct inspection or temporary browser probes. Ordinary tests for production behavior belong at the owning production API.
+
+Validate at the same readiness boundary CI uses: capture immediately after the headless `renderFixture()` resolves, after idle callbacks, and after remounting following another fixture. Compare exact hashes on the same platform and separately inspect the intended state; do not commit the temporary probes as fixture tests.
 
 ### Pitfall: DOM reparenting causes flickering
 

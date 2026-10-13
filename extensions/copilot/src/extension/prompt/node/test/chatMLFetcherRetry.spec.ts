@@ -5,7 +5,6 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
@@ -18,17 +17,17 @@ import { ICAPIClientService } from '../../../../platform/endpoint/common/capiCli
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback } from '../../../../platform/networking/common/fetch';
-import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
-import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { FinishedCallback, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
+import { FetchOptions, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
+import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { InstantiationServiceBuilder } from '../../../../util/common/services';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
@@ -45,6 +44,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	let configurationService: InMemoryConfigurationService;
 	let cancellationTokenSource: CancellationTokenSource;
 	let endpoint: IChatEndpoint;
+	let telemetryService: SpyingTelemetryService;
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -56,17 +56,17 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		configurationService.setConfig(ConfigKey.TeamInternal.RetryNetworkErrors, true);
 
 		const logService = new TestLogService();
-		const telemetryService = new NullTelemetryService();
+		telemetryService = new SpyingTelemetryService();
 		const experimentationService = new NullExperimentationService();
 
 		endpoint = createMockEndpoint();
 
-		fetcher = new ChatMLFetcherImpl(
+		fetcher = disposables.add(new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			telemetryService,
 			new NullRequestLogger(),
 			logService,
-			new TestAuthenticationService() as unknown as IAuthenticationService,
+			disposables.add(new TestAuthenticationService()),
 			createMockInteractionService(),
 			createMockChatQuotaService(),
 			new TestCAPIClientService() as unknown as ICAPIClientService,
@@ -81,7 +81,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-		);
+		));
 
 		// Skip delays in tests for faster execution
 		fetcher.connectivityCheckDelays = [0, 0, 0];
@@ -102,6 +102,22 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			finishedCb: undefined,
 		};
 	}
+
+	describe('explicit output token limits', () => {
+		it.each([
+			{ requestOptions: {}, expected: { max_tokens: 4096 } },
+			{ requestOptions: { max_tokens: undefined }, expected: {} },
+		])('serializes the output limit for $requestOptions', async ({ requestOptions, expected }) => {
+			mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+			const result = await fetcher.fetchMany({ ...createBaseOpts(), requestOptions }, cancellationTokenSource.token);
+			expect(result.type).toBe(ChatFetchResponseType.Success);
+			const body = JSON.parse(mockFetcherService.serializedBodies[0]);
+			expect({
+				...('max_tokens' in body ? { max_tokens: body.max_tokens } : {}),
+				...('prediction' in body ? { prediction: body.prediction } : {}),
+			}).toEqual(expected);
+		});
+	});
 
 	describe('server error retry with configured status codes', () => {
 		it('retries on 500 status code when configured', async () => {
@@ -240,6 +256,58 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		});
 	});
 
+	describe('gitHubCopilotRequestTe', () => {
+		function getRequestTeByEvent(eventNames: readonly string[]) {
+			return telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => eventNames.includes(e.eventName))
+				.map(e => [e.eventName, (e.properties as Record<string, string> | undefined)?.gitHubCopilotRequestTe]);
+		}
+
+		it('forwards the header from an HTTP error response unchanged to the result and error events', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(404, 'Not Found', { 'X-GitHub-Copilot-Request-Te': ' TRUE ' }));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({
+				type: result.type,
+				result: result.gitHubCopilotRequestTe,
+				events: getRequestTeByEvent(['request.shownWarning', 'response.error']),
+			}).toEqual({
+				type: ChatFetchResponseType.NotFound,
+				result: ' TRUE ',
+				events: [['request.shownWarning', ' TRUE '], ['response.error', ' TRUE ']],
+			});
+		});
+
+		it('reports each attempt\'s own value when a server error is retried', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(500, 'Internal Server Error', { 'x-github-copilot-request-te': 'false' }));
+			mockFetcherService.queueResponse(createSuccessResponse('{}')); // connectivity check
+			mockFetcherService.queueResponse(createSuccessResponse('Hello!', { 'X-GitHub-Copilot-Request-Te': 'yes' })); // retry
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({
+				result: result.gitHubCopilotRequestTe,
+				events: getRequestTeByEvent(['response.error', 'response.success']),
+			}).toEqual({
+				result: 'yes',
+				events: [['response.error', 'false'], ['response.success', 'yes']],
+			});
+		});
+
+		it('omits the property on error events when the header is absent', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(404, 'Not Found'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			const events = telemetryService.getEvents().telemetryServiceEvents;
+			expect({
+				resultHasProperty: 'gitHubCopilotRequestTe' in result,
+				eventsWithProperty: events.filter(e => 'gitHubCopilotRequestTe' in (e.properties ?? {})).map(e => e.eventName),
+			}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
+		});
+	});
+
 	describe('connectivity check failure', () => {
 		it('does not retry server error when connectivity check fails', async () => {
 			configurationService.setConfig(ConfigKey.TeamInternal.RetryServerErrorStatusCodes, '500,502');
@@ -369,6 +437,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 class MockFetcherService {
 	private _responseQueue: (Response | Error)[] = [];
 	private _fetchCallCount = 0;
+	readonly serializedBodies: string[] = [];
 
 	get fetchCallCount(): number {
 		return this._fetchCallCount;
@@ -392,9 +461,10 @@ class MockFetcherService {
 		return this._fetcherIdsUsed;
 	}
 
-	async fetch(_url: string, options?: any): Promise<Response> {
+	async fetch(_url: string, options?: FetchOptions): Promise<Response> {
 		this._fetchCallCount++;
 		this._fetcherIdsUsed.push(options?.useFetcher);
+		this.serializedBodies.push(options?.body ?? JSON.stringify(options?.json));
 		const next = this._responseQueue.shift();
 		if (!next) {
 			throw new Error('No more queued responses');
@@ -488,11 +558,7 @@ function createMockEndpoint(): IChatEndpoint {
 		isFallback: false,
 		policy: 'enabled',
 		getHeaders: async () => ({}),
-		createRequestBody: () => ({
-			model: 'test-model',
-			messages: [],
-			stream: true
-		}),
+		createRequestBody: (options: ICreateEndpointBodyOptions) => createCapiRequestBody(options, 'test-model'),
 		acquireTokenizer: () => ({
 			countMessagesTokens: async () => 100,
 			countTokens: async () => 100,
@@ -513,6 +579,7 @@ function createMockEndpoint(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							gitHubCopilotRequestTe: getGitHubCopilotRequestTe(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -569,24 +636,25 @@ class FakeHeaders implements IHeaders {
 	}
 }
 
-function createSuccessResponse(content: string): Response {
+function createSuccessResponse(content: string, headers: Record<string, string> = {}): Response {
 	const streamContent = `data: {"choices":[{"delta":{"content":"${content}"},"index":0}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop","index":0}]}\n\ndata: [DONE]\n\n`;
 	return Response.fromText(
 		200,
 		'OK',
 		new FakeHeaders(new Map([
 			['content-type', 'text/event-stream'],
+			...Object.entries(headers),
 		])),
 		streamContent,
 		'node-fetch'
 	);
 }
 
-function createErrorResponse(status: number, statusText: string): Response {
+function createErrorResponse(status: number, statusText: string, headers: Record<string, string> = {}): Response {
 	return Response.fromText(
 		status,
 		statusText,
-		new FakeHeaders(),
+		new FakeHeaders(new Map(Object.entries(headers))),
 		JSON.stringify({ error: { message: statusText } }),
 		'node-fetch'
 	);

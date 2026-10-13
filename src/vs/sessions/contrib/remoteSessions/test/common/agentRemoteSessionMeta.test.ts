@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { parseRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin, supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
-import { parseChatUri, readSessionSpawnDepth, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, parseChatUri, readSessionSpawnDepth, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 suite('Remote session origin metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,14 +75,31 @@ suite('Remote session origin metadata', () => {
 		const results = chats.map(chatId => {
 			const metadata = toRemoteSessionMessageMetadata({
 				session: origin.session, chat: `${origin.session}${chatId ? `#${chatId}` : ''}`,
-			}, 'source-turn');
+			}, buildDefaultChatUri(origin.session), 'source-turn');
 			const delegation = readAgentMessageDelegationMeta({ _meta: metadata });
 			assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-			return { session: delegation.sourceSession, chat: parseChatUri(delegation.sourceChat), turnId: delegation.sourceTurnId };
+			return { session: delegation.sourceSession, chat: { session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, turnId: delegation.sourceTurnId };
 		});
 		assert.deepStrictEqual(results, chats.map(chatId => ({
 			session: origin.session, chat: { session: origin.session, chatId: chatId || 'default' }, turnId: 'source-turn',
 		})));
+	});
+
+	test('request metadata names the advertised default chat, not the default-shaped chat, for a source without a chat fragment', () => {
+		const sourceChat = (defaultChat: string | undefined) => {
+			const delegation = readAgentMessageDelegationMeta({ _meta: toRemoteSessionMessageMetadata({ session: origin.session, chat: origin.session }, defaultChat) });
+			return delegation && hasKey(delegation, { sourceSession: true }) ? delegation.sourceChat : 'no session delegation';
+		};
+		const recreatedDefault = URI.parse(buildDefaultChatUri(origin.session)).with({ query: 'generation=1' }).toString();
+		assert.deepStrictEqual({
+			recreated: sourceChat(recreatedDefault),
+			opaque: sourceChat('conversation://tenant/main'),
+			none: sourceChat(undefined),
+		}, {
+			recreated: recreatedDefault,
+			opaque: 'conversation://tenant/main',
+			none: undefined,
+		});
 	});
 
 	test('rejects malformed metadata, unqualified identities and mismatched chats', () => {
