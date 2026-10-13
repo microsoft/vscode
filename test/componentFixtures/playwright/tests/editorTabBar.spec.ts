@@ -31,7 +31,7 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 	});
 	expect(colors).toEqual({
 		capTop: 'rgb(42, 43, 44)',
-		capRadius: '7px',
+		capRadius: '4px',
 		structuralBoundary: '#2a2b2c',
 		themeActiveTop: '#3994bc',
 		shoulder: {
@@ -116,13 +116,13 @@ for (const [theme, expected] of [
 				edgeBottomWidth: '0px',
 			},
 			inactive: {
-				top: 'rgba(0, 0, 0, 0)',
-				side: 'rgba(0, 0, 0, 0)',
+				top: expected.tabBorder,
+				side: expected.tabBorder,
 			},
-			firstLeft: 'rgba(0, 0, 0, 0)',
+			firstLeft: expected.tabBorder,
 			frame: expected.tabBorder,
 			groupFrame: 'none',
-			visibleDividers: Array(5).fill(expected.tabBorder),
+			visibleDividers: [],
 		});
 	});
 }
