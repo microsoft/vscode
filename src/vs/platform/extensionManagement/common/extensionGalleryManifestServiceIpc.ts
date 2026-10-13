@@ -40,6 +40,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
 					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0]));
+					case 'setExtensionGalleryAuthorization': return Promise.resolve(this.setAuthorization(args[0], args[1]));
 				}
 				throw new Error('Invalid call');
 			}

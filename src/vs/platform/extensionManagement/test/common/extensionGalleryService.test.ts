@@ -32,7 +32,6 @@ import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
-import { ExtensionGalleryAuthorizationService } from '../../common/extensionGalleryAuthorization.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
 import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
@@ -134,8 +133,15 @@ function rawLatestExtension(versions = [rawVersion('1.0.0')]) {
 	};
 }
 
-function createExtensionGalleryManifestService(): IExtensionGalleryManifestService {
-	const extensionGalleryManifest: IExtensionGalleryManifest = {
+class TestExtensionGalleryManifestService implements IExtensionGalleryManifestService {
+	declare readonly _serviceBrand: undefined;
+	readonly extensionGalleryManifestStatus = ExtensionGalleryManifestStatus.Available;
+	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
+	readonly onDidChangeExtensionGalleryManifest = Event.None;
+	private accessToken: string | undefined;
+	private serviceIndexUrl: string | undefined;
+
+	private readonly extensionGalleryManifest: IExtensionGalleryManifest = {
 		version: '1.0.0',
 		resources: [
 			{ id: latestVersionUri, type: ExtensionGalleryResourceType.ExtensionLatestVersionUri },
@@ -144,13 +150,21 @@ function createExtensionGalleryManifestService(): IExtensionGalleryManifestServi
 		],
 		capabilities: { extensionQuery: {} }
 	};
-	return {
-		_serviceBrand: undefined,
-		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
-		onDidChangeExtensionGalleryManifestStatus: Event.None,
-		onDidChangeExtensionGalleryManifest: Event.None,
-		getExtensionGalleryManifest: async () => extensionGalleryManifest
-	};
+
+	setAuthorization(accessToken: string | undefined, serviceIndexUrl: string | undefined): void {
+		this.accessToken = accessToken;
+		this.serviceIndexUrl = serviceIndexUrl;
+	}
+
+	async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		return this.accessToken && this.serviceIndexUrl && URI.parse(targetUrl).authority === URI.parse(this.serviceIndexUrl).authority
+			? this.accessToken
+			: undefined;
+	}
+
+	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
+		return this.extensionGalleryManifest;
+	}
 }
 
 suite('Extension Gallery Service', () => {
@@ -169,9 +183,9 @@ suite('Extension Gallery Service', () => {
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService(), authorizationService = disposables.add(new ExtensionGalleryAuthorizationService())): ExtensionGalleryServiceWithNoStorageService {
+	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService(), manifestService = new TestExtensionGalleryManifestService()): ExtensionGalleryServiceWithNoStorageService {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
-		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, createExtensionGalleryManifestService(), authorizationService);
+		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
 	}
 
 	test('marketplace machine id', async () => {
@@ -199,9 +213,9 @@ suite('Extension Gallery Service', () => {
 
 	test('getExtensions authenticates a same-origin query API', async () => {
 		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
-		const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-		authorizationService.setAuthorization('resource-token', 'https://marketplace.test');
-		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), authorizationService);
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
 
 		await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
 
@@ -219,9 +233,9 @@ suite('Extension Gallery Service', () => {
 				}
 				return requestContext(options.url === `${primaryOrigin}/readme` ? 500 : 200, {});
 			});
-			const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-			authorizationService.setAuthorization('resource-token', 'https://marketplace.test');
-			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), authorizationService);
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
 			const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
 
 			await galleryService.getReadme({
@@ -242,9 +256,9 @@ suite('Extension Gallery Service', () => {
 			downloadHeaders.push(options.headers);
 			return requestContext(options.url?.startsWith('https://marketplace.test/') ? 500 : 200, {});
 		});
-		const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-		authorizationService.setAuthorization('resource-token', 'https://marketplace.test');
-		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), authorizationService);
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
 		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
 
 		await galleryService.download({
@@ -279,9 +293,9 @@ suite('Extension Gallery Service', () => {
 				},
 			};
 			const requestService = new RecordingRequestService(() => requestContext(200, { malicious: [] }));
-			const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-			authorizationService.setAuthorization('resource-token', 'https://marketplace.test');
-			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), authorizationService);
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
 
 			await galleryService.getExtensionsControlManifest();
 
@@ -292,12 +306,12 @@ suite('Extension Gallery Service', () => {
 	if (!isWeb) {
 		test('statistics requests resolve authorization afresh for their target', async () => {
 			const requestService = new RecordingRequestService(() => requestContext(200, {}));
-			const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-			authorizationService.setAuthorization('resource-token', 'https://marketplace.test');
-			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), authorizationService);
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
 
 			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
-			authorizationService.setAuthorization('other-token', 'https://public.test');
+			manifestService.setAuthorization('other-token', 'https://public.test');
 			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
 
 			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', undefined]);

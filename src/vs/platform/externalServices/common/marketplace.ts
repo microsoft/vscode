@@ -6,7 +6,7 @@
 import { IHeaders } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IExtensionGalleryAuthorizationService } from '../../extensionManagement/common/extensionGalleryAuthorization.js';
+import { IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
 import { getServiceMachineId } from './serviceMachineId.js';
 import { IFileService } from '../../files/common/files.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -14,8 +14,8 @@ import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils.js';
 
-export async function resolveMarketplaceAuthorizationHeaders(targetUrl: string, authorizationService: IExtensionGalleryAuthorizationService): Promise<Record<string, string>> {
-	const accessToken = await authorizationService.getAccessToken(targetUrl);
+export async function resolveMarketplaceAuthorizationHeaders(targetUrl: string, manifestService: IExtensionGalleryManifestService): Promise<Record<string, string>> {
+	const accessToken = await manifestService.getAccessToken(targetUrl);
 	return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 

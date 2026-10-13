@@ -130,6 +130,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		return this.extensionGalleryManifest;
 	}
 
+	override getAccessToken(targetUrl: string): Promise<string | undefined> {
+		return this.galleryAccountService.getAccessToken(targetUrl);
+	}
+
 	private async doGetExtensionGalleryManifest(): Promise<void> {
 		const defaultServiceUrl = this.productService.extensionsGallery?.serviceUrl;
 		if (!defaultServiceUrl) {
@@ -278,7 +282,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.galleryAccountService);
+		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this);
 		const headers: IHeaders = {
 			...commonHeaders,
 			...authorizationHeaders,

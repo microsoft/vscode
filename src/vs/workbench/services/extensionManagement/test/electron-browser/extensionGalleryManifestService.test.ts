@@ -15,10 +15,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryAuthorizationService } from '../../../../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
-import { ExtensionGalleryManifestStatus, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -115,7 +113,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let telemetryService: RecordingTelemetryService;
 	let restartPrompts: string[];
 	let sharedAuthorizationError: Error | undefined;
-	let authorizationService: IExtensionGalleryAuthorizationService;
+	let authorizationService: IExtensionGalleryManifestService;
 	let accountService: ExtensionGalleryAccountService;
 
 	setup(() => {
@@ -233,7 +231,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// Built here (not in setup) so the provider is chosen after each test sets the config;
 		// registered to the store because it is injected, not owned by the manifest service.
 		accountService = disposableStore.add(instantiationService.createInstance(ExtensionGalleryAccountService));
-		authorizationService = accountService;
 		// Play the role of the production contribution, which builds the auth-dependent provider
 		// outside the service graph and hands it over.
 		const useMicrosoft = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey) === 'microsoft';
@@ -242,22 +239,18 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			: instantiationService.createInstance(GitHubGalleryAccountProvider));
 		accountService.setAccountProvider(provider);
 		instantiationService.stub(IExtensionGalleryAccountService, accountService);
-		return disposableStore.add(instantiationService.createInstance(WorkbenchExtensionGalleryManifestService));
+		const service = disposableStore.add(instantiationService.createInstance(WorkbenchExtensionGalleryManifestService));
+		authorizationService = service;
+		return service;
 	}
 
 	// --- Provider routing ---
 
-	test('account and authorization consumers share the Desktop instance', async () => {
+	test('manifest service exposes Desktop account authorization', async () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(instantiationService.get(IExtensionGalleryAuthorizationService), accountService);
-	});
-
-	test('Desktop registration replaces the default authorization implementation', () => {
-		const registration = getSingletonServiceDescriptors().filter(([id]) => id === IExtensionGalleryAuthorizationService).at(-1);
-
-		assert.strictEqual(registration?.[1].ctor, ExtensionGalleryAccountService);
+		assert.strictEqual(await service.getAccessToken('https://marketplace.example.com'), await accountService.getAccessToken('https://marketplace.example.com'));
 	});
 
 	test('GitHub provider — enterprise account → Available', async () => {

@@ -12,7 +12,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthorizationService } from '../../../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
 import { ExtensionGalleryAuthProviderConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -424,12 +423,17 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 }
 
 /** Owns the account verdict and the authorization derived from the configured provider. */
-export class ExtensionGalleryAccountService extends ExtensionGalleryAuthorizationService implements IExtensionGalleryAccountService {
+export class ExtensionGalleryAccountService extends Disposable implements IExtensionGalleryAccountService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private provider: IExtensionGalleryAccountProvider | undefined;
 	private readonly providerListeners = this._register(new MutableDisposable<DisposableStore>());
+	private authorization: {
+		readonly accessToken: string | undefined;
+		readonly serviceIndexUrl: string | undefined;
+		readonly revision: number;
+	} = { accessToken: undefined, serviceIndexUrl: undefined, revision: 0 };
 	private authorizationGeneration = 0;
 	private authorizationUpdatePromise = Promise.resolve();
 	private readonly setAuthorizationInOtherProcesses: (accessToken: string | undefined, serviceIndexUrl: string | undefined) => Promise<void>;
@@ -450,15 +454,15 @@ export class ExtensionGalleryAccountService extends ExtensionGalleryAuthorizatio
 		@ILogService private readonly accountLogService: ILogService,
 	) {
 		super();
-		const channels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryAuthorization') }];
+		const channels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryManifest') }];
 		const remoteConnection = remoteAgentService.getConnection();
 		if (remoteConnection) {
-			channels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryAuthorization') });
+			channels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryManifest') });
 		}
 		this.setAuthorizationInOtherProcesses = async (accessToken, serviceIndexUrl) => {
 			await Promise.all(channels.map(async ({ name, channel }) => {
 				try {
-					await channel.call('setAuthorization', [accessToken, serviceIndexUrl]);
+					await channel.call('setExtensionGalleryAuthorization', [accessToken, serviceIndexUrl]);
 				} catch (error) {
 					this.accountLogService.error(`[Marketplace] Unable to update marketplace authorization in the ${name}`, error);
 				}
@@ -475,6 +479,24 @@ export class ExtensionGalleryAccountService extends ExtensionGalleryAuthorizatio
 		this.providerListeners.value = listeners;
 		// Anything that resolved before the provider arrived saw no account; let it try again.
 		this.handleAccountChange();
+	}
+
+	async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		const { accessToken, serviceIndexUrl } = this.authorization;
+		if (!accessToken || !serviceIndexUrl) {
+			return undefined;
+		}
+		try {
+			const target = URI.parse(targetUrl);
+			const serviceIndex = URI.parse(serviceIndexUrl);
+			return target.scheme === 'https'
+				&& serviceIndex.scheme === 'https'
+				&& target.authority.toLowerCase() === serviceIndex.authority.toLowerCase()
+				? accessToken
+				: undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	async resolveMarketplaceAccess(serviceIndexUrl: string): Promise<IExtensionGalleryAccessResult> {
@@ -536,7 +558,8 @@ export class ExtensionGalleryAccountService extends ExtensionGalleryAuthorizatio
 	}
 
 	private async publishAuthorization(accessToken: string | undefined, serviceIndexUrl: string | undefined): Promise<number> {
-		const authorizationRevision = this.setAuthorization(accessToken, serviceIndexUrl);
+		this.authorization = { accessToken, serviceIndexUrl, revision: this.authorization.revision + 1 };
+		const authorizationRevision = this.authorization.revision;
 		const update = () => this.setAuthorizationInOtherProcesses(accessToken, serviceIndexUrl);
 		this.authorizationUpdatePromise = this.authorizationUpdatePromise.then(update, update);
 		await this.authorizationUpdatePromise;

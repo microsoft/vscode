@@ -12,7 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
-import { ExtensionGalleryAuthorizationService } from '../../../extensionManagement/common/extensionGalleryAuthorization.js';
 import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../extensionManagement/common/extensionGalleryManifest.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -42,9 +41,8 @@ suite('ExtensionResourceLoaderService', () => {
 			onDidChangeExtensionGalleryManifestStatus: Event.None,
 			onDidChangeExtensionGalleryManifest: Event.None,
 			getExtensionGalleryManifest: async () => null,
+			getAccessToken: async targetUrl => targetUrl === 'https://marketplace.example.com/publisher/extension/themes/theme.json' ? 'resource-token' : undefined,
 		};
-		const authorizationService = disposables.add(new ExtensionGalleryAuthorizationService());
-		authorizationService.setAuthorization('resource-token', 'https://marketplace.example.com');
 		const resource = URI.parse('https://marketplace.example.com/publisher/extension/themes/theme.json');
 		const productService: IProductService = { _serviceBrand: undefined, ...product };
 		const clientName = `${productService.applicationName}${isWeb ? '-web' : ''}`;
@@ -55,7 +53,6 @@ suite('ExtensionResourceLoaderService', () => {
 			new class extends mock<IEnvironmentService>() { }(),
 			new TestConfigurationService(),
 			manifestService,
-			authorizationService,
 			new NullLogService(),
 		));
 

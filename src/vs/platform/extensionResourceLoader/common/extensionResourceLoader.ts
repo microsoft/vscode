@@ -19,7 +19,6 @@ import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/tel
 import { RemoteAuthorities } from '../../../base/common/network.js';
 import { TargetPlatform } from '../../extensions/common/extensions.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
-import { IExtensionGalleryAuthorizationService } from '../../extensionManagement/common/extensionGalleryAuthorization.js';
 import { ILogService } from '../../log/common/log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
@@ -82,7 +81,6 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _extensionGalleryManifestService: IExtensionGalleryManifestService,
-		private readonly _extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 		protected readonly _logService: ILogService,
 	) {
 		super();
@@ -146,7 +144,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
 		}
-		Object.assign(headers, await resolveMarketplaceAuthorizationHeaders(resource.toString(true), this._extensionGalleryAuthorizationService));
+		Object.assign(headers, await resolveMarketplaceAuthorizationHeaders(resource.toString(true), this._extensionGalleryManifestService));
 		return headers;
 	}
 

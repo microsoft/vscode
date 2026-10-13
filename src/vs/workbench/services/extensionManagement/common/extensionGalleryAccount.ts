@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IExtensionGalleryAuthorizationService } from '../../../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
 export interface IExtensionGalleryAccount {
@@ -41,7 +40,7 @@ export interface IExtensionGalleryAccountProvider {
 	signIn(): Promise<void>;
 }
 
-export const IExtensionGalleryAccountService = refineServiceDecorator<IExtensionGalleryAuthorizationService, IExtensionGalleryAccountService>(IExtensionGalleryAuthorizationService);
+export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
 
 export interface IExtensionGalleryAccessResult {
 	readonly status: ExtensionGalleryAccountStatus;
@@ -49,12 +48,14 @@ export interface IExtensionGalleryAccessResult {
 }
 
 /** Identity, entitlement, and authentication for the Private Marketplace. */
-export interface IExtensionGalleryAccountService extends IExtensionGalleryAuthorizationService {
+export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
 
 	readonly accountStatus: ExtensionGalleryAccountStatus;
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
+
+	getAccessToken(targetUrl: string): Promise<string | undefined>;
 
 	/** Resolves the account verdict and publishes the authorization that request services may use. */
 	resolveMarketplaceAccess(serviceIndexUrl: string): Promise<IExtensionGalleryAccessResult>;

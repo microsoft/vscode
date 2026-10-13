@@ -30,7 +30,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
-import { IExtensionGalleryAuthorizationService } from './extensionGalleryAuthorization.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
@@ -673,7 +672,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
-		@IExtensionGalleryAuthorizationService private readonly extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
 		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
 		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
@@ -1921,7 +1919,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	private async getRequestHeaders(url: string, headers?: IHeaders): Promise<IHeaders> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.extensionGalleryAuthorizationService);
+		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.extensionGalleryManifestService);
 		return { ...commonHeaders, ...headers, ...authorizationHeaders };
 	}
 
@@ -1991,7 +1989,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
-		const authHeader = await resolveMarketplaceAuthorizationHeaders(this.extensionsControlUrl, this.extensionGalleryAuthorizationService);
+		const authHeader = await resolveMarketplaceAuthorizationHeaders(this.extensionsControlUrl, this.extensionGalleryManifestService);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
@@ -2079,9 +2077,8 @@ export class ExtensionGalleryService extends AbstractExtensionGalleryService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
-		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
-		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService, extensionGalleryAuthorizationService);
+		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
 	}
 }
 
@@ -2097,8 +2094,7 @@ export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensi
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
-		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
-		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService, extensionGalleryAuthorizationService);
+		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
 	}
 }
