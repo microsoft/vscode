@@ -6,7 +6,6 @@
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import type { IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
-import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 
@@ -16,7 +15,6 @@ export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
  */
 export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
 	'runTests',
-	SEMANTIC_SEARCH_TOOL_NAME,
 ]);
 
 export interface IHostToolSearchResult {

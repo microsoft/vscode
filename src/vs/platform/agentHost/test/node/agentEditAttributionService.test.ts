@@ -52,6 +52,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const marker = await service.recordEdit({
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -182,6 +183,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const first = await service.recordEdit({
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -193,6 +195,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		const second = await service.recordEdit({
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -253,6 +256,7 @@ suite('Agent Edit Attribution Service', () => {
 				await fileService.writeFile(resource, VSBuffer.fromString(afterText));
 				const marker = await service.recordEdit({
 					sessionUri: sessionUris[index],
+					ownerSessionUri: flushMode === 'legacyNoChat' ? sessionUris[index] : sessionUri,
 					chatUri,
 					turnId: `turn-${index}`,
 					toolCallId: `tool-${index}`,
@@ -356,9 +360,9 @@ suite('Agent Edit Attribution Service', () => {
 		const claudeChatUri = buildChatUri('claude:/session-2', 'peer');
 
 		for (const edit of [
-			{ sessionUri: copilotDefaultChatUri, turnId: 'turn-default', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
-			{ sessionUri: copilotPeerChatUri, turnId: 'turn-peer', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
-			{ sessionUri: claudeChatUri, turnId: 'turn-claude', filePath: claudeResource.fsPath, modelId: 'claude-model' },
+			{ sessionUri: copilotDefaultChatUri, ownerSessionUri: copilotSessionUri, turnId: 'turn-default', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
+			{ sessionUri: copilotPeerChatUri, ownerSessionUri: copilotSessionUri, turnId: 'turn-peer', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
+			{ sessionUri: claudeChatUri, ownerSessionUri: 'claude:/session-2', turnId: 'turn-claude', filePath: claudeResource.fsPath, modelId: 'claude-model' },
 		]) {
 			await service.recordEdit({
 				...edit,
@@ -445,6 +449,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		await service.recordEdit({
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -521,12 +526,12 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 
 		const balance = await service.recordEdit({
-			sessionUri, turnId: 'turn-1', toolCallId: 'tool-1', filePath: resource.fsPath,
+			sessionUri: sessionUri, ownerSessionUri: sessionUri, turnId: 'turn-1', toolCallId: 'tool-1', filePath: resource.fsPath,
 			beforeText: 'a', afterText: 'ab', changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
 			modelId: 'gpt-5', autoTier: 'balance', toolName: 'edit',
 		});
 		const intelligence = await service.recordEdit({
-			sessionUri, turnId: 'turn-2', toolCallId: 'tool-2', filePath: resource.fsPath,
+			sessionUri: sessionUri, ownerSessionUri: sessionUri, turnId: 'turn-2', toolCallId: 'tool-2', filePath: resource.fsPath,
 			beforeText: 'ab', afterText: 'abc', changes: [{ startOffset: 2, endOffsetExclusive: 2, newText: 'c' }],
 			modelId: 'gpt-5', autoTier: 'intelligence', toolName: 'edit',
 		});
@@ -563,6 +568,72 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('keeps HydraFusion and HydraFusion Max in separate attribution rows for both telemetry destinations', async () => {
+		const sessionUri = 'copilotcli:/session-1';
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('abcd'));
+
+		const local: Record<string, string | number | undefined>[] = [];
+		const github: Record<string, string | undefined>[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details' && data) {
+					local.push(data as Record<string, string | number | undefined>);
+				}
+			},
+			sendGHTelemetryEvent(eventName: string, properties: Record<string, string | undefined>) {
+				if (eventName === 'vscode.editTelemetry.editSources.details') {
+					github.push(properties);
+				}
+			},
+		} as Partial<IAgentHostTelemetryService>);
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+
+		const markers = [];
+		let text = 'a';
+		for (const [turnId, fusionModel] of [['turn-1', 'hydrafusion'], ['turn-2', 'hydrafusion-max'], ['turn-3', undefined]] as const) {
+			const newText = String.fromCharCode(text.charCodeAt(text.length - 1) + 1);
+			markers.push(await service.recordEdit({
+				sessionUri, ownerSessionUri: sessionUri, turnId, toolCallId: `tool-${turnId}`, filePath: resource.fsPath,
+				beforeText: text, afterText: text + newText, changes: [{ startOffset: text.length, endOffsetExclusive: text.length, newText }],
+				modelId: 'gpt-5', ...(fusionModel ? { fusionModel } : {}), toolName: 'edit',
+			}));
+			text += newText;
+		}
+		await service.flushSession(sessionUri);
+
+		const rows = (events: Record<string, string | number | undefined>[]) => events.map(event => ({
+			sourceKey: event.sourceKey,
+			sourceKeyCleaned: event.sourceKeyCleaned,
+			fusionModel: event.fusionModel,
+			requestId: event.requestId,
+		})).sort((a, b) => String(a.requestId).localeCompare(String(b.requestId)));
+		const sourceKeyCleaned = 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost';
+		const expectedRows = [
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: 'hydrafusion', requestId: 'turn-1' },
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-max-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: 'hydrafusion-max', requestId: 'turn-2' },
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: undefined, requestId: 'turn-3' },
+		];
+		assert.deepStrictEqual({
+			markerFusionModels: markers.map(marker => marker?.status !== 'skipped' ? marker?.source?.fusionModel : undefined),
+			local: rows(local),
+			github: rows(github),
+		}, {
+			markerFusionModels: ['hydrafusion', 'hydrafusion-max', undefined],
+			local: expectedRows,
+			github: expectedRows,
+		});
+	});
+
 	test('caps reported sources by group before subdividing them by Auto tier', async () => {
 		const sessionUri = 'copilotcli:/session-1';
 		const fileService = disposables.add(new FileService(new NullLogService()));
@@ -593,7 +664,7 @@ suite('Agent Edit Attribution Service', () => {
 		for (const modelId of models) {
 			for (const autoTier of tiers) {
 				await service.recordEdit({
-					sessionUri, turnId: 'turn-1', toolCallId: `${modelId}-${autoTier}`, filePath: resource.fsPath,
+					sessionUri: sessionUri, ownerSessionUri: sessionUri, turnId: 'turn-1', toolCallId: `${modelId}-${autoTier}`, filePath: resource.fsPath,
 					beforeText: text, afterText: text + 'x', changes: [{ startOffset: text.length, endOffsetExclusive: text.length, newText: 'x' }],
 					modelId, autoTier, toolName: 'edit',
 				});
@@ -642,6 +713,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		await service.recordEdit({
 			sessionUri,
+			ownerSessionUri: sessionUri,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -653,6 +725,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.recordEdit({
 			sessionUri,
+			ownerSessionUri: sessionUri,
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -736,6 +809,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -783,6 +857,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
 		const baseEdit = {
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			filePath: resource.fsPath,
 			modelId: 'model',
@@ -847,6 +922,7 @@ suite('Agent Edit Attribution Service', () => {
 		}), undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -862,6 +938,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -905,6 +982,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -944,6 +1022,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1000,6 +1079,7 @@ suite('Agent Edit Attribution Service', () => {
 		for (const [toolCallId, resource] of [['tool-failing', failingResource], ['tool-successful', successfulResource]] as const) {
 			await service.recordEdit({
 				sessionUri: 'copilot:/session-1',
+				ownerSessionUri: 'copilot:/session-1',
 				turnId: 'turn-1',
 				toolCallId,
 				filePath: resource.fsPath,
@@ -1064,6 +1144,7 @@ suite('Agent Edit Attribution Service', () => {
 		}), undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1076,6 +1157,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const recording = service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -1143,6 +1225,7 @@ suite('Agent Edit Attribution Service', () => {
 		}), undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1160,6 +1243,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 		const recording = service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -1188,6 +1272,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const marker = await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: '/workspace/file.ts',
@@ -1223,6 +1308,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1236,6 +1322,7 @@ suite('Agent Edit Attribution Service', () => {
 		service.setEnabled(false);
 		const marker = await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -1274,6 +1361,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const recordEdit = service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: '/workspace/file.ts',
@@ -1319,6 +1407,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const marker = await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1386,6 +1475,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1397,6 +1487,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		const marker = await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -1477,6 +1568,7 @@ suite('Agent Edit Attribution Service', () => {
 		for (let edit = 0; edit < 128; edit++) {
 			await service.recordEdit({
 				sessionUri: 'copilot:/session-1',
+				ownerSessionUri: 'copilot:/session-1',
 				turnId: `turn-${edit}`,
 				toolCallId: `tool-${edit}`,
 				filePath: resource.fsPath,
@@ -1516,6 +1608,7 @@ suite('Agent Edit Attribution Service', () => {
 		for (let edit = 1; edit <= 129; edit++) {
 			await service.recordEdit({
 				sessionUri: 'copilot:/session-1',
+				ownerSessionUri: 'copilot:/session-1',
 				turnId: `turn-${edit}`,
 				toolCallId: `tool-${edit}`,
 				filePath: resource.fsPath,
@@ -1530,6 +1623,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-live',
+			ownerSessionUri: 'copilot:/session-live',
 			turnId: 'turn-live',
 			toolCallId: 'tool-live',
 			filePath: resource.fsPath,
@@ -1616,6 +1710,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		const marker = await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1652,6 +1747,7 @@ suite('Agent Edit Attribution Service', () => {
 
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: '/workspace/file.ts',
@@ -1663,6 +1759,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: '/workspace/file.ts',
@@ -1675,6 +1772,7 @@ suite('Agent Edit Attribution Service', () => {
 		now = 10 * 60 * 1000 + 1;
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-3',
 			toolCallId: 'tool-3',
 			filePath: '/workspace/file.ts',
@@ -1715,6 +1813,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-a',
+			ownerSessionUri: 'copilot:/session-a',
 			turnId: 'turn-a',
 			toolCallId: 'tool-a',
 			filePath: resource.fsPath,
@@ -1726,6 +1825,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-b',
+			ownerSessionUri: 'copilot:/session-b',
 			turnId: 'turn-b',
 			toolCallId: 'tool-b',
 			filePath: resource.fsPath,
@@ -1817,6 +1917,7 @@ suite('Agent Edit Attribution Service', () => {
 		] as const) {
 			await service.recordEdit({
 				sessionUri,
+				ownerSessionUri: sessionUri,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				filePath: resource.fsPath,
@@ -1858,6 +1959,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-a',
+			ownerSessionUri: 'copilot:/session-a',
 			turnId: 'turn-a',
 			toolCallId: 'tool-a',
 			filePath: resource.fsPath,
@@ -1869,6 +1971,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-b',
+			ownerSessionUri: 'copilot:/session-b',
 			turnId: 'turn-b',
 			toolCallId: 'tool-b',
 			filePath: resource.fsPath,
@@ -1921,6 +2024,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -1980,6 +2084,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath,
@@ -2030,6 +2135,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -2089,6 +2195,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -2143,6 +2250,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -2214,6 +2322,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -2271,6 +2380,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, () => now));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -2322,6 +2432,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		await service.recordEdit({
 			sessionUri: 'copilot:/session-1',
+			ownerSessionUri: 'copilot:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,

@@ -3519,6 +3519,10 @@ export class McpListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	setSearchQuery(query: string): void {
+		this.searchInput.value = query;
+	}
+
 	/**
 	 * Scrolls the list so the last item is visible.
 	 */

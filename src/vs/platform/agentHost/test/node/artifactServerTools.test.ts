@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
@@ -223,7 +223,7 @@ suite('Artifact Server Tools', () => {
 		const { host, stateManager, sessionUri, artifacts, persisted } = createHarness();
 		const defaultChat = buildDefaultChatUri(sessionUri);
 		const peerChat = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionUri, peerChat);
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 		await host.executeTool(defaultChat, ArtifactServerToolName.AddArtifactOrReference, {
 			type: 'website', label: 'Default', isArtifact: true, link: 'https://example.com/default',
 		});
@@ -271,7 +271,7 @@ suite('Artifact Server Tools', () => {
 			},
 		});
 		const peer = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionUri, peer, { workingDirectories: ['file:///peer'] });
+		stateManager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer), { workingDirectories: ['file:///peer'] });
 		const result = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
 			items: [
 				{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' },

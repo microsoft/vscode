@@ -108,7 +108,7 @@ Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, d
 
 For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
 
-Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
+Every Copilot SDK create/resume configuration explicitly opts into native image generation with `imageGeneration.enabled=true`, including Stable. This non-persisted consent is reapplied after host restarts; the CLI rollout environment flag is not a substitute. The runtime owns image-model availability, account authorization, policy, and tool permissions, so opting in does not grant access to an unavailable image model or bypass those checks.
 
 ### Orchestrator layer
 
@@ -180,8 +180,6 @@ Automatic catalog reconciliation waits until both host startup and the first ses
 An unresolvable source is distinct from an unavailable provider, and the two are reported separately because their retry policies differ. `providerUnavailable` means the provider is not registered: cheap to detect, resolved by registration, and guarded before any storage is claimed. `sourceUnresolvable` means the provider *is* registered but cannot vouch for the session, so there is nothing authoritative to project — typically a registry row whose provider-side state was pruned. Retrying that on the periodic cadence never converges and re-opens the session's storage on every pass, so the session is **parked** instead: it is filtered out of the dirty list until a wake signal arrives. A single failed lookup is never treated as proof of absence — a provider whose SDK is still downloading is indistinguishable from a pruned one — so parking never tombstones, never clears `payloadDirty` (the rebuild is still owed), and is held in memory only, so a restart re-attempts each parked session once and re-parks. Wake signals are provider registration, a mutation of that session, and the periodic verification. A session that can never be resolved keeps its provider fallback in the listing rather than having a payload invented for it.
 
 Event-driven reconciliation is coalesced. Many mutations arriving during one pass owe exactly one follow-up, taken after a minimum interval rather than chained immediately, so user activity cannot drive passes back to back; the longer periodic interval remains the idle cadence.
-
-`chat.agentHost.sessionCatalog.enabled` is the rollback lever for the catalog read path. It is frozen at its first read, so the store backing the list cannot change while the host runs, and it requires a restart. When disabled the host performs no catalog import and no background repair, and `listSessions` uses the provider and per-session fallback instead of the cached payload — which is slower, so it is a safety switch rather than a tuning option. Registry identity and every compatibility write are unaffected, so both stores stay current and interchangeable; the verification marker is cleared while disabled so the next enabled start re-verifies every row.
 
 Catalog imports may revisit registered sessions to repair payloads, but only newly registered identities cause discovery announcements or initial read-state side effects. Hydrated provider titles dirty the central payload even when recency is unchanged; persisted custom titles still take precedence. Automatic archival queues central synchronization immediately, while destructive lifecycle eligibility retains local durable metadata checks (including the auto-archive timestamp) rather than trusting only a rebuildable cache.
 
@@ -422,7 +420,7 @@ Restored peer chats are catalog-only until their entry resolver succeeds. Their 
 graph TD
     A["client dispatch: channel=ahp-chat://session/…/chat/…"]
     B{isAhpChatChannel?}
-    C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
+    C["chatChannel = channel\nsessionChannel = stateManager.getChatOwner(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = providerService.getProviderForSession(sessionChannel)"]
     F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
@@ -436,6 +434,8 @@ graph TD
 ```
 
 The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is `buildDefaultChatUri(sessionUri)`, not the bare session URI. The provider resolves that concrete chat to its SDK backing; AH does not depend on the backing id matching the session id.
+
+A chat URI is minted from its session, but nothing reads that session back: `parseChatUri` exposes only the chat id. A chat's owning session and storage resource are recorded facts. Live chats carry them in the state manager registry, set once at registration from the containing record (`chats_v2.owner_session_uri` and `storage_resource`, the legacy catalog row, or the session being read) and never recomputed. Consumers read ownership through `IAgentHostChatOwnershipService` (`agentHostChatOwnershipService.ts`): live lookups (`getChatOwner`, `requireChatOwner`, `getChatStorageResource`, `getChatParent`) delegate to the registry, and `onDidRegisterChat` / `onDidUnregisterChat` report each registration with the owner and storage it carried. A chat that is not live resolves through `resolveChatOwner`: the registry and retained summaries, then the central catalogs (`findCentralChatOwners`: normalized rows and their tombstones dominate legacy peer catalogs), then the registered session inventory, then cached catalog payloads (`findCatalogPayloadChatOwners`, a table scan kept last), then restores already in flight (`AgentService` reports each with `trackRestore`), then a spawning tool call that names the chat. Legacy peer-chat reads consult only the central catalogs and the live registry. An unknown owner is reported as not found. Teardown paths use the owner captured at registration or removal, never a lookup after the entry is gone. Clients take owners from session state, session catalogs, or host session records.
 
 ### 5f. Agent Merge Folder Ownership
 
@@ -615,7 +615,7 @@ Providers are being made pure consumers of host facts. Agent Host derives each f
 
 | Field | Meaning | Replaces |
 |---|---|---|
-| `resource` | The provider-owned persistence scope for this exact chat. | `resolveChatUri` in the provider. |
+| `resource` | The provider-owned persistence scope for this exact chat: the storage resource the host recorded when it registered the chat. | Deriving storage from the chat URI in the provider. |
 | `configurationResource` | An opaque scope for configuration and other provider resources shared across related chats. | Passing AH ownership into the provider. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |

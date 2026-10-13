@@ -212,7 +212,7 @@ suite('Agent Host timing OTel', () => {
 		const agent = disposables.add(new MockAgent());
 		const chat = buildDefaultChatUri(URI.parse('mock:/session-1'));
 		for (const result of ['success', 'error', 'cancelled'] as const) {
-			tracker.turnStarted(agent, chat, result, undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(agent, chat, 'mock:/session-1', result, undefined, undefined, 'default', undefined, undefined);
 			tracker.markSendStage(chat, result, 'workingDirectory');
 			if (result === 'success') {
 				tracker.markSendDispatched(chat, result);

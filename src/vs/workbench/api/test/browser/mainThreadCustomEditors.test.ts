@@ -33,7 +33,7 @@ import { IOverlayWebview, WebviewContentOptions, WebviewExtensionDescription, We
 import { WebviewInput } from '../../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -50,6 +50,10 @@ import { MainThreadWebviewPanels } from '../../browser/mainThreadWebviewPanels.j
 import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
 import { CustomEditorProviderCapabilities, ExtHostCustomEditorsShape } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { WebviewEditor } from '../../../contrib/webviewPanel/browser/webviewEditor.js';
+import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 
 type WebviewResolver = Parameters<IWebviewWorkbenchService['registerResolver']>[0];
 
@@ -344,6 +348,35 @@ suite('MainThreadCustomEditors', () => {
 		publish();
 		await resolution;
 		assert.strictEqual(input.navigation?.selection, selection);
+		input.dispose();
+		await timeout(0);
+	});
+
+	test('custom editor pane exposes live navigation selections for editor type switches', async () => {
+		let handle: string | undefined;
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+			resolveNavigation: async panelHandle => {
+				handle = panelHandle;
+				return { selection: undefined };
+			}
+		});
+		const { input } = fixture.createInput();
+		await input.resolve();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pane = store.add(instantiationService.createInstance(class extends WebviewEditor {
+			override get input() { return input; }
+		}, new class extends mock<IEditorGroup>() { }));
+		const before = pane.getSelection();
+		const selection = { selectionStartLineNumber: 1, selectionStartColumn: 4, positionLineNumber: 1, positionColumn: 1 };
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(handle!, selection);
+		const restored = pane.getSelection()?.restore({ override: 'default', pinned: true });
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(handle!, undefined);
+		assert.deepStrictEqual({ before, restored, after: pane.getSelection() }, {
+			before: undefined,
+			restored: { override: 'default', pinned: true, selection: Selection.liftSelection(selection), selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport },
+			after: undefined
+		});
 		input.dispose();
 		await timeout(0);
 	});

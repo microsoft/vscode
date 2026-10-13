@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.70.0",
+  "version": "0.71.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.142.0",
+    "vscode": "^1.143.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -4143,22 +4143,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claudeDefaultReasoningEffort": {
-            "type": "string",
-            "default": "",
-            "enum": [
-              "",
-              "low",
-              "medium",
-              "high",
-              "max"
-            ],
-            "markdownDescription": "%github.copilot.config.claudeDefaultReasoningEffort%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4827,7 +4811,7 @@
           },
           "github.copilot.chat.executionSubagent.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
             "tags": [
               "advanced",
@@ -4837,7 +4821,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "gemini-3-flash",
+            "default": "gpt-5.6-luna",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",
@@ -5050,6 +5034,8 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.branchSupport.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.branchSupport.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5061,6 +5047,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planExitMode.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5085,6 +5073,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planCommand.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5104,6 +5094,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.aiGenerateBranchNames.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.aiGenerateBranchNames.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5120,6 +5112,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.isolationOption.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.isolationOption.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5131,6 +5125,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoCommit.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.autoCommit.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
