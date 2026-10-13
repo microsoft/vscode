@@ -9,7 +9,8 @@ import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
-import { dirname, join } from '../../../../base/common/path.js';
+import { dirname, join, parse } from '../../../../base/common/path.js';
+import { readAgentHostFileSystemRoots } from '../../common/meta/agentHostFileSystemRootsMeta.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
@@ -4097,6 +4098,86 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(reads.filter(uri => uri === peerContent).length, 1);
 		} finally {
 			await rm(path, { recursive: true });
+		}
+	});
+
+	test('MC filesystem-root grants allow files outside home while preserving identity, passive and content checks', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-machine-access-'));
+		try {
+			const home = join(directory, 'home');
+			const outsideHome = join(directory, 'another-location');
+			await Promise.all([mkdir(home), mkdir(outsideHome)]);
+			const file = URI.file(join(outsideHome, 'file.txt'));
+			await writeFile(file.fsPath, 'test data');
+			const root = parse(directory).root;
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [root], defaultDirectory: URI.file(home).toString() },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const reads: string[] = [];
+			const writes: string[] = [];
+			agentService.resourceRead = async uri => {
+				reads.push(uri.path);
+				return { data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 };
+			};
+			agentService.resourceWrite = async params => {
+				const uri = URI.parse(params.uri);
+				writes.push(uri.path);
+				await writeFile(uri.fsPath, params.data);
+				return {};
+			};
+			const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			active.relayAuthenticated = true;
+			relay.simulateConnection(active);
+			active.simulateMessage(request(1, 'initialize', { clientId: 'machine-active', protocolVersions: [PROTOCOL_VERSION] }));
+			active.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			active.simulateMessage(request(3, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			active.simulateMessage(request(4, 'resourceRead', { uri: 'ui://unpublished/app' }));
+			const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-passive', true));
+			passive.relayAuthenticated = true;
+			relay.simulateConnection(passive);
+			passive.simulateMessage(request(1, 'initialize', { clientId: 'machine-passive', protocolVersions: [PROTOCOL_VERSION] }));
+			passive.simulateMessage(request(2, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-unauthenticated', false));
+			unauthenticated.relayAuthenticated = false;
+			relay.simulateConnection(unauthenticated);
+			unauthenticated.simulateMessage(request(1, 'initialize', { clientId: 'machine-unauthenticated', protocolVersions: [PROTOCOL_VERSION] }));
+			unauthenticated.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
+			const initialization = findResponse(active.sent, 1);
+			const result = initialization && hasKey(initialization, { result: true }) ? initialization.result as InitializeResult : undefined;
+			active.simulateClose();
+			const recovered = disposables.add(new class extends MockProtocolTransport {
+				readonly relayHandshakeMeta = { 'copilot.keepAliveTimeoutMs': 900_000 };
+			}(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			recovered.relayAuthenticated = true;
+			relay.simulateConnection(recovered);
+			recovered.simulateMessage(request(5, 'reconnect', { clientId: 'machine-active', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
+			await scopedHandler.whenIdle();
+			const reconnection = findResponse(recovered.sent, 5);
+			const reconnected = reconnection && hasKey(reconnection, { result: true }) ? reconnection.result as ReconnectResult & { _meta?: Record<string, unknown> } : undefined;
+			const errorCode = (transport: MockProtocolTransport, id: number) => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			};
+			assert.deepStrictEqual({
+				reads, writes, defaultDirectory: result?.defaultDirectory,
+				fileContent: await readFile(file.fsPath, 'utf8'),
+				roots: readAgentHostFileSystemRoots(result).map(uri => uri.path),
+				reconnectedRoots: readAgentHostFileSystemRoots(reconnected).map(uri => uri.path),
+				contentError: errorCode(active, 4), passiveError: errorCode(passive, 2), identityError: errorCode(unauthenticated, 2),
+			}, {
+				reads: [file.path], writes: [file.path], defaultDirectory: URI.file(home).toString(),
+				fileContent: 'updated',
+				roots: [URI.file(root).path],
+				reconnectedRoots: [URI.file(root).path],
+				contentError: AhpErrorCodes.PermissionDenied, passiveError: JsonRpcErrorCodes.InvalidRequest, identityError: AHP_AUTH_REQUIRED,
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
 		}
 	});
 

@@ -244,6 +244,9 @@ export interface ISaveDialogOptions {
 
 export interface IOpenDialogOptions {
 
+	/** Optional same-filesystem locations offered as navigation shortcuts by the simple dialog. */
+	readonly navigationRoots?: readonly URI[];
+
 	/**
 	 * A human-readable string for the dialog title
 	 */

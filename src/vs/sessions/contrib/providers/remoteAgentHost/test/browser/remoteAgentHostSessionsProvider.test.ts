@@ -1125,6 +1125,30 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(defaultUri?.path, '/home/test');
 	});
 
+	for (const roots of [undefined, ['file:///C:/', 'file:///D:/']]) {
+		test(`folder browsing carries optional host drive navigation (${roots ? 'advertised drives' : 'conforming host without hints'})`, async () => {
+			const dialogs: { defaultPath: string | undefined; roots: string[] }[] = [];
+			connection.handshakeState.set({
+				protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
+				_meta: roots ? { 'vscode.fileSystemRoots': roots } : undefined,
+			}, undefined);
+			const provider = createProvider(disposables, connection, {
+				defaultDirectory: '/C:/Users/test',
+				fileDialogService: upcastPartial<IFileDialogService>({
+					showOpenDialog: async options => {
+						dialogs.push({ defaultPath: options.defaultUri?.path, roots: options.navigationRoots?.map(root => `${root.authority}${root.path}`) ?? [] });
+						return undefined;
+					},
+				}),
+			});
+			await provider.browseActions[0].run();
+			assert.deepStrictEqual(dialogs, [{
+				defaultPath: '/C:/Users/test',
+				roots: roots ? ['localhost__4321/C:/', 'localhost__4321/D:/'] : [],
+			}]);
+		});
+	}
+
 	test('inline folder browsing uses the same advertised workspace fallback', async () => {
 		const listed: string[] = [];
 		const provider = createProvider(disposables, connection);

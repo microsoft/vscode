@@ -92,6 +92,7 @@ export namespace OpenLocalFileFolderCommand {
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
 	isFolder: boolean;
+	isNavigationRoot?: boolean;
 }
 
 enum UpdateResult {
@@ -778,6 +779,12 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return false;
 		}
 		const itemBasename = quickPickItem.label;
+		if (quickPickItem.isNavigationRoot) {
+			if (force) {
+				this.activeItem = quickPickItem;
+			}
+			return false;
+		}
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (itemBasename === '..') {
 			// Don't match on the up directory item ever.
@@ -1186,6 +1193,17 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		if (backDir) {
 			sorted.unshift(backDir);
 		}
+		const roots = this.options.navigationRoots?.filter(root =>
+			root.scheme === currentFolder.scheme && root.authority === currentFolder.authority
+			&& !resources.extUriIgnorePathCase.isEqual(resources.removeTrailingPathSeparator(root), resources.removeTrailingPathSeparator(currentFolder))
+		) ?? [];
+		sorted.splice(backDir ? 1 : 0, 0, ...roots.map(uri => ({
+			label: this.pathFromUri(uri, true),
+			description: nls.localize('remoteFileDialog.fileSystemRoot', "File system root"),
+			uri,
+			isFolder: true,
+			isNavigationRoot: true,
+		})));
 		return sorted;
 	}
 

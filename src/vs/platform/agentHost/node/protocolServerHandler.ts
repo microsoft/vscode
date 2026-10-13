@@ -18,6 +18,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { getAgentHostFileSystemRootsMeta } from '../common/meta/agentHostFileSystemRootsMeta.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -824,6 +825,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				_meta: this._config.relayRoots || this._config.relayRootMeta ? {
 					[AgentHostNativeImplementationMetaKey]: true,
 					[AgentHostSessionUrisCapabilityMetaKey]: true,
+					...getAgentHostFileSystemRootsMeta(this._config.relayResourceRoots?.(false).map(root => URI.file(root)) ?? []),
 					...transport.relayHandshakeMeta,
 				} : {
 					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
@@ -1052,7 +1054,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
 			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay).then(result => (
 				transport.relayHandshakeMeta && typeof result === 'object' && result !== null
-					? { ...result, _meta: transport.relayHandshakeMeta }
+					? {
+						...result, _meta: {
+							...getAgentHostFileSystemRootsMeta(this._config.relayResourceRoots?.(false).map(root => URI.file(root)) ?? []),
+							...transport.relayHandshakeMeta,
+						}
+					}
 					: result
 			)).catch(error => {
 				this._rollbackFailedInitialization(client, existingRecord);

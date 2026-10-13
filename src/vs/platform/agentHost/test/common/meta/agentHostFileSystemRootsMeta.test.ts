@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getAgentHostFileSystemRootsMeta, readAgentHostFileSystemRoots } from '../../../common/meta/agentHostFileSystemRootsMeta.js';
+
+suite('Agent Host filesystem root metadata', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises filesystem roots without projects, network shares or duplicates', () => {
+		const roots = ['file:///', 'file:///C:/', 'file:///D:/', 'file:///C:/', 'file:///home/test', 'file://server/share/', 'https://host/'];
+		const meta = getAgentHostFileSystemRootsMeta(roots.map(root => URI.parse(root)));
+		assert.deepStrictEqual(readAgentHostFileSystemRoots({ _meta: meta }).map(root => root.toString()), ['file:///', 'file:///c%3A/', 'file:///d%3A/']);
+	});
+
+	test('absent or malformed optional metadata preserves ordinary picker behavior', () => {
+		const values = [undefined, null, 'file:///', ['file:///'], ['file:///home/test'], ['file://server/share'], ['file:///C:/?query'], ['file:///C:/#fragment'], ['file:///C:/', 1], ['file:///C:/', 'file:///D:/'], Array(27).fill('file:///C:/')];
+		assert.deepStrictEqual(values.map(value => readAgentHostFileSystemRoots({ _meta: { 'vscode.fileSystemRoots': value } }).map(root => root.path)), [
+			[], [], [], ['/'], [], [], [], [], [], ['/C:/', '/D:/'], [],
+		]);
+		assert.deepStrictEqual(readAgentHostFileSystemRoots(undefined), []);
+	});
+});

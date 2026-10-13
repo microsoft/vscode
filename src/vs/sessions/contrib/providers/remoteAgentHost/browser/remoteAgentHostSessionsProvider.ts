@@ -6,6 +6,7 @@
 import { raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
+import { readAgentHostFileSystemRoots } from '../../../../../platform/agentHost/common/meta/agentHostFileSystemRootsMeta.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -1231,6 +1232,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				title: localize('selectRemoteFolder', "Select Folder on {0}", this.label),
 				availableFileSystems: [AGENT_HOST_SCHEME],
 				defaultUri,
+				navigationRoots: readAgentHostFileSystemRoots(this._connection.initializeResult.get())
+					.map(root => toAgentHostUri(root, this._connectionAuthority)),
 			});
 			if (selected?.[0]) {
 				return this._buildWorkspaceFromUri(selected[0]);

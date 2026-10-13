@@ -11,7 +11,9 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -50,6 +52,58 @@ suite('SimpleFileDialog', () => {
 
 		return { dialog, get promptedUri() { return promptedUri; } };
 	}
+
+	test('offers same-host filesystem roots without disturbing home-directory contents', async () => {
+		const home = URI.parse('vscode-agent-host://windows/C:/Users/test/');
+		const roots = [
+			URI.parse('vscode-agent-host://windows/C:/'),
+			URI.parse('vscode-agent-host://windows/D:/'),
+			home,
+			URI.parse('vscode-agent-host://different-host/E:/'),
+			URI.file('/'),
+		];
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			options: { navigationRoots: roots },
+			isWindows: true, separator: '\\', scopedAuthority: 'windows',
+			_showDotFiles: false,
+			createBackItem: async () => undefined,
+		}) as {
+			createItems(folder: IFileStat, currentFolder: URI, token: CancellationToken): Promise<{ label: string; uri: URI; isNavigationRoot?: boolean }[]>;
+		};
+		const folder = upcastPartial<IFileStat>({ resource: home, isDirectory: true, children: [] });
+		const items = await dialog.createItems(folder, home, CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ label: item.label, path: item.uri.path, navigation: item.isNavigationRoot })), [
+			{ label: 'C:\\', path: '/C:/', navigation: true },
+			{ label: 'D:\\', path: '/D:/', navigation: true },
+		]);
+	});
+
+	test('accepting a drive shortcut navigates instead of returning a folder or concatenating the path', async () => {
+		const home = URI.parse('vscode-agent-host://windows/C:/Users/test/');
+		const drive = URI.parse('vscode-agent-host://windows/D:/');
+		const item = { label: 'D:\\', uri: drive, isFolder: true, isNavigationRoot: true };
+		const updates: { path: string; force: boolean | undefined }[] = [];
+		const filePickBox = { busy: false, value: 'C:\\Users\\test\\', activeItems: [item], selectedItems: [item] };
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			options: {},
+			isWindows: true, separator: '\\', scopedAuthority: 'windows',
+			currentFolder: home, filePickBox,
+			onBusyChangeEmitter: disposables.add(new Emitter<boolean>()),
+			updateItems: async (uri: URI, force?: boolean) => {
+				updates.push({ path: uri.path, force });
+				return false;
+			},
+		}) as {
+			setAutoComplete(value: string, basename: string, quickPickItem: typeof item, force?: boolean): boolean;
+			onDidAccept(): Promise<URI | undefined>;
+		};
+		const autoComplete = dialog.setAutoComplete(filePickBox.value, '', item, true);
+		const result = await dialog.onDidAccept();
+		assert.deepStrictEqual({ autoComplete, result, value: filePickBox.value, updates }, {
+			autoComplete: false, result: undefined, value: 'C:\\Users\\test\\',
+			updates: [{ path: '/D:/', force: true }],
+		});
+	});
 
 	test('creates nested missing folders from a folder-only open dialog', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
