@@ -22,17 +22,13 @@ import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, t
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
-import { isJsonRpcRequest, type ProtocolMessage, ReconnectResultType } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
-import { AgentHostTransportFailureReason, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -42,12 +38,12 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, type IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestData, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -1129,95 +1125,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(defaultUri?.path, '/home/test');
 	});
 
-	for (const roots of [undefined, ['file:///C:/', 'file:///D:/']]) {
-		test(`folder browsing carries optional host drive navigation (${roots ? 'advertised drives' : 'conforming host without hints'})`, async () => {
-			const dialogs: { defaultPath: string | undefined; roots: string[] }[] = [];
-			connection.handshakeState.set({
-				protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
-				_meta: roots ? { 'vscode.fileSystemRoots': roots } : undefined,
-			}, undefined);
-			const provider = createProvider(disposables, connection, {
-				defaultDirectory: '/C:/Users/test',
-				fileDialogService: upcastPartial<IFileDialogService>({
-					showOpenDialog: async options => {
-						dialogs.push({ defaultPath: options.defaultUri?.path, roots: options.navigationRoots?.map(root => `${root.authority}${root.path}`) ?? [] });
-						return undefined;
-					},
-				}),
-			});
-			await provider.browseActions[0].run();
-			assert.deepStrictEqual(dialogs, [{
-				defaultPath: '/C:/Users/test',
-				roots: roots ? ['localhost__4321/C:/', 'localhost__4321/D:/'] : [],
-			}]);
-		});
-	}
-
-	test('folder browsing observes real protocol reconnect metadata changes and removal', async () => {
-		let reconnectMeta: Record<string, unknown> | undefined;
-		const transports: { disconnect(): void }[] = [];
-		const factory = () => {
-			const transport = disposables.add(new class extends Disposable implements IProtocolTransport {
-				private readonly messages = this._register(new Emitter<ProtocolMessage>());
-				private readonly close = this._register(new Emitter<void>());
-				readonly onMessage = this.messages.event;
-				readonly onClose = this.close.event;
-				disconnect(): void { this.close.fire(); }
-				send(message: ProtocolMessage): void {
-					if (!isJsonRpcRequest(message)) {
-						return;
-					}
-					const result = message.method === 'initialize'
-						? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.fileSystemRoots': ['file:///C:/'] } }
-						: message.method === 'reconnect'
-							? { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: reconnectMeta }
-							: {};
-					queueMicrotask(() => this.messages.fire({ jsonrpc: '2.0', id: message.id, result }));
-				}
-			}());
-			transports.push(transport);
-			return transport;
-		};
-		const configuration = new TestConfigurationService();
-		disposables.add(configuration.onDidChangeConfigurationEmitter);
-		const client = disposables.add(new AgentHostProtocolClient('localhost:4321', factory, {
-			reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 4 },
-		}, new NullLogService(), new class extends mock<IAgentHostResourceService>() {
-			override connectionClosed(): void { }
-		}(), configuration, NullTelemetryService,
-			upcastPartial<IWorkspaceTrustEnablementService>({ isWorkspaceTrustEnabled: () => false }),
-			new class extends mock<IWorkspaceTrustManagementService>() {
-				override readonly onDidChangeTrustedFolders = Event.None;
-				override readonly onDidChangeTrust = Event.None;
-				override getTrustedUris(): URI[] { return []; }
-			}(),
-			new class extends mock<IWorkspaceTrustRequestService>() { }()));
-		await client.connect();
-		const connection = disposables.add(new class extends MockAgentConnection {
-			override readonly initializeResult = client.initializeResult;
-		}());
-		const pickedRoots: string[][] = [];
+	test('folder browsing uses a conforming host default and accepts another drive without private metadata', async () => {
+		connection.handshakeState.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }, undefined);
+		const selected = toAgentHostUri(URI.parse('file:///D:/code/project'), 'localhost__4321');
+		let options: IOpenDialogOptions | undefined;
 		const provider = createProvider(disposables, connection, {
 			defaultDirectory: '/C:/Users/test',
 			fileDialogService: upcastPartial<IFileDialogService>({
-				showOpenDialog: async options => {
-					pickedRoots.push(options.navigationRoots?.map(root => fromAgentHostUri(root).toString()) ?? []);
-					return undefined;
+				showOpenDialog: async dialogOptions => {
+					options = dialogOptions;
+					return [selected];
 				},
 			}),
 		});
-		await provider.browseActions[0].run();
-		for (const meta of [{ 'vscode.fileSystemRoots': ['file:///C:/', 'file:///D:/'] }, {}, undefined]) {
-			reconnectMeta = meta;
-			const reconnected = Event.toPromise(client.onDidReconnect);
-			transports.at(-1)!.disconnect();
-			client.reconnectNow();
-			await reconnected;
-			await provider.browseActions[0].run();
-		}
-		assert.deepStrictEqual(pickedRoots, [
-			['file:///c%3A/'], ['file:///c%3A/', 'file:///d%3A/'], [], [],
-		]);
+		const workspace = await provider.browseActions[0].run();
+		assert.deepStrictEqual({
+			defaultPath: options?.defaultUri?.path,
+			fileSystems: options?.availableFileSystems,
+			selected: workspace?.folders[0].root.toString(),
+		}, {
+			defaultPath: '/C:/Users/test',
+			fileSystems: ['vscode-agent-host'],
+			selected: selected.toString(),
+		});
 	});
 
 	test('inline folder browsing uses the same advertised workspace fallback', async () => {

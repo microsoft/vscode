@@ -8,9 +8,8 @@ import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { dirname, join, parse } from '../../../../base/common/path.js';
-import { readAgentHostFileSystemRoots } from '../../common/meta/agentHostFileSystemRootsMeta.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
@@ -4119,6 +4118,10 @@ suite('ProtocolServerHandler', () => {
 			));
 			const reads: string[] = [];
 			const writes: string[] = [];
+			agentService.resourceList = async uri => ({
+				entries: (await readdir(uri.fsPath, { withFileTypes: true }))
+					.map(entry => ({ name: entry.name, type: entry.isDirectory() ? ResourceType.Directory : ResourceType.File })),
+			});
 			agentService.resourceRead = async uri => {
 				reads.push(uri.path);
 				return { data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 };
@@ -4136,6 +4139,7 @@ suite('ProtocolServerHandler', () => {
 			active.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
 			active.simulateMessage(request(3, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
 			active.simulateMessage(request(4, 'resourceRead', { uri: 'ui://unpublished/app' }));
+			active.simulateMessage(request(7, 'resourceList', { uri: URI.file(outsideHome).toString() }));
 			const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-passive', true));
 			passive.relayAuthenticated = true;
 			relay.simulateConnection(passive);
@@ -4149,6 +4153,7 @@ suite('ProtocolServerHandler', () => {
 			await scopedHandler.whenIdle();
 			const initialization = findResponse(active.sent, 1);
 			const result = initialization && hasKey(initialization, { result: true }) ? initialization.result as InitializeResult : undefined;
+			const listing = findResponse(active.sent, 7);
 			active.simulateClose();
 			const recovered = disposables.add(new class extends MockProtocolTransport {
 				readonly relayHandshakeMeta = { 'copilot.keepAliveTimeoutMs': 900_000 };
@@ -4157,8 +4162,8 @@ suite('ProtocolServerHandler', () => {
 			relay.simulateConnection(recovered);
 			recovered.simulateMessage(request(5, 'reconnect', { clientId: 'machine-active', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
 			await scopedHandler.whenIdle();
-			const reconnection = findResponse(recovered.sent, 5);
-			const reconnected = reconnection && hasKey(reconnection, { result: true }) ? reconnection.result as ReconnectResult & { _meta?: Record<string, unknown> } : undefined;
+			recovered.simulateMessage(request(6, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
 			const errorCode = (transport: MockProtocolTransport, id: number) => {
 				const response = findResponse(transport.sent, id);
 				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
@@ -4166,14 +4171,12 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({
 				reads, writes, defaultDirectory: result?.defaultDirectory,
 				fileContent: await readFile(file.fsPath, 'utf8'),
-				roots: readAgentHostFileSystemRoots(result).map(uri => uri.path),
-				reconnectedRoots: readAgentHostFileSystemRoots(reconnected).map(uri => uri.path),
+				directoryEntries: listing && hasKey(listing, { result: true }) ? listing.result : undefined,
 				contentError: errorCode(active, 4), passiveError: errorCode(passive, 2), identityError: errorCode(unauthenticated, 2),
 			}, {
-				reads: [URI.parse(file.toString()).path], writes: [URI.parse(file.toString()).path], defaultDirectory: URI.file(home).toString(),
+				reads: [URI.parse(file.toString()).path, URI.parse(file.toString()).path], writes: [URI.parse(file.toString()).path], defaultDirectory: URI.file(home).toString(),
 				fileContent: 'updated',
-				roots: [URI.parse(URI.file(root).toString()).path],
-				reconnectedRoots: [URI.parse(URI.file(root).toString()).path],
+				directoryEntries: { entries: [{ name: 'file.txt', type: 'file' }] },
 				contentError: AhpErrorCodes.PermissionDenied, passiveError: JsonRpcErrorCodes.InvalidRequest, identityError: AHP_AUTH_REQUIRED,
 			});
 		} finally {
