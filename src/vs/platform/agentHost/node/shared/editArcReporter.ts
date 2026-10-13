@@ -20,7 +20,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { isSubagentChatUri, isSubagentSession } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -33,6 +33,8 @@ export interface IEditArcReporterLaunchParams {
 	readonly provider?: string;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -317,7 +319,7 @@ class EditArcReporter extends Disposable {
 	}
 
 	async emit(timeDelayMs: number): Promise<void> {
-		const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
+		const sessionUri = this._params.ownerSessionUri;
 		const provider = this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown';
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();

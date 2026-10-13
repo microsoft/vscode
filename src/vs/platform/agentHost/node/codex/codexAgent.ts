@@ -37,7 +37,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../co
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -45,7 +45,8 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
@@ -598,6 +599,8 @@ interface ICodexUserInputResult {
 interface ICodexTargetChat {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	/** Storage resource Agent Host recorded for the chat. */
+	readonly storage: URI;
 }
 
 interface ICodexPendingSteering {
@@ -654,6 +657,8 @@ interface ICodexSession {
 	summary: string | undefined;
 	/** Concrete host chat URI once bound; undefined only for direct create/fork before AH binds it. */
 	chatChannel: URI | undefined;
+	/** Storage resource Agent Host recorded for {@link chatChannel}. */
+	chatStorage: URI | undefined;
 	/** Owning Agent Host session resource used for session-scoped configuration and server tools. */
 	configurationResource: URI;
 	/**
@@ -1260,9 +1265,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _chatDiscoveryRequested = false;
 	private readonly _codexChatDiscovery = this._register(new MutableDisposable<CodexChatDiscovery>());
 	private readonly _chatHistoryInvalidationListener = this._register(new MutableDisposable());
-	private readonly _discoveredCodexChats = new Map<string, IAgentChatMetadata>();
-	private readonly _codexChatMetadata = new Map<string, { readonly key: string; readonly metadata: IAgentChatMetadata }>();
-	private _codexChatList: Promise<IAgentChatMetadata[] | undefined> | undefined;
+	private readonly _discoveredCodexChats = new Map<string, IAgentListedChat>();
+	private readonly _codexChatMetadata = new Map<string, { readonly key: string; readonly metadata: IAgentListedChat }>();
+	private _codexChatList: Promise<IAgentListedChat[] | undefined> | undefined;
 	private _codexChatListInitialized = false;
 	private readonly _onDidChangeChatHistory = this._register(new Emitter<IAgentChatHistoryChange>());
 	readonly onDidChangeChatHistory = this._onDidChangeChatHistory.event;
@@ -3105,7 +3110,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _persistTurnEventId(session: ICodexSession, hostTurnId: string, appTurnId: string): void {
 		// Copilot already records this bridge, while Claude reuses the host turn id as its transcript uuid.
-		const storage = session.chatChannel ? chatStorageUri(session.chatChannel) : undefined;
+		const storage = session.chatStorage;
 		if (!storage) {
 			return;
 		}
@@ -3639,7 +3644,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const entry = session.mapState.itemToToolCall.get(item.id);
 		const output = item.aggregatedOutput || entry?.output;
 		const chat = session.chatChannel;
-		const storage = chat && chatStorageUri(chat);
+		const storage = session.chatStorage;
 		if (!entry || !output || !chat || !storage || !shouldRetainCodexCommandOutput(output) || output.length > MAX_TERMINAL_OUTPUT_BYTES) {
 			return undefined;
 		}
@@ -3647,7 +3652,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
 			return undefined;
 		}
-		const resource = buildNonPtyShellTerminalUri(storage, parseRequiredSessionUriFromChatUri(chat), chat, entry.toolCallId);
+		const resource = buildNonPtyShellTerminalUri(storage, session.configurationResource, chat, entry.toolCallId);
 		let pending = this._pendingCommandOutputs.get(session);
 		if (!pending) {
 			pending = new Map();
@@ -3763,6 +3768,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			modifiedTime: parent.modifiedTime,
 			summary: parent.summary,
 			chatChannel: parent.chatChannel,
+			chatStorage: parent.chatStorage,
 			configurationResource: parent.configurationResource,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
@@ -4568,11 +4574,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	/**
 	 * Record the concrete host chat URI that addresses this runtime.
 	 */
-	private _recordChatTarget(chat: URI, sessionUri: URI): void {
+	private _recordChatTarget(chat: URI, sessionUri: URI, storage: URI): void {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (session) {
 			session.chatChannel = chat;
+			session.chatStorage = storage;
 		}
 		this._sessionIdByChatUri.set(chat.toString(), sessionId);
 	}
@@ -4724,7 +4731,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		this._activate();
-		const target: ICodexTargetChat = { resource: chat, configurationResource: context.configurationResource };
+		const target: ICodexTargetChat = { resource: chat, configurationResource: context.configurationResource, storage: context.resource };
 		const owningSessionId = AgentSession.id(context.configurationResource);
 
 		// A create for a chat that already has a backing — a workbench rebind
@@ -4852,6 +4859,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			agent: existing.agent,
 			configurationResource: existing.configurationResource,
 			chatChannel: existing.chatChannel,
+			chatStorage: existing.chatStorage,
 			serverToolsAdvertisement: existing.serverToolsAdvertisement,
 		};
 		try {
@@ -4860,7 +4868,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				existing.agent = options.agent;
 			}
 			existing.configurationResource = context.configurationResource;
-			this._recordChatTarget(target.resource, existing.sessionUri);
+			this._recordChatTarget(target.resource, existing.sessionUri, target.storage);
 			await this._seedEagerActiveClient(existing.sessionUri, target.resource, context, options?.activeClient);
 			this._throwIfShuttingDown();
 			this._advertiseServerTools(existing, context.configurationResource);
@@ -4869,6 +4877,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			existing.agent = previous.agent;
 			existing.configurationResource = previous.configurationResource;
 			existing.chatChannel = previous.chatChannel;
+			existing.chatStorage = previous.chatStorage;
 			existing.serverToolsAdvertisement = previous.serverToolsAdvertisement;
 			throw error;
 		}
@@ -4958,6 +4967,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			modifiedTime: now,
 			summary: undefined,
 			chatChannel: target.resource,
+			chatStorage: target.storage,
 			configurationResource: target.configurationResource,
 			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
@@ -5123,10 +5133,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		this._activate();
 		const operationContext = resolveAgentChatContext(context, chat);
-		const target: ICodexTargetChat = { resource: chat, configurationResource: operationContext.configurationResource };
+		const target: ICodexTargetChat = { resource: chat, configurationResource: operationContext.configurationResource, storage: operationContext.resource };
 		let decoded: ICodexPersistedChat | undefined;
 		if (providerData === undefined) {
-			if (!isDefaultChatUri(chat)) {
+			// Only the session-backed default chat can recover its backing from the session.
+			if (!isEqual(operationContext.resource, operationContext.configurationResource)) {
 				return;
 			}
 			decoded = { sessionId: AgentSession.id(operationContext.configurationResource) };
@@ -5141,7 +5152,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const previousBinding = this._sessionIdByChatUri.get(chat.toString());
 		const sessionId = decoded.sessionId;
 		let existing: ICodexSession | undefined;
-		let previousExistingState: { readonly chatChannel: URI | undefined; readonly configurationResource: URI; readonly serverToolsAdvertisement: string | undefined } | undefined;
+		let previousExistingState: { readonly chatChannel: URI | undefined; readonly chatStorage: URI | undefined; readonly configurationResource: URI; readonly serverToolsAdvertisement: string | undefined } | undefined;
 		let session: ICodexSession | undefined;
 		try {
 			await this._moveConfigScopeChat(operationContext.configurationResource, chat);
@@ -5150,10 +5161,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (existing) {
 				previousExistingState = {
 					chatChannel: existing.chatChannel,
+					chatStorage: existing.chatStorage,
 					configurationResource: existing.configurationResource,
 					serverToolsAdvertisement: existing.serverToolsAdvertisement,
 				};
 				existing.chatChannel = chat;
+				existing.chatStorage = operationContext.resource;
 				existing.configurationResource = operationContext.configurationResource;
 				this._sessionIdByChatUri.set(chat.toString(), existing.sessionId);
 				if (existing.threadId) {
@@ -5195,6 +5208,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (error) {
 			if (existing && previousExistingState) {
 				existing.chatChannel = previousExistingState.chatChannel;
+				existing.chatStorage = previousExistingState.chatStorage;
 				existing.configurationResource = previousExistingState.configurationResource;
 				existing.serverToolsAdvertisement = previousExistingState.serverToolsAdvertisement;
 			}
@@ -5224,7 +5238,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._activate();
 		const operationContext = resolveAgentChatContext(context, chat);
 		const sessionId = AgentSession.id(operationContext.configurationResource);
-		this._recordChatTarget(chat, AgentSession.uri(this.id, sessionId));
+		this._recordChatTarget(chat, AgentSession.uri(this.id, sessionId), operationContext.resource);
 		return { providerData: encodeCodexChat({ sessionId }) };
 	}
 
@@ -5285,6 +5299,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			modifiedTime: now,
 			summary: undefined,
 			chatChannel: target?.resource,
+			chatStorage: target?.storage,
 			configurationResource: target?.configurationResource ?? AgentSession.uri(this.id, sessionId),
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
@@ -6619,7 +6634,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
 			return;
 		}
-		await this._deleteRetainedCommandOutputs(chat, turns.slice(firstTurnToRemove));
+		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
+		if (storage) {
+			await this._deleteRetainedCommandOutputs(storage, turns.slice(firstTurnToRemove));
+		}
 	}
 
 	/**
@@ -6627,10 +6645,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * thread. Codex keeps the chat's database turns, so their retained output
 	 * would otherwise stay until the chat is deleted.
 	 */
-	private async _deleteRetainedCommandOutputs(chat: URI, turns: Thread['turns']): Promise<void> {
-		const storage = chatStorageUri(chat);
+	private async _deleteRetainedCommandOutputs(storage: URI, turns: Thread['turns']): Promise<void> {
 		const toolCallIds = turns.flatMap(turn => (turn.items ?? []).flatMap(item => item.type === 'commandExecution' ? [item.id] : []));
-		if (!storage || toolCallIds.length === 0) {
+		if (toolCallIds.length === 0) {
 			return;
 		}
 		try {
@@ -6644,7 +6661,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				database.dispose();
 			}
 		} catch (error) {
-			this._logService.warn(`[Codex] Failed to remove retained command output for ${chat.toString()}`, error);
+			this._logService.warn(`[Codex] Failed to remove retained command output in ${storage.toString()}`, error);
 		}
 	}
 
@@ -6725,7 +6742,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const commands: ICodexReplayedCommand[] = [];
 		const turns = replayThreadToTurns(read.thread, toRolloutTurnModels(read.rolloutMetadata), read.rolloutMetadata?.threadCoordinationByTurnId, commands);
-		await this._restoreRetainedCommandOutputs(chat, commands);
+		await this._restoreRetainedCommandOutputs(operationContext.resource, operationContext.configurationResource, chat, commands);
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			this._chatHistorySnapshots.set(session, { thread: read.thread, turns });
@@ -6741,9 +6758,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * session database retained it, so a restored chat opens the same terminal
 	 * resource as the live one. Other output stays as the thread recorded it.
 	 */
-	private async _restoreRetainedCommandOutputs(chat: URI, commands: readonly ICodexReplayedCommand[]): Promise<void> {
-		const storage = chatStorageUri(chat);
-		if (!storage || commands.length === 0) {
+	private async _restoreRetainedCommandOutputs(storage: URI, session: URI, chat: URI, commands: readonly ICodexReplayedCommand[]): Promise<void> {
+		if (commands.length === 0) {
 			return;
 		}
 		try {
@@ -6762,7 +6778,7 @@ export class CodexAgent extends Disposable implements IAgent {
 							}
 							previewOutput = VSBuffer.wrap(storedOutput).toString();
 						}
-						const resource = buildNonPtyShellTerminalUri(storage, parseRequiredSessionUriFromChatUri(chat), chat, toolCall.toolCallId);
+						const resource = buildNonPtyShellTerminalUri(storage, session, chat, toolCall.toolCallId);
 						toolCall.content = codexRetainedCommandOutputContent(resource, previewOutput, exitCode);
 					}
 				}
@@ -6811,7 +6827,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const changed = read.thread.turns.filter(turn => !hostTurnIds.has(turn.id) && !equals(previousRaw.get(turn.id), turn));
 		const commands: ICodexReplayedCommand[] = [];
 		const changedTurns = replayThreadToTurns({ ...read.thread, turns: changed }, toRolloutTurnModels(rolloutMetadata), rolloutMetadata?.threadCoordinationByTurnId, commands);
-		await this._restoreRetainedCommandOutputs(chat, commands);
+		if (session.chatStorage) {
+			await this._restoreRetainedCommandOutputs(session.chatStorage, session.configurationResource, chat, commands);
+		}
 		if (session.currentTurnId || session.disposed || connectionGeneration !== this._connectionGeneration
 			|| this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
 			return;
@@ -7370,13 +7388,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _listCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
+	private _listCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentListedChat[] | undefined> {
 		return this._codexChatList ??= this._doListCodexChats(kind).finally(() => {
 			this._codexChatList = undefined;
 		});
 	}
 
-	private async _doListCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
+	private async _doListCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentListedChat[] | undefined> {
 		const timing = this._startupPerformance.start(kind === 'migration' ? 'sessionMigrationScan' : 'sessionDiscoveryScan', this.id);
 		let pageCount = 0;
 		let scannedSessionCount = 0;
@@ -7425,7 +7443,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					liveUriByThreadId.set(s.threadId, s.sessionUri);
 				}
 			}
-			const nextMetadata = new Map<string, { readonly key: string; readonly metadata: IAgentChatMetadata }>();
+			const nextMetadata = new Map<string, { readonly key: string; readonly metadata: IAgentListedChat }>();
 			const metadata = await Promise.all(threads.filter(thread => !thread.parentThreadId && !(typeof thread.source === 'object' && hasKey(thread.source, { subAgent: true }))).map(async thread => {
 				const sessionUri = liveUriByThreadId.get(thread.id) ?? AgentSession.uri(this.id, thread.id);
 				const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
@@ -7438,8 +7456,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				const isDesktop = thread.modelProvider === CODEX_OPENAI_MODEL_PROVIDER
 					? this._desktopThreadIds.has(thread.id) || (await this._desktopRolloutPrefixLimiter.queue(() => this._readCodexDesktopRolloutPrefix(thread))) !== null
 					: this._desktopThreadIds.has(thread.id);
-				const chat = URI.parse(buildDefaultChatUri(sessionUri));
-				const result = this._withWorkingDirectories(await this._threadToMetadata(thread, chat, undefined, isDesktop), liveWorkingDirectories);
+				// A provider-native thread records no default chat.
+				const chat = URI.parse(deriveLegacyDefaultChat(sessionUri));
+				const result = { ...this._withWorkingDirectories(await this._threadToMetadata(thread, chat, undefined, isDesktop), liveWorkingDirectories), session: sessionUri };
 				nextMetadata.set(thread.id, { key, metadata: result });
 				return result;
 			}));
@@ -7494,11 +7513,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!chats) {
 			return undefined;
 		}
-		const limiter = new Limiter<IAgentChatMetadata | undefined>(4);
+		const limiter = new Limiter<IAgentListedChat | undefined>(4);
 		const known = await Promise.all(chats.map(chat => limiter.queue(async () => {
 			return await this._isKnownCodexChat(chat) ? chat : undefined;
 		})));
-		return known.filter((chat): chat is IAgentChatMetadata => chat !== undefined);
+		return known.filter((chat): chat is IAgentListedChat => chat !== undefined);
 	}
 
 	startChatDiscovery(): Promise<void> {
@@ -7590,10 +7609,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _isKnownCodexChat(chat: IAgentChatMetadata): Promise<boolean> {
+	private async _isKnownCodexChat(chat: IAgentListedChat): Promise<boolean> {
 		try {
-			const session = URI.parse(parseRequiredSessionUriFromChatUri(chat.chat));
-			return await this._metadataStore.hasKnownSession(session);
+			return await this._metadataStore.hasKnownSession(chat.session);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to inspect stored metadata for ${chat.chat.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 			throw err;
@@ -8311,6 +8329,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.mcpController = this._instantiationService.createInstance(McpCustomizationController, {
 				provider: this.id,
 				chatUri: session.chatChannel,
+				sessionUri: session.configurationResource,
 				emit: action => this._emitMcpCustomizationAction(session, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),

@@ -20,6 +20,7 @@ import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaActi
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -55,8 +56,9 @@ function fileOperationPrompt(
 	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 }
 
-function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true): void {
-	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true, profile: AgentHostTestProfile = 'pr'): void {
+	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled)
+		&& (profile === 'pr' || getAgentHostTestProfile() === 'full');
 	(enabled ? test : test.skip)(title, run);
 }
 
@@ -370,9 +372,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
-	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
+	fileOperationTest(context, 'lists workspace entries', async function () {
 		this.timeout(180_000);
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-list-'));
 		tempDirs.push(workspace);
@@ -397,7 +399,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled && shellOutputOracleAvailable, 'full');
 
 	(config.streamingFileCreateToolName ? test : test.skip)('streams rich file creation progress without exposing partial input', async function () {
 		this.timeout(180_000);
@@ -473,7 +475,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
@@ -504,7 +506,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
 	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
@@ -719,7 +721,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('inspects git status', async function () {
+	fileOperationTest(context, 'inspects git status', async function () {
 		this.timeout(180_000);
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);
@@ -743,7 +745,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled && shellOutputOracleAvailable, 'full');
 
 	fileOperationTest(context, 'reads a filename containing spaces', async function () {
 		this.timeout(180_000);

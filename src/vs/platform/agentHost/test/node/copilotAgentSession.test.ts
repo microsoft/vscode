@@ -49,6 +49,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
@@ -112,6 +113,8 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 
@@ -1361,6 +1364,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
 		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
+		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => options?.sandboxPolicy,
 		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
@@ -1415,8 +1419,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		createdAt: stateManagerNow,
 		modifiedAt: stateManagerNow,
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
+		defaultChat: buildDefaultChatUri(sessionUri.toString()),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	services.set(IAgentHostCustomizationEnablementService, {
 		_serviceBrand: undefined,
 		onDidChange: customizationEnablementEmitter.event,
@@ -7593,7 +7599,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
 			assert.deepStrictEqual({
-				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal)?.title] : []),
+				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, mintedTestChatOwner)?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
 					if ((action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId !== 'tc-task') {
 						return [action.type === ActionType.ChatToolCallReady ? action.invocationMessage : action.result.pastTenseMessage];
@@ -11773,7 +11779,7 @@ Use the attached image as context.
 				));
 				const agent = disposables.add(new MockAgent());
 				const chatUri = buildDefaultChatUri(session.resourceUri);
-				const startTurn = (turnId: string) => tracker.turnStarted(agent, chatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+				const startTurn = (turnId: string) => tracker.turnStarted(agent, chatUri, session.resourceUri.toString(), turnId, undefined, undefined, 'default', undefined, undefined);
 				startTurn('turn-original');
 				for (const signal of signals) {
 					if (signal.kind === 'action') {
@@ -13024,7 +13030,7 @@ Use the attached image as context.
 			));
 			const agent = disposables.add(new MockAgent());
 			const chatUri = buildDefaultChatUri(session.resourceUri);
-			tracker.turnStarted(agent, chatUri, 'fusion-turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(agent, chatUri, session.resourceUri.toString(), 'fusion-turn', undefined, undefined, 'default', undefined, undefined);
 			for (const signal of signals) {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete) {
 					tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
@@ -15571,6 +15577,69 @@ Use the attached image as context.
 				{ toolCallId: 'root-effort-only', autoTier: 'intelligence' },
 				{ toolCallId: 'root-not-auto', autoTier: undefined },
 				{ toolCallId: 'root-back-to-auto', autoTier: 'fast' },
+			]);
+		});
+
+		test('tool_complete attributes edits to the runtime-reported HydraFusion model and its concrete source model', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; modelId: string | undefined; fusionModel: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+				taken.push({ toolCallId, modelId, fusionModel });
+				return undefined;
+			};
+			const edit = async (toolCallId: string, fusion?: { syntheticModel: string; sourceModel?: string }) => {
+				const attribution = fusion ? { fusion: { fusionId: 'fusion-1', phaseId: 'phase-1', policy: 'default', pattern: 'cascade', ...fusion } } : {};
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch', ...attribution,
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true, ...attribution } as SessionEventPayload<'tool.execution_complete'>['data']);
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-fusion');
+			mockSession.fire('assistant.usage', { inputTokens: 1, outputTokens: 1, model: 'gpt-5' } as SessionEventPayload<'assistant.usage'>['data']);
+
+			await edit('hydrafusion', { syntheticModel: 'hydrafusion', sourceModel: 'claude-sonnet-4.5' });
+			await edit('hydrafusion-max', { syntheticModel: 'hydrafusion-max', sourceModel: 'claude-opus-4.5' });
+			await edit('hydrafusion-no-source', { syntheticModel: 'hydrafusion' });
+			await edit('unknown-synthetic', { syntheticModel: 'future-fusion', sourceModel: 'gpt-5-mini' });
+			await edit('not-fusion');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'hydrafusion', modelId: 'claude-sonnet-4.5', fusionModel: 'hydrafusion' },
+				{ toolCallId: 'hydrafusion-max', modelId: 'claude-opus-4.5', fusionModel: 'hydrafusion-max' },
+				{ toolCallId: 'hydrafusion-no-source', modelId: 'gpt-5', fusionModel: 'hydrafusion' },
+				{ toolCallId: 'unknown-synthetic', modelId: 'gpt-5', fusionModel: undefined },
+				{ toolCallId: 'not-fusion', modelId: 'gpt-5', fusionModel: undefined },
+			]);
+		});
+
+		test('tool_complete attributes unattributed edits inside a running HydraFusion phase to the turn\'s HydraFusion model', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; fusionModel: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+				taken.push({ toolCallId, fusionModel });
+				return undefined;
+			};
+			const edit = async (toolCallId: string) => {
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data']);
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_route_started', { ...fusionTestData.routeStarted, syntheticModel: 'hydrafusion-max' });
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, syntheticModel: 'hydrafusion-max' });
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			await edit('phase-edit');
+			session.resetTurnState('plain-turn');
+			await edit('plain-edit');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'phase-edit', fusionModel: 'hydrafusion-max' },
+				{ toolCallId: 'plain-edit', fusionModel: undefined },
 			]);
 		});
 
@@ -19763,7 +19832,7 @@ Use the attached image as context.
 			assert.strictEqual((await result).kind, 'reject');
 		});
 
-		test('semantic search overrides the built-in tool and is never deferred', async () => {
+		test('semantic search overrides the built-in tool and is deferred', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{
 					name: SEMANTIC_SEARCH_TOOL_NAME,
@@ -19783,7 +19852,7 @@ Use the attached image as context.
 				skipPermission: tool.skipPermission,
 			}, {
 				name: SEMANTIC_SEARCH_TOOL_NAME,
-				defer: 'never',
+				defer: 'auto',
 				overridesBuiltInTool: true,
 				skipPermission: true,
 			});
@@ -21497,6 +21566,7 @@ Use the attached image as context.
 					status: SessionStatus.Idle,
 					createdAt: new Date(0).toISOString(),
 					modifiedAt: new Date(0).toISOString(),
+					defaultChat: buildDefaultChatUri(sessionUri),
 				});
 				let enabled = true;
 				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({

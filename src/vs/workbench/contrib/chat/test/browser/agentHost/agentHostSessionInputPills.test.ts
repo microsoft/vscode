@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
@@ -44,6 +44,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { ICanvas, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -59,6 +60,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
@@ -380,6 +382,10 @@ suite('AgentHostSessionInputPills', () => {
 				viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
 				viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
 			},
+			showModel: (model: IChatModel) => {
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: viewModel.sessionResource, model });
+				viewModelChanged.fire({ previousSessionResource: viewModel.sessionResource, currentSessionResource: viewModel.sessionResource });
+			},
 			inputFocused: () => inputFocused,
 		};
 	}
@@ -681,6 +687,52 @@ suite('AgentHostSessionInputPills', () => {
 			subagentLabels: [],
 			inputFocusedAfterRemoval: true,
 			releasedSubscriptions: true,
+		});
+	});
+
+	test('shows the chat\'s live canvases and reveals the selected canvas', async () => {
+		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));
+		const configuration = harness.instantiationService.get(IConfigurationService);
+		assert.ok(configuration instanceof TestConfigurationService);
+		const canvas = (id: string, title: string, source?: string): ICanvas => ({
+			resource: URI.parse(`agent-host-canvas:/${id}`),
+			instanceId: id,
+			title,
+			source: source ? URI.parse(source) : undefined,
+		});
+		const preview = canvas('preview', 'Preview', 'https://example.test/preview');
+		const pending = canvas('pending', 'Pending');
+		const dashboard = canvas('dashboard', 'Dashboard', 'https://example.test/dashboard');
+		const owner = { providerId: 'local/copilotcli', session: URI.parse('ahp-session:/42'), chat: URI.parse('ahp-session:/42/chats/main') };
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [preview, pending]);
+		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases }) }));
+		const disabled = harness.labels();
+		await configuration.setUserConfiguration(CanvasesEnabledSettingId, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CanvasesEnabledSettingId }));
+		const single = {
+			labels: harness.labels(),
+			ariaLabel: harness.persistentContent.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+		};
+		const offersToggle = harness.menu().some(action => action.id === 'chatInputPills.toggle.canvases');
+		canvases.set([preview, pending, dashboard], undefined);
+		const dropdown = harness.dropdown('2 Canvases');
+		dropdown.find(item => item.label === dashboard.title)?.select();
+		harness.showModel(upcastPartial<IChatModel>({}));
+
+		assert.deepStrictEqual({
+			disabled,
+			single,
+			offersToggle,
+			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			commands: harness.commands,
+			withoutCanvasContext: harness.labels(),
+		}, {
+			disabled: [],
+			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview' },
+			offersToggle: true,
+			dropdown: ['Canvases', 'Preview', 'Dashboard'],
+			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
+			withoutCanvasContext: [],
 		});
 	});
 
@@ -1754,8 +1806,8 @@ suite('AgentHostSessionInputPills', () => {
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
 		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
-		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
-		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
+		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild, stateWithoutChild.defaultChat);
+		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild, stateWithChild.defaultChat);
 
 		assert.deepStrictEqual({
 			before: [...before],
@@ -1790,7 +1842,7 @@ suite('AgentHostSessionInputPills', () => {
 			})],
 		});
 
-		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state, state.defaultChat)], [
 			sessionResource.toString(),
 			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
 		]);

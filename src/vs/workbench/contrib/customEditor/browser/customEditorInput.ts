@@ -39,6 +39,7 @@ import { IUntitledTextEditorService } from '../../../services/untitled/common/un
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { WebviewIconPath } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { ICustomTextEditorNavigation } from '../common/customTextEditorNavigation.js';
+import { TextEditorPaneSelection } from '../../../browser/parts/editor/textEditor.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
@@ -63,6 +64,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._navigation = value;
 			this._onDidChangeNavigation.fire();
 		}
+	}
+
+	override getSelection(): TextEditorPaneSelection | undefined {
+		const selection = this.navigation?.selection;
+		return selection ? new TextEditorPaneSelection(Selection.liftSelection(selection)) : undefined;
 	}
 
 	public override async applyOptions(options: ITextEditorOptions, token: CancellationToken): Promise<void> {

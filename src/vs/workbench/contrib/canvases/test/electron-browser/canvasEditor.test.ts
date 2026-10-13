@@ -13,9 +13,10 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
@@ -25,7 +26,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(options?: { readonly isSessionsWindow?: boolean }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -56,6 +57,9 @@ suite('CanvasEditor', () => {
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
+		if (options?.isSessionsWindow !== undefined) {
+			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow }));
+		}
 		instantiationService.stubInstance(WebContentsViewHost, {
 			screenshotElement: $('div'), pauseElement: $('div'),
 			onContainerCreated: () => { },
@@ -119,5 +123,17 @@ suite('CanvasEditor', () => {
 		Object.assign(harness.editor.group, { windowId: harness.editor.group.windowId + 1 });
 		await assert.rejects(harness.open(), /main window/);
 		assert.strictEqual(harness.created, 0);
+	});
+
+	test('accessibility help describes only the reopen affordances of its window', () => {
+		const closeHelp = [false, true].map(isSessionsWindow => {
+			const provider = store.add(createHarness({ isSessionsWindow }).editor.createAccessibleProvider(AccessibleViewType.Help));
+			return provider.provideContent().split('\n\n').find(paragraph => paragraph.startsWith('Closing the tab'));
+		});
+
+		assert.deepStrictEqual(closeHelp, [
+			'Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again.',
+			'Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.',
+		]);
 	});
 });

@@ -14,7 +14,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from '../../node/agentHostMergeOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -111,6 +111,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [worktreeRoot.toString()],
 		project: { uri: repositoryRoot.toString(), displayName: 'repo' },
+		defaultChat: buildDefaultChatUri(session.toString()),
 	});
 	stateManager.setSessionConfig(session.toString(), {
 		schema: { type: 'object', properties: {} },

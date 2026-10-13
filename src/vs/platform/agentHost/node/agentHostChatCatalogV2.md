@@ -1,6 +1,6 @@
 # Central chat catalog authority
 
-Schema 14 adds a global `chats_v2` catalog and extends the existing `session_chat_catalogs` header. It retains `session_chats`, `sessions_v2`, and their legacy consumers. The orchestrator enables metadata-only migration under the existing session-catalog gate after wiring normalized readers, producers and restoration. Disabling the gate prevents new activation; already activated catalogs remain terminal normalized authority. The gate is frozen on first use within a host process; changing it requires a new host. It cannot restore legacy compatibility writes for an activated catalog.
+Schema 14 adds a global `chats_v2` catalog and extends the existing `session_chat_catalogs` header. It retains `session_chats`, `sessions_v2`, and their legacy consumers. The orchestrator always enables metadata-only migration after wiring normalized readers, producers and restoration; there is no setting or gate that disables it. Activated catalogs are terminal normalized authority and never return to legacy compatibility writes.
 
 ## Legacy retention and migration markers
 
@@ -59,7 +59,7 @@ expectedCatalogRevision)` updates only the session aggregate envelope after chec
 
 `updateChatV2Metadata` compares both ownership and metadata revisions against the actual live row. All successful writes advance the header revision; metadata/provider/read/directory/private-lineage writes advance only the metadata revision. Omitted fields preserve existing values. Metadata is an explicit complete replacement when supplied; nullable provider/origin/directories/ inherited fields use `null` to clear. Interactivity cannot change a chat's visible/private role. Only private chats can be reparented, within the live owner catalog, without cycles.
 
-Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to normalized peers after cutover. They preserve the default pointer, private descendants and bounded metadata; removing a peer tombstones its owned private closure atomically. Reordering does not change ownership epochs. Session deletion/unregistration/exclusion tombstones all its live normalized rows before removing the header.
+Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to normalized peers after cutover. They preserve the default pointer, private descendants and bounded metadata; removing a peer tombstones its owned private closure atomically. Reordering does not change ownership epochs. Session deletion/unregistration/exclusion tombstones all its live normalized rows before removing the header, except a `providerAbsent` exclusion: it only hides the session, retaining the header and rows so a later provider listing revives the catalog intact.
 
 ## Scope
 

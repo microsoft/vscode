@@ -34,7 +34,7 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, chatStorageUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
@@ -42,7 +42,7 @@ import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
@@ -70,6 +70,9 @@ import { createSessionDataService, RecordingCheckpointService, TestSessionDataba
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
+import { mintedTestChatStorage, requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from '../chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwnershipService.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -282,6 +285,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -315,8 +319,9 @@ function chatOf(session: URI, chatId: string): URI {
 	return URI.parse(buildChatUri(session, chatId));
 }
 
+/** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function chatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: chat };
+	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
 /**
@@ -329,7 +334,7 @@ async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions
 	const { session: requestedSession, ...chatOptions } = options;
 	const session = requestedSession ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	const result = await agent.chats.createChat(chat, { configurationResource: session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
+	const result = await agent.chats.createChat(chat, chatContext(session, chat), { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
 	return { ...result, session };
 }
 
@@ -556,7 +561,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const chats = await listing;
 		assert.ok(chats);
 		assert.deepStrictEqual(chats.map(chat => ({
-			id: AgentSession.id(parseChatUri(chat.chat)!.session),
+			id: AgentSession.id(requireMintedTestChatOwner(chat.chat)),
 			workspaceless: readSessionWorkspaceless(chat._meta),
 			workingDirectories: chat.workingDirectories?.map(directory => directory.fsPath),
 		})), [
@@ -898,13 +903,14 @@ suite('CodexAgent prewarm eviction', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: entry.clientCustomizations.toCustomizations(),
 		});
 		const chat = defaultChatOf(session);
-		const controller = new McpCustomizationController({ chatUri: chat, emit: () => { } }, stateManager);
+		const controller = new McpCustomizationController({ chatUri: chat, sessionUri: session, emit: () => { } }, stateManager);
 		entry.mcpController = controller;
 		controller.applyOne({ name: 'local', state: { kind: McpServerStatus.Ready } });
 
@@ -924,7 +930,7 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'plugin',
 				mcp: [{
 					state: McpServerStatus.Ready,
-					channel: buildMcpChannel(chat, 'local'),
+					channel: buildMcpChannel(chat, 'local', 'codex'),
 				}],
 			}]);
 	});
@@ -960,7 +966,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const ownerController = agent['_getOrCreateMcpController'](ownerEntry);
 		assert.ok(ownerController);
 		assert.ok(ownerEntry.chatChannel);
-		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared');
+		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared', 'codex');
 		ownerController.applyAll([{ name: 'shared', state: { kind: McpServerStatus.Ready } }]);
 		ownerEntry.disposed = true;
 		agent['_sessions'].delete(ownerEntry.sessionId);
@@ -1463,7 +1469,7 @@ suite('CodexAgent prewarm eviction', () => {
 			{ type: ToolResultContentType.Text, text: preview },
 			{
 				type: ToolResultContentType.Terminal,
-				resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, session, chat, 'pre'),
+				resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), session, chat, 'pre'),
 				title: 'Run shell command',
 				isPty: false,
 				result: { exitCode: 0, preview, truncated: true },
@@ -1728,7 +1734,7 @@ suite('CodexAgent prewarm eviction', () => {
 				{ type: ToolResultContentType.Text, text: preview },
 				{
 					type: ToolResultContentType.Terminal,
-					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, id),
+					resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), parent, chat, id),
 					title: 'Run shell command',
 					isPty: false,
 					result: { exitCode: 0, preview, truncated: true },
@@ -4395,7 +4401,7 @@ suite('CodexAgent prewarm eviction', () => {
 			forkManagedDirectory: undefined, forkDirectory: folder.fsPath, scratchExists: false,
 		});
 		for (const { chat, session } of [{ chat: sourceChat, session: source.session }, { chat: forkChat, session: forkSession }]) {
-			const disposing = agent.chats.disposeChat(chat, { configurationResource: session, resource: chat });
+			const disposing = agent.chats.disposeChat(chat, chatContext(session, chat));
 			const release = await readNextRequest(peer.outbound);
 			peer.push({ id: release.id, result: {} });
 			await disposing;
@@ -4663,7 +4669,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const session = AgentSession.uri('codex', 'desktop-thread');
 		const chat = defaultChatOf(session);
-		const context = { configurationResource: session, resource: chat };
+		const context = chatContext(session, chat);
 		const workingDirectory = URI.file('/workspace/codex');
 		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
 		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');

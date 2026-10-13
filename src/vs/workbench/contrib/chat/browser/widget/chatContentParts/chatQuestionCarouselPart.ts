@@ -61,6 +61,7 @@ export interface IChatQuestionCarouselOptions {
 		readonly onDidDismiss: () => void;
 	};
 	shouldAutoFocus?: boolean;
+	shouldAutoSelectFirstOption?: boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -1385,8 +1386,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					capturedFreeform.focus();
 				}));
 			} else if (listItems.length > 0) {
-				// if no default and no freeform text, select the first answer
-				if (selectedIndex < 0) {
+				if (selectedIndex < 0 && this._options.shouldAutoSelectFirstOption !== false) {
 					updateSelection(0);
 				}
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(selectContainer), () => {
