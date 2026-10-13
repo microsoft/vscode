@@ -144,6 +144,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -279,7 +280,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
-		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService, createTestChatOwnershipService(stateManager))));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);

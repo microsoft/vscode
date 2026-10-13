@@ -5883,7 +5883,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const metadata = toRemoteSessionMessageMetadata({
 				session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat',
-			}, 'source-turn');
+			}, undefined, 'source-turn');
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Delegated task', agentHostMessageOrigin: { kind: MessageKind.Agent }, metadata,
 			});
@@ -15039,7 +15039,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(chatSession.title, 'Session title');
 		});
 
-		test('does not inherit the session title for an untitled peer selected as the routing default', async () => {
+		test('an untitled advertised default chat inherits the session title even when it is not default-shaped', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'peer-routing-title');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/peer-routing-title' });
@@ -15066,7 +15066,7 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
-			assert.strictEqual(chatSession.title, undefined);
+			assert.strictEqual(chatSession.title, 'Session title');
 		});
 
 		test('routes editor renames through the addressed default and peer chat channels', async () => {
@@ -17240,7 +17240,113 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('refreshes customizations once when the current active client hydrates after open', async () => {
+		for (const optimistic of [false, true]) {
+			test(`active-client reconciliation ignores undefined properties across JSON echoes (optimistic=${optimistic})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+				const plugin: ClientPluginCustomization = {
+					type: CustomizationType.Plugin, id: 'file:///plugin', uri: 'file:///plugin', name: 'Plugin',
+					version: undefined, _meta: undefined,
+				};
+				const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', [plugin]);
+				const tools = observableValue<readonly ToolDefinition[]>('tools', [{
+					name: 'test-tool',
+					title: undefined,
+					_meta: { omitted: undefined, nested: { value: 1, omitted: undefined }, entries: [{ value: 1, omitted: undefined }, { value: 2 }] },
+				}]);
+				disposables.add(seedActiveClient('agent-host-copilot', { customizations, tools }));
+				const sessionResource = URI.parse('other-host-session:/wire-equality');
+				agentHostService.sessionStates.set(sessionResource.toString(), {
+					...createSessionState({
+						resource: sessionResource.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [] }],
+				});
+				if (!optimistic) {
+					sinon.stub(agentHostService, 'dispatch').callsFake((channel, action) => {
+						agentHostService.dispatchedActions.push({
+							channel, action, clientId: agentHostService.clientId, clientSeq: agentHostService.dispatchedActions.length + 1,
+						});
+					});
+				}
+				const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+					provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+					fullName: 'Agent Host', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+				}));
+				disposables.add(await handler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				await timeout(10);
+				const publications = () => agentHostService.dispatchedActions.flatMap(({ action }) => action.type === ActionType.SessionActiveClientSet ? [action.activeClient] : []);
+				const initial = publications()[0];
+				assert.ok(initial);
+				customizations.set(JSON.parse(JSON.stringify([plugin])), undefined);
+				await timeout(10);
+				const beforeEcho = publications().length;
+				const echoed: SessionActiveClient = JSON.parse(JSON.stringify(initial));
+				const echo = (activeClient: SessionActiveClient) => agentHostService.fireAction({
+					channel: sessionResource.toString(),
+					action: { type: ActionType.SessionActiveClientSet, activeClient },
+					serverSeq: 1, origin: undefined,
+				});
+				for (let i = 0; i < 3; i++) {
+					echo(echoed);
+					await timeout(10);
+				}
+				const afterEcho = publications().length;
+				echo({
+					customizations: echoed.customizations,
+					tools: [{ _meta: { entries: [{ value: 1 }, { value: 2 }], nested: { value: 1 } }, name: 'test-tool' }],
+					clientId: echoed.clientId,
+				});
+				await timeout(10);
+				const afterReorderedEcho = publications().length;
+				customizations.set([{ ...plugin, nonce: 'updated' }], undefined);
+				await timeout(10);
+				assert.deepStrictEqual({
+					beforeEcho, afterEcho, afterReorderedEcho,
+					nonces: publications().map(client => client.customizations?.[0].nonce),
+				}, {
+					beforeEcho: 1, afterEcho: 1, afterReorderedEcho: 1,
+					nonces: [undefined, 'updated'],
+				});
+			}));
+		}
+
+		test('active-client reconciliation preserves real metadata and ordered array changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+			const plugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'file:///plugin', uri: 'file:///plugin', name: 'Plugin', _meta: {} };
+			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', [plugin]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+			const sessionResource = AgentSession.uri('copilot', 'metadata-changes');
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState({
+					resource: sessionResource.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [plugin] }],
+			});
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+			disposables.add(await handler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			await timeout(10);
+			const changes: Record<string, unknown>[] = [
+				{ value: null }, { value: false }, { value: 0 }, { value: '0' },
+				{ values: [1, 2] }, { values: [2, 1] }, { values: [2, 1, 3] },
+			];
+			for (const _meta of changes) {
+				customizations.set([{ ...plugin, _meta }], undefined);
+				await timeout(10);
+			}
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions.flatMap(({ action }) => action.type === ActionType.SessionActiveClientSet ? [action.activeClient.customizations?.[0]._meta] : []),
+				changes,
+			);
+		}));
+
+		test('does not republish wire-equivalent customizations when the current active client hydrates after open', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
@@ -17308,11 +17414,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionActiveClientSet);
-			assert.strictEqual(activeClientActions.length, 1);
-			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
-			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
-			]);
+			assert.deepStrictEqual(activeClientActions, []);
 		});
 	});
 

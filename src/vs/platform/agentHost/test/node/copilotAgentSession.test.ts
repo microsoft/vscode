@@ -1419,6 +1419,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		createdAt: stateManagerNow,
 		modifiedAt: stateManagerNow,
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
+		defaultChat: buildDefaultChatUri(sessionUri.toString()),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
@@ -1825,7 +1826,8 @@ suite('CopilotAgentSession', () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [
 				shell('attached'),
-				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached' },
+				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached', pid: 4242 },
+				{ ...shell('detached-without-pid'), attachmentMode: 'detached' },
 				{ ...shell('foreground'), executionMode: 'sync' },
 				{ ...shell('completed'), status: 'completed' },
 				{ ...shell('failed'), status: 'failed' },
@@ -1838,22 +1840,28 @@ suite('CopilotAgentSession', () => {
 				? [{ id: action.work.id, attachment: readCopilotShellAttachment(action.work), stoppable: canStopBackgroundWork(action.work) }]
 				: []), [
 				{ id: 'shell:attached', attachment: 'attached', stoppable: true },
-				{ id: 'shell:detached', attachment: 'detached', stoppable: false },
+				{ id: 'shell:detached', attachment: 'detached', stoppable: true },
+				{ id: 'shell:detached-without-pid', attachment: 'detached', stoppable: false },
 			]);
 		});
 
-		test('stops a published attached shell through the runtime, and nothing it did not offer to stop', async () => {
+		test('stops published shells through the runtime, and nothing it did not offer to stop', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
-			mockSession.backgroundTasks = [shell('attached'), { ...shell('detached'), attachmentMode: 'detached' }];
+			mockSession.backgroundTasks = [
+				shell('attached'),
+				{ ...shell('detached'), attachmentMode: 'detached', pid: 4242 },
+				{ ...shell('detached-without-pid'), attachmentMode: 'detached' },
+			];
 			mockSession.fire('session.background_tasks_changed', {});
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
 
 			assert.deepStrictEqual({
 				attached: await session.stopBackgroundWork('shell:attached'),
 				detached: await session.stopBackgroundWork('shell:detached'),
+				detachedWithoutPid: await session.stopBackgroundWork('shell:detached-without-pid'),
 				unknown: await session.stopBackgroundWork('shell:unknown'),
 				cancelled: mockSession.backgroundTaskCancelCalls,
-			}, { attached: true, detached: false, unknown: false, cancelled: ['attached'] });
+			}, { attached: true, detached: true, detachedWithoutPid: false, unknown: false, cancelled: ['attached', 'detached'] });
 		});
 
 		test('publishes running background subagents that point at their chats', async () => {
@@ -21565,6 +21573,7 @@ Use the attached image as context.
 					status: SessionStatus.Idle,
 					createdAt: new Date(0).toISOString(),
 					modifiedAt: new Date(0).toISOString(),
+					defaultChat: buildDefaultChatUri(sessionUri),
 				});
 				let enabled = true;
 				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({

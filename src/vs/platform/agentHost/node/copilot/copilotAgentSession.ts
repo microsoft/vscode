@@ -21,7 +21,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
@@ -72,7 +72,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isDefaultChatUri, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -2331,6 +2331,9 @@ export class CopilotAgentSession extends Disposable {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
 			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
 			const attachment = task.attachmentMode === 'detached' ? 'detached' : 'attached';
+			// Attached shells can always be stopped. Detached shells are stopped through
+			// their process ID, so one restored without a recorded ID can't be.
+			const stoppable = attachment === 'attached' || task.pid !== undefined;
 			return {
 				kind: BackgroundWorkKind.Shell,
 				id: `shell:${task.id}`,
@@ -2338,8 +2341,7 @@ export class CopilotAgentSession extends Disposable {
 				command: task.command,
 				startedAt: task.startedAt,
 				...(terminal ? { terminal } : {}),
-				// Stopping detached shells isn't offered yet.
-				_meta: { ...toCopilotBackgroundShellMeta(task.id, attachment), ...(attachment === 'attached' ? toStoppableBackgroundWorkMeta() : {}) },
+				_meta: { ...toCopilotBackgroundShellMeta(task.id, attachment), ...(stoppable ? toStoppableBackgroundWorkMeta() : {}) },
 			};
 		}
 		// An idle background agent has already reported back; only a running one will resume the chat.
@@ -3577,7 +3579,7 @@ export class CopilotAgentSession extends Disposable {
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
 						const owner = this._ownerSessionUri.toString();
 						const current = this._configurationService.getSessionConfigValues(owner);
-						if (current && isDefaultChatUri(this._chatChannelUri.toString()) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+						if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
 						}
 						void this._managedSettingsResolved.complete();
@@ -6245,7 +6247,7 @@ export class CopilotAgentSession extends Disposable {
 		this._lastAppliedPermissionMode = mode;
 		const current = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
 		const applied = this._approvalPolicy.getAppliedConfig(mode);
-		if (current && isDefaultChatUri(this._chatChannelUri.toString()) && (current.effectiveApprovalMode !== applied.effectiveApprovalMode
+		if (current && isEqual(this.resourceUri, this._ownerSessionUri) && (current.effectiveApprovalMode !== applied.effectiveApprovalMode
 			|| !equals(current.availableApprovalModes, applied.availableApprovalModes))) {
 			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), applied);
 		}

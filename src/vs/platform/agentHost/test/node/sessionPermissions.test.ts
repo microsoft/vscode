@@ -18,7 +18,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -41,7 +41,7 @@ suite('SessionPermissionManager', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/s' }).toString();
 	const directoryLinkType = isWindows ? 'junction' : 'dir';
 
-	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource,
 			provider: 'copilot',
@@ -51,6 +51,7 @@ suite('SessionPermissionManager', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
+			defaultChat: buildDefaultChatUri(resource),
 		};
 	}
 
@@ -115,7 +116,7 @@ suite('SessionPermissionManager', () => {
 
 	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {
 		const peerChat = buildChatUri(URI.from({ scheme: 'copilot', path: '/other' }), 'peer');
-		manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+		manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 		const attachmentPath = URI.joinPath(
 			sessionDataService.getSessionDataDir(URI.parse(sessionUri)),
 			SESSION_ATTACHMENTS_DIRNAME,

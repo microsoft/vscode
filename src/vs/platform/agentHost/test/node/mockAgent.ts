@@ -16,9 +16,9 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
+import { requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -1092,7 +1092,7 @@ export class ScriptedMockAgent implements IAgent {
 		// Restore addresses the default chat by its channel URI; normalize it
 		// back to the session URI (mirroring the real agents' getSessionMessages).
 		const parsed = parseChatUri(session);
-		const normalized = parsed && isDefaultChatUri(session) ? URI.parse(requireMintedTestChatOwner(session)) : session;
+		const normalized = parsed && isMintedTestDefaultChat(session) ? URI.parse(requireMintedTestChatOwner(session)) : session;
 		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
@@ -1139,7 +1139,7 @@ export class ScriptedMockAgent implements IAgent {
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
-			if (isDefaultChatUri(chat)) {
+			if (isMintedTestDefaultChat(chat)) {
 				this._sessions.delete(AgentSession.id(session));
 			}
 			return Promise.resolve();

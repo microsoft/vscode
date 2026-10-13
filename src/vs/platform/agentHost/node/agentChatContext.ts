@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentChatContext } from '../common/agent.js';
-import { buildDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
@@ -62,7 +62,7 @@ export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, se
 	if (!state) {
 		return undefined;
 	}
-	const defaultChat = state.defaultChat ?? buildDefaultChatUri(sessionKey);
+	const defaultChat = state.defaultChat ?? stateManager.getDefaultChat(sessionKey);
 	const seen = new Set<string>();
 	const chats: URI[] = [];
 	for (const summary of state.chats) {
@@ -71,7 +71,7 @@ export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, se
 			chats.push(URI.parse(summary.resource));
 		}
 	}
-	if (!seen.has(defaultChat)) {
+	if (defaultChat !== undefined && !seen.has(defaultChat)) {
 		chats.unshift(URI.parse(defaultChat));
 	}
 	return chats;
