@@ -37,6 +37,7 @@ import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, migrateLegacyAutomationSessi
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
@@ -122,6 +123,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		@IFileService fileService: IFileService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
+		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
 	) {
 		super();
 		this._customizations = new AgentHostAutomationCustomizations(pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
@@ -480,7 +482,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._executionAvailabilityWatcher.value = autorun(reader => {
 			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
-			if (!this._isAutomationsEnabled()) {
+			// Work started while the machine sleeps or is in a background wake stalls when it
+			// sleeps again, so due schedules and pending runs wait until it is fully awake.
+			if (!this._isAutomationsEnabled() || !this._systemWake.isFullyAwake.read(reader)) {
 				return;
 			}
 			this._startPendingRuns(available);
@@ -507,6 +511,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _claimDueRuns(): Promise<readonly { readonly run: AutomationRunState; readonly definition: AutomationDefinition }[]> {
 		const catalog = this._requireAvailableCatalog();
+		if (!this._systemWake.isFullyAwake.get()) {
+			return [];
+		}
 		const now = new Date();
 		const nowTimestamp = now.getTime();
 		const createdAt = now.toISOString();

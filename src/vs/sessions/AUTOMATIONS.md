@@ -143,6 +143,8 @@ To use a different host, explicitly duplicate the definition there. The original
 
 Providers may expose model-dependent readiness for unattended execution. While required credentials are missing, the host leaves due schedule cursors unchanged and resumes scheduling when readiness changes. Copilot's readiness covers initially missing credentials and preserves explicitly selected BYOK models when signed-out operation is supported; it does not persist credentials or bypass runtime authorization.
 
+The host likewise leaves due schedules and pending runs waiting while the machine is not fully awake, because work started during sleep or a background (macOS dark) wake stalls when the machine sleeps again. The VS Code main process reports macOS sleep and full wakes to its local host; on a full wake, missed occurrences follow the trigger's misfire policy. Run Now is never held. Hosts without a wake reporter, such as remote hosts, treat the machine as always fully awake.
+
 The host owns:
 
 - durable manual request IDs and active-run reuse for manual requests;

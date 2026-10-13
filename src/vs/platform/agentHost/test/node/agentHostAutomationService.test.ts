@@ -41,6 +41,7 @@ import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientU
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -64,12 +65,14 @@ suite('AgentHostAutomationService', () => {
 	let fileService: FileService;
 	let pluginManager: AgentPluginManager;
 	let clientConnections: AgentHostClientConnectionService;
+	let systemWake: AgentHostSystemWakeService;
 	let authenticationRequests: IAgentHostMcpAuthenticationRequest[];
 	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		systemWake = new AgentHostSystemWakeService();
 		authenticationRequests = [];
 		authenticationResult = Promise.resolve(false);
 		disposables.add(clientConnections.registerSource({
@@ -152,7 +155,7 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
 		return disposables.add(service);
 	}
 
@@ -1783,6 +1786,57 @@ suite('AgentHostAutomationService', () => {
 			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: undefined },
 		]);
 	}));
+
+	test('due schedules wait until the machine is fully awake, then catch up once', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/after-wake'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+			},
+		});
+		await timeout(3 * 60 * 60_000);
+		const asleep = stateManager.getAutomationCatalogState()?.entries[0];
+
+		systemWake.setFullyAwake(true);
+		await started.p;
+
+		const awake = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			asleep: { runs: asleep?.runs.length, nextRunAt: asleep?.nextRunAt },
+			awake: { origins: awake?.runs.map(run => run.origin), nextRunAt: awake?.nextRunAt },
+		}, {
+			asleep: { runs: 0, nextRunAt: '2026-01-01T01:00:00.000Z' },
+			awake: {
+				origins: [{ kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z', catchUp: true }],
+				nextRunAt: '2026-01-01T04:00:00.000Z',
+			},
+		});
+	}));
+
+	test('manual runs start while the machine is not fully awake', async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/manual-while-asleep'),
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'manual-while-asleep',
+		});
+		await started.p;
+
+		assert.strictEqual(stateManager.getAutomationRunState(run.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
 
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();
