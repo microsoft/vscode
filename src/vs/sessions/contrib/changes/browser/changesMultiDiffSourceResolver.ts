@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { comparePaths } from '../../../../base/common/comparers.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
@@ -39,18 +39,6 @@ function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 	return comparePaths(aPath, bPath);
 }
 
-function changesetsEqual(a: ISessionChangeset | undefined, b: ISessionChangeset | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (!a || !b || a.id !== b.id) {
-		return false;
-	}
-	return a.resource && b.resource
-		? isEqual(a.resource, b.resource)
-		: a.resource === b.resource;
-}
-
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
@@ -69,28 +57,15 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 
-		const changesStateObs = derivedObservableWithCache<{
-			readonly changeset: ISessionChangeset | undefined;
-			readonly changes: readonly ISessionFileChange[];
-		}>({
+		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
 			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
-				return lastValue ?? { changeset: undefined, changes: [] };
+				return lastValue ?? [];
 			}
 
-			const changeset = this.changesViewService.activeSessionChangesetObs.read(reader);
-			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue && changesetsEqual(lastValue.changeset, changeset)
-					? lastValue
-					: { changeset, changes: [] };
-			}
-
-			return {
-				changeset,
-				changes: this.changesViewService.activeSessionChangesObs.read(reader),
-			};
+			return this.changesViewService.activeSessionChangesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
@@ -99,7 +74,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.originalUri, y.originalUri) &&
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
-			const changes = changesStateObs.read(reader).changes;
+			const changes = changesObs.read(reader);
 			return [...changes].sort(compareChanges).map(change => {
 				const resource = getChangesEditorFileResource(change);
 				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {

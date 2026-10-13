@@ -14,6 +14,7 @@ import minimatch from 'minimatch';
 import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
+import { getSafeNotificationMessage } from './notification';
 
 const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
@@ -154,7 +155,10 @@ export async function detectPackageManager(folder: Uri, extensionContext?: Exten
 		const multiplePMWarning = l10n.t('Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', name, folder.fsPath);
 		const neverShowAgain = l10n.t("Do not show again");
 		const learnMore = l10n.t("Learn more");
-		window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
+		window.showInformationMessage(getSafeNotificationMessage(
+			multiplePMWarning,
+			l10n.t('Found multiple package manager lockfiles. To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".'),
+		), learnMore, neverShowAgain).then(result => {
 			switch (result) {
 				case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
 				case learnMore: env.openExternal(Uri.parse('https://docs.npmjs.com/cli/v9/configuring-npm/package-lock-json'));

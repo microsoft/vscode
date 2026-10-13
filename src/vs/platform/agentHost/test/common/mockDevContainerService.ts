@@ -5,19 +5,23 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../common/devContainerAgentHost.js';
+import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 	readonly relayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this.relayMessage.event;
+	readonly relayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity = this.relayActivity.event;
 	readonly relayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this.relayClose.event;
 	readonly closeConnection = this._register(new Emitter<string>());
 	readonly onDidCloseConnection = this.closeConnection.event;
 	readonly output = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this.output.event;
+	readonly sandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this.sandboxSupport.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];

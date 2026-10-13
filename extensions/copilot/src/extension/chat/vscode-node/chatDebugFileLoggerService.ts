@@ -239,6 +239,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			try {
 				// Verify the candidate is an actual directory, not a stray file,
 				// so we never return a path under which `main.jsonl` could never exist.
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: queue child-log entries until historical parent lookup completes; an unawaited probe could route them to a different session directory.
 				if (fs.statSync(candidate.fsPath).isDirectory()) {
 					return candidate;
 				}
@@ -674,6 +675,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			session.resumeChecked = true;
 			const mainJsonl = URI.joinPath(session.sessionDir, 'main.jsonl');
 			try {
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: serialize session resume before buffering spans; the existing callback must establish the persisted run/file indices before the first entry is written.
 				fs.accessSync(mainJsonl.fsPath);
 				// Directory exists from a previous run — this is a resumed session
 				session.hasOwnSpans = true;
@@ -698,6 +700,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				// Find the next available indices for companion files to avoid
 				// overwriting ones from the previous run. Single readdir + scan.
 				try {
+					// eslint-disable-next-line local/code-no-sync-fs -- TODO: serialize resume before companion-file writes; indices must be loaded before allocation to avoid overwriting files from a previous run.
 					for (const f of fs.readdirSync(session.sessionDir.fsPath)) {
 						const spIdx = f.startsWith('system_prompt_') ? parseInt(f.slice(14), 10) : -1;
 						if (spIdx >= session.systemPromptIndex) { session.systemPromptIndex = spIdx + 1; }
@@ -1151,14 +1154,18 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	 * Used during session resume to determine the max rIdx without reading the entire file.
 	 */
 	private _readTailBytes(filePath: string, byteCount: number): string {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: await tail loading before buffering resumed spans; persisted run indices must be known before allocating the next run.
 		const fd = fs.openSync(filePath, 'r');
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: await tail loading before buffering resumed spans; the file size determines the persisted run-index slice read next.
 			const stat = fs.fstatSync(fd);
 			const start = Math.max(0, stat.size - byteCount);
 			const buf = Buffer.alloc(Math.min(byteCount, stat.size));
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: await tail loading before buffering resumed spans; later entries must not use a run index computed before this read completes.
 			fs.readSync(fd, buf, 0, buf.length, start);
 			return buf.toString('utf-8');
 		} finally {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: close the async file handle in an awaited tail loader; the synchronous helper currently completes and releases the descriptor before returning.
 			fs.closeSync(fd);
 		}
 	}

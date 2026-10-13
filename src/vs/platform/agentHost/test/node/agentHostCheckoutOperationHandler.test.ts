@@ -15,7 +15,7 @@ import { CheckoutOperationPreAction, checkoutOperationMeta } from '../../common/
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostCheckoutOperationHandler } from '../../node/agentHostCheckoutOperationHandler.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 suite('AgentHostCheckoutOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,7 +35,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 		});
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerWorkingDirectory = URI.file('/peer-repo');
-		stateManager.addChat(session.toString(), peer, { workingDirectories: [peerWorkingDirectory.toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerWorkingDirectory.toString()] });
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;

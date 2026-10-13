@@ -20,7 +20,27 @@ const enum PolicyNames {
 	OtelEnabled = 'CopilotOtelEnabled',
 	TelemetryLevel = 'TelemetryLevel',
 	EnableFeedback = 'EnableFeedback',
+	ToolsEligibleForAutoApproval = 'ChatToolsEligibleForAutoApproval',
+	ToolsTerminalEnableAutoApprove = 'ChatToolsTerminalEnableAutoApprove',
+	McpAccess = 'ChatMCP',
+	AllowedMcpServers = 'ChatAllowedMcpServers',
+	DeniedMcpServers = 'ChatDeniedMcpServers',
+	AllowManagedMcpServersOnly = 'ChatAllowManagedMcpServersOnly',
+	McpEnterpriseManagedAuthIdp = 'McpEnterpriseManagedAuthIdp',
+	PluginsEnabled = 'ChatPluginsEnabled',
+	StrictPluginOnlyCustomization = 'ChatStrictPluginOnlyCustomization',
+	Hooks = 'ChatHooks',
+	AllowManagedHooksOnly = 'ChatAllowManagedHooksOnly',
+	AgentMode = 'ChatAgentMode',
+	OtelProtocol = 'CopilotOtelProtocol',
+	OtelCaptureIdentity = 'CopilotOtelCaptureIdentity',
+	OtelHeaders = 'CopilotOtelHeaders',
+	AgentNetworkFilter = 'ChatAgentNetworkFilter',
+	AgentAllowedNetworkDomains = 'ChatAgentAllowedNetworkDomains',
+	AgentDeniedNetworkDomains = 'ChatAgentDeniedNetworkDomains',
 }
+
+type PolicySource = PolicyValueSource | 'none';
 
 type PolicyAppliedEvent = {
 	devicePolicyCount: number;
@@ -44,11 +64,33 @@ type PolicyAppliedEvent = {
 	strictMarketplacesLockdown: boolean;
 	otelForcedEnabled: boolean;
 	telemetryLevel: string | undefined;
+	toolsEligibleForAutoApprovalSource: PolicySource;
+	toolsTerminalEnableAutoApproveSource: PolicySource;
+	mcpAccessSource: PolicySource;
+	allowedMcpServersSource: PolicySource;
+	deniedMcpServersSource: PolicySource;
+	allowManagedMcpServersOnlySource: PolicySource;
+	mcpEnterpriseManagedAuthIdpSource: PolicySource;
+	pluginsEnabledSource: PolicySource;
+	enabledPluginsSource: PolicySource;
+	extraMarketplacesSource: PolicySource;
+	strictMarketplacesSource: PolicySource;
+	strictPluginOnlyCustomizationSource: PolicySource;
+	hooksSource: PolicySource;
+	allowManagedHooksOnlySource: PolicySource;
+	agentModeSource: PolicySource;
+	otelEnabledSource: PolicySource;
+	otelProtocolSource: PolicySource;
+	otelCaptureIdentitySource: PolicySource;
+	otelHeadersSource: PolicySource;
+	agentNetworkFilterSource: PolicySource;
+	agentAllowedNetworkDomainsSource: PolicySource;
+	agentDeniedNetworkDomainsSource: PolicySource;
 };
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
-	comment: 'Reports effective policy values by privacy-safe delivery source and selected value buckets, to distinguish device policy, managed-settings channels, and account-driven restrictions. No raw policy values are collected.';
+	comment: 'Reports effective policy presence, delivery sources, and selected value buckets, not runtime enforcement. Sources are none, device, nativeMdm, serverManagedSettings, fileManagedSettings, mixedManagedSettings, account, or accountGate. No raw policy values are collected.';
 	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from OS or device policy, including values without more specific tracked provenance.' };
 	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through native MDM.' };
 	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered from GitHub services.' };
@@ -70,6 +112,28 @@ type PolicyAppliedClassification = {
 	strictMarketplacesLockdown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is an empty allowlist (blocks all marketplaces).' };
 	otelForcedEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry policy forces export enabled.' };
 	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all, or "unknown") when the telemetry-level policy is applied.' };
+	toolsEligibleForAutoApprovalSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatToolsEligibleForAutoApproval, or none when unset.' };
+	toolsTerminalEnableAutoApproveSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatToolsTerminalEnableAutoApprove, or none when unset.' };
+	mcpAccessSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatMCP, or none when unset.' };
+	allowedMcpServersSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAllowedMcpServers, or none when unset.' };
+	deniedMcpServersSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatDeniedMcpServers, or none when unset.' };
+	allowManagedMcpServersOnlySource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAllowManagedMcpServersOnly, or none when unset.' };
+	mcpEnterpriseManagedAuthIdpSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of McpEnterpriseManagedAuthIdp, or none when unset.' };
+	pluginsEnabledSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatPluginsEnabled, or none when unset.' };
+	enabledPluginsSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatEnabledPlugins, or none when unset.' };
+	extraMarketplacesSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatExtraMarketplaces, or none when unset.' };
+	strictMarketplacesSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatStrictMarketplaces, or none when unset.' };
+	strictPluginOnlyCustomizationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatStrictPluginOnlyCustomization, or none when unset.' };
+	hooksSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatHooks, or none when unset.' };
+	allowManagedHooksOnlySource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAllowManagedHooksOnly, or none when unset.' };
+	agentModeSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAgentMode, or none when unset.' };
+	otelEnabledSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of CopilotOtelEnabled, or none when unset.' };
+	otelProtocolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of CopilotOtelProtocol, or none when unset.' };
+	otelCaptureIdentitySource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of CopilotOtelCaptureIdentity, or none when unset.' };
+	otelHeadersSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of CopilotOtelHeaders, or none when unset.' };
+	agentNetworkFilterSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAgentNetworkFilter, or none when unset.' };
+	agentAllowedNetworkDomainsSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAgentAllowedNetworkDomains, or none when unset.' };
+	agentDeniedNetworkDomainsSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAgentDeniedNetworkDomains, or none when unset.' };
 };
 
 export class PolicyTelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -100,6 +164,9 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 	private buildEvent(): PolicyAppliedEvent {
 		const value = (name: PolicyName): PolicyValue | undefined => this.policyService.getPolicyValue(name);
+		const source = (name: PolicyName): PolicySource => value(name) === undefined
+			? 'none'
+			: this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device;
 		let devicePolicyCount = 0;
 		let nativeMdmPolicyCount = 0;
 		let serverManagedSettingsPolicyCount = 0;
@@ -163,6 +230,28 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			strictMarketplacesLockdown: isEmptyMarketplaceAllowlist(strictMarketplaces),
 			otelForcedEnabled: otel === true,
 			telemetryLevel: telemetryLevelBucket(telemetryLevel),
+			toolsEligibleForAutoApprovalSource: source(PolicyNames.ToolsEligibleForAutoApproval),
+			toolsTerminalEnableAutoApproveSource: source(PolicyNames.ToolsTerminalEnableAutoApprove),
+			mcpAccessSource: source(PolicyNames.McpAccess),
+			allowedMcpServersSource: source(PolicyNames.AllowedMcpServers),
+			deniedMcpServersSource: source(PolicyNames.DeniedMcpServers),
+			allowManagedMcpServersOnlySource: source(PolicyNames.AllowManagedMcpServersOnly),
+			mcpEnterpriseManagedAuthIdpSource: source(PolicyNames.McpEnterpriseManagedAuthIdp),
+			pluginsEnabledSource: source(PolicyNames.PluginsEnabled),
+			enabledPluginsSource: source(PolicyNames.EnabledPlugins),
+			extraMarketplacesSource: source(PolicyNames.ExtraMarketplaces),
+			strictMarketplacesSource: source(PolicyNames.StrictMarketplaces),
+			strictPluginOnlyCustomizationSource: source(PolicyNames.StrictPluginOnlyCustomization),
+			hooksSource: source(PolicyNames.Hooks),
+			allowManagedHooksOnlySource: source(PolicyNames.AllowManagedHooksOnly),
+			agentModeSource: source(PolicyNames.AgentMode),
+			otelEnabledSource: source(PolicyNames.OtelEnabled),
+			otelProtocolSource: source(PolicyNames.OtelProtocol),
+			otelCaptureIdentitySource: source(PolicyNames.OtelCaptureIdentity),
+			otelHeadersSource: source(PolicyNames.OtelHeaders),
+			agentNetworkFilterSource: source(PolicyNames.AgentNetworkFilter),
+			agentAllowedNetworkDomainsSource: source(PolicyNames.AgentAllowedNetworkDomains),
+			agentDeniedNetworkDomainsSource: source(PolicyNames.AgentDeniedNetworkDomains),
 		};
 	}
 }

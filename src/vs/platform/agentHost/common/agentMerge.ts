@@ -325,6 +325,10 @@ export const agentMergeDisableReasons = {
 		log: 'the same pull request blockers remained after repeated repair attempts',
 		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was disabled because the same pull request blockers remained after repeated repair attempts."),
 	}),
+	pendingReviewReply: (): AgentMergeDisableReason => ({
+		log: 'a review reply is unpublished in the user\'s pending review',
+		notice: localize('agentMerge.disabled.pendingReviewReply', "Agent Merge was disabled for this folder because a review reply is unpublished in your pending GitHub review. Handle the pending review on GitHub, then enable Agent Merge again to resume."),
+	}),
 	pullRequestMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
 		log: 'the pull request was merged',
 		notice: localize('agentMerge.pullRequestMerged', "Agent Merge merged pull request [#{0}]({1}).", pullRequestNumber, pullRequestUrl),

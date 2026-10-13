@@ -17,7 +17,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CustomizationType, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -146,6 +146,66 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
+	test('waits for the first session snapshot before publishing draft fallback agents', async () => {
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/learn-writer.agent.md',
+			uri: 'file:///workspace/.github/agents/learn-writer.agent.md',
+			name: 'Learn Writer',
+			description: 'Writes documentation',
+		};
+		let ready = false;
+		const calls: string[] = [];
+
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents(): readonly AgentCustomization[] {
+				calls.push(`get:${ready ? 'ready' : 'pending'}`);
+				return ready ? [agent] : [];
+			}
+
+			override async whenCustomizationsReady(): Promise<boolean> {
+				calls.push('wait');
+				await Promise.resolve();
+				ready = true;
+				return true;
+			}
+		}
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/draft.agent.md',
+			uri: 'file:///workspace/.github/agents/draft.agent.md',
+			name: 'Draft Agent',
+			description: 'Available before materialization',
+		}]));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		const agents = await provider.provideCustomAgents(sessionResource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls,
+			agents: agents.map(candidate => ({
+				name: candidate.name,
+				sessionTypes: candidate.sessionTypes,
+			})),
+		}, {
+			calls: ['wait', 'get:ready'],
+			agents: [{
+				name: 'Learn Writer',
+				sessionTypes: ['agent-host-copilotcli'],
+			}],
+		});
+	});
+
 	test('preserves remote source folder URIs transformed by the transport', async () => {
 		const workspace = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/workspace' });
 		const instructionsDirectory = URI.joinPath(workspace, '.github', 'instructions');
@@ -188,6 +248,41 @@ suite('AgentCustomizationItemProvider', () => {
 			uri: instructionsDirectory.toString(),
 			source: AICustomizationSources.local,
 		}]);
+	});
+
+	test('bounds and shares the source folder readiness wait', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			readinessCalls = 0;
+
+			override whenCustomizationsReady(): Promise<boolean> {
+				this.readinessCalls++;
+				return new Promise<boolean>(() => { });
+			}
+		}
+		class TestAgentCustomizationItemProvider extends AgentCustomizationItemProvider {
+			protected override readonly _sourceFolderReadinessTimeoutMs = 1;
+		}
+
+		const customizationService = new TestCustomizationService();
+		const provider = disposables.add(new TestAgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			customizationService,
+			makePromptsService(),
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		const first = await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const second = await provider.provideSourceFolders(sessionResource, PromptsType.instructions, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, second, readinessCalls: customizationService.readinessCalls }, {
+			first: [],
+			second: [],
+			readinessCalls: 1,
+		});
 	});
 
 	test('classifies a directory child by its real file URI when its container is synthetic', async () => {

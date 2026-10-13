@@ -336,6 +336,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly model: string;
 	readonly modelProvider: string;
 	readonly apiType?: string;
+	/** Whether this Chat Completions model accepts thinking replayed from earlier user turns. */
 	readonly supportsThinkingContentInHistory?: boolean;
 	readonly supportsAdaptiveThinking?: boolean;
 	readonly minThinkingBudget?: number;

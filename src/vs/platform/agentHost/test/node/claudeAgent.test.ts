@@ -52,8 +52,9 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -62,7 +63,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -92,6 +93,9 @@ import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOp
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { mintedTestChatOwner, requireMintedTestChatOwner } from '../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 // #region Test fakes
 
@@ -119,7 +123,7 @@ function reducerBackedEnablementChangeEvent(stateManager: AgentHostStateManager)
  */
 function listAdditionalChats(agent: ClaudeAgent, session: URI): string[] {
 	const backings = (agent as unknown as { _chatBackings: Map<string, { readonly sdkSessionId: string }> })._chatBackings;
-	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && parseRequiredSessionUriFromChatUri(chat) === session.toString() ? [chat] : []);
+	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && requireMintedTestChatOwner(chat) === session.toString() ? [chat] : []);
 }
 
 function listLiveChats(agent: ClaudeAgent): string[] {
@@ -143,7 +147,7 @@ function defaultChatUri(session: URI): URI {
 
 /** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
 function sessionIdOfChat(chat: URI): string {
-	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
+	return AgentSession.id(URI.parse(requireMintedTestChatOwner(chat)));
 }
 
 function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata[] | undefined> {
@@ -160,8 +164,8 @@ function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata
  * them and never re-derive them.
  */
 function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentChatContext {
-	const parsed = parseChatUri(chat);
-	const session = parsed ? URI.parse(parsed.session) : chat;
+	const owner = mintedTestChatOwner(chat);
+	const session = owner ? URI.parse(owner) : chat;
 	return {
 		configurationResource: session,
 		resource: isDefaultChatUri(chat) ? session : chat,
@@ -311,6 +315,7 @@ async function startActiveTurn(disposables: Pick<DisposableStore, 'add'>, ctx: I
 class FakeAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+	readonly hostPluginsPath = URI.joinPath(this.basePath, '.host');
 
 	syncResult: readonly ISyncedCustomization[] | undefined;
 	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
@@ -388,6 +393,8 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
+
+	getAuthAccount(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1069,6 +1076,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1077,6 +1085,7 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -1167,6 +1176,7 @@ function createTestContext(
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
@@ -1191,8 +1201,8 @@ function createTestContext(
 		const explicit = context && !URI.isUri(context) ? context : undefined;
 		const session = explicit?.configurationResource
 			?? (context && URI.isUri(context) ? context : undefined)
-			?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
-		return { ...createAgentChatContext(stateManager, session, chat), ...explicit };
+			?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
+		return { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString())), ...explicit };
 	};
 	const chats = agent.chats as {
 		createChat: typeof agent.chats.createChat;
@@ -1268,6 +1278,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
@@ -1346,6 +1357,71 @@ suite('ClaudeAgent', () => {
 			downloads: sdk.ensureAvailableCalls,
 			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
 		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
+	});
+
+	for (const count of [0, 2]) {
+		test(`startup telemetry records a processed Claude result with ${count} candidates after provider publication`, async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			let now = 10;
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+			const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+			sdk.sessionList = Array.from({ length: count }, (_, i) => ({ sessionId: `private-${i}`, cwd: '/private', summary: 'Private title', lastModified: 1 }));
+			disposables.add(agent.onDidDiscoverChats(() => { now = 30; }));
+			await agent.startChatDiscovery();
+			await agent.startChatDiscovery();
+			assert.deepStrictEqual({
+				scans: sdk.listSessionsCallCount,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.timestampMs, data?.since, data?.scannedSessionCount, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				scans: 1,
+				markers: [
+					['sessionDiscoveryScan', 10, 'sessionDiscoveryScanStart', count, undefined, undefined, undefined, undefined],
+					['firstSessionDiscoveryResult', 30, 'processStart', undefined, count, count, 0, undefined],
+				],
+			});
+		});
+	}
+
+	test('startup telemetry distinguishes deferred Claude discovery from its late empty result', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		await agent.startChatDiscovery();
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.canLoadWithoutDownloadResult = true;
+		(agent as unknown as { _restartChatDiscovery(): void })._restartChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			before,
+			scans: sdk.listSessionsCallCount,
+			downloads: sdk.ensureAvailableCalls,
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, scans: 1, downloads: 0, first: [[50, 0]] });
+	});
+
+	test('startup telemetry records a late Claude result even after discovery scan sampling is exhausted', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		const internal = agent as unknown as { _emitClaudeCodeChats(): Promise<boolean> };
+		sdk.listSessionsRejection = new Error('catalog unavailable');
+		const results: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			results.push(await internal._emitClaudeCodeChats());
+		}
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.listSessionsRejection = undefined;
+		results.push(await internal._emitClaudeCodeChats());
+		await internal._emitClaudeCodeChats();
+		assert.deepStrictEqual({
+			before,
+			results,
+			scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0]] });
 	});
 
 	test('getDescriptor advertises the Claude provider', () => {
@@ -2401,6 +2477,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2427,6 +2504,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2535,6 +2613,19 @@ suite('ClaudeAgent', () => {
 			session: expected.toString(),
 			provisional: true,
 		});
+	});
+
+	test('standard host sessions retain their address and an independent Claude backing ID', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const session = URI.parse('ahp-session:/new-claude');
+		const result = await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
+		assert.deepStrictEqual({
+			session: result.session.toString(),
+			provisional: result.provisional,
+			backingProvider: result.chat?.backingSession?.scheme,
+			separateBacking: result.sdkSessionId !== AgentSession.id(session),
+		}, { session: session.toString(), provisional: true, backingProvider: 'claude', separateBacking: true });
 	});
 
 	test('createChat({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
@@ -4346,6 +4437,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
@@ -4730,7 +4822,7 @@ suite('ClaudeAgent', () => {
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
 			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished' ? s.resource : s.chat;
-			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
+			if ((mintedTestChatOwner(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}
 		}));
@@ -5120,6 +5212,7 @@ suite('ClaudeAgent', () => {
 				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void;
 			}): Promise<void>;
 		})._emitClaudeCodeChats;
 
@@ -5128,6 +5221,7 @@ suite('ClaudeAgent', () => {
 			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
 		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
@@ -5720,6 +5814,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -6937,6 +7032,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IClaudeAgentSdkService, sdk],
@@ -6951,6 +7047,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse(buildDefaultChatUri('claude:/session-id')),
+			URI.parse('claude:/session-id'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -7142,10 +7239,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: input },
 			confirmation: {
-				displayName: 'Set Workspace',
-				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				displayName: 'Change Workspace',
+				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
-				confirmationTitle: 'Continue in app?',
+				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
 		});
@@ -8424,8 +8521,8 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.addChat(ownerSession.toString(), parentUri.toString());
-		stateManager.addChat(ownerSession.toString(), subagentUri, {
+		stateManager.addChat(ownerSession.toString(), parentUri.toString(), creationTimeChatStorageResource(ownerSession.toString(), parentUri.toString()));
+		stateManager.addChat(ownerSession.toString(), subagentUri, creationTimeChatStorageResource(ownerSession.toString(), subagentUri), {
 			origin: { kind: ChatOriginKind.Tool, chat: parentUri.toString(), toolCallId },
 		});
 		await agent.materializeChat(parentUri, { configurationResource: ownerSession, resource: parentUri }, JSON.stringify({ sdkSessionId: parentSessionId }));
@@ -8493,6 +8590,46 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 
 		assert.deepStrictEqual(turns, []);
 		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'provisional chat must not hit SDK');
+	});
+
+	test('getMessages restores retained Bash output from the chat database', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('u1');
+		await database.storeTerminalOutput('u1', 'toolu_bash', VSBuffer.fromString('full output').buffer);
+		const { agent, sdk } = createTestContext(disposables, { database });
+		const sessionId = 'phase13-retained-output';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'run it'),
+			{
+				...makeAssistantMessage(sessionId, [
+					{ type: 'tool_use', id: 'toolu_bash', name: 'Bash', input: { command: 'build' } },
+				]),
+				parent_agent_id: null,
+			},
+			{
+				...makeUserToolResultMessage(sessionId, 'toolu_bash', 'Output too large'),
+				parent_agent_id: null,
+				session_id: sessionId,
+				uuid: 'bash-result',
+			},
+		]);
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		const chat = defaultChatUri(sessionUri);
+		await bindDefaultChat(agent, sessionUri);
+
+		const turns = await agent.chats.getMessages(chat, chatContext(chat));
+
+		const toolCall = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(toolCall?.kind === ResponsePartKind.ToolCall && toolCall.toolCall.status === ToolCallStatus.Completed ? toolCall.toolCall.content : undefined, [
+			{ type: ToolResultContentType.Text, text: 'Output too large' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chat, 'toolu_bash'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, truncated: true },
+			},
+		]);
 	});
 
 	test('getMessages returns [] on SDK fetch failure (warn-logged)', async () => {
@@ -8603,6 +8740,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
 			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
@@ -8641,8 +8779,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			const explicit = explicitContext && !URI.isUri(explicitContext) ? explicitContext : undefined;
 			const session = explicit?.configurationResource
 				?? (explicitContext && URI.isUri(explicitContext) ? explicitContext : undefined)
-				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
-			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
+				?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
+			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString())), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
@@ -11195,7 +11333,7 @@ suite('ClaudeAgent — host seams', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.addChat(session.toString(), subagentChat.toString(), {
+		stateManager.addChat(session.toString(), subagentChat.toString(), creationTimeChatStorageResource(session.toString(), subagentChat.toString()), {
 			origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri(session).toString(), toolCallId: 'tool-call-1' },
 		});
 

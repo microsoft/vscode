@@ -24,12 +24,12 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
 	isAhpChatChannel,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
@@ -38,6 +38,7 @@ import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './ag
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -212,6 +213,7 @@ export class SessionPermissionManager extends Disposable {
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -262,7 +264,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._sessionStateOf(sessionKey)?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -306,8 +310,8 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+			const owner = this._ownerOf(sessionKey);
+			if (owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -361,8 +365,8 @@ export class SessionPermissionManager extends Disposable {
 	 * not fall back to unscoped editing, so no write auto-approves for it.
 	 */
 	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
-		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		const session = this._ownerOf(sessionKey);
+		const surface = session === undefined ? undefined : this._stateManager.getSessionSurfaceMeta(session);
 		if (surface?.surface !== 'editorInline') {
 			return undefined;
 		}
@@ -393,8 +397,8 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind !== 'write' || !e.permissionPath) {
 			return false;
 		}
-		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+		const owner = this._ownerOf(sessionKey);
+		return owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath);
 	}
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
@@ -415,12 +419,34 @@ export class SessionPermissionManager extends Disposable {
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
+	/** The session that owns a chat, or the session itself; `undefined` for an unregistered chat. */
+	private _ownerOf(sessionOrChat: ProtocolURI): string | undefined {
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.getChatOwner(sessionOrChat) : sessionOrChat;
+	}
+
+	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._chatOwnership.getChatOwner(chat))?.toString();
+	}
+
+	private _sessionStateOf(sessionOrChat: ProtocolURI): ReturnType<AgentHostStateManager['getSessionState']> {
+		const session = this._resolveSession(sessionOrChat);
+		return session === undefined ? undefined : this._stateManager.getSessionState(session);
+	}
+
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const config = this._sessionStateOf(sessionKey)?.config;
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const effective = config.values.effectiveApprovalMode;
+			const approval = getSessionApprovalProperty(config.schema);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
@@ -460,7 +486,7 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
+				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
 					? MANAGED_CONFIRMATION_OPTIONS.slice()
 					: state.options
 						? state.options.slice()
@@ -491,7 +517,11 @@ export class SessionPermissionManager extends Disposable {
 		if (!isAhpChatChannel(chatChannel)) {
 			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
 		}
-		const sessionKey = resolveAgentHostSession(URI.parse(chatChannel)).toString();
+		const sessionKey = this._resolveSession(chatChannel);
+		if (sessionKey === undefined) {
+			this._logService.trace(`[SessionPermissions] No owner recorded for ${chatChannel}; ignoring confirmation of ${toolCallId}`);
+			return;
+		}
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
 			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
 			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {

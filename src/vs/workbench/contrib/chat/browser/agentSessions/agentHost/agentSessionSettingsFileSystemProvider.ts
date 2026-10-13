@@ -173,14 +173,14 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 			return;
 		}
 
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, current.schema);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(current.schema.properties)) {
 			if (sessionSettingsPropertyFilter(key, schema)) {
 				if (Object.hasOwn(values, key)) {
 					nextValues[key] = normalizeSessionConfigValue(key, values[key], policyRestricted);
 				}
-			} else if (Object.hasOwn(current.values, key)) {
+			} else if (key !== 'availableApprovalModes' && key !== 'effectiveApprovalMode' && Object.hasOwn(current.values, key)) {
 				nextValues[key] = current.values[key];
 			}
 		}

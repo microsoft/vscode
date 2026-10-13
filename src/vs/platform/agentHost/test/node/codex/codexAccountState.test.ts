@@ -13,33 +13,33 @@ suite('CodexAccountState', () => {
 
 	test('maps ChatGPT identities as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'private@example.com', planType: 'plus', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: undefined, planType: 'team', requiresOpenaiAuth: true },
 		);
 	});
 
 	test('distinguishes required sign-in from providers without OpenAI auth', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedOut', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false }),
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', requiresOpenaiAuth: false },
 		);
 	});
 
 	test('does not classify API key or Bedrock credentials as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false }),
+			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'other', requiresOpenaiAuth: false },
 		);
 	});
@@ -49,6 +49,7 @@ suite('CodexAccountState', () => {
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
 				secondary: null,
 				credits: null,
@@ -57,10 +58,12 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: { usedPercent: 21, windowDurationMins: 300, resetsAt: 200 },
 					secondary: { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: 300 },
 					credits: null,
@@ -89,6 +92,7 @@ suite('CodexAccountState', () => {
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
 				secondary: null,
 				credits: null,
@@ -97,6 +101,7 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
@@ -113,9 +118,10 @@ suite('CodexAccountState', () => {
 		];
 		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitsFromResponse({
 			rateLimits: {
-				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				limitId: null, limitName: null, normalModelSlug: null, primary, secondary: null, credits: null,
 				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
 		})), invalidWindows.map(() => []));
 	});
@@ -125,6 +131,7 @@ suite('CodexAccountState', () => {
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 },
 				secondary: null,
 				credits: null,
@@ -133,10 +140,12 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: null,
 					secondary: null,
 					credits: null,
@@ -157,6 +166,7 @@ suite('CodexAccountState', () => {
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary,
 				secondary: { usedPercent: NaN, windowDurationMins: 10080, resetsAt: 400 },
 				credits: null,
@@ -165,6 +175,7 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,

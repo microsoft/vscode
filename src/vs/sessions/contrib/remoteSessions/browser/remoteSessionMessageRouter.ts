@@ -220,9 +220,9 @@ export class RemoteSessionMessageRouter {
 			const connection = target.host.connection;
 			const session = store.add(connection.getSubscription(StateComponents.Session, target.host.backendSession, 'RemoteSessionMessageRouter'));
 			const sessionState = await readRemoteSessionState(session.object, cancellation.token, true);
+			// A chat listed in the backend session's catalog belongs to that session.
 			const chatResource = getSessionChatResource(sessionState, target.chat.fragment || DEFAULT_CHAT_ID);
-			const identity = chatResource ? parseChatUri(chatResource) : undefined;
-			if (!chatResource || !identity || !isEqual(URI.parse(identity.session), target.host.backendSession)) {
+			if (!chatResource || !parseChatUri(chatResource)) {
 				throw new Error(localize('remoteMessage.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionMessageRouter'));

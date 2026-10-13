@@ -1,0 +1,37 @@
+steps:
+  - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts
+    condition: succeededOrFailed()
+    displayName: "✍️ Post-job: Codesign deb & rpm"
+
+  - script: |
+      set -e
+
+      mkdir -p $(Build.ArtifactStagingDirectory)/out/client
+      mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
+
+      if [ "$(VSCODE_ARCH)" != "armhf" ]; then
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/server
+        mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/server/$(basename $(SERVER_PATH))
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/web
+        mv $(WEB_PATH) $(Build.ArtifactStagingDirectory)/out/web/$(basename $(WEB_PATH))
+      fi
+
+      mkdir -p $(Build.ArtifactStagingDirectory)/out/deb
+      mv $(DEB_PATH) $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
+
+      mkdir -p $(Build.ArtifactStagingDirectory)/out/rpm
+      mv $(RPM_PATH) $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
+
+      if [ -n "$SNAP_PATH" ]; then
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/snap
+        mv $(SNAP_PATH) $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
+      fi
+
+      # SBOM generation uses hard links which are not supported by the Linux kernel
+      # for files that have the SUID bit set, so we need to remove the SUID bit from
+      # the chrome-sandbox file.
+      sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+      sudo chmod u-s $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+      sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+    displayName: Move artifacts to out directory

@@ -230,7 +230,7 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: 1es-windows-2022-x64
+      sourceAnalysisPool: 1es-windows-2022-x64-wus3
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
@@ -341,7 +341,7 @@ extends:
         - stage: Windows
           dependsOn: []
           pool:
-            name: 1es-windows-2022-x64
+            name: 1es-windows-2022-x64-wus3
             os: windows
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -350,25 +350,50 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: true
+                  VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
 
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Electron
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_TEST_IDS:
+                  - unit-electron
+                  - unit-node
+                  - unit-browser-chromium
+                  - copilot
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Browser
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-firefox
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Remote
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
+          displayName: Linux X64
           dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
@@ -385,20 +410,44 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Electron
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_TEST_IDS:
+                  - unit-electron
+                  - unit-node
+                  - unit-browser-chromium
+                  - copilot
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Browser
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-chromium
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Remote
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
+          displayName: macOS ARM64
           dependsOn: []
           pool:
             name: AcesShared
@@ -408,25 +457,49 @@ extends:
           variables:
             BUILDSECMON_OPT_IN: true
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
                 parameters:
-                  VSCODE_ARCH: x64
+                  VSCODE_ARCH: arm64
                   VSCODE_CHECK_ONLY: true
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
-                VSCODE_TEST_SUITE: Electron
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_TEST_IDS:
+                  - unit-electron
+                  - unit-node
+                  - unit-browser-webkit
+                  - copilot
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
-                VSCODE_TEST_SUITE: Browser
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-webkit
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
-                VSCODE_TEST_SUITE: Remote
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+                  - smoke-agents-pac-proxy
+                  - smoke-agents-kerberos-pac-proxy
 
 
       - stage: node_modules
@@ -435,6 +508,7 @@ extends:
           - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
             parameters:
               VSCODE_ARCH: arm64
+              VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
           - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
             parameters:
               NPM_ARCH: arm64

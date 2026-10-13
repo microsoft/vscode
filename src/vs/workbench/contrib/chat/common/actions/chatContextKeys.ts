@@ -62,6 +62,7 @@ export namespace ChatContextKeys {
 	export const inChatComposer = new RawContextKey<boolean>('inChatComposer', false, { type: 'boolean', description: localize('inChatComposer', "True when focus is in an Agents window chat composer or one of the notices above it.") });
 	export const multipleChatTips = new RawContextKey<boolean>('multipleChatTips', false, { type: 'boolean', description: localize('multipleChatTips', "True when there are multiple chat tips available.") });
 	export const inChatTerminalToolOutput = new RawContextKey<boolean>('inChatTerminalToolOutput', false, { type: 'boolean', description: localize('inChatTerminalToolOutput', "True when focus is in the chat terminal output region.") });
+	export const inChatBackgroundShellOutput = new RawContextKey<boolean>('inChatBackgroundShellOutput', false, { type: 'boolean', description: localize('inChatBackgroundShellOutput', "True when focus is in a background shell's output in the Background Shells details.") });
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
 	export const chatPermissionLevel = new RawContextKey<ChatPermissionLevel>('chatPermissionLevel', ChatPermissionLevel.Default, { type: 'string', description: localize('chatPermissionLevel', "The current permission level for tool auto-approval.") });
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });
@@ -172,6 +173,7 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
+	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
 	/**

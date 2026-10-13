@@ -13,6 +13,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { resolveDevContainerSourceWorkspace } from '../../../../../browser/openInVSCodeUtils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -161,6 +162,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	status = RemoteAgentHostConnectionStatus.disconnected;
 	disposed = false;
 	clearConnectionCalls = 0;
+	sandboxSupported: boolean | undefined;
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
@@ -174,6 +176,10 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.status = status;
+	}
+
+	override setDevContainerSandboxSupported(supported: boolean | undefined): void {
+		this.sandboxSupported = supported;
 	}
 
 	override clearConnection(): void {
@@ -216,6 +222,239 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('publishes inspected sandbox support even when the first connection fails', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService, store.add(new TestRemoteAgentHostService()), store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService()),
+		));
+		const source = URI.file('/unsupported-project');
+		const changes = store.add(new Emitter<{ workspaceUri: URI; supported: boolean }>());
+		const observed: (boolean | undefined)[] = [];
+		store.add(service.onDidChangeAvailability(() => observed.push(service.getSandboxSupported(source))));
+		const connector = {
+			isAvailable: async () => true,
+			showLog: async () => { },
+			onDidChangeSandboxSupport: changes.event,
+			createConnection: async () => {
+				changes.fire({ workspaceUri: source, supported: false });
+				throw new Error('Unsupported sandbox startup');
+			},
+		};
+		store.add(service.registerConnector(connector));
+		observed.length = 0;
+		await assert.rejects(service.connect(source, CancellationToken.None, { sandboxEnabled: true }), /Unsupported sandbox startup/);
+		assert.deepStrictEqual({ support: service.getSandboxSupported(source), observed }, { support: false, observed: [false] });
+	});
+
+	for (const supported of [false, true]) {
+		test(`preserves inspection notifications when the connection result omits support (supported: ${supported})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/notified-project');
+			const changes = store.add(new Emitter<{ workspaceUri: URI; supported: boolean }>());
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				onDidChangeSandboxSupport: changes.event,
+				createConnection: async (_workspace, address) => {
+					changes.fire({ workspaceUri: source, supported });
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never };
+				},
+				stopContainer: async () => true,
+			}));
+			const target = await service.connect(source, CancellationToken.None);
+			assert.deepStrictEqual({ knownSupport: service.getSandboxSupported(source), providerSupport: service.provider?.sandboxSupported }, { knownSupport: supported, providerSupport: supported });
+			await target.release();
+		});
+	}
+
+	for (const initialSupport of [false, true]) {
+		test(`keeps soft reconnect inspection authoritative (initial support: ${initialSupport})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/soft-reconnect-project');
+			const changes = store.add(new Emitter<{ workspaceUri: URI; supported: boolean }>());
+			let connectorCalls = 0;
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				onDidChangeSandboxSupport: changes.event,
+				createConnection: async (_workspace, address) => {
+					connectorCalls++;
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported: initialSupport };
+				},
+				stopContainer: async () => true,
+			}));
+			const target = await service.connect(source, CancellationToken.None);
+			remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+			changes.fire({ workspaceUri: source, supported: !initialSupport });
+			remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			assert.deepStrictEqual({
+				knownSupport: service.getSandboxSupported(source),
+				providerSupport: service.provider?.sandboxSupported,
+				connectorCalls,
+			}, { knownSupport: !initialSupport, providerSupport: !initialSupport, connectorCalls: 1 });
+			await target.release();
+		});
+	}
+
+	for (const sandboxEnabled of [false, true]) {
+		test(`restores the requested sandbox startup choice after archival and window restoration (requested: ${sandboxEnabled})`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const source = URI.file('/restored-sandbox-project');
+			const firstInstantiation = store.add(new TestInstantiationService());
+			const firstService = store.add(new TestDevContainerAgentHostService(firstInstantiation, store.add(new TestRemoteAgentHostService()), store.add(new TestSessionsProvidersService()), storage));
+			firstInstantiation.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(firstService.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address) => ({
+					address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }),
+					transportFactory: () => undefined as never, sandboxSupported: !sandboxEnabled,
+				}),
+				stopContainer: async () => true,
+				removeContainer: async () => true,
+			}));
+			const target = await firstService.connect(source, CancellationToken.None, { sandboxEnabled });
+			firstService.provider!.publishSession();
+			await target.release();
+			assert.strictEqual(await firstService.provider!.config.devContainerLifecycle!.remove(), true);
+			firstService.dispose();
+
+			const restoredInstantiation = store.add(new TestInstantiationService());
+			const restoredService = store.add(new TestDevContainerAgentHostService(restoredInstantiation, store.add(new TestRemoteAgentHostService()), store.add(new TestSessionsProvidersService()), storage));
+			const options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }[] = [];
+			restoredInstantiation.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(restoredService.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address, _token, requested) => {
+					options.push(requested!);
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported: sandboxEnabled };
+				},
+				stopContainer: async () => true,
+			}));
+			assert.ok(restoredService.provider);
+			await restoredService.provider.config.connectOnDemand!();
+			assert.deepStrictEqual(options, [{ resume: true, sandboxEnabled }]);
+		});
+	}
+
+	for (const sandboxEnabled of [false, true]) {
+		test(`retains requested sandbox startup on lifecycle recreation (requested: ${sandboxEnabled})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/recreated-project');
+			const options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }[] = [];
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address, _token, requested) => {
+					options.push(requested!);
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported: options.length === 1 ? !sandboxEnabled : sandboxEnabled };
+				},
+				stopContainer: async () => true,
+				removeContainer: async () => true,
+			}));
+			const target = await service.connect(source, CancellationToken.None, { sandboxEnabled });
+			const lifecycle = service.provider!.config.devContainerLifecycle!;
+			await target.release();
+			assert.strictEqual(await lifecycle.remove(), true);
+			assert.strictEqual(service.getSandboxSupported(source), undefined);
+			await lifecycle.connect();
+			assert.deepStrictEqual(options, [{ resume: true, sandboxEnabled }, { resume: true, sandboxEnabled }]);
+			assert.strictEqual(service.getSandboxSupported(source), sandboxEnabled);
+		});
+
+		test(`factory reconnect keeps the request separate from support (requested: ${sandboxEnabled})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/factory-reconnect-project');
+			const options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }[] = [];
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address, _token, requested) => {
+					options.push(requested!);
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported: options.length === 1 ? !sandboxEnabled : sandboxEnabled };
+				},
+				stopContainer: async () => true,
+			}));
+			const target = await service.connect(source, CancellationToken.None, { sandboxEnabled });
+			remoteService.reconnect(devContainerAddress(source));
+			await remoteService.waitForConnection(devContainerAddress(source));
+			assert.deepStrictEqual(options, [{ resume: true, sandboxEnabled }, { resume: true, sandboxEnabled }]);
+			assert.strictEqual(service.getSandboxSupported(source), sandboxEnabled);
+			await target.release();
+		});
+	}
+
+	test('preserves unknown support on a factory reconnect without an inspection result', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		const providersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+		const source = URI.file('/older-host-project');
+		let calls = 0;
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspace, address) => ({
+				address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }),
+				transportFactory: () => undefined as never, sandboxSupported: ++calls === 1 ? true : undefined,
+			}),
+			stopContainer: async () => true,
+		}));
+		const target = await service.connect(source, CancellationToken.None);
+		remoteService.reconnect(devContainerAddress(source));
+		await remoteService.waitForConnection(devContainerAddress(source));
+		assert.deepStrictEqual({ knownSupport: service.getSandboxSupported(source), providerSupport: service.provider?.sandboxSupported }, { knownSupport: undefined, providerSupport: undefined });
+		await target.release();
+	});
+
+	for (const sandboxSupported of [undefined, false, true]) {
+		test(`preserves sandbox startup options and permits reuse while reporting support (supported: ${sandboxSupported})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/sandbox-project');
+			const options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }[] = [];
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address, _token, requested) => {
+					options.push(requested!);
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported };
+				},
+				stopContainer: async () => true,
+			}));
+			const first = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
+			const reused = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
+			await reused.release();
+			assert.deepStrictEqual({
+				options,
+				knownSupport: service.getSandboxSupported(source),
+				providerSupport: service.provider?.sandboxSupported,
+			}, { options: [{ resume: true, sandboxEnabled: true }], knownSupport: sandboxSupported, providerSupport: sandboxSupported });
+			await first.release();
+		});
+	}
 
 	test('registers a runtime provider around a factory-owned Agent Host connection', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -562,6 +801,24 @@ suite('Dev Container Agent Host Service', () => {
 			status: RemoteAgentHostConnectionStatus.disconnected,
 			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
 		});
+	});
+
+	test('restores sample providers lazily without a host worktree scope', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const source = devContainerSampleUri(devContainerSamples[0]);
+		storageService.store('devContainerAgentHost.connections', JSON.stringify([{ workspaceUri: source.toString(), name: 'Go Sample' }]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+		assert.deepStrictEqual(providersService.getProviders().map(provider => ({
+			status: provider instanceof TestProvider ? provider.status : undefined,
+			source: resolveDevContainerSourceWorkspace(provider)?.folderUri.toString(),
+			scope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
+		})), [{ status: RemoteAgentHostConnectionStatus.disconnected, source: source.toString(), scope: undefined }]);
 	});
 
 	test('restores remote container source identities without merging identical paths on different hosts', async () => {

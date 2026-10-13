@@ -15,8 +15,9 @@ import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../com
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
 import { SessionStatus, buildChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function createNoopGitStateService(): IAgentHostGitStateService {
 	return {
@@ -26,6 +27,7 @@ function createNoopGitStateService(): IAgentHostGitStateService {
 		refreshSessionGitState: async () => { },
 		getSessionGitState: () => undefined,
 		getMaterializedWorktreeMeta: () => undefined,
+		setFolderGitState: async () => { },
 		resolveSessionBaseBranchName: async () => undefined,
 		setSessionGitHubState: async () => { },
 		recordSessionMerge: async () => { },
@@ -55,7 +57,7 @@ suite('AgentHostReviewService', () => {
 			branchName: 'session-feature',
 			baseBranchName: 'session-main',
 		}));
-		stateManager.addChat(session, chat, { workingDirectories: ['file:///chat'] });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///chat'] });
 
 		const openedDatabases: string[] = [];
 		const sessionDataService = createSessionDataService(new TestSessionDatabase());
@@ -77,6 +79,7 @@ suite('AgentHostReviewService', () => {
 			refreshSessionGitState: async () => { },
 			getSessionGitState: owner => owner === chat ? chatGitState : undefined,
 			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
@@ -105,6 +108,7 @@ suite('AgentHostReviewService', () => {
 			dataService,
 			gitStateService,
 			logService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.setReviewState(buildBranchChangesetUri(folderOwner), ['file:///chat/file.ts'], true);
@@ -161,6 +165,7 @@ suite('AgentHostReviewService', () => {
 			createSessionDataService(new TestSessionDatabase()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.getReviewedPaths(folderOwner, workingDirectory, 'main');
@@ -190,6 +195,7 @@ suite('AgentHostReviewService', () => {
 			createSessionDataService(new TestSessionDatabase()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.copyReviewedRef(sourceSession, targetSession, workingDirectories, workingDirectories);
@@ -229,10 +235,92 @@ suite('AgentHostReviewService', () => {
 			createSessionDataService(new TestSessionDatabase()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.disposeSessionData(session, [workingDirectory.toString()]);
 
-		assert.deepStrictEqual(deletedRefs[0].includes(staleFolderRef) && deletedRefs[0].includes(staleChatRef), true);
+		assert.deepStrictEqual(deletedRefs, [[staleFolderRef, staleChatRef]]);
 	});
+
+	test('does not delete refs when the session has no reviewed refs', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const calls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async resource => resource;
+		gitService.listRefNamesWithOids = async (_root, pattern) => {
+			calls.push(pattern);
+			return [];
+		};
+		gitService.deleteRefs = async () => { calls.push('deleteRefs'); };
+		const service = disposables.add(new AgentHostReviewService(
+			stateManager,
+			gitService,
+			createSessionDataService(new TestSessionDatabase()),
+			createNoopGitStateService(),
+			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
+		));
+
+		await service.disposeSessionData('mock:/session', ['file:///workspace']);
+
+		assert.deepStrictEqual(calls, ['refs/agents/session*/reviewed']);
+	});
+
+	test('deletes only existing session review refs in each repository', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionRef = buildReviewedRefName('session');
+		const folderRef = buildReviewedRefName('session-workspace-stale');
+		const chatRef = buildReviewedRefName('session-chat-stale');
+		const deletedRefs: Array<{ root: string; refs: readonly string[] }> = [];
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async resource => resource;
+		gitService.listRefNamesWithOids = async root => (root.path === '/workspace-a'
+			? [sessionRef, folderRef, 'refs/agents/session2/reviewed', 'refs/agents/session-chat-stale/checkpoints/turn/0']
+			: [chatRef]
+		).map(ref => ({ ref, oid: 'commit' }));
+		gitService.deleteRefs = async (root, refs) => { deletedRefs.push({ root: root.toString(), refs }); };
+		const service = disposables.add(new AgentHostReviewService(
+			stateManager,
+			gitService,
+			createSessionDataService(new TestSessionDatabase()),
+			createNoopGitStateService(),
+			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
+		));
+
+		await service.disposeSessionData('mock:/session', ['file:///workspace-a', 'file:///workspace-b']);
+
+		assert.deepStrictEqual(deletedRefs, [
+			{ root: 'file:///workspace-a', refs: [sessionRef, folderRef] },
+			{ root: 'file:///workspace-b', refs: [chatRef] },
+		]);
+	});
+
+	for (const enumeration of ['unavailable', 'failed']) {
+		test(`retains known-ref cleanup when enumeration is ${enumeration}`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const workingDirectories = ['file:///workspace'];
+			const deletedRefs: string[][] = [];
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async resource => resource;
+			gitService.listRefNamesWithOids = enumeration === 'unavailable' ? undefined : async () => { throw new Error('Git enumeration failed'); };
+			gitService.deleteRefs = async (_root, refs) => { deletedRefs.push([...refs]); };
+			const service = disposables.add(new AgentHostReviewService(
+				stateManager,
+				gitService,
+				createSessionDataService(new TestSessionDatabase()),
+				createNoopGitStateService(),
+				new NullLogService(),
+				createTestChatOwnershipService(stateManager),
+			));
+
+			await service.disposeSessionData('mock:/session', workingDirectories);
+
+			assert.deepStrictEqual(deletedRefs, [[
+				buildReviewedRefName('session'),
+				buildReviewedRefName(`session-workspace-${getWorkingDirectoryScopeId(workingDirectories)}`),
+			]]);
+		});
+	}
 });
