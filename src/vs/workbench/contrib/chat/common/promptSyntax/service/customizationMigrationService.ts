@@ -129,6 +129,12 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly settingVariables?: readonly IMcpServerCustomizationMigrationSettingVariable[];
 	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
 	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
+	/** The OAuth client of a remote server, which the projected configuration does not include. */
+	readonly oauth?: IMcpServerCustomizationMigrationOAuthClient;
+}
+
+export interface IMcpServerCustomizationMigrationOAuthClient {
+	readonly clientId: string;
 }
 
 export function getMcpServerCustomizationMigrationCandidateKey(candidate: IMcpServerCustomizationMigrationCandidate): string {
@@ -185,6 +191,10 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	UnsupportedVariable = 'unsupportedVariable',
 	/** An input's default cannot be written to the destination, or a `pickString` default is not one of its options. */
 	UnsupportedInputDefault = 'unsupportedInputDefault',
+	/** The server uses enterprise-managed OAuth, which relies on a VS Code setting that the destination does not have. */
+	EnterpriseManagedOAuth = 'enterpriseManagedOAuth',
+	/** VS Code stores a client secret for the server's OAuth client, which the destination cannot use. */
+	OAuthClientSecret = 'oauthClientSecret',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',
 	/** An existing destination cannot be read or parsed as a supported MCP configuration document. */
