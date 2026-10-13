@@ -5,6 +5,7 @@
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -41,6 +42,7 @@ import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUr
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillControl.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
@@ -741,6 +743,12 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
+		const targetWindow = getWindow(this._widget.inputPart.persistentContentContainerElement);
+		// Canvases are only presented in the main window, beside their owning chat.
+		const presentsCanvases = !isAuxiliaryWindow(targetWindow);
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		const canvases = this._register(instantiationService.createInstance(CanvasesPillControl, derived(this, reader =>
+			presentsCanvases ? chatModel.read(reader)?.canvasContext?.read(reader) : undefined)));
 		const subagents = derived<readonly IChatSubagentPillEntry[]>(this, reader => {
 			const parentSession = sessionResource.read(reader);
 			const parentChat = chatResource.read(reader);
@@ -807,6 +815,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },
 			customizations: sessionCustomizations,
+			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
 			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
 			backgroundShells,
@@ -814,11 +823,14 @@ export class AgentHostSessionInputPills extends Disposable {
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
-			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
+			targetWindow,
 			enabled: constObservable(true),
-			sources: derived(this, reader => subagentChat.read(reader)
-				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
-				: sources.sources),
+			sources: derived(this, reader => {
+				if (subagentChat.read(reader)) {
+					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
+				}
+				return canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));
