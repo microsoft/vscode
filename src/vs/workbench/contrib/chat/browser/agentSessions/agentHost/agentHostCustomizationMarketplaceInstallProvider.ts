@@ -82,23 +82,23 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		return undefined;
 	}
 
-	async list() {
+	async list(sessionResource: URI) {
 		if (!this.agentHostService.listPluginMarketplaces) {
 			throw new Error(localize('agentHost.marketplaceManagement.listUnavailable', "The selected agent does not support marketplace management."));
 		}
-		return this.agentHostService.listPluginMarketplaces(this.providerId);
+		return this.agentHostService.listPluginMarketplaces(this.providerId, this.getBackendSession(sessionResource), sessionResource);
 	}
 
-	async add(source: string) {
+	async add(sessionResource: URI, source: string) {
 		if (!this.agentHostService.addPluginMarketplace) {
 			throw new Error(localize('agentHost.marketplaceManagement.addUnavailable', "The selected agent does not support adding marketplaces."));
 		}
-		const result = await this.agentHostService.addPluginMarketplace(this.providerId, source);
+		const result = await this.agentHostService.addPluginMarketplace(this.providerId, this.getBackendSession(sessionResource), source, sessionResource);
 		this._onDidChange.fire();
 		return result;
 	}
 
-	async queryMarketplace(marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
+	async queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
 		this.throwIfCancelled(token);
 		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.CopilotPlugin) {
 			return { items: [], total: 0 };
@@ -106,7 +106,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!this.agentHostService.browsePluginMarketplace) {
 			throw new Error(localize('agentHost.marketplaceManagement.browseUnavailable', "The selected agent does not support browsing marketplaces."));
 		}
-		const plugins = await this.agentHostService.browsePluginMarketplace(this.providerId, marketplace.name);
+		const plugins = await this.agentHostService.browsePluginMarketplace(this.providerId, this.getBackendSession(sessionResource), marketplace.name, sessionResource);
 		this.throwIfCancelled(token);
 		const query = options.query?.trim().toLowerCase();
 		const matching = query
@@ -138,22 +138,22 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		};
 	}
 
-	async remove(name: string, force?: boolean) {
+	async remove(sessionResource: URI, name: string, force?: boolean) {
 		if (!this.agentHostService.removePluginMarketplace) {
 			throw new Error(localize('agentHost.marketplaceManagement.removeUnavailable', "The selected agent does not support removing marketplaces."));
 		}
-		const result = await this.agentHostService.removePluginMarketplace(this.providerId, name, force);
+		const result = await this.agentHostService.removePluginMarketplace(this.providerId, this.getBackendSession(sessionResource), name, force, sessionResource);
 		if (result.removed) {
 			this._onDidChange.fire();
 		}
 		return result;
 	}
 
-	async refresh(name?: string) {
+	async refresh(sessionResource: URI, name?: string) {
 		if (!this.agentHostService.refreshPluginMarketplaces) {
 			throw new Error(localize('agentHost.marketplaceManagement.refreshUnavailable', "The selected agent does not support refreshing marketplaces."));
 		}
-		const result = await this.agentHostService.refreshPluginMarketplaces(this.providerId, name);
+		const result = await this.agentHostService.refreshPluginMarketplaces(this.providerId, this.getBackendSession(sessionResource), name, sessionResource);
 		this._onDidChange.fire();
 		return result;
 	}
@@ -313,7 +313,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (!this.agentHostService.installPlugin) {
 				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
 			}
-			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` }, this.getBackendSession(sessionResource), sessionResource);
 			await this.waitForPluginInventory({ name: installation.name, marketplace: installation.marketplace }, true, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();
@@ -323,7 +323,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (!this.agentHostService.installPlugin) {
 				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
 			}
-			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` }, this.getBackendSession(sessionResource), sessionResource);
 			await this.waitForPluginInventory({ name: installation.name, marketplace: installation.marketplace }, true, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();
@@ -380,7 +380,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				name: identity.name,
 				marketplace: identity.marketplace,
 				directSourceId: identity.directSourceId,
-			});
+			}, this.getBackendSession(sessionResource), sessionResource);
 			await this.waitForPluginInventory(identity, false, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();

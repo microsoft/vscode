@@ -2799,49 +2799,56 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, ['copilot', 'other']);
 		});
 
-		test('uninstalls plugins through the owning provider', async () => {
+		test('installs and uninstalls plugins through the owning provider', async () => {
 			const calls: unknown[] = [];
+			const session = URI.parse('agent-host-copilotcli:/session');
 			const provider: IAgent = copilotAgent;
-			provider.uninstallPlugin = async request => { calls.push(request); };
+			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
+			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
-			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' });
+			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
+			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
 
-			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
+			assert.deepStrictEqual(calls, [
+				['install', { source: 'spark@copilot-plugins' }, session.toString()],
+				['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
+			]);
 		});
 
 		test('manages plugin marketplaces through the owning provider', async () => {
 			const calls: unknown[] = [];
+			const session = URI.parse('agent-host-copilotcli:/session');
 			const provider: IAgent = copilotAgent;
-			provider.listPluginMarketplaces = async () => {
-				calls.push(['list']);
+			provider.listPluginMarketplaces = async session => {
+				calls.push(['list', session.toString()]);
 				return [{ name: 'marketplace', source: 'owner/repository', isDefault: false, managed: false, available: true }];
 			};
-			provider.addPluginMarketplace = async source => {
-				calls.push(['add', source]);
+			provider.addPluginMarketplace = async (session, source) => {
+				calls.push(['add', session.toString(), source]);
 				return { name: 'marketplace', source, isDefault: false, managed: false, available: true };
 			};
-			provider.browsePluginMarketplace = async name => {
-				calls.push(['browse', name]);
+			provider.browsePluginMarketplace = async (session, name) => {
+				calls.push(['browse', session.toString(), name]);
 				return [{ name: 'plugin', description: 'Plugin description' }];
 			};
-			provider.removePluginMarketplace = async (name, force) => {
-				calls.push(['remove', name, force]);
+			provider.removePluginMarketplace = async (session, name, force) => {
+				calls.push(['remove', session.toString(), name, force]);
 				return { removed: true };
 			};
-			provider.refreshPluginMarketplaces = async name => {
-				calls.push(['refresh', name]);
+			provider.refreshPluginMarketplaces = async (session, name) => {
+				calls.push(['refresh', session.toString(), name]);
 				return [{ name: name ?? 'marketplace', success: true }];
 			};
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
-			const listed = await managementService.listPluginMarketplaces(provider.id);
-			const added = await managementService.addPluginMarketplace(provider.id, 'owner/repository');
-			const browsed = await managementService.browsePluginMarketplace(provider.id, 'marketplace');
-			const removed = await managementService.removePluginMarketplace(provider.id, 'marketplace', true);
-			const refreshed = await managementService.refreshPluginMarketplaces(provider.id, 'marketplace');
+			const listed = await managementService.listPluginMarketplaces(provider.id, session);
+			const added = await managementService.addPluginMarketplace(provider.id, session, 'owner/repository');
+			const browsed = await managementService.browsePluginMarketplace(provider.id, session, 'marketplace');
+			const removed = await managementService.removePluginMarketplace(provider.id, session, 'marketplace', true);
+			const refreshed = await managementService.refreshPluginMarketplaces(provider.id, session, 'marketplace');
 
 			assert.deepStrictEqual({
 				listed,
@@ -2857,11 +2864,11 @@ suite('AgentService (node dispatcher)', () => {
 				removed: { removed: true },
 				refreshed: [{ name: 'marketplace', success: true }],
 				calls: [
-					['list'],
-					['add', 'owner/repository'],
-					['browse', 'marketplace'],
-					['remove', 'marketplace', true],
-					['refresh', 'marketplace'],
+					['list', session.toString()],
+					['add', session.toString(), 'owner/repository'],
+					['browse', session.toString(), 'marketplace'],
+					['remove', session.toString(), 'marketplace', true],
+					['refresh', session.toString(), 'marketplace'],
 				],
 			});
 		});
