@@ -15,13 +15,11 @@ export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsServi
 
 export interface IMarkerLimit {
 	/**
-	 * Are the marker sources (ie diagnostics) for a model truncated?
+	 * Are the marker sources (ie. diagnostics) for a model truncated?
 	 */
 	readonly isMarkersSourceTruncated: boolean;
 	/**
 	 * Are the marker decorations for a model truncated?
-	 * If yes, this will indicate the maximum number of markers that are being displayed.
-	 * Else it will be undefined.
 	 */
 	readonly isMarkersTruncated: number | undefined;
 }
@@ -32,7 +30,7 @@ export interface IMarkerDecorationsService {
 	readonly onDidChangeMarker: Event<ITextModel>;
 
 	/**
-	 * Fires when diagnostics truncation state changes or when the marker decoration limit exceeded state changes.
+	 * Fires when diagnostics truncation state changes or when the marker limit exceeded state changes.
 	 */
 	readonly onDidChangeMarkerLimit: Event<ITextModel>;
 

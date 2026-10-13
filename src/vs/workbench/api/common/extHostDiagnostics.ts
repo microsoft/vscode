@@ -176,7 +176,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		this.#onDidChangeDiagnostics.fire([uri]);
 		this.#data.delete(uri);
-		this.#proxy?.$changeMany(this._owner, [[uri, undefined, false]]);
+		this.#proxy?.$changeMany(this._owner, [[uri, undefined]]);
 	}
 
 	clear(): void {

@@ -25,7 +25,8 @@ const openSettingsCommand = 'workbench.action.openSettings';
 const configureSettingsLabel = nls.localize('status.button.configure', "Configure");
 
 /**
- * Uses the language status indicator to report performance limits for folding ranges, color decorators, and diagnostic highlights.
+ * Uses that language status indicator to show information which language features have been limited for performance reasons.
+ * Currently this is used for folding ranges, for color decorators and for marker decorations.
  */
 export class LimitIndicatorContribution extends Disposable implements IWorkbenchContribution {
 
@@ -62,8 +63,7 @@ export class LimitIndicatorContribution extends Disposable implements IWorkbench
 export interface LimitInfo {
 	readonly onDidChange: Event<void>;
 
-	readonly limited: number | false;
-	readonly detail?: string;
+	readonly limited: number | string | false;
 }
 
 interface LanguageFeatureAccessor {
@@ -121,31 +121,26 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _limited: number | false = false;
-	private _detail: string | undefined;
+	private _limited: string | false = false;
 
-	get limited(): number | false {
+	get limited(): string | false {
 		return this._limited;
 	}
 
-	get detail(): string | undefined {
-		return this._detail;
-	}
-
 	constructor(
-		private readonly editor: ICodeEditor,
-		@IMarkerDecorationsService private readonly markerDecorationsService: IMarkerDecorationsService
+		private readonly _editor: ICodeEditor,
+		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		super();
 
-		this._register(editor.onDidChangeModel(() => this._update()));
-		this._register(editor.onDidChangeConfiguration(e => {
+		this._register(this._editor.onDidChangeModel(() => this._update()));
+		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly)) {
 				this._update();
 			}
 		}));
-		this._register(markerDecorationsService.onDidChangeMarkerLimit(model => {
-			if (model === editor.getModel()) {
+		this._register(_markerDecorationsService.onDidChangeMarkerLimit(model => {
+			if (model === this._editor.getModel()) {
 				this._update();
 			}
 		}));
@@ -153,26 +148,29 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 	}
 
 	private _update(): void {
-		const model = this.editor.getModel();
-		const limitInfo = model && !filterValidationDecorations(this.editor.getOptions())
-			? this.markerDecorationsService.getMarkerLimits(model.uri)
-			: undefined;
-		if (!limitInfo) {
-			this._limited = false;
-			this._detail = undefined;
-			this._onDidChange.fire();
+		const model = this._editor.getModel();
+		if (!model) {
 			return;
 		}
-		const limited = limitInfo.isMarkersTruncated ?? false;
-		const detail = this._getDetail(limited, limitInfo.isMarkersSourceTruncated ?? false);
-		if (limited !== this._limited || detail !== this._detail) {
+		if (filterValidationDecorations(this._editor.getOptions())) {
+			return;
+		}
+		const markerLimit = this._markerDecorationsService.getMarkerLimits(model.uri);
+		if (!markerLimit) {
+			if (this._limited !== false) {
+				this._limited = false;
+				this._onDidChange.fire();
+			}
+			return;
+		}
+		const limited = this._getLimitedMessage(markerLimit.isMarkersTruncated ?? false, markerLimit.isMarkersSourceTruncated ?? false);
+		if (limited !== this._limited) {
 			this._limited = limited;
-			this._detail = detail;
 			this._onDidChange.fire();
 		}
 	}
 
-	private _getDetail(limited: number | false, isMarkersSourceTruncated: boolean): string | undefined {
+	private _getLimitedMessage(limited: number | false, isMarkersSourceTruncated: boolean): string | false {
 		if (isMarkersSourceTruncated && limited !== false) {
 			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some diagnostics are not shown, and only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
 		}
@@ -182,7 +180,7 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 		if (limited !== false) {
 			return nls.localize('status.limitedDiagnosticHighlights.details', "Only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
 		}
-		return undefined;
+		return false;
 	}
 }
 
@@ -221,10 +219,12 @@ class LanguageStatusEntry implements IDisposable {
 			this._limitStatusItem = undefined;
 		}
 		let detail: string | undefined;
-		if (info?.detail !== undefined) {
-			detail = info.detail;
-		} else if (info && info.limited !== false) {
-			detail = nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited);
+		if (info) {
+			detail = typeof info.limited === 'string'
+				? info.limited
+				: info.limited !== false
+					? nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited)
+					: undefined;
 		}
 		if (detail) {
 			const status: ILanguageStatus = {

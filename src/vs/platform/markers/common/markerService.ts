@@ -176,7 +176,7 @@ export class MarkerService implements IMarkerService {
 	}
 
 	isSourceTruncated(resource: URI): boolean {
-		return Iterable.some(this._data.values(resource), markerSet => markerSet.isTruncated);
+		return Iterable.some(this._data.values(resource), markers => markers.isTruncated);
 	}
 
 	remove(owner: string, resources: URI[]): void {
