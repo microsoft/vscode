@@ -155,8 +155,6 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 		},
 		getModelPickerOptions(): ISessionModelPickerOptions {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: true,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 			};
@@ -625,6 +623,65 @@ suite('SessionModelSelection', () => {
 			stored: second.identifier,
 			profileUserKeys: [selectedModelStorageKey],
 			writes: [second.identifier],
+		});
+	});
+
+	test('persists programmatic selection without marking it as a user action', () => {
+		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
+		const sources: ChatModelSource[] = [];
+		const provider = disposables.add(createProvider('provider', (_modelIdentifier, source) => sources.push(source)));
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+
+		const selected = selection.selectModel(second.identifier, false);
+
+		assert.deepStrictEqual({
+			selected,
+			current: selection.state.get().currentModel?.identifier,
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			sources,
+		}, {
+			selected: true,
+			current: second.identifier,
+			stored: second.identifier,
+			sources: [ChatModelSource.Chosen],
+		});
+	});
+
+	test('programmatic selection is not replaced by the configured default on refresh', () => {
+		const third = model('test/third');
+		const testSession = createSession('provider', SessionStatus.Untitled);
+		const provider = disposables.add(createProvider('provider'));
+		provider.models = [first, third];
+		provider.modelsResolved = false;
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(third.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.strictEqual(selection.selectModel(first.identifier, false), true);
+		provider.modelChanges.fire();
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			writes: provider.writes,
+		}, {
+			current: first.identifier,
+			stored: first.identifier,
+			writes: [third.identifier, first.identifier],
 		});
 	});
 
@@ -1190,6 +1247,32 @@ suite('SessionModelSelection', () => {
 			// Nothing is shown while the draft's own model might still arrive.
 			whilePending: undefined,
 			afterResolve: second.identifier,
+		});
+	});
+
+	test('moves a chat whose model is gone for good to the configured default instead of a stand-in', () => {
+		// The chat's model, also the last explicit pick, has been dropped from a settled catalog.
+		const gone = 'test/gone';
+		const testSession = createSession('provider', SessionStatus.Completed, gone);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [auto, first, second];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, gone);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(second.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			writes: provider.writes,
+		}, {
+			current: second.identifier,
+			writes: [second.identifier],
 		});
 	});
 

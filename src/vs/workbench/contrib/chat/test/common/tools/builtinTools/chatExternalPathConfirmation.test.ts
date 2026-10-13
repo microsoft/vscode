@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatExternalPathConfirmationContribution, IExternalPathInfo } from '../../../../common/tools/builtinTools/chatExternalPathConfirmation.js';
 import { ILanguageModelToolConfirmationRef } from '../../../../common/tools/languageModelToolsConfirmationService.js';
@@ -27,7 +28,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		};
 	}
 
-	function createContribution(findGitRoot?: (pathUri: URI) => Promise<URI | undefined>): ChatExternalPathConfirmationContribution {
+	function createContribution(findGitRoot?: (pathUri: URI) => Promise<URI | undefined>, storageService?: IStorageService, pickFolder?: () => Promise<URI | undefined>): ChatExternalPathConfirmationContribution {
 		const getPathInfo = (ref: ILanguageModelToolConfirmationRef): IExternalPathInfo | undefined => {
 			const params = ref.parameters as { filePath?: string; path?: string };
 			if (params?.filePath) {
@@ -43,6 +44,8 @@ suite('ChatExternalPathConfirmationContribution', () => {
 			getPathInfo,
 			mockLabelService,
 			findGitRoot,
+			storageService,
+			pickFolder,
 		);
 		disposables.add(contribution);
 		return contribution;
@@ -69,7 +72,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 
 		// Same folder should now be auto-approved
 		const result = contribution.getPreConfirmAction(ref);
-		assert.deepStrictEqual(result, { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(result, { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
 	});
 
 	test('allow repo in session - first time resolves git root', async () => {
@@ -90,7 +93,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		// File in the same repo should now be auto-approved
 		const ref2 = createRef('/external/repo/src/other.ts');
 		const result = contribution.getPreConfirmAction(ref2);
-		assert.deepStrictEqual(result, { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(result, { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
 	});
 
 	test('allow repo in session - cached git root', async () => {
@@ -129,7 +132,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 
 		// The containing folder should be auto-approved
 		const result = contribution.getPreConfirmAction(ref);
-		assert.deepStrictEqual(result, { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(result, { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
 	});
 
 	test('allow repo in session - hides option after git root not found', async () => {
@@ -160,9 +163,9 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		await actions[1].select();
 
 		// All files in the repo should be auto-approved
-		assert.deepStrictEqual(contribution.getPreConfirmAction(ref1), { type: ToolConfirmKind.UserAction });
-		assert.deepStrictEqual(contribution.getPreConfirmAction(ref2), { type: ToolConfirmKind.UserAction });
-		assert.deepStrictEqual(contribution.getPreConfirmAction(ref3), { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(contribution.getPreConfirmAction(ref1), { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
+		assert.deepStrictEqual(contribution.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
+		assert.deepStrictEqual(contribution.getPreConfirmAction(ref3), { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
 
 		// File outside the repo should NOT be auto-approved
 		const refOutside = createRef('/other/place/file.ts');
@@ -195,11 +198,26 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		const actions = contribution.getPreConfirmActions(ref);
 		await actions[1].select();
 
-		assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
 
 		contribution.reset();
 
 		assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
+	});
+
+	test('stored workspace grants are automatic and do not override the working directory', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const contribution = createContribution(undefined, storage, async () => URI.file('/allowed'));
+		const addPath = contribution.getManageActions().find(action => action.onDidOpen);
+		assert.ok(addPath?.onDidOpen);
+		await addPath.onDidOpen();
+		const restored = createContribution(undefined, storage);
+		const ref = createRef('/allowed/file.ts');
+		assert.deepStrictEqual([
+			restored.getPreConfirmAction(ref),
+			restored.getPreConfirmAction({ ...ref, workingDirectory: URI.file('/different') }),
+			restored.getPreConfirmAction(createRef('/outside/file.ts')),
+		], [{ type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' }, undefined, undefined]);
 	});
 
 	suite('workingDirectory', () => {
@@ -217,7 +235,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		test('file within workingDirectory is auto-approved', () => {
 			const contribution = createContribution();
 			const ref = createRefWithWorkingDir('/my-project/src/file.ts', URI.file('/my-project'));
-			assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.UserAction });
+			assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.ConfirmationNotNeeded });
 		});
 
 		test('file outside workingDirectory is not auto-approved', () => {
@@ -231,7 +249,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 			const contribution = createContribution();
 			const ref = createRefWithWorkingDir('/my-project/file.ts', URI.file('/my-project'));
 			const result = contribution.getPreConfirmAction(ref);
-			assert.deepStrictEqual(result, { type: ToolConfirmKind.UserAction });
+			assert.deepStrictEqual(result, { type: ToolConfirmKind.ConfirmationNotNeeded });
 		});
 
 		test('workspace-allowed file is not approved when workingDirectory excludes it', () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ChatWorkingLogo } from '../../../../contrib/chat/browser/widget/chatWorkingLogo.js';
 import { ChatProgressAnimation } from '../../../../contrib/chat/common/constants.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -19,7 +20,7 @@ const styles: readonly IProgressStyle[] = [
 	{
 		animation: ChatProgressAnimation.Draw,
 		name: 'Draw',
-		description: 'Draw the right-slanting ribbon, climb the right edge, then draw the left-slanting ribbon. Erase in the same order.',
+		description: 'Tie the exact VS Code mark with fast parabolic ribbon motion, hold it, then unravel it before a brief rest.',
 	},
 	{
 		animation: ChatProgressAnimation.DrawMonochrome,
@@ -33,8 +34,17 @@ const styles: readonly IProgressStyle[] = [
 	},
 ];
 
-function createLogo(context: ComponentFixtureContext, animation: ChatProgressAnimation, quality: 'stable' | 'insider', size: number): ChatWorkingLogo {
-	const logo = context.disposableStore.add(new ChatWorkingLogo(animation, quality));
+class FixtureChatWorkingLogo extends ChatWorkingLogo {
+	refreshFixtureMotion(): void {
+		this.refreshMotion();
+	}
+}
+
+function createLogo(context: ComponentFixtureContext, animation: ChatProgressAnimation, quality: 'stable' | 'insider', size: number): FixtureChatWorkingLogo {
+	const logo = context.disposableStore.add(new FixtureChatWorkingLogo(animation, quality, {
+		isMotionReduced: () => context.container.classList.contains('disable-animations') || context.container.classList.contains('monaco-reduce-motion'),
+	}));
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => logo.refreshFixtureMotion()));
 	if (size === 12) {
 		logo.domNode.classList.add('chat-working-logo-compact');
 	} else if (size !== 16) {
@@ -68,22 +78,22 @@ function renderStyle(context: ComponentFixtureContext, style: IProgressStyle, pa
 	}
 	dom.append(card, dom.$('p.chat-logo-motion-note', undefined, style.animation === ChatProgressAnimation.DrawMonochromeNoIcon
 		? 'The hidden icon has no running animation. The text gutter stays aligned with thinking and tool rows.'
-		: 'Three 320ms beats build the mark. Hold for 480ms, then erase in the same direction and order.'));
+		: 'Mirrored cubic positions produce parabolic velocity while fixed product paths preserve crisp edges at every size.'));
 }
 
 function renderGallery(context: ComponentFixtureContext, reducedMotion = false): void {
 	context.container.classList.add('chat-logo-motion-gallery');
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 	const header = dom.append(context.container, dom.$('header.chat-logo-motion-gallery-header'));
-	dom.append(header, dom.$('h2', undefined, 'Draw progress styles'));
+	dom.append(header, dom.$('h2', undefined, 'Persistent progress logo styles'));
 	dom.append(header, dom.$('p', undefined, reducedMotion
 		? 'Reduced motion keeps visible logos assembled and the no-icon variant hidden.'
-		: 'The same drawing rhythm, in color, monochrome, or with only progress text.'));
+		: 'Compare colored, monochrome, and no-icon Draw variants.'));
 	const grid = dom.append(context.container, dom.$('.chat-logo-motion-grid'));
 	for (const style of styles) {
 		renderStyle(context, style, grid);
 	}
-	dom.append(context.container, dom.$('p.chat-logo-motion-footer', undefined, 'Fixed SVG geometry inside three HTML wrappers. Use Enable Animations in Props to play or pause.'));
+	dom.append(context.container, dom.$('p.chat-logo-motion-footer', undefined, 'All variants use fixed production SVG geometry. Use Enable Animations in Props to play or pause.'));
 }
 
 function renderSingleStyle(context: ComponentFixtureContext, animation: ChatProgressAnimation): void {
@@ -109,6 +119,13 @@ export default defineThemedFixtureGroup({ path: 'chat/logoMotion/' }, {
 	DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochrome) }),
 	DrawMonochromeNoIcon: defineComponentFixture({ render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochromeNoIcon) }),
 	Performance: defineThemedFixtureGroup({
+		PixelSpinner: defineComponentFixture({
+			labels: { kind: 'animated' },
+			render: context => {
+				context.container.classList.add('chat-logo-motion-probe');
+				context.disposableStore.add(createPixelSpinner(context.container));
+			},
+		}),
 		Idle: defineComponentFixture({ render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw, false) }),
 		Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw) }),
 		DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.DrawMonochrome) }),

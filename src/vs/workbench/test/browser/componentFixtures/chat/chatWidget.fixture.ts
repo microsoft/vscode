@@ -17,8 +17,10 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -26,7 +28,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -86,7 +88,7 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; progressMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatGeneratedImageData | IChatToolInputInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
@@ -115,6 +117,9 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	readonly defaultElementHeight?: number;
+	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
+	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -164,6 +169,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly collapseCompletedResponses?: boolean;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
+	readonly realTerminalOutput?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly editingSession?: IChatEditingSession;
 }
@@ -200,7 +206,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
 	const hasSubagents = options.messages.some(message => message.assistant?.some(part => part.kind === 'subagent'));
-	const hasTerminalOutput = options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
+	const hasTerminalOutput = options.realTerminalOutput ?? options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
 
 	const fixtureToolData: IToolData = {
 		id: 'fixture.terminalTool',
@@ -474,6 +480,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				if (part.streaming) {
 					toolInvocation.updateStreamingMessage(new MarkdownString(part.invocationMessage));
 				}
+				if (part.progressMessage) {
+					toolInvocation.acceptProgress({ message: part.progressMessage });
+				}
 				model.acceptResponseProgress(request, toolInvocation);
 				if (part.approval) {
 					toolInvocation.requestConfirmation({
@@ -619,6 +628,14 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		if (message.responseComplete !== false) {
 			response.complete();
 		}
+		// Parts are accepted back to back, so a reasoning duration measured here is only the
+		// time spent between two synchronous calls. Without virtual time that reads the real
+		// clock, and a crossed millisecond boundary renders a flaky "- 1s" title suffix.
+		for (const part of response.response.value) {
+			if (part.kind === 'thinking') {
+				part.reasoningDurationMs = undefined;
+			}
+		}
 	}
 
 	const viewModel = disposableStore.add(instantiationService.createInstance(ChatViewModel, model, undefined));
@@ -634,14 +651,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Mirror the product DOM ancestry: the chat widget lives inside
 	// `.part.auxiliarybar > .content`, where auxiliaryBarPart.css recolors
 	// inline editors with `--vscode-sideBar-background` (used by the carousel).
-	const auxBar = dom.$('.part.auxiliarybar');
-	auxBar.style.width = '100%';
-	auxBar.style.height = '100%';
-	const auxContent = dom.$('.content');
-	auxContent.style.width = '100%';
-	auxContent.style.height = '100%';
-	auxBar.appendChild(auxContent);
-	container.appendChild(auxBar);
+	let chatContainer = container;
+	if (options.useAuxiliaryBarWrapper !== false) {
+		const auxBar = dom.$('.part.auxiliarybar');
+		auxBar.style.width = '100%';
+		auxBar.style.height = '100%';
+		const auxContent = dom.$('.content');
+		auxContent.style.width = '100%';
+		auxContent.style.height = '100%';
+		auxBar.appendChild(auxContent);
+		container.appendChild(auxBar);
+		chatContainer = auxContent;
+	}
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
@@ -650,7 +671,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		session.classList.add(chatFloatingPersistentContentClass);
 		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
 	}
-	auxContent.appendChild(session);
+	chatContainer.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
@@ -718,7 +739,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		listContainer,
 		{
 			currentChatMode: () => ChatModeKind.Agent,
-			defaultElementHeight: 120,
+			defaultElementHeight: options.defaultElementHeight ?? 120,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground,
@@ -1188,6 +1209,12 @@ interface IPersistentProgressScenarioOptions {
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
 	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
+	const accessibilityService = new class extends TestAccessibilityService {
+		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+		override isMotionReduced(): boolean { return reducedMotion; }
+	}();
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => reducedMotionEmitter.fire()));
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1204,6 +1231,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		width: options.width,
 		height: options.height ?? 560,
 		listHeight: options.listHeight ?? 340,
+		additionalServices: reg => reg.defineInstance(IAccessibilityService, accessibilityService),
 		onRendered: rendered => {
 			handle = rendered;
 			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
@@ -1251,6 +1279,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
+	const initialDrawPathData = [...context.container.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d') ?? '');
 	const mcpStartup = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'mcpStarting');
 	if (hasLocalMcpAutostart(messages)) {
 		await timeout(2600);
@@ -1350,8 +1379,20 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		throw new Error('Persistent progress indicator was not rendered in the active response');
 	}
 	const visibleParts = [...value.children].filter(part => part.getBoundingClientRect().height > 0);
-	if (visibleParts.slice(1).some((part, index) => Math.abs(part.getBoundingClientRect().top - visibleParts[index].getBoundingClientRect().bottom - 16) > 0.1)) {
-		throw new Error('Visible response parts must use the shared item gap');
+	// Check in-flow spacing independently of the footer's applied subpixel alignment.
+	const footerTranslation = footer ? targetWindow.getComputedStyle(footer).translate : 'none';
+	const footerRounding = Number.parseFloat(footerTranslation.split(' ')[1] ?? '0');
+	if (!Number.isFinite(footerRounding) || footerRounding < 0 || footerRounding >= 1) {
+		throw new Error(`Unexpected progress footer alignment: ${footerTranslation}`);
+	}
+	const getItemGap = (previous: Element, next: Element) => {
+		const previousOffset = footer?.contains(previous) ? footerRounding : 0;
+		const nextOffset = footer?.contains(next) ? footerRounding : 0;
+		return next.getBoundingClientRect().top - previous.getBoundingClientRect().bottom + previousOffset - nextOffset;
+	};
+	const partGaps = visibleParts.slice(1).map((part, index) => getItemGap(visibleParts[index], part));
+	if (partGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
+		throw new Error(`Visible response parts must use the shared item gap; measured ${partGaps.join(', ')}`);
 	}
 	if (options.progressVerbosity === ChatProgressVerbosity.Verbose && response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
 		throw new Error('Tool chains must be expanded, headerless, unbounded, and separate from reasoning');
@@ -1433,8 +1474,9 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
 		if (options.activityRowSpacing) {
 			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
-			if (labels.slice(1).some((label, index) => Math.abs(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom - 16) > 0.1)) {
-				throw new Error('Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap');
+			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index], label));
+			if (labelGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
+				throw new Error(`Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap; measured ${labelGaps.join(', ')}`);
 			}
 		}
 		const labels = value.querySelectorAll<HTMLElement>(activityLabelSelector);
@@ -1484,8 +1526,26 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal activity animation did not retain its original motion behavior');
 		}
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate && !noIcon ? 3 : 0)) {
-		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
+	if (logo.getAnimations({ subtree: true }).length !== 0) {
+		throw new Error(`${progressAnimation} progress must use requestAnimationFrame instead of CSS animations`);
+	}
+	const drawPaths = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+	if (!noIcon && drawPaths.length !== 3) {
+		throw new Error(`${progressAnimation} progress did not render all Draw mask bands`);
+	}
+	const drawPathData = drawPaths.map(path => path.getAttribute('d') ?? '');
+	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
+		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
+	}
+	if (!shouldAnimate && !noIcon) {
+		const face = logo.querySelector<HTMLElement>('.chat-working-logo-face');
+		const drawContainer = logo.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+		if (!logo.classList.contains('chat-working-logo-draw-assembled')
+			|| !face || targetWindow.getComputedStyle(face).display === 'none'
+			|| !drawContainer || targetWindow.getComputedStyle(drawContainer).display !== 'none'
+			|| [...face.querySelectorAll('path')].some(path => path.hasAttribute('mask'))) {
+			throw new Error(`${progressAnimation} progress did not resolve to the unmasked assembled product mark`);
+		}
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);
@@ -1538,7 +1598,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }, false),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
 		// subagent pills expand inside it (independent of this setting), which the headless
@@ -1948,20 +2008,19 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }),
-		// A single background agent is counted while the parent has nothing of its own in flight.
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }),
 		BackgroundAgent: scenario(tools([
 			{ kind: 'thinking', text: '**Delegating the investigation**\nHand the faint chronology to a research agent while the plan is drafted.' },
 			{ kind: 'markdown', text: 'I started a research agent to trace every faint.' },
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background agent blocks the parent until the agent reports back.
 		ReadBackgroundAgent: scenario(tools([
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
 			{ kind: 'thinking', text: '**Reviewing the plan**\nCheck the drafted plan against the notes before reading the agent result.' },
 			{ kind: 'markdown', text: 'The plan is ready. I will wait for the research agent before deciding on the battle strategy.' },
 			tool('read_agent', 'Read agent `faint-census`'),
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background terminal blocks the parent on its output.
 		ReadBackgroundTerminal: scenario(tools([
 			...before,
@@ -2573,6 +2632,27 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Review the current changes',
+			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
+			responseComplete: false,
+		}],
+		onRendered: ({ model, listWidget }) => {
+			const pendingRequest = new ChatRequestModel({
+				session: model,
+				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			});
+			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			listWidget.refresh();
+			listWidget.scrollToEnd();
+		},
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ToolIconExamples: defineThemedFixtureGroup({
 		Standalone: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolIconExamples(context, false) }),
@@ -2591,7 +2671,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			inputVisible: false,
 			height: 240,
 			messages: [{
-				user: '/sandbox-policy',
+				user: '/sandbox policy',
 				assistant: [{
 					kind: 'markdown',
 					text: '[Open Sandbox Policy](file:///session/diagnostics/sandbox-policy.md?vscodeLinkType=markdown-preview)\n\n[Regular chat link](https://example.com)',
@@ -2602,6 +2682,23 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	PendingMessages: defineThemedFixtureGroup({
+		Queued: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Queued),
+		}),
+		Steering: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Steering" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering),
+		}),
+		SystemNotification: defineComponentFixture({
+			labels: { kind: 'screenshot', blocksCi: true },
+			expectedVisualDescriptions: ['A system-initiated pending message appears below a sentence-case "System notification" divider while an earlier response is still running.'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, true),
+		}),
+	}),
 	PersistentProgress: defineThemedFixtureGroup({ path: 'persistentProgress/' }, {
 		ToolChains: defineToolChainScenarios(),
 		ToolFailures: defineThemedFixtureGroup({

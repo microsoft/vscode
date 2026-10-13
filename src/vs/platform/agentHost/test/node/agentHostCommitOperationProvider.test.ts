@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostCommitOperationContribution } from '../../node/agentHostCommitOperationProvider.js';
@@ -73,16 +73,27 @@ suite('AgentHostCommitOperationContribution', () => {
 		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
 	});
 
-	test('advertises commit on every folder session changeset when there are uncommitted changes', () => {
-		const provider = createContribution('folder');
-
-		const actual = [
-			provider.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: gitStateWithUncommittedChanges }),
-			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges }),
-			provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: gitStateWithUncommittedChanges }),
+	test('advertises commit only on the uncommitted changeset for folder sessions and branches with a pull request', () => {
+		const folderProvider = createContribution('folder');
+		const pullRequestProvider = createContribution();
+		const gitHubState = { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' };
+		const changesets = [
+			{ changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch },
+			{ changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session },
+			{ changesetUri: buildTurnChangesetUri(sessionKey, 'turn-1'), changesetKind: ChangesetKind.Turn },
+			{ changesetUri: buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2'), changesetKind: ChangesetKind.Compare },
+			{ changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted },
 		];
 
-		assert.deepStrictEqual(actual.map(operations => operations.map(op => op.id)), [['commit'], ['commit'], ['commit']]);
+		const actual = {
+			folder: changesets.map(changeset => folderProvider.getOperations({ sessionKey, ...changeset, gitState: gitStateWithUncommittedChanges }).map(op => op.id)),
+			pullRequest: changesets.map(changeset => pullRequestProvider.getOperations({ sessionKey, ...changeset, gitState: gitStateWithUncommittedChanges, gitHubState }).map(op => op.id)),
+		};
+
+		assert.deepStrictEqual(actual, {
+			folder: [[], [], [], [], ['commit']],
+			pullRequest: [[], [], [], [], ['commit']],
+		});
 	});
 
 	test('does not advertise commit on a worktree branch changeset without a pull request', () => {
@@ -91,16 +102,5 @@ suite('AgentHostCommitOperationContribution', () => {
 		const operations = provider.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: gitStateWithUncommittedChanges });
 
 		assert.deepStrictEqual(operations.map(op => op.id), []);
-	});
-
-	test('advertises commit on the session changeset only for a pull request on the current branch', () => {
-		const provider = createContribution();
-
-		const actual = [
-			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' } }),
-			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/other' } }),
-		];
-
-		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [['commit'], []]);
 	});
 });

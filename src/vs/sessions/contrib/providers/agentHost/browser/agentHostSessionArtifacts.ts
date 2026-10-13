@@ -44,10 +44,12 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri:
 		return undefined;
 	}
 
+	const chat = parseUri(artifact.chat);
 	return {
 		id: artifact.id,
 		kind,
 		label: artifact.label,
+		...(chat ? { chat } : {}),
 		isArtifact: artifact.isArtifact,
 		...(link ? { link } : {}),
 		...(uri ? { uri } : {}),

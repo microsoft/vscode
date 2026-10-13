@@ -9,7 +9,7 @@ import { observableValue, type ISettableObservable } from '../../../base/common/
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
 type MementoMap = NKeyMap<ISettableObservable<unknown>, [ProtocolURI, string, ...MementoKeySegment[]]>;
@@ -26,7 +26,8 @@ class AgentHostChatContributionContext implements IAgentHostChatContributionCont
 	private readonly _sessionMementos: MementoMap = new NKeyMap();
 	private readonly _chatsBySession = new Map<ProtocolURI, Set<ProtocolURI>>();
 
-	constructor(readonly contributionId: string) { }
+	/** `chatOwners` is maintained by the contributions service from the session the host passes with every hook. */
+	constructor(readonly contributionId: string, private readonly _chatOwners: ReadonlyMap<ProtocolURI, ProtocolURI>) { }
 
 	memento<T, TExtra extends readonly MementoKeySegment[]>(key: IChatMementoKey<T, TExtra> | ISessionMementoKey<T, TExtra>, resource: ProtocolURI, ...extra: TExtra): ISettableObservable<T> {
 		const mementos = key.scope === 'chat' ? this._chatMementos : this._sessionMementos;
@@ -49,10 +50,10 @@ class AgentHostChatContributionContext implements IAgentHostChatContributionCont
 
 	disposeChatState(chat: ProtocolURI): void {
 		this._chatMementos.deleteAll(chat);
-		const session = this._owningSession(chat);
-		const chats = this._chatsBySession.get(session);
-		if (chats?.delete(chat) && chats.size === 0) {
-			this._chatsBySession.delete(session);
+		for (const [session, chats] of this._chatsBySession) {
+			if (chats.delete(chat) && chats.size === 0) {
+				this._chatsBySession.delete(session);
+			}
 		}
 	}
 
@@ -68,17 +69,16 @@ class AgentHostChatContributionContext implements IAgentHostChatContributionCont
 	}
 
 	private _registerChat(chat: ProtocolURI): void {
-		const session = this._owningSession(chat);
+		const session = this._chatOwners.get(chat) ?? (isAhpChatChannel(chat) ? undefined : chat);
+		if (session === undefined) {
+			return;
+		}
 		let chats = this._chatsBySession.get(session);
 		if (!chats) {
 			chats = new Set();
 			this._chatsBySession.set(session, chats);
 		}
 		chats.add(chat);
-	}
-
-	private _owningSession(chat: ProtocolURI): ProtocolURI {
-		return isAhpChatChannel(chat) ? parseRequiredSessionUriFromChatUri(chat) : chat;
 	}
 }
 
@@ -89,6 +89,8 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	private readonly _registeredContributions = new Map<IAgentHostChatContribution, IRegisteredContribution>();
 	private _nextContributionIndex = 0;
 	private _host: IAgentHostChatContributionHost | undefined;
+	/** Owning session of each chat, as passed by the host with each hook. */
+	private readonly _chatOwners = new Map<ProtocolURI, ProtocolURI>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -106,7 +108,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 				throw new Error(`Chat contribution already registered: ${contributionCtor.id}`);
 			}
 		}
-		const context = new AgentHostChatContributionContext(contributionCtor.id);
+		const context = new AgentHostChatContributionContext(contributionCtor.id, this._chatOwners);
 		const contribution = this._instantiationService.createInstance(contributionCtor, context);
 		this._registeredContributions.set(contribution, { id: contributionCtor.id, contribution, context, index: this._nextContributionIndex++ });
 		this._contributionRegistrations.set(contribution, toDisposable(() => {
@@ -133,6 +135,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	turnEnd(turn: ITurnEnd): void {
+		this._recordChatOwner(turn.channel, turn.session);
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onTurnEnd) {
@@ -147,6 +150,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	didApplyClientAction(action: IAppliedClientAction): void {
+		this._recordChatOwner(action.channel, action.session);
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onDidApplyClientAction) {
@@ -161,6 +165,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	didDispatchAction(dispatched: IDispatchedAction): void {
+		this._recordChatOwner(dispatched.channel, dispatched.session);
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onDidDispatchAction) {
@@ -175,6 +180,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
+		this._recordChatOwner(turn.chat, turn.session);
 		const instructions: string[] = [];
 		let message = turn.message;
 		for (const registration of this._getOrderedContributions()) {
@@ -209,6 +215,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	 * session whose worktree no longer exists.
 	 */
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition {
+		this._recordChatOwner(request.chat, request.session);
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onIncomingRequest) {
@@ -235,6 +242,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	async hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		this._recordChatOwner(context.chat, context.session);
 		let hydratedTurns = turns;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
@@ -251,6 +259,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	async hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		this._recordChatOwner(context.chat, context.session);
 		let hydrated = restored;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
@@ -270,11 +279,23 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		for (const context of this._contributionContexts()) {
 			context.disposeChatState(chat);
 		}
+		this._chatOwners.delete(chat);
 	}
 
 	disposeSessionState(session: ProtocolURI): void {
 		for (const context of this._contributionContexts()) {
 			context.disposeSessionState(session);
+		}
+		for (const [chat, owner] of [...this._chatOwners]) {
+			if (owner === session) {
+				this._chatOwners.delete(chat);
+			}
+		}
+	}
+
+	private _recordChatOwner(chat: ProtocolURI, session: ProtocolURI): void {
+		if (isAhpChatChannel(chat)) {
+			this._chatOwners.set(chat, session);
 		}
 	}
 

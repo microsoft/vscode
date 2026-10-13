@@ -118,9 +118,10 @@ export class SessionInputBanners extends Disposable {
 			return this._debugStates(debugData);
 		}
 
+		const states: BannerState[] = [];
 		const session = this._session.read(reader);
 		if (!session) {
-			return [];
+			return states;
 		}
 
 		this._feedbackChanged.read(reader);
@@ -134,8 +135,6 @@ export class SessionInputBanners extends Disposable {
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
 		const legacyCommentsDismissed = this._legacyCommentsDismissed.read(reader).has(session.sessionId);
 		const agentMerge = this._agentMergeConfiguration.read(reader);
-		const states: BannerState[] = [];
-
 		for (const pullRequest of pullRequests) {
 			const id = pullRequestBannerId(session.sessionId, pullRequest);
 			if (dismissed.has(id)) {

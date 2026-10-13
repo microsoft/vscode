@@ -5,7 +5,25 @@
 
 import { Uri } from 'vscode';
 import { expect, suite, test } from 'vitest';
-import { isUriContained, resolveProjectFileUri } from '../newWorkspaceFollowup';
+import { getFileCreationProgressMessage, isUriContained, resolveProjectFileUri } from '../newWorkspaceFollowup';
+
+suite('workspace creation notification security', () => {
+	test('preserves file targets but does not turn their names into progress links', () => {
+		const paths = [
+			'/workspace/ordinary [file].ts',
+			'/workspace/[Open](command:test.noop).ts',
+			'/workspace/[Open](CoMmAnD:test.noop?%5B%22arg%22%5D "Title").ts',
+			'/workspace/\\[Open\\](command:test.noop).ts',
+			'/workspace/[Help](file:private).ts',
+			'/workspace/COMMAND:test.noop.ts',
+		];
+		const files = paths.map(path => Uri.from({ scheme: 'file', path }));
+		expect(files.map(file => ({ path: file.path, message: getFileCreationProgressMessage(file) }))).toEqual(paths.map((path, index) => ({
+			path,
+			message: index === 0 ? `Creating file ${files[0].fsPath}...` : 'Creating file...',
+		})));
+	});
+});
 
 /**
  * Unit tests for the path-traversal containment helper guarding the

@@ -16,7 +16,7 @@ import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { isLinux, isWindows, OS } from '../../../base/common/platform.js';
+import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
@@ -67,9 +67,7 @@ function getContextMenuActionsImpl(
 	target: IAction[] | PrimaryAndSecondaryActions,
 	primaryGroup?: string
 ) {
-	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
+	fillInActions(groups, target, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
 
@@ -104,14 +102,12 @@ export function fillInActionBarActions(
 ): void {
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
-	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryAction, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
+	fillInActions(groups, target, isPrimaryAction, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 }
 
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>,
 	target: IAction[] | PrimaryAndSecondaryActions,
-	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
 	useSeparatorsInPrimaryActions: boolean = false
@@ -144,10 +140,7 @@ function fillInActions(
 			}
 		}
 
-		for (let action of actions) {
-			if (useAlternativeActions) {
-				action = action instanceof MenuItemAction && action.alt ? action.alt : action;
-			}
+		for (const action of actions) {
 			const newLen = target.push(action);
 			// keep submenu info for later inlining
 			if (action instanceof SubmenuAction) {

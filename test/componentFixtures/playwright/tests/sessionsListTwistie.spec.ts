@@ -69,6 +69,7 @@ for (const theme of ['Dark', 'Light']) {
 
 			const sessionRow = page.locator('.monaco-list-row').filter({ has: page.locator('.session-item') });
 			const chatTitles = page.locator('.session-chat-title');
+			const tree = page.getByRole('tree', { name: 'Sessions', exact: true });
 			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
 			await expect(page.locator('.session-item.pinned')).toHaveCount(pinned ? 1 : 0);
 			await expect(page.locator('.session-item.sticky')).toHaveCount(sticky ? 1 : 0);
@@ -79,10 +80,12 @@ for (const theme of ['Dark', 'Light']) {
 			await twistie.click();
 			await expect(sessionRow).toHaveAttribute('aria-expanded', 'false');
 			await expect(chatTitles).toHaveCount(0);
+			await expect(tree).toBeFocused();
 
 			await twistie.click();
 			await expect(sessionRow).toHaveAttribute('aria-expanded', 'true');
 			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
+			await expect(tree).toBeFocused();
 		});
 	}
 }
@@ -90,7 +93,7 @@ for (const theme of ['Dark', 'Light']) {
 for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) {
 	for (const { name, fixture, ariaStatus, indicatorClass, color, count } of [
 		{ name: 'unread', fixture: 'SessionsList_CollapsedUnreadSections', ariaStatus: 'contains unread sessions', indicatorClass: '.codicon-circle-filled', color: '--vscode-textLink-foreground', count: 1 },
-		{ name: 'needs-input', fixture: 'SessionsList_CollapsedNeedsInputSections', ariaStatus: 'session needs input', indicatorClass: '.monaco-pixel-spinner-ring', color: '--vscode-list-warningForeground', count: 2 },
+		{ name: 'needs-input', fixture: 'SessionsList_CollapsedNeedsInputSections', ariaStatus: 'session needs attention', indicatorClass: '.codicon-report-question', color: '--vscode-list-warningForeground', count: 2 },
 		{ name: 'CI-failure', fixture: 'SessionsList_CollapsedCIFailureSections', ariaStatus: 'session has failing CI checks', indicatorClass: '.codicon-circle-filled', color: '--vscode-list-warningForeground', count: 2 },
 	]) {
 		test.describe(`collapsed section ${name} indicators (${theme})`, () => {

@@ -337,6 +337,7 @@
 }
 
 .chat-pet-eyes {
+	color: #191a1b;
 	position: absolute;
 	inset: 0;
 	visibility: hidden;
@@ -386,7 +387,7 @@
 	left: 2px;
 	width: 4px;
 	height: 4px;
-	background: #191a1b;
+	background: currentColor;
 }
 
 .chat-pet-button[data-state='idle'] .chat-pet-eye,
@@ -395,6 +396,7 @@
 .chat-pet-button[data-state='clapping'] .chat-pet-eye,
 .chat-pet-button[data-state='yapping'] .chat-pet-eye,
 .chat-pet-button[data-state='typing'] .chat-pet-eye,
+.chat-pet-button[data-state='painting'] .chat-pet-eye,
 .chat-pet-button[data-state='buttonPress'] .chat-pet-eye {
 	height: 12px;
 }
@@ -405,6 +407,7 @@
 .chat-pet-button[data-state='clapping'] .chat-pet-pupil,
 .chat-pet-button[data-state='yapping'] .chat-pet-pupil,
 .chat-pet-button[data-state='typing'] .chat-pet-pupil,
+.chat-pet-button[data-state='painting'] .chat-pet-pupil,
 .chat-pet-button[data-state='buttonPress'] .chat-pet-pupil {
 	height: 8px;
 }
@@ -428,6 +431,7 @@
 .chat-pet-button[data-state='clapping'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='yapping'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='typing'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='painting'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='love'] .chat-pet-eyes.blink .chat-pet-pupil {
 	animation-name: chat-pet-tall-eye-blink;
@@ -445,7 +449,7 @@
 	left: 0;
 	width: 8px;
 	height: 2px;
-	background: #191a1b;
+	background: currentColor;
 }
 
 .chat-pet-button.dragging .chat-pet-eye::before {

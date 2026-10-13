@@ -38,6 +38,8 @@ interface IChatInputNotificationActionBase {
 	readonly iconOnly?: boolean;
 	/** Whether the action anchors to the leading edge of a split action row. */
 	readonly leading?: boolean;
+	/** Whether a secondary action uses the standard filled button style instead of a ghost button. */
+	readonly filled?: boolean;
 	/** Whether a secondary action keeps a theme-aware border. */
 	readonly outlined?: boolean;
 	readonly tooltip?: string;
@@ -115,8 +117,8 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
-	/** Called when the notification first becomes visible in each input. Must be idempotent. */
-	readonly onDidShow?: () => void;
+	/** Called with the rendering input's context when first visible in each input. Must be idempotent. */
+	readonly onDidShow?: (context: IChatInputNotificationContext) => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;

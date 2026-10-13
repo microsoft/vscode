@@ -6,9 +6,10 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -96,6 +97,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._basePath;
 	}
 
+	get hostPluginsPath(): URI {
+		return URI.joinPath(this.basePath, '.host');
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
@@ -134,7 +139,11 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Returns the local directory URI.
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
-		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
+		const uri = URI.parse(ref.uri);
+		if (uri.scheme === AGENT_HOST_FILE_SCHEME) {
+			return uri.with({ scheme: Schemas.file });
+		}
+		const pluginUri = toAgentClientUri(uri, clientId);
 		const destDir = this._dirFor(ref.uri, ref.nonce);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce

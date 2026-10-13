@@ -129,6 +129,20 @@
 	white-space: nowrap;
 }
 
+.chat-subagent-pill-active-tool-label .monaco-link {
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+	color: inherit;
+}
+
+.chat-subagent-pill-active-tool-label .monaco-link:hover {
+	text-decoration: underline;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model {
 	flex: 0 1 auto;
 	min-width: 0;
@@ -151,7 +165,7 @@
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	width: calc(100% - var(--vscode-spacing-size80));
 	max-width: 560px;
 	min-width: 0;
@@ -169,6 +183,7 @@
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-connector {
+	align-self: flex-start;
 	flex: 0 0 var(--vscode-spacing-size80);
 	height: var(--vscode-spacing-size100);
 	margin-right: var(--vscode-spacing-size40);
@@ -185,8 +200,7 @@
 	flex: 0 0 var(--vscode-spacing-size120);
 	width: var(--vscode-spacing-size120);
 	height: var(--vscode-spacing-size120);
-	margin-top: var(--vscode-spacing-size20);
-	margin-right: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-size60);
 	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: var(--vscode-spacing-size120);
 }
@@ -257,7 +271,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.focused .chat-subagent-pill-content {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content.focused {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

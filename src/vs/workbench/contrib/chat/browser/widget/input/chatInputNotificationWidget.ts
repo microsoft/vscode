@@ -355,7 +355,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(!isPrimary ? {
+						...(!isPrimary && !action.filled ? {
 							buttonBackground: undefined,
 							buttonHoverBackground: undefined,
 							buttonForeground: undefined,
@@ -370,6 +370,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					button.element.classList.add('chat-input-notification-action-button');
 					button.element.classList.toggle('icon-only', action.iconOnly === true);
 					button.element.classList.toggle('leading', action.leading === true);
+					button.element.classList.toggle('filled', action.filled === true);
 					button.element.classList.toggle('outlined', action.outlined === true);
 					button.label = action.label;
 					const actionAriaLabel = action.ariaLabel ?? action.label;
@@ -509,7 +510,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._lastShownTelemetryData = data;
 		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
 		try {
-			notification.onDidShow?.();
+			notification.onDidShow?.(this._getContext());
 		} catch (error) {
 			this._logError(error);
 		}

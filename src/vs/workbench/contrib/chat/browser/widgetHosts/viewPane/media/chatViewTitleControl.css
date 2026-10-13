@@ -28,15 +28,30 @@
 
 				.chat-view-title-label-container {
 					display: flex;
-					gap: 4px;
+					gap: var(--vscode-spacing-size40);
+					min-width: 0;
 				}
 			}
 		}
 
+		.chat-view-title-harness {
+			flex: 0 0 auto;
+			white-space: nowrap;
+			font-size: var(--vscode-fontSize-label2);
+			font-weight: var(--vscode-fontWeight-regular);
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.chat-view-title-separator {
+			flex-shrink: 0;
+			color: var(--vscode-descriptionForeground);
+		}
+
 		.chat-view-title-label {
+			flex: 0 1 auto;
 			text-transform: uppercase;
-			font-size: 11px;
-			font-weight: 700;
+			font-size: var(--vscode-fontSize-label2);
+			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: 16px;
 			display: block;
 			overflow: hidden;

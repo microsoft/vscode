@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
@@ -21,12 +22,14 @@ import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybi
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
-import { TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
+import { ActionList, ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
+import { getTabbedActionListKeybindingLabels, TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } from '../../browser/actionWidgetMotion.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ITestItem {
@@ -54,6 +57,10 @@ class FakeContextViewService implements Partial<IContextViewService> {
 
 	get isVisible(): boolean {
 		return !!this._activeDelegate;
+	}
+
+	get activeLayer(): number | undefined {
+		return this._activeDelegate?.layer;
 	}
 
 	showContextView(delegate: IContextViewDelegate): { close: () => void } {
@@ -293,7 +300,7 @@ suite('TabbedActionListWidget', () => {
 		});
 		const popup = input.closest<HTMLElement>('.action-widget')!;
 		popup.style.setProperty('--vscode-button-border', '#0069cc');
-		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label^="Back"]')!;
 		back.focus();
 		assert.deepStrictEqual({
 			inlineBorder: back.style.border,
@@ -302,6 +309,86 @@ suite('TabbedActionListWidget', () => {
 			textButton: back.classList.contains('monaco-text-button'),
 			focused: document.activeElement === back,
 		}, { inlineBorder: '', borderWidth: '0px', iconAction: true, textButton: false, focused: true });
+	});
+
+	test('the Go Back keys leave details and return focus to the requested row', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')] }),
+			delegate: { onSelect: () => assert.fail('Back must not select'), onHide: () => { } },
+		});
+		let radio: Radio | undefined;
+		widget.showDetails({
+			label: 'Details',
+			backLabel: 'Back',
+			render: container => {
+				radio = new Radio({ items: [{ text: 'Low', isActive: true }, { text: 'High' }], arrowKeyBehavior: 'focus' });
+				container.appendChild(radio.domNode);
+				return radio;
+			},
+			restoreFocus: () => widget.focusItem('second'),
+		});
+		assert.ok(radio);
+		radio.focusActiveItem();
+		const backKey = isWindows
+			? { key: 'ArrowLeft', keyCode: 37, altKey: true }
+			: { key: '-', keyCode: 189, ctrlKey: true, altKey: !isMacintosh };
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...backKey });
+		radio.optionElements[0].dispatchEvent(event);
+		await settleLayout();
+		const popup = contextView.getContextViewElement();
+		assert.deepStrictEqual({
+			prevented: event.defaultPrevented,
+			visible: widget.isVisible,
+			details: widget.isShowingDetails,
+			listFocused: document.activeElement === popup.querySelector('.monaco-list'),
+			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+		}, { prevented: true, visible: true, details: false, listFocused: true, focusedRow: 'second' });
+	});
+
+	test('Left and Right belong to list rows, and the editor tab keys switch tabs', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const tabChanges: string[] = [];
+		disposables.add(widget.onDidChangeTab(tab => tabChanges.push(tab)));
+		const requested: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('plain'), action('details')] }),
+			openItemDetails: item => {
+				requested.push(item.item!.id);
+				return item.item?.id === 'details';
+			},
+			delegate: { onSelect: () => assert.fail('Arrows must not select'), onHide: () => { } },
+		});
+		const list = contextView.getContextViewElement().querySelector<HTMLElement>('.monaco-list')!;
+		const press = (init: KeyboardEventInit) => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			list.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const withoutDetails = { left: press({ key: 'ArrowLeft', keyCode: 37 }), right: press({ key: 'ArrowRight', keyCode: 39 }) };
+		press({ key: 'ArrowDown', keyCode: 40 });
+		const withDetails = press({ key: 'ArrowRight', keyCode: 39 });
+		const tabsBeforeShortcut = [...tabChanges];
+		const nextTab = press(isMacintosh
+			? { key: 'ArrowRight', keyCode: 39, metaKey: true, altKey: true }
+			: { key: 'PageDown', keyCode: 34, ctrlKey: true });
+		assert.deepStrictEqual({ withoutDetails, withDetails, requested, tabsBeforeShortcut, nextTab, tabChanges }, {
+			withoutDetails: { left: false, right: false },
+			withDetails: true,
+			requested: ['plain', 'details'],
+			tabsBeforeShortcut: [],
+			nextTab: true,
+			tabChanges: ['Remote'],
+		});
+		widget.hide();
 	});
 
 	test('details defer list updates and restore toolbar focus after pin-like changes', async () => {
@@ -439,6 +526,25 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('keeps its rows when the page leaves no room beside the anchor', () => {
+		const { widget, contextView } = createWidget(disposables);
+		// A long page, like the one a full test run leaves behind, pushes the anchor's free space out of view.
+		const filler = document.createElement('div');
+		filler.style.height = '5000px';
+		document.body.prepend(filler);
+		disposables.add({ dispose: () => filler.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')], listOptions: { showFilter: true } }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
+		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
 	test('details scroll independently and retain a fixed Back button', async () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('button');
@@ -469,7 +575,7 @@ suite('TabbedActionListWidget', () => {
 		});
 		await settleLayout();
 		const popup = contextView.getContextViewElement();
-		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label^="Back"]')!;
 		const title = popup.querySelector<HTMLElement>('.tabbed-action-list-details-header > span')!;
 		const viewport = popup.querySelector<HTMLElement>('.tabbed-action-list-details-viewport')!;
 		const buttonBounds = back.getBoundingClientRect();
@@ -487,7 +593,7 @@ suite('TabbedActionListWidget', () => {
 			backLabel: back.getAttribute('aria-label'),
 			details: widget.isShowingDetails,
 			mainHidden: popup.querySelector('.tabbed-action-list-main')?.getAttribute('aria-hidden'),
-		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: 'Back', details: true, mainHidden: 'true' });
+		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: `Back (${getTabbedActionListKeybindingLabels(new MockKeybindingService()).back})`, details: true, mainHidden: 'true' });
 	});
 
 	test('details stay anchored after their rendered header height settles', async () => {
@@ -568,6 +674,62 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('animates fresh popups without replaying the entrance on tab changes', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const options = {
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			widgetClassNames: () => ['custom-picker', ACTION_WIDGET_DROPDOWN_MOTION_CLASS],
+			createActionList: () => ({ items: [action('item')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		};
+		const read = () => {
+			const popup = contextView.getContextViewElement().querySelector('.action-widget')!;
+			return {
+				animated: popup.classList.contains(ACTION_WIDGET_ANIMATED_CLASS),
+				dropdown: popup.classList.contains(ACTION_WIDGET_DROPDOWN_MOTION_CLASS),
+				custom: popup.classList.contains('custom-picker'),
+			};
+		};
+		widget.show<ITestItem>(options);
+		const initial = read();
+		widget.show<ITestItem>({ ...options, initialTab: 'Remote' });
+		const swapped = read();
+		widget.hide();
+		widget.show<ITestItem>(options);
+		assert.deepStrictEqual({ initial, swapped, reopened: read() }, {
+			initial: { animated: true, dropdown: true, custom: true },
+			swapped: { animated: false, dropdown: false, custom: true },
+			reopened: { animated: true, dropdown: true, custom: true },
+		});
+		widget.hide();
+	});
+
+	test('passes the requested context view layer to the popup', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			contextViewLayer: 1,
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.strictEqual(contextView.activeLayer, 1);
+		assert.strictEqual(contextView.activeLayer, 1);
+		widget.hide();
 	});
 
 	test('items receive pointer input immediately after opening', () => {
@@ -848,6 +1010,32 @@ suite('TabbedActionListWidget', () => {
 		});
 	}
 
+	test('refresh forwards scroll position preservation to the active list', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [action('model')],
+			}),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const updateItems = sinon.spy(ActionList.prototype, 'updateItems');
+		try {
+			widget.refreshActiveList({ preserveScrollPosition: true });
+
+			assert.strictEqual(updateItems.lastCall.args[2]?.preserveScrollPosition, true);
+		} finally {
+			updateItems.restore();
+			widget.hide();
+		}
+	});
+
 	test('buildItems is called with the initial tab', () => {
 		const { widget } = createWidget(disposables);
 		const anchor = document.createElement('div');
@@ -904,8 +1092,8 @@ suite('TabbedActionListWidget', () => {
 		assert.deepStrictEqual(
 			{ onShow, afterRefresh, afterTabSwitch },
 			{
-				onShow: ['picker', 'tab-Local'],
-				afterRefresh: ['dimmed', 'picker', 'tab-Local'],
+				onShow: [ACTION_WIDGET_ANIMATED_CLASS, 'picker', 'tab-Local'],
+				afterRefresh: [ACTION_WIDGET_ANIMATED_CLASS, 'dimmed', 'picker', 'tab-Local'],
 				afterTabSwitch: ['dimmed', 'picker', 'tab-Remote'],
 			},
 		);
