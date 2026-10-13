@@ -55,6 +55,47 @@ suite('ToolBar', () => {
 		container.remove();
 	});
 
+	test('preserves the secondary-actions trigger position through responsive relayouts', () => {
+		let availableWidth = 300;
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			getSecondaryActionsPosition: primaryActions => primaryActions.findIndex(action => action.id === 'close'),
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 0,
+				getAvailableWidth: () => availableWidth,
+			},
+		}));
+		toolbar.setActions([
+			store.add(new Action('pin', 'Pin')),
+			store.add(new Action('close', 'Close')),
+		], [
+			store.add(new Action('rename', 'Rename')),
+		]);
+
+		const snapshot = () => {
+			const items = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+			const shrinkableIndex = Array.from({ length: toolbar.getItemsLength() }, (_, index) => index)
+				.find(index => toolbar.getItemElement(index)?.classList.contains('toolbar-shrinkable-item'));
+			return {
+				items,
+				shrinkable: shrinkableIndex === undefined ? undefined : toolbar.getItemAction(shrinkableIndex)?.id,
+			};
+		};
+		const initial = snapshot();
+		availableWidth = 1;
+		toolbar.relayout();
+		const collapsed = snapshot();
+		availableWidth = 300;
+		toolbar.relayout();
+
+		assert.deepStrictEqual({ initial, collapsed, restored: snapshot() }, {
+			initial: { items: ['pin', ToggleMenuAction.ID, 'close'], shrinkable: 'close' },
+			collapsed: { items: [ToggleMenuAction.ID], shrinkable: undefined },
+			restored: { items: ['pin', ToggleMenuAction.ID, 'close'], shrinkable: 'close' },
+		});
+	});
+
 	test('keeps the last primary action shrinkable when overflow is inserted', () => {
 		const widths = new Map<string, number>([
 			['workbench.action.chat.attachContext', 22],

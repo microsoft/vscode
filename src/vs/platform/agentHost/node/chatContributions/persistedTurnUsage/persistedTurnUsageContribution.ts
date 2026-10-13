@@ -9,7 +9,8 @@ import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { chatStorageUri, hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
@@ -21,6 +22,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -34,7 +36,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 			return;
 		}
 		if (isAhpChatChannel(dispatched.channel) && isChatAction(dispatched.action)) {
-			this._trackTurnUsage(dispatched.channel, dispatched.action);
+			this._trackTurnUsage(dispatched.session, dispatched.channel, dispatched.action);
 		}
 	}
 
@@ -61,11 +63,8 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || isSubagentChatUri(chat.toString())) {
 			return turns;
 		}
-		// Same storage the writer used; see `chatStorageUri`.
-		const storage = chatStorageUri(chat);
-		if (!storage) {
-			return turns;
-		}
+		// Same storage the writer used.
+		const storage = URI.parse(context.storageResource);
 		let usages: Map<string, string>;
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {
@@ -135,7 +134,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * Subagent chats are skipped: their cost is already folded into the parent
 	 * turn's aggregate, so recording it again would double-count.
 	 */
-	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
+	private _trackTurnUsage(session: ProtocolURI, channel: ProtocolURI, action: ChatAction): void {
 		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
 			return;
 		}
@@ -147,10 +146,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		}
 		// Agents key their storage by the chat's own URI, which is where the
 		// `turns` rows that `getTurnUsages` joins against live.
-		const storage = chatStorageUri(channel);
-		if (!storage) {
-			return;
-		}
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(session, channel));
 		let ref: IReference<ISessionDatabase>;
 		try {
 			ref = this._sessionDataService.openDatabase(storage);

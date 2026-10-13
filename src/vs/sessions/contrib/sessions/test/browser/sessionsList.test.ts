@@ -1162,7 +1162,7 @@ suite('Sessions - SessionsList', () => {
 
 		function needsInputSections(container: HTMLElement): string[] {
 			return [...container.querySelectorAll('.session-section')]
-				.filter(header => header.querySelector('.session-section-icon .codicon-report'))
+				.filter(header => header.querySelector('.session-section-icon .codicon-report-question'))
 				.map(header => header.querySelector('.session-section-label')!.textContent!);
 		}
 
@@ -1253,7 +1253,7 @@ suite('Sessions - SessionsList', () => {
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					icon: header.querySelector('.session-section-icon')?.className,
-					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report-question, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 1', icon: 'session-section-icon codicon codicon-folder-library', indicator: false },
@@ -1362,7 +1362,7 @@ suite('Sessions - SessionsList', () => {
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
 				const getStatus = () => {
-					if (header.querySelector('.codicon-report')) {
+					if (header.querySelector('.codicon-report-question')) {
 						return 'needsInput';
 					}
 					const dot = header.querySelector<HTMLElement>('.codicon-circle-filled');
@@ -1412,17 +1412,17 @@ suite('Sessions - SessionsList', () => {
 				} : {});
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
-				const getStatus = () => header.querySelector('.codicon-report') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
+				const getStatus = () => header.querySelector('.codicon-report-question') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
 				const states = [getStatus()];
 				const hiddenNeedsInput = !list.getVisibleSessions().some(session => session.sessionId === needsInput.session.sessionId);
 
 				list.collapseAllSections();
 				states.push(getStatus());
-				const reportIcon = header.querySelector<HTMLElement>('.codicon-report');
+				const reportQuestionIcon = header.querySelector<HTMLElement>('.codicon-report-question');
 				const needsInputAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
 				unread.isRead.set(true, undefined);
 				unread.isRead.set(false, undefined);
-				const preservesReportIcon = !!reportIcon && reportIcon === header.querySelector('.codicon-report');
+				const preservesReportQuestionIcon = !!reportQuestionIcon && reportQuestionIcon === header.querySelector('.codicon-report-question');
 				needsInput.status.set(SessionStatus.Completed, undefined);
 				states.push(getStatus());
 				const unreadAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
@@ -1445,8 +1445,8 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					hiddenNeedsInput,
 					states,
-					preservesReportIcon,
-					color: reportIcon?.style.color,
+					preservesReportQuestionIcon,
+					color: reportQuestionIcon?.style.color,
 					needsInputAria,
 					unreadAria,
 					expandedPulse,
@@ -1454,7 +1454,7 @@ suite('Sessions - SessionsList', () => {
 				}, {
 					hiddenNeedsInput: true,
 					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
-					preservesReportIcon: true,
+					preservesReportQuestionIcon: true,
 					color: 'var(--vscode-list-warningForeground)',
 					needsInputAria: `${label}, 6, session needs attention`,
 					unreadAria: `${label}, 6, contains unread sessions`,
@@ -1588,7 +1588,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('uses the report icon for needs-attention with reduced motion', () => {
+		test('uses the report-question icon for needs-attention with reduced motion', () => {
 			const { session } = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
 			const { list, container } = renderList([session], {}, true);
 			list.collapseAllSections();
@@ -1596,12 +1596,12 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({
 				hasSpinner: !!header.querySelector('.monaco-pixel-spinner'),
-				hasReportIcon: !!header.querySelector('.codicon-report'),
-				color: header.querySelector<HTMLElement>('.codicon-report')?.style.color,
+				hasReportQuestionIcon: !!header.querySelector('.codicon-report-question'),
+				color: header.querySelector<HTMLElement>('.codicon-report-question')?.style.color,
 				ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				hasSpinner: false,
-				hasReportIcon: true,
+				hasReportQuestionIcon: true,
 				color: 'var(--vscode-list-warningForeground)',
 				ariaLabel: 'Workspace, 1, session needs attention',
 			});
@@ -1624,7 +1624,7 @@ suite('Sessions - SessionsList', () => {
 				const header = getHeader(container, label);
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
-					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report-question, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 0', indicator: false },

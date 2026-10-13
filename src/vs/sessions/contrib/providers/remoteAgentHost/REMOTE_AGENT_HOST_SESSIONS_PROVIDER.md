@@ -82,10 +82,7 @@ The remote Agent Host service owns protocol connection construction, handshake c
 
 `RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal. Authentication readiness is shared by address independently of either window's provider objects; session-list adapters observe it before loading host data.
 
-Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
-their context by address, request an explicit reconnect, and wait for the service to report the connection.
-Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle.
-Connection waits follow an active protocol-client recovery until it succeeds or fails rather than applying the idle connection-wait timeout.
+Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage their context by address, request an explicit reconnect, and wait for the service to report the connection. Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle. Connection waits follow an active protocol-client recovery until it succeeds or fails rather than applying the idle connection-wait timeout.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
@@ -99,7 +96,7 @@ On web, an intentional tunnel disconnect keeps the host cached and selectable wh
 
 User-local Mission Control discovery requires remote agent hosts and AI features to be enabled and is owned by `IMissionControlEnvironmentService`, separately from managed sandbox task discovery. It restores credential-free host metadata and local display names from machine-local profile storage for the authenticated account before network refresh. Discovery creates neither relay connections nor tasks. A successful endpoint listing is authoritative: absent hosts are withdrawn and their cached metadata is removed across windows and restarts. Failed or cancelled refreshes retain the last known inventory. Local display names remain separate from cached metadata. Availability reported by Mission Control is not relay connection state or session activity. The local native host is excluded in favor of IPC.
 
-The Mission Control hosts picker displays cached inventory immediately and refreshes on opening. The workspace picker also starts host discovery after showing its cached remote entries on a fresh open; internal list rebuilds reuse the in-flight or completed inventory instead of restarting discovery.
+The Mission Control hosts picker displays cached online inventory immediately and refreshes on opening. Mission Control providers expose observable environment-picker visibility based on inventory availability; offline hosts are excluded from environment, host-filter, and workspace pickers without withdrawing their providers, saved sessions, or selected session scope. The workspace picker also starts host discovery after showing its cached remote entries on a fresh open; internal list rebuilds reuse the in-flight or completed inventory instead of restarting discovery.
 
 Local Mission Control sharing separates filesystem grants, the browsing default, and the project catalogue. Sharing grants the host's home directory and local project folders outside it, and creates `~/.copilot` as the advertised default directory. The Agents Window supplies local-disk recent folders from its workspace-picker history as catalogue entries, including the picker's worktree-collapsing behavior; remote and virtual folders are excluded. Missing folders are omitted with a warning. Other editor windows supply their open local workspace folders. Catalogue updates do not require a relay reconnect, and neither home nor the default directory becomes a project unless explicitly included in the folder inventory.
 
@@ -137,8 +134,7 @@ User-local MC attachment has a one-minute client deadline covering identity, liv
 
 The remote Agent Host services may remember a user's preferred run location. The owning location-preference service defines its persistence key and selection policy. Providers consume the resolved location; they do not duplicate preference state in session metadata.
 
-Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
-Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
+Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests. Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
 
 ## Connection information
 

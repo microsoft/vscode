@@ -8,7 +8,7 @@ import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ISessionDataService } from '../common/sessionDataService.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/state.js';
-import { chatStorageUri } from '../common/state/sessionState.js';
+import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHostDatabaseChatV2Mutation, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2NormalizationChat } from './agentHostDatabase.js';
@@ -116,7 +116,7 @@ export async function migrateChatCatalogV2(
 				return {
 					chat: chat.uri,
 					...(isPrivate ? {} : { order: visibleOrder.get(chat.uri) }),
-					storageResource: chatStorageUri(chat.uri)?.toString() ?? chat.uri,
+					storageResource: creationTimeChatStorageResource(session.toString(), chat.uri),
 					...(isPrivate && provenance && provenance.kind !== ChatOriginKind.User ? { parentChat: provenance.chat } : {}),
 					providerData,
 					origin,

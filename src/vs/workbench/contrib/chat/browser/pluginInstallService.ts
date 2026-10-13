@@ -482,7 +482,7 @@ export class PluginInstallService implements IPluginInstallService {
 			if (moved) {
 				this._pluginEnablementService.copyEnablement(installed.pluginUri, pluginUri);
 			}
-			this._pluginMarketplaceService.addInstalledPlugin(pluginUri, plugin);
+			this._pluginMarketplaceService.addInstalledPlugin(pluginUri, plugin, moved ? installed.pluginUri : undefined);
 			if (moved) {
 				this._pluginMarketplaceService.removeInstalledPlugin(installed.pluginUri);
 			}

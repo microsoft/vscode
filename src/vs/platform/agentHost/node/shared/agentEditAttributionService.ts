@@ -21,7 +21,7 @@ import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
@@ -54,7 +54,9 @@ interface ISourceStatistics {
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
 	readonly autoTier: string | undefined;
+	readonly fusionModel: string | undefined;
 	readonly conversationId: string;
+	readonly agentSessionId: string;
 	readonly chatSessionId: string | undefined;
 	readonly requestId: string;
 	readonly harness: string;
@@ -77,6 +79,7 @@ interface ITrackedResource {
 	readonly key: string;
 	readonly fileKey: string;
 	readonly sessionUri: string;
+	readonly ownerSessionUri: string;
 	readonly filePath: string;
 	readonly startedAt: number;
 	currentContent: string | undefined;
@@ -211,6 +214,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				key,
 				fileKey,
 				sessionUri: edit.sessionUri,
+				ownerSessionUri: edit.ownerSessionUri,
 				filePath: edit.filePath,
 				startedAt: this._now(),
 				currentContent: undefined,
@@ -276,6 +280,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				key,
 				fileKey,
 				sessionUri: edit.sessionUri,
+				ownerSessionUri: edit.ownerSessionUri,
 				filePath: edit.filePath,
 				startedAt: this._now(),
 				currentContent: edit.beforeText,
@@ -307,16 +312,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._excludeOtherSessionAgentIntervals(resource);
 		}
 
-		const provider = edit.provider ?? getSessionProvider(edit.sessionUri);
+		const provider = edit.provider ?? getSessionProvider(edit.ownerSessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
-		// Matches the workbench edit-source key order ($modelId, $autoTier, ..., $harness, $origin).
+		// Matches the workbench edit-source key order ($modelId, $autoTier, $fusionModel, ..., $harness, $origin).
 		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
-		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}-$harness:${provider}-$origin:agentHost`;
+		const fusionModelSegment = edit.fusionModel ? `-$fusionModel:${edit.fusionModel}` : '';
+		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}${fusionModelSegment}-$harness:${provider}-$origin:agentHost`;
 		const groupSourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		const conversationId = AgentSession.id(edit.sessionUri);
 		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
+		const agentSessionId = AgentSession.id(edit.ownerSessionUri);
 		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
-		const toTrackingKey = (key: string) => chatSessionId === undefined ? key : JSON.stringify([key, conversationId, chatSessionId]);
+		const toTrackingKey = (key: string) => JSON.stringify([key, agentSessionId, conversationId, chatSessionId]);
 		const trackingKey = toTrackingKey(sourceKey);
 		let source = resource.sources.get(trackingKey);
 		if (!source) {
@@ -327,7 +334,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
 				autoTier: edit.autoTier,
+				fusionModel: edit.fusionModel,
 				conversationId,
+				agentSessionId,
 				chatSessionId,
 				requestId: edit.turnId,
 				harness: provider,
@@ -346,7 +355,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			source: {
 				modelId: edit.modelId,
 				...(edit.autoTier !== undefined ? { autoTier: edit.autoTier } : {}),
+				...(edit.fusionModel !== undefined ? { fusionModel: edit.fusionModel } : {}),
 				conversationId,
+				agentSessionId,
 				...(chatSessionId !== undefined ? { chatSessionId } : {}),
 				requestId: edit.turnId,
 				harness: provider,
@@ -777,7 +788,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				trackingScope,
 				coverageGap: resource.coverageGap,
 				coverageGapCutoffCeiling: undefined,
-				githubTelemetryEnabled: getSessionProvider(resource.sessionUri) === 'copilotcli' || [...resource.sources.values()].some(source => source.harness === 'copilotcli'),
+				githubTelemetryEnabled: getSessionProvider(resource.ownerSessionUri) === 'copilotcli' || [...resource.sources.values()].some(source => source.harness === 'copilotcli'),
 				lastSequence: resource.lastSequence,
 				resources: [resource],
 				standaloneAcknowledgements: [],
@@ -807,10 +818,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				extensionVersion: undefined,
 				modelId: source.modelId,
 				...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+				...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 				trigger: prepared.trigger,
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
 				conversationId: source.conversationId,
+				agentSessionId: source.agentSessionId,
 				...(source.chatSessionId !== undefined ? { chatSessionId: source.chatSessionId } : {}),
 				requestId: source.requestId,
 				origin: 'agentHost',
@@ -830,10 +843,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					extensionVersion: '',
 					modelId: data.modelId ?? '',
 					...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+					...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 					trigger: data.trigger,
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,
 					conversationId: data.conversationId,
+					agentSessionId: data.agentSessionId,
 					...(data.chatSessionId !== undefined ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					origin: data.origin,
@@ -1172,7 +1187,7 @@ function resourceKey(sessionUri: string, fileKey: string): string {
 
 const MAX_REPORTED_SOURCE_GROUPS = 30;
 
-/** Caps reported sources before subdividing them by Auto tier, so tiers never displace other sources. */
+/** Caps reported sources before subdividing them by Auto tier and HydraFusion model, so those never displace other sources. */
 function selectReportedSources(sources: Iterable<ISourceStatistics>, retainedBySource: ReadonlyMap<string, number>): ISourceStatistics[] {
 	const retained = (source: ISourceStatistics) => retainedBySource.get(source.trackingKey) ?? 0;
 	return Array.from(groupByMap(Array.from(sources), source => source.groupKey).values(), group => ({ group, retained: sumBy(group, retained) }))
@@ -1274,9 +1289,8 @@ function countCoverageGapAcknowledgements(acknowledgements: readonly (readonly [
 	return acknowledgements.reduce((count, [, acknowledgement]) => count + acknowledgement.coverageGapAcknowledgements.length, 0);
 }
 
-function getSessionProvider(sessionUri: string): string {
-	const providerSessionUri = isAhpChatChannel(sessionUri) ? parseRequiredSessionUriFromChatUri(sessionUri) : sessionUri;
-	return AgentSession.provider(providerSessionUri) ?? 'unknown';
+function getSessionProvider(ownerSessionUri: string): string {
+	return AgentSession.provider(ownerSessionUri) ?? 'unknown';
 }
 
 function getRemainingReconciliationTime(deadline: number, now: number): number {
