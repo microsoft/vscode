@@ -932,8 +932,13 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
-		const commandsDisposables = new DisposableStore();
+		const providerDisposables = this._artifactProviderDisposable.value;
 		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		if (!providerDisposables || providerDisposables.isDisposed || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const commandsDisposables = new DisposableStore();
 		const artifactsDto = artifacts?.map(artifact => ({
 			...artifact,
 			icon: getHistoryItemIconDto(artifact.icon),

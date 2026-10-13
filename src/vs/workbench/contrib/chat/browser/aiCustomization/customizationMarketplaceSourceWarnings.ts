@@ -23,13 +23,14 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	private readonly recovery = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly buttons: Button[] = [];
 	private readonly actions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction | undefined>();
+	private readonly sourceNames = new Map<string, string>();
 	private errors: readonly ICustomizationMarketplaceSourceError[] = [];
-	private recoveringSourceId: string | undefined;
+	private recoveringSourceIds: readonly string[] | undefined;
 	private loading = false;
 
 	constructor(
 		parent: HTMLElement,
-		private readonly sources: readonly ICustomizationMarketplaceSourceInfo[],
+		private readonly getSources: () => readonly ICustomizationMarketplaceSourceInfo[],
 		private readonly onRetry: () => void,
 		private readonly getRecoveryAction: (sourceId: string) => ICustomizationMarketplaceSourceRecoveryAction | undefined,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -54,18 +55,24 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	}
 
 	update(errors: readonly ICustomizationMarketplaceSourceError[], loading: boolean): void {
-		if (this.recoveringSourceId && !errors.some(error => error.sourceId === this.recoveringSourceId)) {
+		if (this.recoveringSourceIds && !this.recoveringSourceIds.some(sourceId => errors.some(error => error.sourceId === sourceId))) {
 			this.recovery.value?.cancel();
 		}
-		if (!equals(this.errors, errors, (a, b) => a.sourceId === b.sourceId && a.message === b.message)) {
+		const sourceNamesChanged = errors.some(error => this.sourceNames.get(error.sourceId) !== this.getSourceName(error));
+		if (sourceNamesChanged || !equals(this.errors, errors, (a, b) => a.sourceId === b.sourceId && a.message === b.message)) {
 			this.errors = errors;
 			this.rows.clear();
 			this.buttons.length = 0;
 			this.actions.clear();
+			this.sourceNames.clear();
 			DOM.clearNode(this.element);
 			for (const error of errors) {
+				this.sourceNames.set(error.sourceId, this.getSourceName(error));
 				const action = this.getRecoveryAction(error.sourceId);
 				this.actions.set(error.sourceId, action);
+			}
+			for (const group of this.getGroups()) {
+				const { action, errors } = group;
 				const signIn = action?.kind === 'signIn';
 				const row = DOM.append(this.element, DOM.$(signIn ? '.customization-marketplace-source-signin' : '.customization-marketplace-source-warning'));
 				if (!signIn) {
@@ -73,15 +80,15 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 					icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 					icon.setAttribute('aria-hidden', 'true');
 				}
-				DOM.append(row, DOM.$('span.customization-marketplace-source-message')).textContent = signIn ? error.message : this.getMessage(error);
+				DOM.append(row, DOM.$('span.customization-marketplace-source-message')).textContent = signIn ? this.getSignInMessage(errors) : this.getMessage(errors[0]);
 				const retry = this.rows.add(new Button(row, { ...defaultButtonStyles, secondary: !signIn, small: !signIn }));
 				retry.label = action?.label ?? localize('customizationMarketplace.retrySource', "Retry");
 				retry.setAriaLabel(signIn
-					? localize('customizationMarketplace.signInSourceLabel', "{0} to view {1}.", action.label, this.getSourceName(error))
+					? localize('customizationMarketplace.signInSourceLabel', "{0} to access {1}.", action.label, this.getSourceNames(errors))
 					: action
-						? localize('customizationMarketplace.recoverSourceLabel', "{0} for {1}. Reload all sources from the first page.", action.label, this.getSourceName(error))
-						: localize('customizationMarketplace.retrySourceLabel', "Retry {0}. Reload all sources from the first page.", this.getSourceName(error)));
-				this.rows.add(retry.onDidClick(() => this.retry(error.sourceId, action)));
+						? localize('customizationMarketplace.recoverSourceLabel', "{0} for {1}. Reload all sources from the first page.", action.label, this.getSourceNames(errors))
+						: localize('customizationMarketplace.retrySourceLabel', "Retry {0}. Reload all sources from the first page.", this.getSourceNames(errors)));
+				this.rows.add(retry.onDidClick(() => this.retry(errors.map(error => error.sourceId), action)));
 				this.buttons.push(retry);
 			}
 			if (this.hasWarnings) {
@@ -101,7 +108,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		}
 	}
 
-	private async retry(sourceId: string, action: ICustomizationMarketplaceSourceRecoveryAction | undefined): Promise<void> {
+	private async retry(sourceIds: readonly string[], action: ICustomizationMarketplaceSourceRecoveryAction | undefined): Promise<void> {
 		if (this.loading || this.recovery.value) {
 			return;
 		}
@@ -110,7 +117,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 			return;
 		}
 		const cancellation = this.recovery.value = new CancellationTokenSource();
-		this.recoveringSourceId = sourceId;
+		this.recoveringSourceIds = sourceIds;
 		this.setLoading(this.loading);
 		try {
 			await action.run(cancellation.token);
@@ -122,7 +129,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 				this.notificationService.error(error);
 			}
 		} finally {
-			this.recoveringSourceId = undefined;
+			this.recoveringSourceIds = undefined;
 			this.recovery.clear();
 			if (!this._store.isDisposed) {
 				this.setLoading(this.loading);
@@ -131,11 +138,11 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		const messages = this.errors.map(error => {
-			const action = this.actions.get(error.sourceId);
+		const messages = this.getGroups().map(({ errors, action }) => {
 			if (action?.kind === 'signIn') {
-				return localize('customizationMarketplace.sourceSignIn', "{0} Choose {1} to view {2}.", error.message, action.label, this.getSourceName(error));
+				return localize('customizationMarketplace.sourceSignIn', "{0} Choose {1} to access {2}.", this.getSignInMessage(errors), action.label, this.getSourceNames(errors));
 			}
+			const error = errors[0];
 			return action
 				? localize('customizationMarketplace.sourceRecovery', "{0} Choose {1} to restore this source.", this.getMessage(error), action.label)
 				: this.getMessage(error);
@@ -147,7 +154,40 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	}
 
 	private getSourceName(error: ICustomizationMarketplaceSourceError): string {
-		return this.sources.find(source => source.id === error.sourceId)?.displayName ?? error.sourceId;
+		return this.getSources().find(source => source.id === error.sourceId)?.displayName ?? error.sourceId;
+	}
+
+	private getSourceNames(errors: readonly ICustomizationMarketplaceSourceError[]): string {
+		const names = errors.map(error => this.getSourceName(error));
+		return names.length === 2
+			? localize('customizationMarketplace.twoSources', "{0} and {1}", names[0], names[1])
+			: names.join(', ');
+	}
+
+	private getSignInMessage(errors: readonly ICustomizationMarketplaceSourceError[]): string {
+		return errors.length === 1
+			? errors[0].message
+			: localize('customizationMarketplace.sharedSignIn', "Sign in to access {0}.", this.getSourceNames(errors));
+	}
+
+	private getGroups(): readonly { readonly errors: readonly ICustomizationMarketplaceSourceError[]; readonly action: ICustomizationMarketplaceSourceRecoveryAction | undefined }[] {
+		const groups: { errors: ICustomizationMarketplaceSourceError[]; action: ICustomizationMarketplaceSourceRecoveryAction | undefined }[] = [];
+		const shared = new Map<string, { errors: ICustomizationMarketplaceSourceError[]; action: ICustomizationMarketplaceSourceRecoveryAction }>();
+		for (const error of this.errors) {
+			const action = this.actions.get(error.sourceId);
+			if (!action?.groupId) {
+				groups.push({ errors: [error], action });
+				continue;
+			}
+			let group = shared.get(action.groupId);
+			if (!group) {
+				group = { errors: [], action };
+				shared.set(action.groupId, group);
+				groups.push(group);
+			}
+			group.errors.push(error);
+		}
+		return groups;
 	}
 
 	private getMessage(error: ICustomizationMarketplaceSourceError): string {

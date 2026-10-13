@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isHTMLAnchorElement } from '../../../../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { ILanguageModelChatMetadata } from '../../../../common/languageModels.js';
@@ -41,9 +43,17 @@ export function getMaxContextLabel(): string {
 }
 
 /** Renders a model's description markdown. The caller places and classes the element. */
-export function renderModelDescription(tooltip: string, openerService: IOpenerService, store: DisposableStore): HTMLElement {
-	const rendered = store.add(renderMarkdown(new MarkdownString(tooltip, { supportThemeIcons: true }), {
+export function renderModelDescription(tooltip: string, openerService: IOpenerService, store: DisposableStore, learnMoreUrl?: URI): { readonly element: HTMLElement; readonly learnMoreLink: HTMLAnchorElement | undefined } {
+	const content = new MarkdownString(tooltip, { supportThemeIcons: true });
+	if (learnMoreUrl) {
+		content.appendMarkdown(tooltip ? ' ' : '').appendLink(learnMoreUrl, localize('chat.modelPicker.learnMore', "Learn more"));
+	}
+	const rendered = store.add(renderMarkdown(content, {
 		actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
 	}));
-	return rendered.element;
+	const possibleLearnMoreLink = learnMoreUrl ? rendered.element.lastElementChild?.lastElementChild : undefined;
+	return {
+		element: rendered.element,
+		learnMoreLink: isHTMLAnchorElement(possibleLearnMoreLink) ? possibleLearnMoreLink : undefined,
+	};
 }

@@ -5,15 +5,16 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'fs';
+import { mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { deriveGitHubEndpoints } from '../../../../../github/common/githubEndpoints.js';
 import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
+import { gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../../../common/state/sessionActions.js';
@@ -30,6 +31,7 @@ import {
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
@@ -37,7 +39,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 	let rootConfigClientSeq = 10_000;
 
 	function createWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace);
 		return workspace;
 	}
@@ -137,7 +139,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			completionTriggerCharacters: result.completionTriggerCharacters,
 			terminalCommandPrefix: result.terminalCommandPrefix,
 		}, {
-			completionTriggerCharacters: ['@', '#', '/'],
+			completionTriggerCharacters: ['@', '#', '/', ' '],
 			terminalCommandPrefix: '!',
 		});
 	});
@@ -769,7 +771,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
 		execSync('git branch -M main', { cwd: workspace });
-		execSync('git init --bare -q', { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		execSync(`git remote add origin ${JSON.stringify(remote)}`, { cwd: workspace });
 		execSync('git push -q -u origin main', { cwd: workspace });
 		execSync('git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main', { cwd: workspace });

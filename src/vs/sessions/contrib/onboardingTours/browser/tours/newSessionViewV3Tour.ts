@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { RUN_ONBOARDING_STEP_KIND, IRunOnboardingStepPayload } from '../../../../../workbench/contrib/onboarding/browser/sequence/runOnboardingStep.js';
 import { SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingSequencePayload, ONBOARDING_SEQUENCE_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/common/onboardingSequence.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
@@ -18,6 +19,8 @@ export const NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION = 'githubPrompt';
 export const NEW_SESSION_VIEW_V3_OPTIONS_VARIATION = 'options';
 export const NEW_SESSION_VIEW_V3_VARIATION_TREATMENT = 'onb.newSessionViewV3.variation';
 export const NEW_SESSION_VIEW_V3_VARIATIONS = [NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION] as const;
+
+onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V3_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V3_VARIATIONS });
 
 const NEW_SESSION_VIEW_V3_EXPERIMENT = {
 	behaviorFlag: 'onb.newSessionViewV3.show',

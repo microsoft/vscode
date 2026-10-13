@@ -12,6 +12,8 @@ import { AgentSession } from '../common/agent.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
+import { CompatibleSessionDatabase } from './compatibleSessionDatabase.js';
+import type { SessionStorageIdentity } from './sessionStorageIdentity.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 
@@ -28,6 +30,7 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 	constructor(
 		private readonly _getDbPath: (key: string) => string,
 		private readonly _logService: ILogService,
+		private readonly _identity?: SessionStorageIdentity,
 	) {
 		super();
 	}
@@ -36,7 +39,8 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 		const dbPath = this._getDbPath(key);
 		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
 		this.opens++;
-		const db = new SessionDatabase(dbPath);
+		const raw = new SessionDatabase(dbPath);
+		const db = this._identity ? new CompatibleSessionDatabase(raw, this._identity) : raw;
 		this.liveDatabases.add(db);
 		return db;
 	}
@@ -68,11 +72,13 @@ export class SessionDataService implements ISessionDataService {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		getDbPath?: (key: string) => string, // for testing
+		private readonly _identity?: SessionStorageIdentity,
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
 		this._databases = new SessionDatabaseCollection(
 			getDbPath ?? (key => URI.joinPath(this._basePath, key, SESSION_DB_FILENAME).fsPath),
 			this._logService,
+			this._identity,
 		);
 	}
 
@@ -103,6 +109,7 @@ export class SessionDataService implements ISessionDataService {
 	 * leaving plain session URIs (no authority) unchanged.
 	 */
 	private _dataKey(uri: URI): string {
+		uri = this._identity ? URI.parse(this._identity.toStorage(uri.toString())) : uri;
 		const id = AgentSession.id(uri);
 		return uri.authority ? `${uri.authority}-${id}` : id;
 	}

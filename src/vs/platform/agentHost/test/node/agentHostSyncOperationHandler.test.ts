@@ -14,7 +14,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from '../../node/agentHostSyncOperationHandler.js';
 
 suite('AgentHostSyncOperationHandler', () => {
@@ -33,6 +33,7 @@ suite('AgentHostSyncOperationHandler', () => {
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
 			_meta: withSessionGitState(undefined, { branchName, baseBranchName: 'main' }),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const refreshedSessions: string[] = [];
 		return {
@@ -131,7 +132,7 @@ suite('AgentHostSyncOperationHandler', () => {
 		}();
 		const { handler, stateManager, refreshedSessions } = createHandler(gitService, 'feature');
 		const peer = buildChatUri(session.toString(), 'peer');
-		stateManager.addChat(session.toString(), peer, { workingDirectories: [URI.file('/peer-repo').toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
 
 		await handler.invoke({
 			channel: buildUncommittedChangesetUri(peer),

@@ -26,7 +26,7 @@ import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js
 
 class StubRemoteProvider {
 	readonly id: string;
-	readonly label: string;
+	label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
@@ -167,6 +167,127 @@ suite('AgentHostFilterService', () => {
 		hostA.setStatus(RemoteAgentHostConnectionStatus.disconnected);
 		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Disconnected);
 		assert.strictEqual(events, 1);
+	});
+
+	test('Mission Control environments appear alongside Dev Tunnels and retain independent connection controls', async () => {
+		const providers = new StubSessionsProvidersService();
+		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel');
+		const environment = new class extends StubRemoteProvider {
+			readonly hostDescription = observableValue(this, 'Online');
+		}('cloudsandbox:environment', 'GitHub Environment', RemoteAgentHostConnectionStatus.disconnected);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(tunnel)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(environment)));
+		const service = createService(providers);
+		service.setSelectedHostId(environment.id);
+		await service.reconnect(environment.id);
+		environment.setStatus(RemoteAgentHostConnectionStatus.connected);
+		await service.disconnect(environment.id);
+		environment.setStatus(RemoteAgentHostConnectionStatus.disconnected);
+		environment.hostDescription.set('Offline', undefined);
+		assert.deepStrictEqual({
+			hosts: service.hosts.map(host => ({
+				label: host.label, description: host.description, address: host.address,
+				grouped: host.grouped, connectable: host.connectable, providerIds: host.providerIds,
+			})),
+			selected: service.selectedHostId,
+			environmentConnects: environment.connectCalls, environmentDisconnects: environment.disconnectCalls,
+			tunnelConnects: tunnel.connectCalls, tunnelDisconnects: tunnel.disconnectCalls,
+		}, {
+			hosts: [
+				{ label: 'Dev Tunnel', description: undefined, address: 'tunnel+machine', grouped: false, connectable: true, providerIds: [tunnel.id] },
+				{ label: 'GitHub Environment', description: 'Offline', address: 'cloudsandbox:environment', grouped: false, connectable: true, providerIds: [environment.id] },
+			],
+			selected: isWeb ? environment.id : undefined,
+			environmentConnects: 1, environmentDisconnects: 1, tunnelConnects: 0, tunnelDisconnects: 0,
+		});
+	});
+
+	test('hides unavailable picker targets without changing the selected session scope', () => {
+		const providers = new StubSessionsProvidersService();
+		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel', RemoteAgentHostConnectionStatus.disconnected);
+		const environment = new class extends StubRemoteProvider {
+			readonly isVisibleInEnvironmentPicker = observableValue(this, true);
+		}('cloudsandbox:environment', 'GitHub Environment', RemoteAgentHostConnectionStatus.disconnected);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(tunnel)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(environment)));
+		const remote = store.add(new StubRemoteAgentHostService());
+		remote.setConfiguredEntries([{
+			name: environment.label,
+			connection: { type: RemoteAgentHostEntryType.CloudSandbox, environmentKind: 'user-local', environmentId: 'environment', address: environment.remoteAddress },
+		}]);
+		const service = createService(providers, undefined, remote);
+		service.setSelectedHostId(environment.id);
+		const snapshot = () => ({
+			hosts: service.hosts.map(host => host.id),
+			selected: service.selectedHostId,
+			scope: service.selectedHost?.providerIds,
+		});
+		const states = [snapshot()];
+		environment.isVisibleInEnvironmentPicker.set(false, undefined);
+		states.push(snapshot());
+		environment.setStatus(RemoteAgentHostConnectionStatus.connected);
+		states.push(snapshot());
+		environment.isVisibleInEnvironmentPicker.set(true, undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual({
+			states, providers: providers.getProviders().map(provider => provider.id),
+		}, {
+			states: [
+				{ hosts: [tunnel.id, environment.id], selected: environment.id, scope: [environment.id] },
+				{ hosts: [tunnel.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
+				{ hosts: [tunnel.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
+				{ hosts: [tunnel.id, environment.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
+			],
+			providers: [tunnel.id, environment.id],
+		});
+	});
+
+	test('does not automatically select an initially hidden environment', () => {
+		const providers = new StubSessionsProvidersService();
+		const hidden = new class extends StubRemoteProvider {
+			readonly isVisibleInEnvironmentPicker = observableValue(this, false);
+		}('cloudsandbox:environment', 'A Hidden Environment');
+		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel');
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(hidden)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(tunnel)));
+		const service = createService(providers);
+		service.setSelectedHostId(hidden.id);
+		assert.deepStrictEqual({ hosts: service.hosts.map(host => host.id), selected: service.selectedHostId }, {
+			hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined,
+		});
+	});
+
+	test('updates host labels and sort order without changing the selected host or reconnecting', () => {
+		const providers = new StubSessionsProvidersService();
+		const labelsChanged = store.add(new Emitter<void>());
+		const host = Object.assign(new StubRemoteProvider('tunnel:host-a', 'Host A'), {
+			onDidChangeSessionTypes: labelsChanged.event,
+		});
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('tunnel:host-b', 'Host B'))));
+		const service = createService(providers);
+		if (isWeb) {
+			service.setSelectedHostId(host.id);
+		}
+		let events = 0;
+		store.add(service.onDidChange(() => events++));
+
+		host.label = 'Renamed Host';
+		labelsChanged.fire();
+
+		assert.deepStrictEqual({
+			hosts: service.hosts.map(entry => ({ id: entry.id, label: entry.label })),
+			selectedHost: { id: service.selectedHost?.id, label: service.selectedHost?.label },
+			connectCalls: host.connectCalls,
+			disconnectCalls: host.disconnectCalls,
+			events,
+		}, {
+			hosts: [{ id: pid('tunnel:host-b'), label: 'Host B' }, { id: host.id, label: 'Renamed Host' }],
+			selectedHost: { id: isWeb ? host.id : undefined, label: isWeb ? 'Renamed Host' : undefined },
+			connectCalls: 0,
+			disconnectCalls: 0,
+			events: 1,
+		});
 	});
 
 	test('maps reconnecting providers to connecting', () => {

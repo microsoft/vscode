@@ -3743,6 +3743,18 @@
             "experimental"
           ]
         },
+        "git.worktreeSymlinkFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.worktreeSymlinkFolders%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
           "scope": "resource",

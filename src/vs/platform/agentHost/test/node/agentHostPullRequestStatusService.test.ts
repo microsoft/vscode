@@ -11,27 +11,29 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import type { PullRequestFragment, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
-import type { IGitHubService } from '../../../github/common/githubService.js';
+import type { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { buildChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
 const REPOSITORY = 'file:///repo';
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY], defaultChat: buildDefaultChatUri(resource) };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {
@@ -158,22 +160,29 @@ class TestCredentials implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
+	private _controller = new AbortController();
+	lookups = 0;
 
 	/** Resolved by the test so a sync can be suspended mid-flight. */
 	pending: DeferredPromise<void> | undefined;
 
 	async getCredential(): Promise<GitHubCredential> {
+		this.lookups++;
+		const signal = this._controller.signal;
 		if (this.pending) {
 			await this.pending.p;
 		}
-		return { account, token: 'token', generation: 1, signal: new AbortController().signal };
+		return { account, token: 'token', generation: 1, signal };
 	}
 
 	async resolveCredential(): Promise<GitHubCredential> { throw new Error('not implemented'); }
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
-		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: new AbortController().signal }, reason });
+		const controller = this._controller;
+		this._controller = new AbortController();
+		controller.abort();
+		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: controller.signal }, reason });
 	}
 
 	dispose(): void { this._onDidInvalidate.dispose(); }
@@ -236,10 +245,10 @@ suite('AgentHostPullRequestStatusService', () => {
 		const gitHubStates: ISessionGitHubState[] = [];
 		const publishedStateKeys: string[] = [];
 		const chatGitStates = new Map<string, ISessionGitState>();
-		const gitHubService = new class extends mock<IGitHubService>() {
+		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
-		}();
+		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -260,6 +269,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			gitStateService,
 			gitHubService,
 			logService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		const session = 'copilot:/pr-status';
@@ -280,7 +290,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherFolder = 'file:///other';
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -315,7 +325,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const firstPeer = buildChatUri(session, 'first-peer');
 		const secondPeer = buildChatUri(session, 'second-peer');
-		stateManager.addChat(session, firstPeer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -328,7 +338,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		}
 		publishedStateKeys.length = 0;
 
-		stateManager.addChat(session, secondPeer, { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
 		stateManager.removeChat(session, firstPeer);
 		await pump();
@@ -647,6 +657,16 @@ suite('AgentHostPullRequestStatusService', () => {
 			subscribed: 2,
 			disposed: 1,
 			live: 1,
+		});
+	});
+
+	test('retries a credential invalidated before its watch is installed', async () => {
+		const { subscriptions, credentials, resources, session } = createHarness();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		credentials.invalidate('account');
+		await waitForWatch(resources);
+		assert.deepStrictEqual({ lookups: credentials.lookups, subscribed: resources.subscribed.length, live: resources.liveSubscriptions }, {
+			lookups: 2, subscribed: 1, live: 1,
 		});
 	});
 

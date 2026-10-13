@@ -882,6 +882,30 @@ suite('EditorResolverService', () => {
 		});
 	});
 
+	test('getEditors excludes registrations without diff support when requested', async () => {
+		const [, service] = await createEditorResolverService();
+		const createEditorInput: EditorInputFactoryObject['createEditorInput'] = ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) });
+		disposables.add(service.registerEditor('*.diffable', {
+			id: 'test.diffable',
+			label: 'Diffable Editor',
+			priority: RegisteredEditorPriority.default
+		}, {}, { createEditorInput, createDiffEditorInput: ({ modified }) => ({ editor: new TestFileEditorInput(modified.resource!, TEST_EDITOR_INPUT_ID) }) }));
+		disposables.add(service.registerEditor('*.notDiffable', {
+			id: 'test.notDiffable',
+			label: 'Non-Diffable Editor',
+			priority: RegisteredEditorPriority.default
+		}, {}, { createEditorInput }));
+
+		const testEditorIds = (editors: readonly { id: string }[]) => editors.map(editor => editor.id).filter(id => id.startsWith('test.'));
+		assert.deepStrictEqual({
+			all: testEditorIds(service.getEditors()),
+			diff: testEditorIds(service.getEditors({ isDiffEditor: true }))
+		}, {
+			all: ['test.diffable', 'test.notDiffable'],
+			diff: ['test.diffable']
+		});
+	});
+
 	test('editor associations only apply where the registered editor supports the resource', async () => {
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({

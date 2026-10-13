@@ -32,6 +32,8 @@ export interface IRadioOptionItem {
 	readonly ariaLabel?: string;
 	readonly isActive?: boolean;
 	readonly disabled?: boolean;
+	/** Starts a new row of a segmented radio, for items that don't fit beside the ones before them. */
+	readonly startsRow?: boolean;
 }
 
 export interface IRadioOptions {
@@ -125,9 +127,15 @@ export class Radio extends Widget {
 		this.domNode.classList.remove('selection-indicator-ready', 'animate-selection');
 		this.items = items;
 		this.activeItem = this.items.find(item => item.isActive) ?? this.items[0];
+		const segmented = this.domNode.classList.contains('segmented');
+		this.domNode.classList.toggle('multi-row', segmented && this.items.some((item, index) => index > 0 && item.startsRow));
 		for (let index = 0; index < this.items.length; index++) {
 			const item = this.items[index];
 			const disposables = new DisposableStore();
+			if (segmented && index > 0 && item.startsRow) {
+				const rowBreak = this.domNode.appendChild($('.monaco-radio-row-break', { 'aria-hidden': 'true' }));
+				disposables.add(toDisposable(() => rowBreak.remove()));
+			}
 			const button = disposables.add(new Button(this.domNode, {
 				hoverDelegate: this.hoverDelegate,
 				title: item.tooltip,
@@ -280,7 +288,8 @@ export class Radio extends Widget {
 		if (previous && previous.left === bounds.left && previous.top === bounds.top && previous.width === bounds.width && previous.height === bounds.height) {
 			return;
 		}
-		this.domNode.classList.toggle('animate-selection', animate && !!previous);
+		// Sliding diagonally between rows reads poorly, so a move to another row jumps.
+		this.domNode.classList.toggle('animate-selection', animate && !!previous && previous.top === bounds.top);
 		this.domNode.classList.add('selection-indicator-ready');
 		indicator.style.width = `${bounds.width}px`;
 		indicator.style.height = `${bounds.height}px`;
