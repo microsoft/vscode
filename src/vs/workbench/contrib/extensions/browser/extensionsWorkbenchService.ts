@@ -678,16 +678,26 @@ class Extensions extends Disposable {
 
 	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
+		const installedGalleryExtensions = await this.galleryService.getExtensions(
+			extensions
+				.filter(([extension, gallery]) => extension.version !== gallery.version)
+				.map(([extension]) => ({ ...extension.identifier, version: extension.version })),
+			{ includeBlockedVersions: true },
+			CancellationToken.None
+		);
 		for (const [extension, gallery] of extensions) {
+			const installedGallery = installedGalleryExtensions.find(installedGallery => areSameExtensions(installedGallery.identifier, extension.identifier));
+			const blockingInfo = installedGallery?.blockingInfo ?? gallery.blockingInfo;
+			const galleryWithBlockingInfo = gallery.blockingInfo?.origin === blockingInfo?.origin ? gallery : { ...gallery, blockingInfo };
 			// update metadata of the extension if it does not exist
 			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
-				extension.local = await this.updateMetadata(extension.local, gallery);
+				extension.local = await this.updateMetadata(extension.local, galleryWithBlockingInfo);
 			}
 			if (!extension.gallery
-				|| extension.gallery.version !== gallery.version
-				|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
-				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin) {
-				extension.gallery = gallery;
+				|| extension.gallery.version !== galleryWithBlockingInfo.version
+				|| extension.gallery.properties.targetPlatform !== galleryWithBlockingInfo.properties.targetPlatform
+				|| extension.gallery.blockingInfo?.origin !== galleryWithBlockingInfo.blockingInfo?.origin) {
+				extension.gallery = galleryWithBlockingInfo;
 				this._onChange.fire({ extension });
 			}
 		}

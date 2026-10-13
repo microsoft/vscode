@@ -13,7 +13,7 @@ import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchSer
 import '../../browser/extensions.contribution.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, IExtensionInfo, IExtensionQueryOptions
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -421,6 +421,33 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	});
 
+	test('test installed version blocking metadata is preserved when an older version is permitted', async () => {
+		const local = aLocalExtension('blocked', { version: '2.0.0' });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '1.0.0' });
+		const installedGallery = aGalleryExtension(local.manifest.name, {
+			version: local.manifest.version,
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy }
+		});
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) =>
+			CancellationToken.isCancellationToken(options) ? [gallery] : options.includeBlockedVersions ? [installedGallery] : [gallery]);
+		testObject = await aWorkbenchService();
+
+		const extension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
+
+		assert.deepStrictEqual({
+			version: extension.version,
+			blockingInfo: extension.blockingInfo,
+			autoUpdate: testObject.isAutoUpdateEnabledFor(extension)
+		}, {
+			version: '2.0.0',
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy },
+			autoUpdate: false
+		});
+	});
+
 	test('test blocked extensions are not auto updated', async () => {
 		const local = aLocalExtension('blocked');
 		const gallery = aGalleryExtension(local.manifest.name, {
@@ -628,6 +655,19 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.equal(await testObject.canInstall(target), true);
 	});
 
+	test('test canInstall rejects blocked extensions', async () => {
+		const gallery = aGalleryExtension('blocked', {
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy }
+		});
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		testObject = await aWorkbenchService();
+
+		const extension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
+		const result = await testObject.canInstall(extension);
+
+		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not permitted by your organization\'s policy.');
+	});
+
 	suite('installExtension waits for installed inventory', () => {
 		for (const { name, version, preRelease, disabled } of [
 			{ name: 'newer pre-release', version: '1.26.54', preRelease: true, disabled: false },
@@ -691,19 +731,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				});
 			});
 		}
-	});
-
-	test('test canInstall rejects blocked extensions', async () => {
-		const gallery = aGalleryExtension('blocked', {
-			blockingInfo: { origin: ExtensionBlockingOrigin.Policy }
-		});
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		testObject = await aWorkbenchService();
-
-		const extension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
-		const result = await testObject.canInstall(extension);
-
-		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not permitted by your organization\'s policy.');
 	});
 
 	test('test onchange event is triggered while installing', async () => {
