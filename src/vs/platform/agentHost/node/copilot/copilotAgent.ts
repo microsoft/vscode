@@ -50,7 +50,7 @@ import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManag
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -1803,7 +1803,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 
 				const storedMetadata = await this._readWorkingDirectoryMetadata(resource);
-				if (entry.appliedAdditionalDirectories.length > 0 || (!chatOnly && activeClient.pluginController.additionalDirectories.length > 0) || (storedMetadata.workingDirectories?.length ?? 0) > 1) {
+				const replacesPeerRoots = chatOnly && !replaceSessionWorkspace && !isEqual(resource, configurationResource);
+				if (!replacesPeerRoots && (entry.appliedAdditionalDirectories.length > 0 || (!chatOnly && activeClient.pluginController.additionalDirectories.length > 0) || (storedMetadata.workingDirectories?.length ?? 0) > 1)) {
 					throw new Error(`Cannot change the working directory for multi-root chat '${chat.toString()}'`);
 				}
 
@@ -2047,8 +2048,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		));
 	}
 
-	async uninstallPlugin(request: IAgentPluginUninstallRequest): Promise<void> {
+	private _findPluginOperationSession(session: URI | undefined, chat: URI | undefined): CopilotAgentSession | undefined {
+		if (chat) {
+			const exactChat = this._findChatByUri(chat);
+			return exactChat && session && isEqual(exactChat.ownerSessionUri, session) ? exactChat : undefined;
+		}
+		return session ? this._findSessionChat(session) : undefined;
+	}
+
+	async uninstallPlugin(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const pluginSpec = request.marketplace ? `${request.name}@${request.marketplace}` : request.name;
+		const liveSession = this._findPluginOperationSession(session, chat);
+		if (liveSession) {
+			await liveSession.uninstallPlugin(pluginSpec, request.directSourceId);
+			return;
+		}
 		await this._retryAfterClosedConnection('uninstallPlugin', client => client.rpc.plugins.uninstall({
 			name: pluginSpec,
 			directSourceId: request.directSourceId,
@@ -2090,8 +2104,74 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return context;
 	}
 
-	async installPlugin(request: IAgentPluginInstallRequest): Promise<void> {
+	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		if (liveSession) {
+			await liveSession.installPlugin(request.source);
+			return;
+		}
 		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
+	}
+
+	async listPluginMarketplaces(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		const marketplaces = liveSession
+			? await liveSession.listPluginMarketplaces()
+			: (await this._retryAfterClosedConnection('listPluginMarketplaces', client => client.rpc.plugins.marketplaces.list())).marketplaces;
+		return marketplaces.map(marketplace => ({
+			name: marketplace.name,
+			source: marketplace.source,
+			isDefault: marketplace.isDefault === true,
+			managed: marketplace.managed === true,
+			available: marketplace.available !== false,
+		}));
+	}
+
+	async addPluginMarketplace(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		const result = liveSession
+			? await liveSession.addPluginMarketplace(source)
+			: await this._retryAfterClosedConnection('addPluginMarketplace', client => client.rpc.plugins.marketplaces.add({ source }));
+		const marketplaces = await this.listPluginMarketplaces(session, chat);
+		const marketplace = marketplaces.find(marketplace => marketplace.name === result.name);
+		if (!marketplace) {
+			throw new Error(`Added plugin marketplace '${result.name}' was not present in the refreshed marketplace inventory.`);
+		}
+		return marketplace;
+	}
+
+	async browsePluginMarketplace(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		const plugins = liveSession
+			? await liveSession.browsePluginMarketplace(name)
+			: (await this._retryAfterClosedConnection('browsePluginMarketplace', client => client.rpc.plugins.marketplaces.browse({ name }))).plugins;
+		return plugins.map(plugin => ({
+			name: plugin.name,
+			description: plugin.description,
+		}));
+	}
+
+	async removePluginMarketplace(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		const result = liveSession
+			? await liveSession.removePluginMarketplace(name, force)
+			: await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
+		return {
+			removed: result.removed,
+			dependentPlugins: result.dependentPlugins,
+		};
+	}
+
+	async refreshPluginMarketplaces(session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]> {
+		const liveSession = this._findPluginOperationSession(session, chat);
+		const results = liveSession
+			? await liveSession.refreshPluginMarketplaces(name)
+			: (await this._retryAfterClosedConnection('refreshPluginMarketplaces', client => client.rpc.plugins.marketplaces.refresh(name ? { name } : {}))).results;
+		return results.map(entry => ({
+			name: entry.name,
+			success: entry.success,
+			error: entry.error,
+		}));
 	}
 
 	searchCustomizationMarketplace(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
@@ -6212,7 +6292,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const workspaceResource = isEqual(persistedWorkingDirectory, configurationMetadata.workingDirectory)
 				? configurationResource : context.resource;
-			const { workingDirectory, detached } = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
+			const workingDirectory = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
 			const launchWorkingDirectories = resumeWorkingDirectories
 				? [workingDirectory, ...resumeWorkingDirectories.slice(1)]
 				: undefined;
@@ -6252,7 +6332,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._registerLiveChat(chat, initializingSession, activeClient);
 			});
 			stageRecorder?.mark('persist');
-			if (launchWorkingDirectories && (!detached || isEqual(workingDirectory, persistedWorkingDirectory))) {
+			// An archived worktree's repository-root fallback is for history, not a workspace change.
+			if (launchWorkingDirectories && isEqual(workingDirectory, persistedWorkingDirectory)) {
 				await this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
 			}
 			this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${configurationResource.toString()}`);
@@ -6264,18 +6345,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _resolveOwnedWorkingDirectoryForResume(configurationResource: URI, workspaceResource: URI, sessionId: string, persistedWorkingDirectory: URI): Promise<{ readonly workingDirectory: URI; readonly detached: boolean }> {
+	private async _resolveOwnedWorkingDirectoryForResume(configurationResource: URI, workspaceResource: URI, sessionId: string, persistedWorkingDirectory: URI): Promise<URI> {
 		const detachedWorktree = (await readSessionAdditionalWorktrees(this._sessionDataService, configurationResource).catch(error => {
 			// A corrupt record must not block an otherwise valid resume or mask a missing-directory error.
 			this._logService.warn(`[Copilot:${sessionId}] Ignoring unreadable additional worktree metadata on resume: ${getErrorMessage(error)}`);
 			return [];
 		})).find(worktree => isEqual(URI.parse(worktree.workingDirectory), persistedWorkingDirectory));
-		const workingDirectory = await this._worktree.resolveWorkingDirectoryForResume(
+		return this._worktree.resolveWorkingDirectoryForResume(
 			detachedWorktree ? detachedWorktreeRecordUri(detachedWorktree.handle) : workspaceResource,
 			detachedWorktree?.handle ?? sessionId,
 			persistedWorkingDirectory,
 		);
-		return { workingDirectory, detached: !!detachedWorktree };
 	}
 
 	private _throwIfWorkingDirectoryMutationBlocksChat(configurationResource: URI, chat: URI): void {
@@ -6897,7 +6977,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (storedMetadata.workspaceless) {
 			await this._ensureWorkspacelessScratchDir(workingDirectory, sessionId);
 		} else {
-			resolvedWorkingDirectory = (await this._resolveOwnedWorkingDirectoryForResume(sessionUri, sessionUri, sessionId, workingDirectory)).workingDirectory;
+			resolvedWorkingDirectory = await this._resolveOwnedWorkingDirectoryForResume(sessionUri, sessionUri, sessionId, workingDirectory);
 		}
 		// Only an explicit chat-only move decouples shared discovery from the main workspace.
 		const customizationDirectory = storedMetadata.sharedCustomizationDirectories?.[0] ?? resolvedWorkingDirectory;

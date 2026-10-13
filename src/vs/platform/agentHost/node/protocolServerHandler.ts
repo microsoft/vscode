@@ -68,7 +68,7 @@ import {
 	type ListSessionsResult,
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -403,6 +403,8 @@ export interface IProtocolServerConfig {
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
+	/** Projects visible, current session summaries for this listener's listSessions responses. */
+	readonly sessionListAdapter?: (sessions: readonly SessionSummary[]) => SessionSummary[];
 	/** Locally known workspace/content roots exposed to relay clients. */
 	readonly relayResourceRoots?: (readOnly: boolean) => readonly string[];
 	readonly extension?: IProtocolServerExtension;
@@ -1928,7 +1930,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
-			const prepared = this._stateManager.prepareSessionSummariesForListing(items);
+			let prepared = this._stateManager.prepareSessionSummariesForListing(items);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
 					if (!item.workingDirectories?.length || !(await Promise.all(item.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean)) {
@@ -1939,9 +1941,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...(item.project && !await this._isGrantedRelayDirectory(item.project.uri) ? { project: undefined } : {}),
 					};
 				}));
-				return { items: granted.filter(isDefined) };
+				prepared = granted.filter(isDefined);
 			}
-			return { items: prepared };
+			return { items: this._config.sessionListAdapter ? this._config.sessionListAdapter(prepared) : prepared };
 		},
 		listAutomationTriggerDefinitions: async (_client, params) => {
 			return this._agentService.listAutomationTriggerDefinitions(params);

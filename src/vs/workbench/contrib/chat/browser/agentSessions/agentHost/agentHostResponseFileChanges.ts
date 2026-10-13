@@ -104,6 +104,12 @@ export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectio
 	return changesetEditToEntryDiff(file.edit, connectionAuthority);
 }
 
+/** Result of converting one immutable file edit, independent of the workspace roots it is later classified against. */
+interface IConvertedFileEdit {
+	readonly resource: URI;
+	readonly diff: Omit<IChatResponseFileEdit, 'isOutsideWorkspace'>;
+}
+
 function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string): IEditSessionEntryDiff | undefined {
 	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
@@ -140,6 +146,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	private readonly _perRequestFileEdits = new LRUCache<string, IObservable<readonly IChatResponseFileEdit[]>>(REQUEST_CACHE_CAPACITY);
 	private readonly _sessionSources = new LRUCache<string, ISharedSource<ISessionFileChangesSource>>(REQUEST_CACHE_CAPACITY);
 	private readonly _chatSources = new LRUCache<string, ISharedSource<IChatTurnSource>>(REQUEST_CACHE_CAPACITY);
+	// Protocol state is immutable, so an edit object's conversion stays valid for as long as that object is referenced.
+	private readonly _convertedFileEdits = new WeakMap<ISessionFileDiff, IConvertedFileEdit | null>();
+	private readonly _convertedChangesetEdits = new WeakMap<ISessionFileDiff, IEditSessionEntryDiff | null>();
 
 	constructor(
 		private readonly _connection: IAgentConnection,
@@ -295,8 +304,17 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	private _createChangesetDiffsObservable(state: IObservable<ChangesetState | Error | undefined>): IObservable<readonly IEditSessionEntryDiff[]> {
 		const files = state.map(changeset => changeset instanceof Error ? undefined : changeset?.files);
 		const edits = derivedOpts<readonly ISessionFileDiff[]>({ equalsFn: arrayEquals }, reader => files.read(reader)?.map(file => file.edit) ?? []);
-		const diffs = mapObservableArrayCached(this, edits, edit => changesetEditToEntryDiff(edit, this._connectionAuthority));
+		const diffs = mapObservableArrayCached(this, edits, edit => this._changesetEditToEntryDiff(edit));
 		return derivedOpts({ equalsFn: arrayEquals }, reader => diffs.read(reader).filter(isDefined));
+	}
+
+	private _changesetEditToEntryDiff(edit: ISessionFileDiff): IEditSessionEntryDiff | undefined {
+		let diff = this._convertedChangesetEdits.get(edit);
+		if (diff === undefined) {
+			diff = changesetEditToEntryDiff(edit, this._connectionAuthority) ?? null;
+			this._convertedChangesetEdits.set(edit, diff);
+		}
+		return diff ?? undefined;
 	}
 
 	private _getSessionSource(backendSession: URI): IObservable<ISessionFileChangesSource> {
@@ -492,6 +510,19 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	}
 
 	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {
+		let converted = this._convertedFileEdits.get(fileEdit);
+		if (converted === undefined) {
+			converted = this._convertFileEdit(fileEdit) ?? null;
+			this._convertedFileEdits.set(fileEdit, converted);
+		}
+		if (!converted) {
+			return undefined;
+		}
+		// Callers merge into the returned entry, so it must not alias the cached conversion.
+		return { ...converted.diff, isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(converted.resource, root)) };
+	}
+
+	private _convertFileEdit(fileEdit: ISessionFileDiff): IConvertedFileEdit | undefined {
 		const normalized = normalizeFileEdit(fileEdit);
 		if (!normalized) {
 			return undefined;
@@ -507,18 +538,20 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			: undefined;
 
 		return {
-			originalURI,
-			modifiedURI,
-			modifiedSnapshotURI,
-			isCreated: normalized.kind === FileEditKind.Create,
-			isDeleted: normalized.kind === FileEditKind.Delete,
-			added: fileEdit.diff?.added ?? 0,
-			removed: fileEdit.diff?.removed ?? 0,
-			quitEarly: false,
-			identical: false,
-			isFinal: true,
-			isBusy: false,
-			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(resource, root)),
+			resource,
+			diff: {
+				originalURI,
+				modifiedURI,
+				modifiedSnapshotURI,
+				isCreated: normalized.kind === FileEditKind.Create,
+				isDeleted: normalized.kind === FileEditKind.Delete,
+				added: fileEdit.diff?.added ?? 0,
+				removed: fileEdit.diff?.removed ?? 0,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			},
 		};
 	}
 

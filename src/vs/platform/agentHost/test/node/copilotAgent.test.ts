@@ -565,7 +565,10 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	}
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
+type CopilotPlugins = CopilotClient['rpc']['plugins'];
+type CopilotPluginsInstall = CopilotPlugins['install'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
+type CopilotPluginMarketplaces = CopilotPlugins['marketplaces'];
 type CopilotModelInfo = Awaited<ReturnType<CopilotModelsList>>['models'][number];
 type CopilotAgentDiscovery = Pick<CopilotClient['rpc']['agents'], 'discover' | 'getDiscoveryPaths'>;
 type CopilotInstructionDiscovery = Pick<CopilotClient['rpc']['instructions'], 'discover' | 'getDiscoveryPaths'>;
@@ -607,7 +610,9 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
+		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
@@ -739,8 +744,31 @@ class TestCopilotClient implements ITestCopilotClient {
 			}
 		},
 		plugins: {
+			install: async params => {
+				this.pluginInstallRequests.push(params);
+				return {} as Awaited<ReturnType<CopilotPluginsInstall>>;
+			},
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
+			},
+			marketplaces: {
+				list: async () => ({ marketplaces: this.pluginMarketplaces }),
+				add: async params => {
+					this.pluginMarketplaceAddRequests.push(params);
+					return { name: this.pluginMarketplaceAddName };
+				},
+				browse: async params => {
+					this.pluginMarketplaceBrowseRequests.push(params);
+					return { plugins: this.pluginMarketplaceBrowsePlugins };
+				},
+				remove: async params => {
+					this.pluginMarketplaceRemoveRequests.push(params);
+					return this.pluginMarketplaceRemoveResult;
+				},
+				refresh: async params => {
+					this.pluginMarketplaceRefreshRequests.push(params);
+					return { results: this.pluginMarketplaceRefreshResults };
+				},
 			},
 		},
 	};
@@ -755,7 +783,17 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly sessionListRequests: Parameters<CopilotClient['rpc']['sessions']['list']>[0][] = [];
 	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
+	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
+	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
+	pluginMarketplaceAddName = 'marketplace';
+	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
+	pluginMarketplaceBrowsePlugins: Awaited<ReturnType<CopilotPluginMarketplaces['browse']>>['plugins'] = [];
+	readonly pluginMarketplaceBrowseRequests: Parameters<CopilotPluginMarketplaces['browse']>[0][] = [];
+	pluginMarketplaceRemoveResult: Awaited<ReturnType<CopilotPluginMarketplaces['remove']>> = { removed: true };
+	readonly pluginMarketplaceRemoveRequests: Parameters<CopilotPluginMarketplaces['remove']>[0][] = [];
+	pluginMarketplaceRefreshResults: Awaited<ReturnType<CopilotPluginMarketplaces['refresh']>>['results'] = [];
+	readonly pluginMarketplaceRefreshRequests: Parameters<CopilotPluginMarketplaces['refresh']>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
 	modelListGate: Promise<void> | undefined;
@@ -1682,6 +1720,177 @@ suite('CopilotAgent', () => {
 				{ name: 'spark@copilot-plugins', directSourceId: undefined },
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('manages plugin marketplaces through the SDK server API', async () => {
+		const client = new TestCopilotClient([]);
+		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
+		const chat = URI.parse('vendor-chat:/marketplace-peer');
+		const otherSession = URI.parse('agent-host-copilotcli:/other-session');
+		client.pluginMarketplaces = [{
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: true,
+			available: true,
+		}];
+		client.pluginMarketplaceAddName = 'marketplace';
+		client.pluginMarketplaceBrowsePlugins = [{ name: 'plugin', description: 'Plugin description' }];
+		client.pluginMarketplaceRemoveResult = { removed: false, dependentPlugins: ['plugin'] };
+		client.pluginMarketplaceRefreshResults = [{ name: 'marketplace', success: true }];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		chatEntriesBySdkId(agent).set('unrelated-live-session', {
+			chatSession: {
+				resourceUri: chat,
+				ownerSessionUri: otherSession,
+			} as CopilotAgentSession,
+			dispose() { },
+		});
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'unrelated-live-session' });
+		try {
+			const listed = await agent.listPluginMarketplaces(session, chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
+			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
+			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
+
+			assert.deepStrictEqual({
+				listed,
+				added,
+				browsed,
+				removed,
+				refreshed,
+				addRequests: client.pluginMarketplaceAddRequests,
+				browseRequests: client.pluginMarketplaceBrowseRequests,
+				removeRequests: client.pluginMarketplaceRemoveRequests,
+				refreshRequests: client.pluginMarketplaceRefreshRequests,
+			}, {
+				listed: [{
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: true,
+					available: true,
+				}],
+				added: {
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: true,
+					available: true,
+				},
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
+				removed: { removed: false, dependentPlugins: ['plugin'] },
+				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
+				addRequests: [{ source: 'owner/repository' }],
+				browseRequests: [{ name: 'marketplace' }],
+				removeRequests: [{ name: 'marketplace', force: true }],
+				refreshRequests: [{ name: 'marketplace' }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('prefers a live session for plugin marketplace operations', async () => {
+		const client = new TestCopilotClient([]);
+		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
+		const chat = URI.parse('agent-host-copilotcli:/marketplace-session#peer');
+		const calls: unknown[] = [];
+		const liveSession = {
+			resourceUri: chat,
+			ownerSessionUri: session,
+			installPlugin: async (source: string) => { calls.push(['install', source]); },
+			uninstallPlugin: async (name: string, directSourceId?: string) => { calls.push(['uninstall', name, directSourceId]); },
+			listPluginMarketplaces: async () => [{
+				name: 'marketplace',
+				source: 'GitHub: owner/repository',
+				isDefault: false,
+				managed: false,
+				available: true,
+			}],
+			addPluginMarketplace: async (source: string) => {
+				calls.push(['add', source]);
+				return { name: 'marketplace' };
+			},
+			browsePluginMarketplace: async (name: string) => {
+				calls.push(['browse', name]);
+				return [{ name: 'plugin', description: 'Plugin description' }];
+			},
+			removePluginMarketplace: async (name: string, force?: boolean) => {
+				calls.push(['remove', name, force]);
+				return { removed: true };
+			},
+			refreshPluginMarketplaces: async (name?: string) => {
+				calls.push(['refresh', name]);
+				return [{ name: name ?? 'marketplace', success: true }];
+			},
+		} as unknown as CopilotAgentSession;
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		chatEntriesBySdkId(agent).set('live-marketplace-peer', { chatSession: liveSession, dispose() { } });
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'live-marketplace-peer' });
+		try {
+			await agent.installPlugin({ source: 'plugin@marketplace' }, session, chat);
+			await agent.uninstallPlugin({ name: 'plugin', marketplace: 'marketplace' }, session, chat);
+			const listed = await agent.listPluginMarketplaces(session, chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
+			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
+			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
+
+			assert.deepStrictEqual({
+				listed,
+				added,
+				browsed,
+				removed,
+				refreshed,
+				calls,
+				clientRequests: {
+					install: client.pluginInstallRequests,
+					uninstall: client.pluginUninstallRequests,
+					add: client.pluginMarketplaceAddRequests,
+					browse: client.pluginMarketplaceBrowseRequests,
+					remove: client.pluginMarketplaceRemoveRequests,
+					refresh: client.pluginMarketplaceRefreshRequests,
+				},
+			}, {
+				listed: [{
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: false,
+					available: true,
+				}],
+				added: {
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: false,
+					available: true,
+				},
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
+				removed: { removed: true, dependentPlugins: undefined },
+				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
+				calls: [
+					['install', 'plugin@marketplace'],
+					['uninstall', 'plugin@marketplace', undefined],
+					['add', 'owner/repository'],
+					['browse', 'marketplace'],
+					['remove', 'marketplace', true],
+					['refresh', 'marketplace'],
+				],
+				clientRequests: {
+					install: [],
+					uninstall: [],
+					add: [],
+					browse: [],
+					remove: [],
+					refresh: [],
+				},
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -6071,7 +6280,7 @@ suite('CopilotAgent', () => {
 		});
 
 		suite('exact-chat working-directory conversion', () => {
-			async function createFixture(multiRoot = false, canvasesEnabled = false) {
+			async function createFixture(multiRoot = false, canvasesEnabled = false, session = AgentSession.uri('copilotcli', 'session-wide')) {
 				const root = await fs.mkdtemp('./.agent-session-cwd-');
 				const previous = URI.file(join(process.cwd(), root, 'previous'));
 				const next = URI.file(join(process.cwd(), root, 'next'));
@@ -6082,7 +6291,6 @@ suite('CopilotAgent', () => {
 					[AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot,
 					[AgentHostCanvasesEnabledConfigKey]: canvasesEnabled,
 				};
-				const session = AgentSession.uri('copilotcli', 'session-wide');
 				const chats = [defaultChatUri(session), URI.parse(buildChatUri(session, 'live-peer')), URI.parse(buildChatUri(session, 'cold-peer'))];
 				const resources = [session, ...chats.slice(1)];
 				const sdkSessions = [new MockCopilotSession('session-wide'), new MockCopilotSession('live-sdk'), new MockCopilotSession('cold-sdk')];
@@ -6295,6 +6503,141 @@ suite('CopilotAgent', () => {
 						await fixture.dispose();
 					}
 				});
+			}
+
+			for (const [scheme, sessionId, multiRoot] of [
+				['ahp-session', 'archived-native', false],
+				['copilotcli', 'archived-legacy', false],
+				['copilotcli', 'session-wide', false],
+				['ahp-session', 'archived-native', true],
+				['copilotcli', 'archived-legacy', true],
+				['copilotcli', 'session-wide', true],
+			] as const) {
+				for (const operation of ['send', 'continue', 'cold-send'] as const) {
+					test(`preserves the session worktree through archived history and unarchive (${scheme}, ${sessionId}, ${operation}, multi-root: ${multiRoot})`, async () => {
+						const fixture = await createFixture(multiRoot, false, AgentSession.uri(scheme, sessionId));
+						let restored: CopilotAgent | undefined;
+						try {
+							const { session, chats, resources, previous, secondary, sessionDataService } = fixture;
+							const context = exactChatContext(session, chats[0], resources[0]);
+							fixture.sdkSessions[0].historyEvents.push({
+								id: 'saved-question', timestamp: '2026-01-01T00:00:00Z', parentId: null,
+								type: 'user.message', data: { content: 'Remember the worktree conversation' },
+							}, {
+								id: 'saved-answer', timestamp: '2026-01-01T00:00:01Z', parentId: 'saved-question',
+								type: 'assistant.message', data: { messageId: 'saved-answer', content: 'Remembered' },
+							}, {
+								id: 'saved-idle', timestamp: '2026-01-01T00:00:02Z', parentId: 'saved-answer',
+								type: 'session.idle', ephemeral: true, data: {},
+							});
+							const git = new class extends TestAgentHostGitService {
+								override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
+									await super.removeWorktree(repositoryRoot, worktree);
+									await fs.rm(worktree.fsPath, { recursive: true });
+								}
+								override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
+									await super.addExistingWorktree(repositoryRoot, worktree, branch);
+									await fs.mkdir(worktree.fsPath, { recursive: true });
+								}
+							}();
+							git.existingBranches.add('session-branch');
+							const isolation = disposables.add(new WorktreeIsolation({
+								_serviceBrand: undefined, generateBranchName: async () => 'unused',
+							}, git, {
+								_serviceBrand: undefined,
+								resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+							} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
+							const db = sessionDataService.openDatabase(session);
+							try {
+								await db.object.setMetadataValues({
+									'copilot.worktree.branchName': 'session-branch',
+									'copilot.worktree.path': previous.toString(),
+									'copilot.worktree.repositoryRoot': secondary.toString(),
+									[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+								});
+								await isolation.cleanupWorktreeOnArchive(session, sessionId);
+								fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
+								restored = await fixture.restore();
+								const history = await restored.chats.getMessages(chats[0], context);
+								assert.deepStrictEqual(history.map(turn => ({ state: turn.state, message: turn.message.text })), [
+									{ state: TurnState.Complete, message: 'Remember the worktree conversation' },
+								]);
+								const historyDirectory = getPeerChatStub(restored, chats[0])?.workingDirectory?.toString();
+								const metadata = (await fixture.metadata())[0];
+								const directories = fixture.sessionDirectories.map(directory => directory.toString());
+								assert.deepStrictEqual({
+									historyDirectory,
+									workingDirectory: metadata['copilot.workingDirectory'],
+									workingDirectories: metadata['copilot.workingDirectories'],
+									customizationDirectory: metadata['copilot.customizationDirectory'],
+									providerDirectories: (await restored.getChatMetadata(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' })))?.workingDirectories?.map(directory => directory.toString()),
+									recreated: git.addedExistingWorktrees.length,
+									sends: fixture.sends(),
+								}, {
+									historyDirectory: secondary.toString(),
+									workingDirectory: previous.toString(),
+									workingDirectories: JSON.stringify(directories),
+									customizationDirectory: previous.toString(),
+									providerDirectories: directories,
+									recreated: 0,
+									sends: 0,
+								});
+								assert.ok(restored.chats.resumeTurn);
+								await assert.rejects(
+									operation === 'continue'
+										? restored.chats.resumeTurn(chats[0], 'continued-turn', context)
+										: restored.chats.sendMessage(chats[0], 'Do not execute in the repository fallback', undefined, undefined, undefined, undefined, context),
+									/fallback directory for history only/,
+								);
+								await db.object.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, '');
+								await isolation.recreateWorktreeOnUnarchive(session, sessionId);
+								if (operation === 'cold-send') {
+									await disposeAgent(restored);
+									restored = await fixture.restore();
+								}
+								if (operation === 'continue') {
+									assert.ok(restored.chats.resumeTurn);
+									await restored.chats.resumeTurn(chats[0], 'continued-turn', context);
+								} else {
+									await restored.chats.sendMessage(chats[0], 'Continue the saved conversation', undefined, undefined, undefined, undefined, context);
+								}
+								const recoveredHistory = await restored.chats.getMessages(chats[0], context);
+								assert.deepStrictEqual({
+									resumed: fixture.resumed.at(-1),
+									recreated: git.addedExistingWorktrees.map(worktree => ({ directory: worktree.worktree.toString(), branch: worktree.branchName })),
+									persisted: (await fixture.metadata())[0]['copilot.workingDirectory'],
+									persistedDirectories: (await fixture.metadata())[0]['copilot.workingDirectories'],
+									removed: git.removedWorktrees.map(worktree => worktree.worktree.toString()),
+									history: recoveredHistory.map(turn => ({
+										state: turn.state, message: turn.message.text,
+										responses: turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind }),
+									})),
+									sends: fixture.sends(),
+									continuations: fixture.continuations.map(continuation => continuation.id),
+								}, {
+									resumed: { id: 'session-wide', directory: previous.fsPath },
+									recreated: [{ directory: previous.toString(), branch: 'session-branch' }],
+									persisted: previous.toString(),
+									persistedDirectories: JSON.stringify(directories),
+									removed: [previous.toString()],
+									history: [{
+										state: TurnState.Complete, message: 'Remember the worktree conversation',
+										responses: [{ kind: ResponsePartKind.Markdown, content: 'Remembered' }],
+									}],
+									sends: operation === 'continue' ? 0 : 1,
+									continuations: operation === 'continue' ? ['session-wide'] : [],
+								});
+							} finally {
+								db.dispose();
+							}
+						} finally {
+							if (restored) {
+								await disposeAgent(restored);
+							}
+							await fixture.dispose();
+						}
+					});
+				}
 			}
 
 			for (const [index, archived, operation] of [
@@ -6575,6 +6918,54 @@ suite('CopilotAgent', () => {
 							'copilot.customizationDirectory': fixture.next.toString(),
 						}, before[2]],
 						anchor: fixture.previous.toString(), reanchors: [], sends: 0,
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('replaces the inherited roots of a live multi-root peer', async () => {
+				const fixture = await createFixture(true);
+				try {
+					const { agent, session, chats, resources, previous, next, secondary, sessionDirectories, sessionDataService } = fixture;
+					const context = exactChatContext(session, chats[1], resources[1]);
+					await agent.chats.sendMessage(chats[1], 'Prepare inherited roots', sessionDirectories, undefined, undefined, undefined, context);
+					const db = sessionDataService.openDatabase(resources[1]);
+					try {
+						await db.object.setMetadataValues({
+							'copilot.workingDirectory': previous.toString(),
+							'copilot.workingDirectories': JSON.stringify(sessionDirectories.map(directory => directory.toString())),
+							'copilot.customizationDirectory': previous.toString(),
+						});
+					} finally {
+						db.dispose();
+					}
+					const before = await fixture.metadata();
+					const appliedBefore = getPeerChatStub(agent, chats[1])?.appliedAdditionalDirectories.map(directory => directory.toString());
+
+					await agent.setChatWorkingDirectory(chats[1], context, next);
+					await agent.chats.sendMessage(chats[1], 'Continue in the selected workspace', [next], undefined, undefined, undefined, context);
+
+					assert.deepStrictEqual({
+						appliedBefore,
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						directories: chats.map(chat => getPeerChatStub(agent, chat)?.workingDirectory?.toString()),
+						additionalDirectories: chats.map(chat => getPeerChatStub(agent, chat)?.appliedAdditionalDirectories.map(directory => directory.toString())),
+						metadata: await fixture.metadata(),
+						anchor: fixture.pluginDirectory(),
+						reanchors: fixture.reanchors(),
+					}, {
+						appliedBefore: [secondary.toString()],
+						calls: [[], [next.fsPath], []],
+						directories: [undefined, next.toString(), undefined],
+						additionalDirectories: [undefined, [], undefined],
+						metadata: [before[0], {
+							'copilot.workingDirectory': next.toString(),
+							'copilot.workingDirectories': JSON.stringify([next.toString()]),
+							'copilot.customizationDirectory': next.toString(),
+						}, before[2]],
+						anchor: previous.toString(),
+						reanchors: [],
 					});
 				} finally {
 					await fixture.dispose();
@@ -17939,7 +18330,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage resolves the working directory before resuming an addressed backing', async () => {
+		test('sendMessage rejects the history-only fallback before sending to an addressed backing', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
 			const { agent } = createTestAgentContext(disposables, {
@@ -17961,6 +18352,15 @@ suite('CopilotAgent', () => {
 					return resolvedWorkingDirectory;
 				};
 				await provisionSession(agent, { session, workingDirectories: [persistedWorkingDirectory, secondaryWorkingDirectory] });
+				const stored = sessionDataService.openDatabase(session);
+				try {
+					await stored.object.setMetadataValues({
+						'copilot.workingDirectory': persistedWorkingDirectory.toString(),
+						'copilot.workingDirectories': JSON.stringify([persistedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()]),
+					});
+				} finally {
+					stored.dispose();
+				}
 				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
 
 				const internals = agent as unknown as ChatInternals;
@@ -17978,7 +18378,10 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await agent.chats.sendMessage(chatUri, 'hello peer', [persistedWorkingDirectory, secondaryWorkingDirectory], undefined, undefined, undefined, exactChatContext(session, chatUri, session));
+				await assert.rejects(
+					agent.chats.sendMessage(chatUri, 'hello peer', [persistedWorkingDirectory, secondaryWorkingDirectory], undefined, undefined, undefined, exactChatContext(session, chatUri, session)),
+					/fallback directory for history only/,
+				);
 				const dbRef = sessionDataService.openDatabase(session);
 				const storedWorkingDirectories = await dbRef.object.getMetadata('copilot.workingDirectories');
 				dbRef.dispose();
@@ -17994,7 +18397,7 @@ suite('CopilotAgent', () => {
 						additionalDirectories: [secondaryWorkingDirectory.toString()],
 						customizationDirectory: resolvedWorkingDirectory.toString(),
 					}],
-					storedWorkingDirectories: [resolvedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()],
+					storedWorkingDirectories: [persistedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()],
 				});
 			} finally {
 				await disposeAgent(agent);

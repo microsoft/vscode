@@ -752,6 +752,98 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	}
 
+	test('workspace tool moves an inheriting peer after attaching the requested folder to the session', async () => {
+		const workspace = URI.file('/workspace/destination');
+		const events: string[] = [];
+		const host: IChatIsolationHost = {
+			runWithChatCatalogLock: (_session, operation) => operation(),
+			prepareChatWorkingDirectory: async (session, directory) => {
+				const workingDirectories = harness.stateManager.getSessionSummary(session.toString())!.workingDirectories!;
+				for (const chat of harness.stateManager.getSessionState(session.toString())!.chats) {
+					if (chat.workingDirectories === undefined) {
+						for (const workingDirectory of workingDirectories) {
+							harness.stateManager.dispatchServerAction(chat.resource, {
+								type: ActionType.ChatWorkingDirectorySet,
+								directory: workingDirectory,
+							});
+						}
+						harness.stateManager.dispatchServerAction(session.toString(), {
+							type: ActionType.SessionChatUpdated,
+							chat: chat.resource,
+							changes: { workingDirectories: [...workingDirectories] },
+						});
+					}
+				}
+				harness.stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionWorkingDirectorySet,
+					directory: directory.toString(),
+				});
+				events.push(`attach:${directory.toString()}`);
+				return { directory, release: async () => assert.fail('Selected folder must remain attached') };
+			},
+			setChatWorkingDirectory: async (session, chat, directory) => {
+				events.push(`assign:${chat.toString()}`);
+				const summary = harness.stateManager.getSessionState(session.toString())!.chats.find(candidate => candidate.resource === chat.toString())!;
+				for (const workingDirectory of summary.workingDirectories ?? []) {
+					harness.stateManager.dispatchServerAction(chat.toString(), {
+						type: ActionType.ChatWorkingDirectoryRemoved,
+						directory: workingDirectory,
+					});
+				}
+				harness.stateManager.dispatchServerAction(chat.toString(), {
+					type: ActionType.ChatWorkingDirectorySet,
+					directory: directory.toString(),
+				});
+				harness.stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionChatUpdated,
+					chat: chat.toString(),
+					changes: { workingDirectories: [directory.toString()] },
+				});
+			},
+		};
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, new TestSessionDatabase(), 'copilot', host);
+		const sessionDirectoryChanges: string[][] = [];
+		disposables.add(harness.stateManager.onDidChangeSessionWorkingDirectories(({ session }) => {
+			if (session === harness.session.toString()) {
+				sessionDirectoryChanges.push([...(harness.stateManager.getSessionSummary(session)?.workingDirectories ?? [])]);
+			}
+		}));
+		makeFolderSession(harness);
+		const additional = URI.file('/workspace/additional');
+		harness.stateManager.dispatchServerAction(harness.session.toString(), {
+			type: ActionType.SessionWorkingDirectorySet,
+			directory: additional.toString(),
+		});
+		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+		harness.stateManager.addChat(harness.session.toString(), peer.toString(), creationTimeChatStorageResource(harness.session.toString(), peer.toString(), buildDefaultChatUri(harness.session.toString())));
+		const provider: IAgent = harness.agent;
+		let sessionAtProvider: readonly string[] | undefined;
+		provider.setChatWorkingDirectory = async chat => {
+			events.push(`provider:${chat.toString()}`);
+			sessionAtProvider = harness.stateManager.getSessionSummary(harness.session.toString())?.workingDirectories;
+		};
+
+		await changeWorkspaceViaTool(harness, peer, workspace);
+
+		const state = harness.stateManager.getSessionState(harness.session.toString())!;
+		assert.deepStrictEqual({
+			events,
+			sessionDirectoryChanges,
+			sessionAtProvider,
+			peer: state.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+			continued: harness.continuations.map(entry => entry.chat),
+		}, {
+			events: [`attach:${workspace.toString()}`, `provider:${peer.toString()}`, `assign:${peer.toString()}`],
+			sessionDirectoryChanges: [
+				[harness.scratch.toString(), additional.toString()],
+				[harness.scratch.toString(), additional.toString(), workspace.toString()],
+			],
+			sessionAtProvider: [harness.scratch.toString(), additional.toString(), workspace.toString()],
+			peer: [workspace.toString()],
+			continued: [peer.toString()],
+		});
+	});
+
 	for (const siblingRestore of ['restores', 'fails'] as const) {
 		test(`workspace tool ${siblingRestore === 'restores' ? 'restores lazily registered siblings before the provider moves' : 'fails cleanly without quarantine when a sibling cannot be restored'}`, async () => {
 			const workspace = URI.file('/workspace/selected');

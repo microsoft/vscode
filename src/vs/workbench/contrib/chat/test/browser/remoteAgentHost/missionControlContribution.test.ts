@@ -50,14 +50,13 @@ const removedSettings = {
 const session: AuthenticationSession = { id: 'session', account: { id: 'account', label: 'Account' }, scopes: ['read:user', 'user:email', 'repo', 'workflow'], accessToken: 'test-token' };
 const workspaceRoot = URI.file('/mission-control-workspace');
 const home = URI.file('/mission-control-home');
-const defaultDirectory = joinPath(home, '.copilot');
 const expectedOptions: IMissionControlOptions = {
 	baseUrl: 'https://api.github.com',
 	accountId: 'account',
 	credential: 'test-token',
-	roots: [home.fsPath, workspaceRoot.fsPath],
+	roots: [URI.file('/').fsPath, home.fsPath, workspaceRoot.fsPath],
 	projects: [workspaceRoot.fsPath],
-	defaultDirectory: defaultDirectory.fsPath,
+	defaultDirectory: home.fsPath,
 	live: true,
 };
 
@@ -72,12 +71,16 @@ suite('Mission Control sharing service', () => {
 		getSessions?: () => Promise<readonly AuthenticationSession[]>;
 		configure?: (options: IMissionControlOptions | undefined) => Promise<void>;
 		stat?: IFileService['stat'];
+		realpath?: IFileService['realpath'];
 		createFolder?: IFileService['createFolder'];
+		windows?: boolean;
+		userHome?: URI;
 		localSetting?: string;
 		localSettingConfig?: IConfigurationValue<boolean>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
+		const fixtureHome = options.userHome ?? home;
 		const storage = options.storage ?? store.add(new InMemoryStorageService());
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		if (options.localSetting && options.localSettingConfig) {
@@ -123,11 +126,15 @@ suite('Mission Control sharing service', () => {
 			override userHome(options: { preferLocal: true }): URI;
 			override userHome(options?: { preferLocal: boolean }): Promise<URI>;
 			override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
-				return options?.preferLocal ? home : Promise.resolve(home);
+				const directory = fixtureHome;
+				return options?.preferLocal ? directory : Promise.resolve(directory);
 			}
 		}());
 		const createdFolders: URI[] = [];
 		instantiation.stub(IFileService, new class extends mock<IFileService>() {
+			override async realpath(resource: URI): Promise<URI | undefined> {
+				return options.realpath ? options.realpath(resource) : resource;
+			}
 			override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 				return options.stat ? options.stat(resource) : upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
 			}
@@ -136,7 +143,9 @@ suite('Mission Control sharing service', () => {
 				return options.createFolder ? options.createFolder(resource) : upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: true });
 			}
 		}());
-		const sharing = store.add(instantiation.createInstance(MissionControlSharingService));
+		const sharing = store.add(instantiation.createInstance(class extends MissionControlSharingService {
+			protected override get isWindowsPlatform(): boolean { return options.windows ?? false; }
+		}));
 		return {
 			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
@@ -234,10 +243,10 @@ suite('Mission Control sharing service', () => {
 		const { calls, sharing } = fixture({ emptyWindow: true });
 		await sharing.setEnabled(true);
 		await timeout(0);
-		assert.deepStrictEqual(calls, [{ options: { ...expectedOptions, roots: [home.fsPath], projects: [] }, withdrawingAccountId: undefined }]);
+		assert.deepStrictEqual(calls, [{ options: { ...expectedOptions, roots: [URI.file('/').fsPath, home.fsPath], projects: [] }, withdrawingAccountId: undefined }]);
 	}));
 
-	test('shares home independently of a changing local recent-folder catalogue', () => runWithFakedTimers({}, async () => {
+	test('shares the filesystem independently of a changing local recent-folder catalogue', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls, createdFolders } = fixture();
 		const outsideHome = URI.file('/another-drive/repository');
 		sharing.setProjectFolders([outsideHome, URI.parse('vscode-remote://ssh-remote+host/project'), outsideHome]);
@@ -254,11 +263,11 @@ suite('Mission Control sharing service', () => {
 			createdFolders: createdFolders.map(folder => folder.path),
 		}, {
 			options: [
-				{ ...expectedOptions, roots: [home.fsPath, outsideHome.fsPath], projects: [outsideHome.fsPath] },
-				{ ...expectedOptions, roots: [home.fsPath, joinPath(home, 'code', 'repository').fsPath], projects: [joinPath(home, 'code', 'repository').fsPath] },
-				{ ...expectedOptions, roots: [home.fsPath], projects: [] },
+				{ ...expectedOptions, roots: [URI.file('/').fsPath, home.fsPath, outsideHome.fsPath], projects: [outsideHome.fsPath] },
+				{ ...expectedOptions, roots: [URI.file('/').fsPath, home.fsPath, joinPath(home, 'code', 'repository').fsPath], projects: [joinPath(home, 'code', 'repository').fsPath] },
+				{ ...expectedOptions, roots: [URI.file('/').fsPath, home.fsPath], projects: [] },
 			],
-			createdFolders: [defaultDirectory.path, defaultDirectory.path, defaultDirectory.path],
+			createdFolders: [],
 		});
 	}));
 
@@ -279,9 +288,37 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
 	}));
 
-	test('fails explicitly when the default directory cannot be created', () => runWithFakedTimers({}, async () => {
-		const { sharing, calls } = fixture({ createFolder: async () => { throw new Error('Cannot create default directory'); } });
-		await assert.rejects(sharing.setEnabled(true), /Cannot create default directory/);
+	test('shares all available Windows drives but starts at home without creating a directory', () => runWithFakedTimers({}, async () => {
+		const windowsHome = URI.parse('file:///C:/Users/test');
+		const statRequests: string[] = [];
+		const { sharing, calls, createdFolders } = fixture({
+			windows: true, emptyWindow: true, userHome: windowsHome,
+			stat: async resource => {
+				statRequests.push(resource.path);
+				if (!['/C:/', '/D:/', '/Z:/'].includes(resource.path)) {
+					throw new FileOperationError('Drive not found', FileOperationResult.FILE_NOT_FOUND);
+				}
+				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
+			},
+			realpath: async resource => resource.path === '/Z:/' ? resource.with({ path: '\\\\server\\share\\' }) : resource,
+		});
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({ options: calls[0].options, statRequests, createdFolders }, {
+			options: {
+				...expectedOptions, roots: [URI.parse('file:///C:/').fsPath, URI.parse('file:///D:/').fsPath, windowsHome.fsPath],
+				projects: [], defaultDirectory: windowsHome.fsPath,
+			},
+			statRequests: Array.from({ length: 26 }, (_, index) => `/${String.fromCharCode(65 + index)}:/`),
+			createdFolders: [],
+		});
+	}));
+
+	test('reports unexpected drive enumeration failures instead of granting a partial filesystem', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			windows: true,
+			stat: async () => { throw new Error('Filesystem unavailable'); },
+		});
+		await assert.rejects(sharing.setEnabled(true), /Filesystem unavailable/);
 		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 	}));
 
