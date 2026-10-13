@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import { getReasoningEffortDescription, getReasoningEffortLabel, isMediumEffortDefaultClaudeModel } from './reasoningEffort.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from './reasoningEffort.js';
 import type { ConfigSchema, ModelSelection } from './state/protocol/state.js';
 
 /**
@@ -96,22 +96,19 @@ export function isClaudeEffortLevel(value: string): value is ClaudeEffortLevel {
  * `['high']`, or `[]`). Callers narrow that list to {@link ClaudeEffortLevel}
  * via {@link isClaudeEffortLevel} before passing it in.
  *
- * The `default` matches Anthropic's per-model default: `'medium'` for Claude
- * Opus 5.5 and Haiku 5.5 when supported, otherwise `'high'` when supported,
- * otherwise omitted.
+ * The `default` is `'high'` when the model supports it, otherwise omitted
+ * — Claude's own server-side default for adaptive thinking is `'high'`.
  * (Anthropic's `CCAModel` rows don't carry a server-supplied default
  * field; tracked at microsoft/vscode-capi#85.)
  *
  * Returns `undefined` for an empty list — the picker then renders no
  * thinkingLevel control for that model.
  */
-export function createClaudeThinkingLevelSchema(supportedEfforts: readonly ClaudeEffortLevel[], modelId?: string): ConfigSchema | undefined {
+export function createClaudeThinkingLevelSchema(supportedEfforts: readonly ClaudeEffortLevel[]): ConfigSchema | undefined {
 	if (supportedEfforts.length === 0) {
 		return undefined;
 	}
-	const defaultEffort: ClaudeEffortLevel | undefined = isMediumEffortDefaultClaudeModel(modelId) && supportedEfforts.includes('medium')
-		? 'medium'
-		: supportedEfforts.includes('high') ? 'high' : undefined;
+	const defaultEffort: ClaudeEffortLevel | undefined = supportedEfforts.includes('high') ? 'high' : undefined;
 	return {
 		type: 'object',
 		properties: {

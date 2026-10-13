@@ -88,7 +88,7 @@ export function getReasoningEffortDescription(level: string): string | undefined
  * Claude Opus 5.5 and Claude Haiku 5.5 (e.g. `claude-opus-5.5`, `claude-haiku-5-5-20260101`).
  * See https://platform.claude.com/docs/en/build-with-claude/effort.
  */
-export function isMediumEffortDefaultClaudeModel(modelId: string | undefined): boolean {
+function isMediumEffortDefaultClaudeModel(modelId: string | undefined): boolean {
 	return !!modelId && /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(modelId.toLowerCase());
 }
 

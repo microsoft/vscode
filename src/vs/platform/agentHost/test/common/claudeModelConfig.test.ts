@@ -181,25 +181,6 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 		);
 	});
 
-	test('defaults Claude Opus 5.5 and Haiku 5.5 to medium when they support it', () => {
-		const lowMediumHigh: ClaudeEffortLevel[] = ['low', 'medium', 'high'];
-		assert.deepStrictEqual([
-			['claude-opus-5.5', lowMediumHigh],
-			['claude-haiku-5-5-20260101', lowMediumHigh],
-			['claude-sonnet-5.5', lowMediumHigh],
-			['claude-opus-5.5', ['high']],
-			['claude-opus-5', lowMediumHigh],
-			[undefined, lowMediumHigh],
-		].map(([modelId, efforts]) => createClaudeThinkingLevelSchema(efforts as ClaudeEffortLevel[], modelId as string | undefined)?.properties.thinkingLevel.default), [
-			'medium',
-			'medium',
-			'high',
-			'high',
-			'high',
-			'high',
-		]);
-	});
-
 	test('input array is not mutated and the returned enum is independent of subsequent input mutation', () => {
 		// The helper is invoked once per model at authenticate-time; the
 		// caller's array is the post-`filter` view of `reasoning_effort`.
