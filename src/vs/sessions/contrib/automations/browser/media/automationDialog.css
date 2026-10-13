@@ -13,6 +13,12 @@
 	margin-left: auto;
 }
 
+.action-widget .monaco-list-row.automation-cloud-repository .description p {
+	display: flex;
+	align-items: center;
+	margin: 0;
+}
+
 .automation-cloud-row {
 	display: flex;
 	align-items: center;
