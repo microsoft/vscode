@@ -60,7 +60,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _writes = new Map<string, Promise<void>>();
-	private readonly _metadataWrites = new Set<Promise<void>>();
+	private readonly _metadataWrites = new Map<Promise<void>, string>();
 	private readonly _deletingSessions = new Map<string, number>();
 	private _metadataMigration: ((session: URI, resource: URI, values: Readonly<Record<string, string>>) => Promise<Readonly<Record<string, string>>>) | undefined;
 
@@ -99,15 +99,37 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
+	/** Drains all writes and propagates failures to callers synchronizing catalog state. */
 	async whenIdle(): Promise<void> {
 		while (this._writes.size || this._metadataWrites.size) {
-			await Promise.all([...this._writes.values(), ...this._metadataWrites]);
+			await Promise.all([...this._writes.values(), ...this._metadataWrites.keys()]);
 		}
 	}
 
-	private _trackMetadataWrite(operation: () => Promise<void>): Promise<void> {
+	/** Waits for one session's writes to settle before release; write callers report failures. */
+	async whenSessionIdle(session: URI): Promise<void> {
+		const sessionKey = session.toString();
+		while (true) {
+			const writes: Promise<void>[] = [];
+			const queuedWrite = this._writes.get(sessionKey);
+			if (queuedWrite) {
+				writes.push(queuedWrite);
+			}
+			for (const [write, key] of this._metadataWrites) {
+				if (key === sessionKey) {
+					writes.push(write);
+				}
+			}
+			if (writes.length === 0) {
+				return;
+			}
+			await Promise.allSettled(writes);
+		}
+	}
+
+	private _trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void> {
 		const tracked = operation().finally(() => this._metadataWrites.delete(tracked));
-		this._metadataWrites.add(tracked);
+		this._metadataWrites.set(tracked, session.toString());
 		return tracked;
 	}
 
@@ -196,11 +218,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	persistMetadata(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<void> {
-		return this._trackMetadataWrite(() => this._persistMetadata(session, resource, values));
+		return this._trackMetadataWrite(session, () => this._persistMetadata(session, resource, values));
 	}
 
 	persistDefaultChatTitleSnapshot(session: URI, chat: URI, title: string): Promise<void> {
-		return this._trackMetadataWrite(() => this._enqueue(session, async () => {
+		return this._trackMetadataWrite(session, () => this._enqueue(session, async () => {
 			while (true) {
 				const current = await this.readNormalizedChat(session, chat);
 				if (!current.normalized) {
@@ -580,7 +602,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			});
 			return next;
 		};
-		return this._trackMetadataWrite(async () => {
+		return this._trackMetadataWrite(session, async () => {
 			const values = {
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: providerData ?? '',
 				...(origin !== undefined ? { [CHAT_ORIGIN_METADATA_KEY]: JSON.stringify(origin) } : {}),
@@ -622,7 +644,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			});
 			return next;
 		};
-		return this._trackMetadataWrite(async () => {
+		return this._trackMetadataWrite(session, async () => {
 			const values = { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories) };
 			if (this._metadataMigration && !Object.keys(await this._metadataMigration(session, chat, values)).length) {
 				return;
@@ -636,7 +658,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	setArchived(session: URI, chat: URI, archived: boolean): Promise<void> {
-		return this._trackMetadataWrite(() => this._setArchived(session, chat, archived));
+		return this._trackMetadataWrite(session, () => this._setArchived(session, chat, archived));
 	}
 
 	private async _setArchived(session: URI, chat: URI, archived: boolean): Promise<void> {
@@ -657,7 +679,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
-		return this._trackMetadataWrite(() => this._setRead(session, chat, isRead));
+		return this._trackMetadataWrite(session, () => this._setRead(session, chat, isRead));
 	}
 
 	private async _setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {

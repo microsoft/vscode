@@ -29196,6 +29196,61 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 		}
 
+		for (const rename of ['local command', 'client action'] as const) {
+			test(`idle release preserves a peer rename from a ${rename} whose normalized write is pending`, async () => {
+				const writeStarted = new DeferredPromise<void>();
+				const finishWrite = new DeferredPromise<void>();
+				let delayTitleWrite = false;
+				class GatedTitleDatabase extends AgentHostDatabase {
+					override async updateChatV2Metadata(...args: Parameters<AgentHostDatabase['updateChatV2Metadata']>) {
+						if (delayTitleWrite && args[2].metadata?.summary === 'Rehydrated Peer') {
+							delayTitleWrite = false;
+							writeStarted.complete();
+							await finishWrite.p;
+						}
+						return super.updateChatV2Metadata(...args);
+					}
+				}
+				class MultiChatAgent extends MockAgent {
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+				}
+				const database = disposables.add(new GatedTitleDatabase(':memory:'));
+				const residency = createResidencyTestService(0, 30_000, true, new MultiChatAgent('copilot'), createSessionDataService(), database);
+				const svc = residency.service;
+				const session = await createUsedSession(svc, residency.agent);
+				svc.addSubscriber(session, 'rename-client');
+				const peer = URI.parse(buildChatUri(session, 'renamed-peer'));
+				await svc.createChat(session, peer, { title: 'Persisted Peer' });
+				delayTitleWrite = true;
+				svc.dispatchAction(peer.toString(), rename === 'local command' ? {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'local-rename',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
+				} : { type: ActionType.SessionTitleChanged, title: 'Rehydrated Peer' }, 'rename-client', 1);
+				try {
+					await writeStarted.p;
+					svc.unsubscribe(session, 'rename-client');
+					await timeout(0);
+					assert.deepStrictEqual({
+						resident: !!getStateManager(svc).getSessionState(session.toString()),
+						released: residency.agent.releaseSessionCalls.length,
+					}, { resident: true, released: 0 });
+				} finally {
+					finishWrite.complete();
+					await svc.whenCatalogReconciliationIdle();
+				}
+				await waitForResidency(() => !getStateManager(svc).getSessionState(session.toString()), 'session was not released after persisting its rename');
+				await svc.restoreSession(session);
+				assert.deepStrictEqual({
+					title: getStateManager(svc).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title,
+					persistedTitle: (await getTestChatPersistenceService(svc).readNormalizedChat(session, peer)).chat?.metadata?.summary,
+				}, { title: 'Rehydrated Peer', persistedTitle: 'Rehydrated Peer' });
+			});
+		}
+
 		test('deleting an evicted session disposes every persisted peer chat', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }
@@ -29380,6 +29435,7 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
 				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
 				localService.addSubscriber(sessionResource, 'client-1');
+				const evicted = Event.toPromise(Event.filter(getStateManager(localService).onDidRemoveSession, session => session === sessionResource.toString()), disposables);
 				localService.unsubscribe(sessionResource, 'client-1');
 
 				await whenIdleStarted.p;
@@ -29395,7 +29451,7 @@ suite('AgentService (node dispatcher)', () => {
 					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 					'client-1', 2,
 				);
-				await new Promise(resolve => setTimeout(resolve, 30_000));
+				await evicted;
 
 				assert.strictEqual(getStateManager(localService).getSessionState(sessionResource.toString()), undefined);
 			});
@@ -29669,8 +29725,9 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()), {});
 				service.addSubscriber(session, 'client-1');
 
+				const evicted = Event.toPromise(Event.filter(getStateManager(service).onDidRemoveSession, removed => removed === session.toString()), disposables);
 				service.unsubscribe(session, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
+				await evicted;
 
 				assert.deepStrictEqual({
 					chatReleases,

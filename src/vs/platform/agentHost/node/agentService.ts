@@ -7037,6 +7037,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _whenSessionDataIdle(session: URI): Promise<void> {
+		await this._peerChatStore.whenSessionIdle(session);
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
 			await ref.object.whenIdle();
