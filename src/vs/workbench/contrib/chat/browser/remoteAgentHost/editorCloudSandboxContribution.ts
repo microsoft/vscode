@@ -181,8 +181,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			this._discoveryRegistration.value = store;
 			store.add(this._editorChatSessionsService.registerChatSessionContribution({
 				type: CLOUD_SANDBOX_SESSION_TYPE,
-				name: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
-				displayName: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
+				name: localize('cloudSandbox.sessionName', "Cloud"),
+				displayName: localize('cloudSandbox.sessionName', "Cloud"),
 				description: localize('cloudSandbox.creationDescription', "Run the agent in a new cloud sandbox."),
 				sessionListGroup: SessionType.CopilotCloud,
 				hideFromSessionTypePicker: false,
@@ -236,8 +236,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		store.add(this._workingDirectoryResolver.registerResolver(provider.sessionType, resource => provider.resolveWorkingDirectory(resource), resource => provider.isNewSession(resource)));
 		store.add(this._editorChatSessionsService.registerChatSessionContribution({
 			type: provider.sessionType,
-			name: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
-			displayName: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
+			name: localize('cloudSandbox.sessionName', "Cloud"),
+			displayName: localize('cloudSandbox.sessionName', "Cloud"),
 			description: env.name,
 			sessionListGroup: SessionType.CopilotCloud,
 			hideFromSessionTypePicker: true,
@@ -288,8 +288,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			return await this._progressService.withProgress<IChatSessionItem>({
 				location: ProgressLocation.Notification,
 				title: repoNwo
-					? localize('cloudSandbox.creatingWithRepository', "Creating GitHub Sandbox for {0}", repoNwo)
-					: localize('cloudSandbox.creating', "Creating GitHub Sandbox"),
+					? localize('cloudSandbox.creatingWithRepository', "Creating Cloud Session for {0}", repoNwo)
+					: localize('cloudSandbox.creating', "Creating Cloud Session"),
 				cancellable: true,
 			}, async progress => {
 				const stepProgress: IProgress<string> = { report: message => progress.report({ message }) };
@@ -344,7 +344,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (this._providerInstances.get(address) !== provider) {
 						reject(new CancellationError());
 					} else if (RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) {
-						reject(new Error(localize('cloudSandbox.connectionLost', "The connection to the GitHub Sandbox was lost before the session could start.")));
+						reject(new Error(localize('cloudSandbox.connectionLost', "The connection to the cloud sandbox was lost before the session could start.")));
 					}
 				}));
 			}), token);

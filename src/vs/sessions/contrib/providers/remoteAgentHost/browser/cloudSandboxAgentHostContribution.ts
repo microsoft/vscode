@@ -38,7 +38,8 @@ export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
-	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
+	label: localize('cloudSandbox.hostGroup', "Cloud"),
+	icon: Codicon.cloud,
 	order: 1,
 	connectable: false,
 	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
@@ -146,7 +147,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 			omitHostFromWorkspaceLabel: true,
-			workspaceTypeIcon: Codicon.package,
+			workspaceTypeIcon: Codicon.cloudCompact,
 			readOnlyWhenDisconnected: true,
 			connectionLabels: CLOUD_SANDBOX_CONNECTION_LABELS,
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
