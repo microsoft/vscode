@@ -15,7 +15,7 @@ import type { IProductService } from '../../../../product/common/productService.
 import type { IRequestService } from '../../../../request/common/request.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { LOCAL_MODEL_STATUS_KEY } from '../../../common/localModel.js';
-import { SessionStatus } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -84,7 +84,7 @@ suite('LocalModelSetupService', () => {
 
 	test('reports the file-system working directories of loaded sessions as the open workspace roots', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		const summary = (resource: string, workingDirectories: string[]) => ({ resource, provider: 'copilot', title: resource, status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), workingDirectories });
+		const summary = (resource: string, workingDirectories: string[]) => ({ resource, provider: 'copilot', title: resource, status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), workingDirectories, defaultChat: buildDefaultChatUri(resource) });
 		const before = collectSessionWorkspaceFolders(stateManager);
 		stateManager.createSession(summary('agent:/one', [URI.file('/work/a').toString(), 'vscode-vfs://github/microsoft/vscode']));
 		stateManager.createSession(summary('agent:/two', [URI.file('/work/b').toString(), URI.file('/work/a').toString()]));

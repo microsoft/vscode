@@ -227,7 +227,7 @@ export function resolveAgentHostDebugLogsChat(
 	let sessionTitle = activeSession.sessionTitle;
 	if (state && !(state instanceof Error)) {
 		if (!backendChat) {
-			const backendChatResource = getSessionChatResource(state, activeSession.chatId);
+			const backendChatResource = getSessionChatResource(state, activeSession.chatId, state.defaultChat);
 			if (backendChatResource) {
 				backendChat = URI.parse(backendChatResource);
 			}

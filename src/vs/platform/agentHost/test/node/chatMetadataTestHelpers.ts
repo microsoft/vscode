@@ -5,10 +5,10 @@
 
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseSessionListCatalog } from '../../node/agentHostDatabase.js';
+import type { IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
+import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-
 export function createLegacyChatMetadataPersistence(service: ISessionDataService): Pick<IAgentHostPeerChatPersistenceService, 'persistMetadata' | 'readNormalizedChat' | 'persistDefaultChatTitleSnapshot'> {
 	return {
 		readNormalizedChat: async () => ({ normalized: false }),
@@ -59,4 +59,69 @@ export async function readTestChatV2(database: IAgentHostDatabase, session: stri
 	}
 	const row = snapshot.chats.find(entry => entry.chat === chat);
 	return { normalized: true, ...(row ? { chat: row } : {}) };
+}
+
+async function registeredTestSessions(database: IAgentHostDatabase): Promise<string[]> {
+	return [...new Set([
+		...(await database.listSessionV2Registrations()).map(identity => identity.session),
+		...(await database.listSessions()).map(identity => identity.session),
+	])];
+}
+
+/** In-memory counterpart of {@link IAgentHostDatabase.findCentralChatOwners} for database fakes. */
+export async function findTestCentralChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+	const sessions = await registeredTestSessions(database);
+	const snapshots = await database.readCatalogSnapshot(sessions);
+	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+	for (const chat of chats) {
+		const normalized = snapshots.find(snapshot => snapshot.chats.some(entry => entry.chat === chat));
+		if (normalized) {
+			owners.set(chat, { ownerSession: normalized.session, source: 'normalized', deleted: await database.isSessionTombstoned(normalized.session) });
+			continue;
+		}
+		for (const session of sessions) {
+			if ((await database.getSessionChatCatalog(session))?.chats.some(entry => entry.chat === chat)) {
+				owners.set(chat, { ownerSession: session, source: 'legacyCatalog', deleted: await database.isSessionTombstoned(session) });
+				break;
+			}
+		}
+	}
+	return owners;
+}
+
+/** In-memory counterpart of {@link IAgentHostDatabase.findCatalogPayloadChatOwners} for database fakes. */
+export async function findTestCatalogPayloadChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+	const rows = await database.listSessionsV2(await registeredTestSessions(database));
+	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+	for (const chat of chats) {
+		for (const row of rows) {
+			const decoded = decodeAgentHostCatalogPayload(row.payload);
+			if (decoded.ok && decoded.value.data.chats.some(entry => entry.uri === chat)) {
+				owners.set(chat, { ownerSession: row.session, source: 'catalogPayload', deleted: await database.isSessionTombstoned(row.session) });
+				break;
+			}
+		}
+	}
+	return owners;
+}
+
+const testRegistrationGenerations = new Map<string, number>();
+
+/** A database fake's registration generation: it changes exactly when the registrations it lists change. */
+export function testRegistrationGeneration(...registrations: Iterable<IAgentHostDatabaseSession>[]): number {
+	const fingerprint = registrations.map(list => [...list].map(registration => `${registration.session} ${registration.provider}`).join('\n')).join('\n\n');
+	let generation = testRegistrationGenerations.get(fingerprint);
+	if (generation === undefined) {
+		generation = testRegistrationGenerations.size;
+		testRegistrationGenerations.set(fingerprint, generation);
+	}
+	return generation;
+}
+
+/** In-memory counterpart of {@link IAgentHostDatabase.readSessionRegistrations} for database fakes. */
+export async function readTestSessionRegistrations(database: IAgentHostDatabase): Promise<IAgentHostDatabaseSessionRegistrations> {
+	const generation = await database.getRegistrationGeneration();
+	const [current, legacy] = await Promise.all([database.listSessionV2Registrations(), database.listSessions()]);
+	// Database fakes keep no normalized chat catalogs.
+	return { generation, current, legacy, normalizedCatalogs: [] };
 }

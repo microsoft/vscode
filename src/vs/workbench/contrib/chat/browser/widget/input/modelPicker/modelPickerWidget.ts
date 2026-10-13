@@ -30,7 +30,7 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
-import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -46,6 +46,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
+import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
@@ -53,7 +54,7 @@ import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPic
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getEnsembleTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getEnsembleTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -350,13 +351,29 @@ export class ModelPickerWidget extends Disposable {
 		return ensemble && hydraFusion ? { ensemble, hydraFusion } : undefined;
 	}
 
-	private _getEnsembleTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
+	/**
+	 * The model a HydraFusion tier is shown as, with that tier: Ensemble for one of
+	 * Ensemble's tiers, or HydraFusion for HydraFusion's own Default or Max.
+	 */
+	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return undefined;
 		}
-		const ensemble = this._delegate.getModels().find(candidate => candidate.metadata.autoModelEnsemble && !isUserProvidedModel(candidate, this._languageModelsService));
-		const label = getEnsembleTierLabel(ensemble?.metadata, model.metadata.id);
-		return ensemble && label ? { ensemble, label } : undefined;
+		const models = this._delegate.getModels();
+		// Matches the picker, which only offers models this build can run.
+		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
+		const runnable = (candidate: ILanguageModelChatMetadataAndIdentifier) => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
+		const ensemble = models.find(candidate => candidate.metadata.autoModelEnsemble && runnable(candidate));
+		if (ensemble) {
+			const label = getEnsembleTierLabel(ensemble.metadata, model.metadata.id);
+			return label ? { shownModel: ensemble, label } : undefined;
+		}
+		// HydraFusion's own tiers need both of its models.
+		const hydraFusion = (id: string) => models.find(candidate => candidate.metadata.id === id && isHydraFusionModel(candidate) && runnable(candidate));
+		const defaultTier = hydraFusion(COPILOT_HYDRA_FUSION_MODEL_ID);
+		return defaultTier && hydraFusion(COPILOT_HYDRA_FUSION_MAX_MODEL_ID)
+			? { shownModel: defaultTier, label: getHydraFusionTierLabel(model.metadata.id) }
+			: undefined;
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -818,8 +835,8 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const workflow = this._delegate.workflow?.summary.get();
-		const ensembleTier = !workflow && this._selectedModel ? this._getEnsembleTier(this._selectedModel) : undefined;
-		const shownModel = ensembleTier?.ensemble ?? this._selectedModel;
+		const routingTier = !workflow && this._selectedModel ? this._getRoutingTier(this._selectedModel) : undefined;
+		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const shownName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = workflow ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
@@ -868,7 +885,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!workflow || minimal || compact || noModelsAvailable, ensembleTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!workflow || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);
