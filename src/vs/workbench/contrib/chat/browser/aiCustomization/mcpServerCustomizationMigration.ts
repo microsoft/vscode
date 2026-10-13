@@ -1068,9 +1068,11 @@ function rewriteEnvironmentVariables(
 					return variable.id;
 				}
 				rewritten = true;
+				// Unlike an input's default, a setting's value is written as is: a value that doesn't read back
+				// exactly, such as one with a `}`, is rare enough not to keep the server from migrating.
 				return declaresVariables || setting.value === ''
 					? `\${${setting.name}}`
-					: withDefault(offset, setting.name, setting.value, McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue);
+					: `\${${setting.name}:-${setting.value}}`;
 			}
 			if (variable.name !== 'env') {
 				failures.push(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);

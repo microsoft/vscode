@@ -1576,7 +1576,7 @@ suite('McpServerCustomizationMigration', () => {
 			// VS Code resolves these to text, but only strings and numbers are carried over, and a value with a
 			// variable would be resolved by VS Code but not by the destination.
 			resolvedLocal: { command: 'node', args: ['${config:mcp.flag}', '${config:mcp.array}', '${config:mcp.variable}', '${config:mcp.reference}'] },
-			resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${config:mcp.flag}', headers: { 'X-Variable': '${config:mcp.variable}' } },
+			resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${config:mcp.flag}', headers: { 'X-Variable': '${config:mcp.variable}', 'X-Brace': '${config:mcp.brace}' } },
 		};
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
@@ -1586,6 +1586,7 @@ suite('McpServerCustomizationMigration', () => {
 			'mcp.array': ['a'],
 			'mcp.variable': '${env:HOME}/bin',
 			'mcp.reference': '$HOME/bin',
+			'mcp.brace': 'a}b',
 		});
 		const asWritten = (name: keyof typeof servers, projectedConfiguration: IMcpServerConfiguration) => support(root, name, {
 			delivery: AgentHostMcpServerDelivery.NotDelivered,
@@ -1599,7 +1600,7 @@ suite('McpServerCustomizationMigration', () => {
 				asWritten('unresolvedLocal', { type: McpServerType.LOCAL, ...servers.unresolvedLocal }),
 				asWritten('unresolvedRemote', { type: McpServerType.REMOTE, url: servers.unresolvedRemote.url, headers: servers.unresolvedRemote.headers }),
 				support(root, 'resolvedLocal', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['true', 'a', '/home/user/bin', '$HOME/bin'] } }),
-				support(root, 'resolvedRemote', { projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?flag=true', headers: { 'X-Variable': '/home/user/bin' } } }),
+				support(root, 'resolvedRemote', { projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?flag=true', headers: { 'X-Variable': '/home/user/bin', 'X-Brace': 'a}b' } } }),
 			],
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
@@ -1617,7 +1618,7 @@ suite('McpServerCustomizationMigration', () => {
 				['unresolvedLocal', [['MCP_UNSET', ''], ['MCP_OBJECT', '']]],
 				['unresolvedRemote', [['MCP_UNSET', '']]],
 				['resolvedLocal', [['MCP_FLAG', ''], ['MCP_ARRAY', ''], ['MCP_VARIABLE', ''], ['MCP_REFERENCE', '']]],
-				['resolvedRemote', [['MCP_FLAG', ''], ['MCP_VARIABLE', '']]],
+				['resolvedRemote', [['MCP_FLAG', ''], ['MCP_VARIABLE', ''], ['MCP_BRACE', 'a}b']]],
 			],
 			exclusions: [],
 			result: { migratedCount: 4, failures: [] },
@@ -1628,7 +1629,8 @@ suite('McpServerCustomizationMigration', () => {
 					// Like an input without a default, an empty value is not written as a default.
 					unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${MCP_UNSET}' }, tools: ['*'] },
 					resolvedLocal: { type: 'local', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
-					resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${MCP_FLAG}', headers: { 'X-Variable': '${MCP_VARIABLE}' }, tools: ['*'] },
+					// A value with a `}` is written as is, even though it ends the default early.
+					resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${MCP_FLAG}', headers: { 'X-Variable': '${MCP_VARIABLE}', 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
 				},
 			},
 		});
@@ -1639,8 +1641,6 @@ suite('McpServerCustomizationMigration', () => {
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const servers = {
 			emptyKey: { command: 'node', args: ['${config:}'] },
-			// The `}` in the value ends the `${NAME:-value}` default early.
-			braceValue: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${config:mcp.brace}' } },
 			// The same file reads `API_KEY` from the environment.
 			environmentCollision: { command: 'node', args: ['${config:api.key}'], env: { OTHER: '${env:API_KEY}' } },
 			inputCollision: { command: 'node', args: ['${config:region}', '${input:region}'] },
@@ -1659,7 +1659,6 @@ suite('McpServerCustomizationMigration', () => {
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
 		const configurationService = new TestConfigurationService({
-			'mcp.brace': 'a}b',
 			'api.key': 'key',
 			'region': 'eu',
 			'mcp.level': 'info',
@@ -1683,7 +1682,6 @@ suite('McpServerCustomizationMigration', () => {
 
 		const expected = [
 			['emptyKey', McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue],
-			['braceValue', McpServerCustomizationMigrationFailureReason.UnsupportedSettingValue],
 			['environmentCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
 			['inputCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
 			['settingCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],

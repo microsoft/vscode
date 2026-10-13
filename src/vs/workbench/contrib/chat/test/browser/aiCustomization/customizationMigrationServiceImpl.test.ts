@@ -865,6 +865,7 @@ suite('CustomizationMigrationService', () => {
 			// These settings have no usable value, so they become empty variables.
 			unset: { command: '${config:mcp.missing}' },
 			structured: { command: 'node', args: ['${config:mcp.options}'] },
+			// Rare, so migrated even though the `}` ends the `${NAME:-value}` default early.
 			brace: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${config:mcp.brace}' } },
 			collision: { command: 'node', args: ['${config:api.key}', '${env:API_KEY}'] },
 		};
@@ -928,20 +929,21 @@ suite('CustomizationMigrationService', () => {
 				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
 			],
 			exclusions: [
-				// The `}` in the value would end the `${NAME:-value}` default early.
-				['brace', 'unsupportedSettingValue', ['Settings (\'${config:...}\') are migrated to environment variables set to their current values, and a setting reference of this server has no setting name, or the value of a setting cannot be represented in the destination MCP configuration. Change the setting or replace the reference with a fixed value to migrate this server.']],
 				['collision', 'variableNameCollision', ['Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input or use a different setting to migrate this server.']],
 			],
-			result: { migratedCount: 4, failures: [['changed', McpServerCustomizationMigrationFailureReason.SourceChanged]] },
-			source: ['changed', 'brace', 'collision'],
+			result: { migratedCount: 5, failures: [['changed', McpServerCustomizationMigrationFailureReason.SourceChanged]] },
+			source: ['changed', 'collision'],
 			target: {
 				mcpServers: {
 					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '${MCP_PORT}', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
 					unset: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
 					structured: { type: 'local', command: 'node', args: ['${MCP_OPTIONS}'], env: { MCP_OPTIONS: '' }, tools: ['*'] },
+					// Written as is, even though the `}` ends the default early.
+					brace: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
 				},
 			},
 		});
