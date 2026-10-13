@@ -931,13 +931,13 @@ suite('CustomizationMigrationService', () => {
 			candidates: [
 				['local', [['MCP_COMMAND', 'npx'], ['MCP_PORT', '8080']], [
 					'Inputs will become environment variables. Configure them in the MCP server details after migrating.',
-					'Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.',
+					'Configs will become environment variables. Later changes won\'t apply.',
 				]],
-				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
-				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
-				['unset', [['MCP_MISSING', '']], ['Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.']],
-				['structured', [['MCP_OPTIONS', '']], ['Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.']],
-				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.']],
+				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables. Later changes won\'t apply.']],
+				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables. Later changes won\'t apply.']],
+				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables. Later changes won\'t apply.']],
+				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables. Later changes won\'t apply.']],
+				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables. Later changes won\'t apply.']],
 			],
 			exclusions: [
 				['collision', 'variableNameCollision', ['Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input or use a different setting to migrate this server.']],

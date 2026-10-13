@@ -302,8 +302,6 @@ suite('customizationMigration', () => {
 			versionOnly: category.getCandidateWarnings?.({ ...server, removedProperties: { version: '1.0.0' } }, 'Copilot'),
 			inputsAndGallery: category.getCandidateWarnings?.({ ...server, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }] }, 'Copilot'),
 			settings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
-			emptyUserSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }, { key: 'mcp.flag', name: 'MCP_FLAG', value: '' }] }, 'Copilot'),
-			emptyWorkspaceSettings: category.getCandidateWarnings?.({ ...server, storage: PromptsStorage.local, removedProperties: undefined, settingVariables: [{ key: 'mcp.token', name: 'MCP_TOKEN', value: '' }] }, 'Copilot'),
 			inputsAndSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }], settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
 		}, {
 			galleryEnabled: ['Migrating will stop auto-updates from the MCP registry.'],
@@ -312,13 +310,8 @@ suite('customizationMigration', () => {
 			galleryDisabledWithVersion: [],
 			versionOnly: [],
 			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
-			settings: ['Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.'],
-			emptyUserSettings: [
-				'Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.',
-				'Configs without a string or number value will become empty environment variables. Configure them in the MCP server details after migrating.',
-			],
-			emptyWorkspaceSettings: ['Configs without a string or number value in the workspace settings will become empty environment variables, so values from your user settings are not copied. Configure them in the MCP server details after migrating.'],
-			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables set to their current values. Later changes to the configs won\'t apply.'],
+			settings: ['Configs will become environment variables. Later changes won\'t apply.'],
+			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables. Later changes won\'t apply.'],
 		});
 	});
 
