@@ -26,7 +26,7 @@ import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { subagentChatUri } from '../../../../../../platform/agentHost/common/agentHostChatMinting.js';
+import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
@@ -427,15 +427,8 @@ export function unwrapSessionLoadErrorMessage(err: unknown): string | undefined 
 	return message.replace(/^Failed to restore session .+?: /, '');
 }
 
-/**
- * The subagent chat the catalog lists for a restored tool call, or the
- * canonical chat minted for the parent session. Persisted history resources
- * are not trusted: legacy shapes are replaced by the canonical URI.
- */
-export function resolveRestoredSubagentChatResource(parentSession: string, toolCallId: string, catalogResource: string | undefined): string {
-	// Shaped fallback: the host always stamps `_meta.subagentChatUri` / the content resource for opaque sessions.
-	return catalogResource ?? subagentChatUri('shaped', parentSession, '', toolCallId);
-}
+/** How long restored history waits for the host to register a subagent chat it has not listed yet. */
+const RESTORED_SUBAGENT_CHAT_TIMEOUT_MS = 5000;
 
 /**
  * Resolves a session's last-used model selection from its live turns. Model
@@ -4692,9 +4685,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!protocolData) {
 			return;
 		}
+		// Only positively identified older hosts get a derived URI; any other host stamps the resource or lists the chat in the catalog.
 		const chatResource = childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
-		// Shaped fallback: the host always stamps `_meta.subagentChatUri` / the content resource for opaque sessions.
-		const childChatUri = chatResource ?? subagentChatUri('shaped', opts.backendSession.toString(), '', toolCallId);
+		const childChatUri = chatResource ?? this._getOlderHostSubagentChatUri(opts.backendSession.toString(), toolCallId);
 		const isChatAvailable = observation
 			? observation.chatResource === childChatUri && observation.isChatAvailable
 			: currentData?.isChatAvailable === true;
@@ -4724,7 +4717,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (observation && (observation.chatResource !== childChatUri || !shouldObserve)) {
 			subagentContext.observations.deleteAndDispose(toolCallId);
 		}
-		if (subagentContext.observations.has(toolCallId)) {
+		if (childChatUri === undefined || subagentContext.observations.has(toolCallId)) {
 			return;
 		}
 		if (!shouldObserve) {
@@ -5266,6 +5259,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- Subagent child session observation ---------------------------------
 
+	/** The shaped subagent chat URI of a positively identified older VS Code host, otherwise `undefined`. */
+	private _getOlderHostSubagentChatUri(session: string, toolCallId: string): string | undefined {
+		return getOlderHostSubagentChatUri(session, toolCallId, this._config.connection.initializeResult.get(), this._getRootState());
+	}
+
+	/** Resolves the chat the host records for a subagent tool call once the session catalog lists it, or `undefined` after a short timeout. */
+	private async _whenSubagentChatRegistered(session: string, parentChat: string, toolCallId: string): Promise<string | undefined> {
+		const state = observableFromSubscription(this, this._ensureSessionSubscription(session));
+		const find = (value: SessionState | undefined) => value?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parentChat && chat.origin.toolCallId === toolCallId)?.resource.toString();
+		const store = new DisposableStore();
+		try {
+			return await new Promise<string | undefined>(resolve => {
+				store.add(this._lifetime.token.onCancellationRequested(() => resolve(undefined)));
+				store.add(disposableTimeout(() => resolve(undefined), RESTORED_SUBAGENT_CHAT_TIMEOUT_MS));
+				store.add(autorun(reader => {
+					const resource = find(state.read(reader));
+					if (resource !== undefined) {
+						resolve(resource);
+					}
+				}));
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
 	/** Restores live inline subagent pills while deferring settled child history until activity resumes. */
 	private async _enrichHistoryWithSubagentCalls(
 		history: IChatSessionHistoryItem[],
@@ -5287,7 +5306,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const subagentChats = new Map(sessionState.chats.flatMap(chat =>
 			chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parentChatUri ? [[chat.origin.toolCallId, chat] as const] : []
 		));
-		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string; childChatUri: string; requestId: string | undefined; waitForActivity: boolean }[] = [];
+		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string; childChatUri: string | undefined; requestId: string | undefined; waitForActivity: boolean }[] = [];
 
 		let requestId: string | undefined;
 		for (const item of history) {
@@ -5314,12 +5333,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					};
 				}
 				if (part.toolSpecificData?.kind === 'subagent' && (subagentChat || !parentToolCall || shouldObserveSubagentChat(parentToolCall))) {
-					const childChatUri = resolveRestoredSubagentChatResource(
-						parentSessionStr,
-						part.toolCallId,
-						subagentChat?.resource.toString(),
-					);
-					part.toolSpecificData.chatResource = childChatUri;
+					// Persisted history resources are not trusted: read the recorded chat, never derive the URI for a host that records chats.
+					const childChatUri = subagentChat?.resource.toString() ?? this._getOlderHostSubagentChatUri(parentSessionStr, part.toolCallId);
+					if (childChatUri !== undefined) {
+						part.toolSpecificData.chatResource = childChatUri;
+					}
 					const waitForActivity = !!subagentChat
 						&& (subagentChat.status & (SessionStatus.Idle | SessionStatus.Error)) !== 0
 						&& (subagentChat.status & SessionStatus.InProgress) === 0;
@@ -5352,11 +5370,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		};
 
-		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId, childChatUri, requestId, waitForActivity }) => {
+		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId, childChatUri: knownChatUri, requestId, waitForActivity }) => {
 			const parentPart = item.parts[index];
 			const parentToolCall = parentToolCalls.get(toolCallId);
 			if (waitForActivity) {
 				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity };
+			}
+			// The host registers restored subagent chats lazily, so wait for the catalog instead of deriving a URI.
+			const childChatUri = knownChatUri ?? await this._whenSubagentChatRegistered(parentSessionStr, parentChatUri, toolCallId);
+			if (childChatUri === undefined) {
+				this._logService.trace(`[AgentHost] Skipped history enrichment for subagent call ${toolCallId}: the host did not register its chat`);
+				return { item, index, innerParts: [], parentPart, parentToolCall, requestId, waitForActivity };
+			}
+			if (parentPart.kind === 'toolInvocationSerialized' && parentPart.toolSpecificData?.kind === 'subagent') {
+				parentPart.toolSpecificData.chatResource = childChatUri;
 			}
 			try {
 				const observedState = await getChildState(childChatUri);
