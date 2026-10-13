@@ -17,6 +17,8 @@ import { COPILOT_VENDOR_ID, createModelConfigurationActions, ILanguageModelConfi
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
 import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { isValidModelConfigurationNumber, promptModelConfigurationNumber, supportsCustomModelConfiguration } from '../../../common/modelConfigurationChoices.js';
 
 /**
  * Per-editor store for model configuration (e.g. context size, thinking effort).
@@ -56,6 +58,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		private readonly storageService: IStorageService,
 		managedSettingsService: IManagedSettingsService,
 		logService: ILogService,
+		private readonly quickInputService?: Pick<IQuickInputService, 'input'>,
 	) {
 		super();
 
@@ -199,6 +202,15 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this.getModelConfigurationSchema(modelId),
 			this.getModelConfiguration(modelId) ?? {},
 			(key, value) => this.setModelConfiguration(modelId, { [key]: value }),
+			this.quickInputService ? async key => {
+				const schema = this.getModelConfigurationSchema(modelId)?.properties?.[key];
+				if (!schema) { return; }
+				const value = await promptModelConfigurationNumber(this.quickInputService!, schema, this.getModelConfiguration(modelId)?.[key]);
+				const current = this.getModelConfigurationSchema(modelId)?.properties?.[key];
+				if (value !== undefined && current && !current.readOnly && supportsCustomModelConfiguration(current) && isValidModelConfigurationNumber(value, current)) {
+					await this.setModelConfiguration(modelId, { [key]: value });
+				}
+			} : undefined,
 		);
 	}
 

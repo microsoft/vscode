@@ -5,6 +5,8 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IRadioOptionItem, Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
@@ -19,10 +21,12 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { supportsCustomModelConfiguration } from '../../../../common/modelConfigurationChoices.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues, promptCustomModelConfigValue } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
@@ -44,6 +48,8 @@ export interface IModelCardOptions {
 	/** Whether the account is billed by credits, which is when cost numbers are shown. */
 	readonly isUBB: boolean;
 	readonly openerService: IOpenerService;
+	/** Supplies native custom-number entry where numeric configuration is supported. */
+	readonly quickInputService?: Pick<IQuickInputService, 'input'>;
 	/** Called after a configuration value changes so the caller can report it and refresh its own label. */
 	readonly onDidChangeConfiguration?: ModelConfigChangeListener;
 	/** Whether the model is pinned, when pinning is offered here. */
@@ -119,6 +125,7 @@ export class ModelCard extends DisposableStore {
 
 	private readonly _contentDisposables = this.add(new DisposableStore());
 	private readonly _groupControls = new Map<string, Radio>();
+	private readonly _customControls = new Map<string, Button>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
@@ -169,14 +176,17 @@ export class ModelCard extends DisposableStore {
 		return getModelConfigProperty(this._options.model, this._options.configurationAccess, group);
 	}
 
-	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string): Promise<void> {
+	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string, customFocus?: string): Promise<void> {
 		const options = this._options;
 		const version = ++this._configurationChangeVersion;
 		options.onWillSelect?.();
 		for (const [group, control] of this._groupControls) {
 			const property = getModelConfigProperty(options.model, options.configurationAccess, group);
 			if (property && Object.hasOwn(values, property.key)) {
-				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
+				const index = getModelConfigChoices(property).findIndex(choice => choice.value === values[property.key]);
+				if (index >= 0) {
+					control.setActiveItem(index);
+				}
 			}
 		}
 		try {
@@ -188,7 +198,7 @@ export class ModelCard extends DisposableStore {
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
 		} finally {
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
-				this._renderPreservingFocus(focusedGroup);
+				this._renderPreservingFocus(focusedGroup, customFocus);
 			}
 		}
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
@@ -196,19 +206,22 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
-	private _renderPreservingFocus(fallbackGroup?: string): void {
-		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
+	private _renderPreservingFocus(fallbackGroup?: string, customFocus?: string): void {
+		const hadFocus = customFocus !== undefined || this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
 		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
 		const group = focusedControl?.[0] ?? fallbackGroup;
 		const optionIndex = focusedControl?.[1].optionElements.findIndex(element => dom.isActiveElement(element));
 		const actionId = this._headerActions?.viewItems.find((_, index) => this._headerActions?.isFocused(index))?.action.id;
 		const pricingFocused = this._pricingToggle && dom.isActiveElement(this._pricingToggle);
+		const customGroup = customFocus ?? [...this._customControls].find(([, button]) => dom.isActiveElement(button.element))?.[0];
 		this._render();
 		if (!hadFocus) {
 			return;
 		}
 		const actionIndex = this._headerActions?.viewItems.findIndex(item => item.action.id === actionId) ?? -1;
-		if (pricingFocused) {
+		if (customGroup) {
+			this._customControls.get(customGroup)?.focus();
+		} else if (pricingFocused) {
 			this._pricingToggle?.focus();
 		} else if (actionIndex >= 0) {
 			this._headerActions?.focus(actionIndex);
@@ -248,6 +261,7 @@ export class ModelCard extends DisposableStore {
 		this._headerActions = undefined;
 		this._routingBadge = undefined;
 		this._groupControls.clear();
+		this._customControls.clear();
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;
@@ -531,6 +545,23 @@ export class ModelCard extends DisposableStore {
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
+		if (supportsCustomModelConfiguration(property.schema) && this._options.quickInputService) {
+			const custom = this._contentDisposables.add(new Button(section, { ...defaultButtonStyles, secondary: true }));
+			custom.element.classList.add('chat-model-card-custom');
+			this._customControls.set(group, custom);
+			custom.label = choices.some(choice => choice.checked)
+				? localize('chat.context.custom', "Custom...")
+				: localize('chat.context.customValue', "Custom: {0}...", String(property.value ?? ''));
+			custom.enabled = !property.schema.readOnly;
+			this._contentDisposables.add(custom.onDidClick(() => {
+				const options = this._options;
+				promptCustomModelConfigValue(options.model, options.configurationAccess, property, options.quickInputService!).then(async value => {
+					if (value !== undefined && !this.isDisposed && this._options.model === options.model) {
+						await this._setValues({ [property.key]: value }, group, group);
+					}
+				}).catch(onUnexpectedError);
+			}));
+		}
 		renderDiscountDescription(choices.find(choice => choice.checked)?.label, !!selectedAlternative);
 		for (const alternative of alternatives) {
 			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;

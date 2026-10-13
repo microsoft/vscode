@@ -167,6 +167,40 @@ suite('ModelCard', () => {
 		return rows;
 	}
 
+	for (const response of ['250000', undefined, 'invalid']) {
+		test(`custom context entry writes through the native control only for a valid choice: ${response}`, async () => {
+			const model = createModel({ configurationSchema: { properties: { contextSize: {
+				type: 'integer', minimum: 1, maximum: 1_000_000, default: 1_000_000, group: 'tokens',
+				suggestedValues: [{ value: 200_000, label: '200K' }, { value: 1_000_000, label: 'Full' }],
+			} } } });
+			const result = createCard({ contextSize: 200_000 }, { model, quickInputService: { input: async () => response } });
+			const custom = element(result.card.element, '.chat-model-card-custom');
+			custom.focus(); custom.click();
+			await timeout(0);
+			assert.strictEqual(mainWindow.document.activeElement, element(result.card.element, '.chat-model-card-custom'));
+			assert.deepStrictEqual({ writes: result.writes, value: result.values.contextSize, label: element(result.card.element, '.chat-model-card-custom').textContent }, response === '250000'
+				? { writes: [{ contextSize: 250_000 }], value: 250_000, label: 'Custom: 250000...' }
+				: { writes: [], value: 200_000, label: 'Custom...' });
+		});
+	}
+
+	test('custom context editing rechecks capacity before saving', async () => {
+		const property = { type: 'integer' as const, minimum: 1, maximum: 1_000_000, default: 200_000, group: 'tokens', suggestedValues: [{ value: 200_000 }] };
+		const model = createModel({ configurationSchema: { properties: { contextSize: property } } });
+		let value = 200_000;
+		let writes = 0;
+		const configurationAccess: IModelConfigurationAccess = {
+			getModelConfiguration: () => ({ contextSize: value }),
+			getModelConfigurationSchema: () => model.metadata.configurationSchema,
+			getModelConfigurationActions: () => [],
+			setModelConfiguration: async (_id, next) => { writes++; value = next.contextSize as number; },
+		};
+		const result = createCard({}, { model, configurationAccess, quickInputService: { input: async () => { property.maximum = 200_000; return '250000'; } } });
+		element(result.card.element, '.chat-model-card-custom').click();
+		await timeout(0);
+		assert.deepStrictEqual({ value, writes }, { value: 200_000, writes: 0 });
+	});
+
 	for (const [tier, label] of [['efficiency', 'Efficiency'], ['balance', 'Balance'], ['intelligence', 'Intelligence']]) {
 		test(`Auto's ${tier} tier explains its discount below the picker without repeating it above`, () => {
 			const { card } = createCard({ tier }, { model: createAutoModel() });

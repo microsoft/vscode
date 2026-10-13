@@ -938,6 +938,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-model-card-custom {
+	width: fit-content;
+	margin-top: var(--vscode-spacing-size60);
+}
+
 .chat-model-card-options {
 	display: flex;
 	flex-direction: column;

@@ -69,6 +69,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
@@ -1028,6 +1029,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		remoteAgentService.getEnvironment().then(environment => {
@@ -1090,6 +1092,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.storageService,
 			managedSettingsService,
 			this.logService,
+			this.quickInputService,
 		));
 
 		// Initialize debounced text sync scheduler
