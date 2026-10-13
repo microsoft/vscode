@@ -11,6 +11,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -547,6 +548,23 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('groups on-device direct rows under the harness, not their sentinel provider prefix', async () => {
+		const provider = createProvider();
+		// The rows are published as `vscode-on-device/<alias>` with `_meta["vscode.localModel"]`.
+		provider.updateModels([
+			{ id: 'vscode-on-device/MAI-Code-1.1-Flash', provider: 'copilotcli', name: 'Example Flash 1.0', _meta: createLocalModelRowMeta({ familyId: 'mai-code-1.1-flash-local', contentId: 'c1', active: true }) },
+			{ id: 'vscode-on-device/Qwen-Coder', provider: 'copilotcli', name: 'Qwen Coder' },
+			{ id: 'openai/gpt-5-nano', provider: 'copilotcli', name: 'GPT-5 nano' },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata.modelGroup])), {
+			'vscode-on-device/MAI-Code-1.1-Flash': { id: 'copilotcli' },
+			'vscode-on-device/Qwen-Coder': { id: 'copilotcli' },
+			'openai/gpt-5-nano': { id: 'openai' },
+		});
 	});
 
 	test('keeps duplicate Codex model names distinct and provider scoped', async () => {

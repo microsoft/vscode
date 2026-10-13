@@ -30,6 +30,8 @@ import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpC
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
+import { createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -37,6 +39,23 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+type AutoModeResolvedData = Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'];
+
+/**
+ * The usage `_meta` a restored Auto decision carries. An on-device pick (a
+ * CAPI `…-local` id, which CAPI only chooses after the host declared its
+ * local model) also carries `vscode.localModel` alongside `autoModeResolved`:
+ * `unknown`, because the SDK history does not record whether the local model
+ * or the cloud fallback answered. The turn's persisted usage, merged over this
+ * stub on restore, carries the actual attribution.
+ */
+function autoModeResolvedMeta(autoModeResolved: AutoModeResolvedData): Record<string, unknown> {
+	return {
+		autoModeResolved,
+		...(/-local$/i.test(autoModeResolved.chosenModel) ? createLocalModelTurnExecutionMeta({ execution: 'unknown' }) : {}),
+	};
 }
 
 function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined): string {
@@ -620,7 +639,7 @@ export async function mapSessionEvents(
 		}
 		const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
 		if (autoModeResolved) {
-			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, autoModeResolved } };
+			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, ...autoModeResolvedMeta(autoModeResolved) } };
 			pendingSubagentAutoModeResolved.delete(parentToolCallId);
 		}
 		touch(builder);
@@ -705,6 +724,7 @@ export async function mapSessionEvents(
 						if (builder?.usage) {
 							const metadata = { ...builder.usage._meta };
 							delete metadata.autoModeResolved;
+							delete metadata[LOCAL_MODEL_META_KEY];
 							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
 						}
 					}
@@ -767,7 +787,7 @@ export async function mapSessionEvents(
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
 							model: pendingAutoModeResolved.chosenModel,
-							_meta: { autoModeResolved: pendingAutoModeResolved },
+							_meta: autoModeResolvedMeta(pendingAutoModeResolved),
 						};
 						pendingAutoModeResolved = undefined;
 					}

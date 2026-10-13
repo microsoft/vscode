@@ -51,6 +51,12 @@ export interface IRequestOptions {
 	 */
 	disableCache?: boolean;
 	/**
+	 * `false` keeps the URL, the headers and any error message of this request
+	 * out of the request log: only the host, the status and the error's name
+	 * or code are logged. For URLs that carry credentials (signed URLs).
+	 */
+	logUrl?: boolean;
+	/**
 	 * Identifies the call site making this request, used for telemetry.
 	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.
 	 */

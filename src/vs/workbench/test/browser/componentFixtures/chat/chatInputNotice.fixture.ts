@@ -9,6 +9,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../contrib/chat/browser/widget/input/chatInputStack.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { localModelNoticeFixtures } from './localModelNoticeFixtures.js';
 
 /**
  * Mounts one notice above a stand-in chat input, inside a real stack.
@@ -125,4 +126,6 @@ function renderNoticesInCompactInput(context: ComponentFixtureContext): void {
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	'Chat input notices': defineComponentFixture({ render: renderNotices }),
 	'Chat input notices in a compact input': defineComponentFixture({ render: renderNoticesInCompactInput }),
+	// The on-device model notice docked above a real chat input.
+	LocalModel: localModelNoticeFixtures,
 });

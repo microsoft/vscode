@@ -38,6 +38,35 @@ export interface IPricingDisclosure {
 	readonly onDidChange: Event<void>;
 }
 
+/** One choice of a setting on a model's details page. */
+export interface IModelCardChoice {
+	readonly label: string;
+	readonly description?: string;
+	readonly checked: boolean;
+	readonly readOnly?: boolean;
+}
+
+/**
+ * A segmented control for one setting on an on-device model's details page,
+ * matching the cloud card's. Arrow keys move focus without choosing, so
+ * browsing the choices doesn't change the model; each choice's description is
+ * its tooltip and part of its accessible name.
+ */
+export function createModelCardChoiceControl(title: string, choices: readonly IModelCardChoice[]): Radio {
+	return new Radio({
+		ariaLabel: title,
+		className: 'segmented',
+		arrowKeyBehavior: 'focus',
+		items: choices.map(({ label, description, checked, readOnly }) => ({
+			text: label,
+			tooltip: description,
+			ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
+			isActive: checked,
+			disabled: readOnly,
+		})),
+	});
+}
+
 export interface IModelCardOptions {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
 	readonly configurationAccess: IModelConfigurationAccess;
