@@ -664,6 +664,10 @@ suite('reasoning effort schema', () => {
 			['claude-opus-5.5', 'claude-opus-5-5', 'claude-haiku-5.5', 'claude-sonnet-5.5', 'claude-opus-5', 'claude-fable-5.1', 'claude-opus-5.55'].map(family => pickDefaultReasoningEffort(['low', 'medium', 'high'], family)),
 			['medium', 'medium', 'medium', 'high', 'high', 'high', 'high']
 		);
+		assert.deepStrictEqual(
+			['claude-opus-5.5', 'claude-haiku-5.5'].map(family => pickDefaultReasoningEffort(['low', 'high'], family)),
+			['high', 'high']
+		);
 	});
 
 	test('Kimi K3 prefers high when available', () => {

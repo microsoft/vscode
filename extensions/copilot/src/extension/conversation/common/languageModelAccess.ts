@@ -24,7 +24,7 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const defaultsToMedium = /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(lowerFamily);
+	const defaultsToMedium = /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(lowerFamily) && effortLevels.includes('medium');
 	const preferred = !defaultsToMedium && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;

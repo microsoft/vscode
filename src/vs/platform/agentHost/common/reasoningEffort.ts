@@ -94,7 +94,7 @@ function isMediumEffortDefaultClaudeModel(modelId: string | undefined): boolean 
 
 /**
  * Resolve the default reasoning effort for a model so the picker never renders an
- * `undefined` selection. Prefers the declared default, then `'medium'` for Claude Opus/Haiku 5.5,
+ * `undefined` selection. Prefers the declared default, then `'medium'` for Claude Opus/Haiku 5.5 when supported,
  * `'high'` for other Claude/Kimi K3 models and `'medium'` otherwise, then the first supported level.
  * Mirrors the Copilot extension's `pickDefaultReasoningEffort`.
  */
@@ -106,6 +106,7 @@ export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[
 		return declaredDefault;
 	}
 	const lowerId = modelId?.toLowerCase() ?? '';
-	const preferred = !isMediumEffortDefaultClaudeModel(lowerId) && (lowerId.startsWith('claude') || lowerId.includes('kimi-k3')) ? 'high' : 'medium';
+	const defaultsToMedium = isMediumEffortDefaultClaudeModel(lowerId) && supportedEfforts.includes('medium');
+	const preferred = !defaultsToMedium && (lowerId.startsWith('claude') || lowerId.includes('kimi-k3')) ? 'high' : 'medium';
 	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
 }
