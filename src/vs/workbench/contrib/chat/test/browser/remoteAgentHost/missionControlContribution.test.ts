@@ -114,9 +114,11 @@ suite('Mission Control sharing service', () => {
 			override getWorkspace() { return new Workspace('workspace', options.emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
 		instantiation.stub(IProductService, { quality: 'insider' });
-		instantiation.stub(ILogService, store.add(new NullLogService()));
+		const logService = store.add(new NullLogService());
+		instantiation.stub(ILogService, logService);
 		instantiation.stub(IStorageService, storage);
-		instantiation.stub(INotificationService, new TestNotificationService());
+		const notificationService = new TestNotificationService();
+		instantiation.stub(INotificationService, notificationService);
 		instantiation.stub(IPathService, new class extends mock<IPathService>() {
 			override userHome(options: { preferLocal: true }): URI;
 			override userHome(options?: { preferLocal: boolean }): Promise<URI>;
@@ -136,7 +138,7 @@ suite('Mission Control sharing service', () => {
 		}());
 		const sharing = store.add(instantiation.createInstance(MissionControlSharingService));
 		return {
-			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, starts: () => starts,
+			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 		};
 	}
@@ -420,6 +422,75 @@ suite('Mission Control sharing service', () => {
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 				{ options: undefined, withdrawingAccountId: 'account' },
 			],
+		});
+	}));
+
+	for (const message of ['fetch failed', 'Mission Control WPS connection closed before joining control group']) {
+		for (const trigger of ['window reload', 'host restart'] as const) {
+			test(`logs background configuration failure without notifying after ${trigger}: ${message}`, () => runWithFakedTimers({}, async () => {
+				const error = new Error(message);
+				let failing = false;
+				const configure = async (options: IMissionControlOptions | undefined) => {
+					if (options && failing) {
+						throw error;
+					}
+				};
+				const first = fixture({ configure });
+				await first.sharing.setEnabled(true);
+				await timeout(0);
+				failing = true;
+				if (trigger === 'window reload') {
+					first.sharing.dispose();
+				}
+				const current = trigger === 'window reload' ? fixture({ storage: first.storage, configure }) : first;
+				const logError = stub(current.logService, 'error');
+				const notify = stub(current.notificationService, 'notify').callThrough();
+				current.calls.length = 0;
+				if (trigger === 'host restart') {
+					current.hostStarted.fire();
+				}
+				await timeout(0);
+				assert.deepStrictEqual({
+					state: current.sharing.state.get(),
+					calls: current.calls,
+					loggedErrors: logError.args,
+					notifications: notify.callCount,
+				}, {
+					state: 'disabled',
+					calls: [
+						{ options: expectedOptions, withdrawingAccountId: undefined },
+						{ options: undefined, withdrawingAccountId: 'account' },
+					],
+					loggedErrors: [['Mission Control configuration failed', error]],
+					notifications: 0,
+				});
+			}));
+		}
+	}
+
+	test('logs background withdrawal failure without notifying', () => runWithFakedTimers({}, async () => {
+		const error = new Error('fetch failed');
+		const { sharing, disableAI, logService, notificationService } = fixture({
+			configure: async options => {
+				if (!options) {
+					throw error;
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await timeout(0);
+		const logError = stub(logService, 'error');
+		const notify = stub(notificationService, 'notify').callThrough();
+		disableAI();
+		await timeout(0);
+		assert.deepStrictEqual({
+			state: sharing.state.get(),
+			loggedErrors: logError.args,
+			notifications: notify.callCount,
+		}, {
+			state: 'disabled',
+			loggedErrors: [['Mission Control withdrawal failed', error]],
+			notifications: 0,
 		});
 	}));
 
