@@ -14,7 +14,7 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude-opus-5.5 → 'medium' if available
+ *  - claude-opus-5.5 / claude-haiku-5.5 → 'medium' if available (Anthropic's default for these models)
  *  - other claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
@@ -24,8 +24,8 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const isOpus55 = /^claude-opus-5[.-]5/.test(lowerFamily);
-	const preferred = !isOpus55 && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
+	const defaultsToMedium = /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(lowerFamily);
+	const preferred = !defaultsToMedium && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
@@ -72,17 +72,16 @@ export function getReasoningEffortLabel(level: string): string {
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
- * Copilot and BYOK code paths. `defaultOverride` wins over the family default
- * when it is one of the advertised levels.
+ * Copilot and BYOK code paths.
  */
-export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string, defaultOverride?: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-		default: defaultOverride && effortLevels.includes(defaultOverride) ? defaultOverride : pickDefaultReasoningEffort(effortLevels, family),
+		default: pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
 }

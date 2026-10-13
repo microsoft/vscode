@@ -98,6 +98,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+		override async openChat(): Promise<void> { }
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -148,18 +149,20 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 export function createTestActiveSession(sessionId: string, isCreated = true, lifecycle?: {
 	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
 	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
+	readonly chatCount?: number;
 }) {
-	const chat = new class extends mock<IChat>() {
-		override readonly resource = URI.parse(`test-chat://${sessionId}`);
+	const chats = Array.from({ length: Math.max(1, lifecycle?.chatCount ?? 1) }, (_, index) => new class extends mock<IChat>() {
+		override readonly resource = URI.parse(index === 0 ? `test-chat://${sessionId}` : `test-chat://${sessionId}/${index}`);
 		override readonly workspace = constObservable(undefined);
-		override readonly title = constObservable('Main Chat');
+		override readonly title = constObservable(index === 0 ? 'Main Chat' : `Chat ${index + 1}`);
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly isRead = constObservable(true);
 		override readonly interactivity = constObservable(ChatInteractivity.Full);
 		override readonly capabilities = constObservable({ canRename: true, canArchive: false, canDelete: false });
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
-	}();
+	}());
+	const mainChat = chats[0];
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = sessionId;
 		override readonly resource = URI.parse(`test-session://${sessionId}`);
@@ -173,12 +176,12 @@ export function createTestActiveSession(sessionId: string, isCreated = true, lif
 		override readonly sticky = constObservable(false);
 		override readonly workspace = constObservable(undefined);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
-		override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable([chat]);
+		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
+		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([chat]);
-		override readonly activeChat: IObservable<IChat> = constObservable(chat);
-		override readonly mainChat: IObservable<IChat> = constObservable(chat);
+		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
+		override readonly activeChat: IObservable<IChat> = constObservable(mainChat);
+		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
 		override readonly shouldShowChatTabs = constObservable(true);
 		override readonly isNewSessionRequestInProgress = lifecycle?.isNewSessionRequestInProgress ?? constObservable(false);
 		override readonly preparationProgress = lifecycle?.preparationProgress;

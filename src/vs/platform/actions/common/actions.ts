@@ -17,6 +17,7 @@ import { IKeybindingRule, KeybindingsRegistry } from '../../keybinding/common/ke
 
 export interface IMenuItem {
 	command: ICommandAction;
+	/** Alternative command for this menu item. */
 	alt?: ICommandAction;
 	/**
 	 * Menu item is hidden if this expression returns false.

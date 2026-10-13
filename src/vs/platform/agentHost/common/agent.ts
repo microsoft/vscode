@@ -20,7 +20,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -171,8 +171,13 @@ export interface IAgentChatMetadataOptions {
 	readonly registryFallback?: Pick<IAgentChatMetadata, 'startTime' | 'modifiedTime'>;
 }
 
+/** Provider chat metadata listed together with the session it was listed for. */
+export interface IAgentListedChat extends IAgentChatMetadata {
+	readonly session: URI;
+}
+
 /** A provider chat ready to be registered as an Agent Host session. */
-export interface IAgentDiscoveredChat extends IAgentChatMetadata {
+export interface IAgentDiscoveredChat extends IAgentListedChat {
 	readonly external: boolean;
 }
 
@@ -852,7 +857,7 @@ export interface IAgentLegacyChat {
 export const AgentChatMigrationDeferred = Symbol('AgentChatMigrationDeferred');
 
 /** Provider-native chat catalog result used by registry migration. */
-export type AgentChatMigrationResult = readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred;
+export type AgentChatMigrationResult = readonly IAgentListedChat[] | undefined | typeof AgentChatMigrationDeferred;
 
 /**
  * Identifies the parent that spawned a chat. The orchestrator records
@@ -908,17 +913,16 @@ export namespace SubagentChatSignal {
 	/**
 	 * Derives the {@link IAgentSpawnChatEvent} for a `subagent_started` signal,
 	 * addressing the subagent by the stable {@link buildSubagentChatUri} and
-	 * recording the spawning tool call as its parent edge. Returns `undefined`
-	 * for any other signal (or an unmappable chat URI).
+	 * recording the spawning tool call as its parent edge. The subagent belongs
+	 * to the spawning chat's recorded owner. Returns `undefined` for any other
+	 * signal, or when the spawning chat's owner is unknown.
 	 */
-	export function toSpawnEvent(signal: AgentSignal): IAgentSpawnChatEvent | undefined {
+	export function toSpawnEvent(signal: AgentSignal, getChatOwner: (chat: string) => string | undefined): IAgentSpawnChatEvent | undefined {
 		if (signal.kind !== 'subagent_started') {
 			return undefined;
 		}
-		let session: string;
-		try {
-			session = parseRequiredSessionUriFromChatUri(signal.chat);
-		} catch {
+		const session = getChatOwner(signal.chat.toString());
+		if (session === undefined) {
 			return undefined;
 		}
 		return {

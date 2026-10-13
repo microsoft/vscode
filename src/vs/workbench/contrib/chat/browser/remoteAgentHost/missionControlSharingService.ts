@@ -17,7 +17,6 @@ import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId,
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -42,7 +41,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 	private readonly _update = this._register(new RunOnceScheduler(() => {
 		void this._updates.queue(() => this._configure()).catch(error => {
 			this._logService.error('Mission Control configuration failed', error);
-			this._notificationService.error(error);
 		});
 	}, 0));
 
@@ -55,7 +53,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IProductService private readonly _product: IProductService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storage: IStorageService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
@@ -159,7 +156,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private _reportWithdrawalError(error: Error): void {
 		this._logService.error('Mission Control withdrawal failed', error);
-		this._notificationService.error(error);
 	}
 
 	private async _withdraw(): Promise<void> {

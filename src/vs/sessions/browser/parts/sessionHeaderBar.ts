@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatCompositeBar.css';
+import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
@@ -28,12 +29,18 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
+import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
 	readonly chat: IObservable<IChat | undefined>;
 	readonly actionsTargetChat?: boolean;
 	readonly activateChatGroup?: () => void;
+}
+
+export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
+	const closeActionIndex = primaryActions.findIndex(action => action.id === CLOSE_CHAT_COMMAND_ID || action.id === CLOSE_SESSION_COMMAND_ID);
+	return closeActionIndex === -1 ? primaryActions.length : closeActionIndex;
 }
 
 /**
@@ -142,6 +149,7 @@ export class SessionHeaderBar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._menuActionArgs },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
@@ -499,6 +507,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));

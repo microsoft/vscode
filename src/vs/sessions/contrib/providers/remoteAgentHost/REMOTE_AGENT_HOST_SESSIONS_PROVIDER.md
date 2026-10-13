@@ -82,10 +82,7 @@ The remote Agent Host service owns protocol connection construction, handshake c
 
 `RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal. Authentication readiness is shared by address independently of either window's provider objects; session-list adapters observe it before loading host data.
 
-Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
-their context by address, request an explicit reconnect, and wait for the service to report the connection.
-Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle.
-Connection waits follow an active protocol-client recovery until it succeeds or fails rather than applying the idle connection-wait timeout.
+Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage their context by address, request an explicit reconnect, and wait for the service to report the connection. Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle. Connection waits follow an active protocol-client recovery until it succeeds or fails rather than applying the idle connection-wait timeout.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
@@ -137,8 +134,7 @@ User-local MC attachment has a one-minute client deadline covering identity, liv
 
 The remote Agent Host services may remember a user's preferred run location. The owning location-preference service defines its persistence key and selection policy. Providers consume the resolved location; they do not duplicate preference state in session metadata.
 
-Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
-Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
+Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests. Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
 
 ## Connection information
 
