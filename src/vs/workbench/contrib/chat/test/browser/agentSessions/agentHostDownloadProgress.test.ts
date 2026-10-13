@@ -11,6 +11,7 @@ import { IProgress, IProgressNotificationOptions, IProgressService, IProgressSte
 import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { getNotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
+import { withAgentHostDebugLogsProgress } from '../../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
 
 interface IRecordedProgress {
 	title: IProgressNotificationOptions['title'];
@@ -94,6 +95,12 @@ suite('AgentHostDownloadProgress', () => {
 		assert.strictEqual(progressService.opened.length, 0);
 	});
 
+	test('does not open a second notification for caller-owned debug-log export progress', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress({ channel: 'ahp-root://root', ...withAgentHostDebugLogsProgress({ progressToken: 'export', progress: 0, message: 'Collecting logs' }) });
+		controller.handleProgress({ channel: 'ahp-root://root', ...withAgentHostDebugLogsProgress({ progressToken: 'export', progress: 10, total: 100, message: 'Compressing logs' }) });
+		assert.deepStrictEqual(progressService.opened, []);
+	});
 	test('host messages, tokens and non-VS Code channel URIs never determine telemetry identity', () => {
 		const { controller, progressService } = create();
 		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 0, message: 'private title' });

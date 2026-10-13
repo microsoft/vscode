@@ -77,6 +77,13 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
+/** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
+export interface IAgentHostIpcConnectionOptions {
+	readonly env?: Readonly<Record<string, string | null>>;
+	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
+	readonly debugEnv?: Readonly<Record<string, string | null>>;
+}
+
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
@@ -875,7 +882,8 @@ export interface IAgentHostManagementService {
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
@@ -1039,7 +1047,8 @@ export interface IAgentService {
 	/** Resolve the owning provider's exact plan artifact without granting access to its directory. */
 	getSessionPlanFile?(session: URI, chat: URI): URI | undefined;
 
-	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 
 	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 
@@ -1312,7 +1321,8 @@ export interface IAgentConnection {
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 
 	/**
 	 * Read one bounded slice of an artifact previously returned by

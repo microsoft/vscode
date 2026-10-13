@@ -219,6 +219,72 @@ suite('AhpSnapshotRecorder', () => {
 		});
 	});
 
+	test('child replies can interleave with parent tool completion without hiding transcript defects', () => {
+		type ScheduledAction = 'parentToolComplete' | 'parentReply' | 'childReply';
+		const serialize = (schedule: readonly ScheduledAction[], options: { canonicalize?: boolean; success?: boolean } = {}): string => {
+			const recorder = new AhpSnapshotRecorder();
+			for (const chat of ['parent', 'child']) {
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: `ahp-chat://session/${chat}`,
+						action: { type: ActionType.ChatTurnStarted, turnId: `${chat}-turn`, message: { text: chat, origin: { kind: 'user' } } },
+					},
+				});
+			}
+			recorder.record('s2c', {
+				method: 'action',
+				params: {
+					channel: 'ahp-chat://session/parent',
+					action: { type: ActionType.ChatToolCallStart, turnId: 'parent-turn', toolCallId: 'read-child', toolName: 'read_agent' },
+				},
+			});
+			let responseIndex = 0;
+			for (const scheduled of schedule) {
+				const chat = scheduled === 'childReply' ? 'child' : 'parent';
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: `ahp-chat://session/${chat}`,
+						action: scheduled === 'parentToolComplete' ? {
+							type: ActionType.ChatToolCallComplete,
+							turnId: 'parent-turn',
+							toolCallId: 'read-child',
+							result: { success: options.success ?? true },
+						} : {
+							type: ActionType.ChatResponsePart,
+							turnId: `${chat}-turn`,
+							part: { kind: ResponsePartKind.Markdown, id: `response-${responseIndex++}`, content: `${chat} answer` },
+						},
+					},
+				});
+			}
+			return recorder.serialize({
+				profile: 'behavior',
+				...(options.canonicalize ? { orderIndependentActionTypes: [ActionType.ChatResponsePart] } : {}),
+			});
+		};
+		const recorded: ScheduledAction[] = ['parentToolComplete', 'childReply', 'parentReply'];
+		const interleaved: ScheduledAction[] = ['childReply', 'parentToolComplete', 'parentReply'];
+		const canonical = serialize(recorded, { canonicalize: true });
+
+		assert.deepStrictEqual({
+			strictInterleavingMatches: serialize(recorded) === serialize(interleaved),
+			canonicalInterleavingMatches: canonical === serialize(interleaved, { canonicalize: true }),
+			sameChatReorderMatches: canonical === serialize(['childReply', 'parentReply', 'parentToolComplete'], { canonicalize: true }),
+			failedToolMatches: canonical === serialize(recorded, { canonicalize: true, success: false }),
+			missingReplyMatches: canonical === serialize(['parentToolComplete', 'parentReply'], { canonicalize: true }),
+			duplicatedReplyMatches: canonical === serialize(['parentToolComplete', 'childReply', 'childReply', 'parentReply'], { canonicalize: true }),
+		}, {
+			strictInterleavingMatches: false,
+			canonicalInterleavingMatches: true,
+			sameChatReorderMatches: false,
+			failedToolMatches: false,
+			missingReplyMatches: false,
+			duplicatedReplyMatches: false,
+		});
+	});
+
 	test('a snapshot ending in read state waits for its turn completion and subsequent unread state', async () => {
 		const chat = 'ahp-chat://session/chat';
 		const turnId = 'completed-turn';

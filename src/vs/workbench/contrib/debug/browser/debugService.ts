@@ -136,7 +136,7 @@ export class DebugService implements IDebugService {
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
-		this.viewModel = this.disposables.add(new ViewModel(contextKeyService, this.model));
+		this.viewModel = this.disposables.add(new ViewModel(contextKeyService));
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
@@ -175,6 +175,7 @@ export class DebugService implements IDebugService {
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
 		this.disposables.add(this.model.onDidChangeCallStack(() => {
+			this.viewModel.updateFocusedThreadHasMultipleStackFrames();
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
 			this.activity?.dispose();
 			if (numberOfSessions > 0) {

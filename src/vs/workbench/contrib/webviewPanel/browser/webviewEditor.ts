@@ -16,7 +16,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../common/editor.js';
+import { IEditorOpenContext, IEditorPaneSelection } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
@@ -72,6 +72,10 @@ export class WebviewEditor extends EditorPane {
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService.value;
+	}
+
+	getSelection(): IEditorPaneSelection | undefined {
+		return this.input instanceof WebviewInput ? this.input.getSelection() : undefined;
 	}
 
 	protected createEditor(parent: HTMLElement): void {

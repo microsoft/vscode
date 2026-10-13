@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** A repository addressed by its owner login and name. */
-export interface RepositoryRef {
-	/** The repository owner's login, compared case-insensitively. */
-	readonly owner: string;
-	/** The repository name, compared case-insensitively. */
-	readonly name: string;
-}
-
 /** A user reference returned by Mission Control. */
 export interface User {
 	/** The unique numeric identifier of the user. */
@@ -26,13 +18,6 @@ export interface User {
 /** The class of compute backing an environment. */
 export type EnvironmentKind = 'managed-actions' | 'managed-sandbox' | 'managed-cca' | 'user-local' | 'user-codespace';
 
-/** Query parameters selecting one page of a REST collection. */
-export interface PaginationOptions {
-	/** The one-based page number, defaulting to 1. */
-	readonly page?: number;
-	/** The number of results per page, from 1 to 100 and defaulting to 30. */
-	readonly per_page?: number;
-}
 
 /** One response page with the HTTP metadata needed to continue a collection scan. */
 export interface PaginatedResponse<T> {

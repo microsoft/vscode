@@ -33,6 +33,15 @@
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/25cedd0bedf186071991ad692608c4a88280cf720cfa89e1a93776659ab86bc1)
 
+#### chat/widget/chatWidget/PendingMessages/Queued/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ff9db5b64a40589538b988686ab9906714458bd2d756c851d43e14b18ef2b6b7)
+
+#### chat/widget/chatWidget/PendingMessages/Steering/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/53bbe944ed13535f12436eb40541f0b504cb7cd8b8d2c700dac052897b94f560)
+
+#### chat/widget/chatWidget/PendingMessages/SystemNotification/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c6f2e9991e233ed38ca6c5223819db5cda923130b45eafd3ae07b1fbd8285c07)
+
 #### comments/commentTree/CommentTreeMetadataZoomed/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a81446b88a24acb43f7713d0d84c921bb9d79d4c06448e77b4baae5c1f5c9026)
 
@@ -166,13 +175,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/133b77cee2dd44df7906261b12cbf019eb0a4dbc2dc9d88a865d04687cdbbf8f)
 
 #### sessions/sessionsList/SessionsList_CompactNeedsInput/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0618919023690b82ef2c57c1e058e42dd5f06ebae1d58b07610f116a4a5e312b)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/aec8f9c6a9a7f6941392504d3a0446ba95368a8445fdd07b937b3adfde43516e)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatActions/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8806d13377c47bb5e81a5ddda8756bb91d06b05a07b0a997b6a9947311649169)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatApprovals/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/be0ba8245982fc76d83a7ced7acd61bac38c8422a84070af0e6399de6a657632)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fa63aac9ae39aced7a32e93e8d8f66af2f0a952e458f37deda7a81e62b1d2f2d)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatPrimaryAction/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ed18223f207e2dd6968527c3594213879ca07b1462e6e91b6cfc233d8578cf20)

@@ -3,14 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** A JSON value in an extensible API payload. */
-export type JsonValue = string | number | boolean | null | readonly JsonValue[] | JsonObject;
-
-/** A JSON object whose property names are defined by the producing service. */
-export interface JsonObject {
-	/** A named JSON value preserved without interpreting its schema. */
-	readonly [key: string]: JsonValue;
-}
+import { JsonObject, JsonValue } from './types.js';
 
 /** Indicates that a value does not match the expected schema. */
 export class SchemaError extends Error {

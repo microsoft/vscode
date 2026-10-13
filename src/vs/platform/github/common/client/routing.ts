@@ -4,13 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GitHubRequestError } from '../githubTypes.js';
+import { MAX_PER_PAGE } from './types.js';
 
 /** Encodes one opaque API identifier, rejecting empty identifiers and URL dot segments. */
 export function pathSegment(value: string): string {
 	if (typeof value !== 'string' || !value.trim() || value === '.' || value === '..') {
-		throw new GitHubRequestError('Invalid API path identifier', 'validation');
+		throw new GitHubRequestError('Invalid or empty API path identifier.', 'validation');
 	}
 	return encodeURIComponent(value);
+}
+
+/** Encodes a number as a path segment, rejecting non-positive integers. */
+export function numberSegment(value: number): string {
+	if (!Number.isSafeInteger(value) || value < 1) {
+		throw new GitHubRequestError('Invalid or non-positive numeric path segment.', 'validation');
+	}
+	return String(value);
 }
 
 /** Encodes a repository path while preserving directory separators. */
@@ -19,11 +28,25 @@ export function encodePathSegments(path: string): string {
 }
 
 /** Appends query parameters, repeating array values and omitting undefined entries. */
-export function queryPath(path: string, parameters: Readonly<Record<string, string | number | boolean | readonly string[] | readonly number[] | undefined>>): string {
+export function withQuery(path: string, parameters: Readonly<Record<string, string | number | boolean | readonly string[] | readonly number[] | undefined>>): string {
 	const query = new URLSearchParams();
 	for (const key of Object.keys(parameters)) {
 		const value = parameters[key];
 		if (value === undefined) {
+			continue;
+		}
+		if (key === 'page') {
+			if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+				throw new GitHubRequestError('Invalid REST pagination value.', 'validation');
+			}
+			query.append(key, String(value));
+			continue;
+		}
+		if (key === 'per_page') {
+			if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > MAX_PER_PAGE) {
+				throw new GitHubRequestError('Invalid REST pagination value.', 'validation');
+			}
+			query.append(key, String(value));
 			continue;
 		}
 		for (const item of Array.isArray(value) ? value : [value]) {

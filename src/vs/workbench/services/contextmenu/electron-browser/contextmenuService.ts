@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { getActionForAltMode, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -243,6 +243,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 		// Normal Menu Item
 		else {
+			entry = getActionForAltMode(entry, dom.ModifierKeyEmitter.getInstance().keyStatus);
 			let type: 'radio' | 'checkbox' | undefined = undefined;
 			if (entry.checked) {
 				if (typeof delegate.getCheckedActionsRepresentation === 'function') {

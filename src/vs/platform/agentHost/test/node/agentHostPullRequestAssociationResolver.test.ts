@@ -15,7 +15,7 @@ import { readSessionGitHubState, readSessionGitState, SessionStatus, withSession
 import { AgentHostPullRequestAssociationResolver } from '../../node/agentHostPullRequestAssociationResolver.js';
 import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
@@ -85,7 +85,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [WORKING_DIRECTORY],
 		};
-		stateManager.restoreSession(summary, []);
+		stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 		stateManager.setSessionMeta(SESSION, withSessionArtifacts(
 			withSessionGitHubState(
 				withSessionGitState(undefined, options?.gitState ?? { branchName: 'feature', baseBranchName: 'main' }),

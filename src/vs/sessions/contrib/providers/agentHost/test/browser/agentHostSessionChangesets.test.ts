@@ -30,7 +30,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -50,6 +50,7 @@ import { isSessionPullRequestOperation } from '../../../../changes/common/pullRe
 import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -718,7 +719,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
 		const absentCatalogue = current;
@@ -1015,7 +1016,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -1032,7 +1033,7 @@ suite('AgentHostSessionChangesets', () => {
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
-				resource: URI.parse(parseRequiredSessionUriFromChatUri(chatUri)).toString(),
+				resource: URI.parse(requireMintedTestChatOwner(chatUri)).toString(),
 			}],
 			chatSubscriptions: [
 				{ component: StateComponents.Chat, resource: chatUri.toString() },

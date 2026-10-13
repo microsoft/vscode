@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
 import { ChatEntitlement } from '../../../../../../../services/chat/common/chatEntitlementService.js';
-import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function model(identifier: string, metadataId: string): ILanguageModelChatMetadataAndIdentifier {
@@ -41,6 +41,20 @@ suite('ModelPickerPresentation', () => {
 			canonicalIdentifier: true,
 			ordinary: false,
 		});
+	});
+
+	test('recognizes HydraFusion models only from Copilot CLI', () => {
+		const inGroup = (metadataId: string, group: string | undefined) => {
+			const base = model(`provider/${metadataId}`, metadataId);
+			return isHydraFusionModel({ ...base, metadata: { ...base.metadata, ...(group && { modelGroup: { id: group } }) } });
+		};
+		assert.deepStrictEqual({
+			hydraFusion: inGroup('hydrafusion', 'copilotcli'),
+			max: inGroup('hydrafusion-max', 'copilotcli'),
+			otherProvider: inGroup('hydrafusion-max', 'claude'),
+			ungrouped: inGroup('hydrafusion', undefined),
+			ordinary: inGroup('gpt-5', 'copilotcli'),
+		}, { hydraFusion: true, max: true, otherProvider: false, ungrouped: false, ordinary: false });
 	});
 
 	test('computes unavailable picker state from trust, setup, and live models', () => {

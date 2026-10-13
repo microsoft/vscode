@@ -31,6 +31,7 @@ import type { Dto } from '../../../../services/extensions/common/proxyIdentifier
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -210,7 +211,8 @@ export interface IPluginMarketplaceService {
 	queryMarketplacePlugins(options: IPluginMarketplaceQuery, token: CancellationToken): Promise<IPluginMarketplacePage>;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
-	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
+	/** Records an installation, retaining its enablement identity when moving from a previous URI. */
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI): void;
 	/** Removes the exact durable installed entry, including when its metadata is not hydrated. */
 	removeInstalledPlugin(pluginUri: URI): boolean;
 	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
@@ -385,6 +387,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
+		@IAgentPluginEnablementService pluginEnablementService: IAgentPluginEnablementService,
 	) {
 		super();
 
@@ -398,6 +401,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				_fileService,
 				_logService,
 				_storageService,
+				pluginEnablementService,
 			)
 		);
 
@@ -795,15 +799,19 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			?? [...this._pluginMetadata.entries()].find(([key]) => isEqualOrParent(pluginUri, URI.parse(key)))?.[1];
 	}
 
-	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI): void {
 		this._pluginMetadata.set(pluginUri.toString(), plugin);
+		const current = this._installedPluginsStore.get();
+		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
+		const previous = previousPluginUri ? current.find(e => isEqual(e.pluginUri, previousPluginUri)) : undefined;
+		const identitySource = previous ?? existing;
 		const entry: IStoredInstalledPlugin = {
+			...existing,
+			...(previousPluginUri ? { enablementUri: identitySource?.enablementUri ?? identitySource?.pluginUri ?? previousPluginUri } : {}),
 			pluginUri,
 			marketplace: plugin.marketplaceReference.rawValue,
 			name: plugin.name,
 		};
-		const current = this._installedPluginsStore.get();
-		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		if (existing) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
 			this._installedPluginsStore.set(current.map(c => c === existing ? entry : c), undefined);

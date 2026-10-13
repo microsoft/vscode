@@ -121,6 +121,17 @@ suite('CopilotFusionProgress', () => {
 		});
 	});
 
+	test('milestones name the HydraFusion model the runtime routed with, including interruptions', () => {
+		const fusionModel = (update: ReturnType<CopilotFusionProgress['accept']>) => update?.part && readAgentSystemNotificationMeta(update.part).fusionModel;
+		const progress = new CopilotFusionProgress();
+		progress.accept(event('session.fusion_route_started', { ...data.routeStarted, syntheticModel: 'hydrafusion-max' }));
+		const routing = fusionModel(progress.interrupt());
+		progress.reset();
+		const selected = fusionModel(progress.accept(event('session.fusion_resolved', { ...data.resolved, syntheticModel: 'hydrafusion-max' })));
+		const afterRouting = fusionModel(progress.interrupt());
+		assert.deepStrictEqual({ routing, selected, afterRouting }, { routing: 'hydrafusion-max', selected: 'hydrafusion-max', afterRouting: 'hydrafusion-max' });
+	});
+
 	test('persists historical interruption duration from the first phase start and resets timing for the next turn', () => {
 		const progress = new CopilotFusionProgress();
 		const startedAt = '2020-01-01T12:00:00.000Z';
