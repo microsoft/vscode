@@ -194,6 +194,7 @@ function postOnce(mod: typeof http | typeof https, options: IPostOptions, body: 
 
 export interface IFileForwarderOptions {
 	readonly filePath: string;
+	readonly createParentDirectories?: boolean;
 }
 
 /**
@@ -229,7 +230,9 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 
 	private async _append(lines: string): Promise<void> {
 		try {
-			await fs.mkdir(dirname(this._options.filePath), { recursive: true });
+			if (this._options.createParentDirectories) {
+				await fs.mkdir(dirname(this._options.filePath), { recursive: true });
+			}
 			await fs.appendFile(this._options.filePath, lines, { encoding: 'utf8' });
 		} catch (err) {
 			this._logService.warn(`[agentHost-otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);

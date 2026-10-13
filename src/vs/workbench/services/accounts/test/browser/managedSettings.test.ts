@@ -180,10 +180,11 @@ suite('adaptManagedSettings', () => {
 	});
 
 	test('adapts managed telemetry file paths through ordinary normalization', () => {
+		const validPath: IManagedSettingsResponse = { telemetry: { filePath: '/managed/copilot.jsonl' } };
 		const nullPath = JSON.parse('{"telemetry":{"filePath":null,"enabled":false,"capture":{"identity":false},"resourceAttributes":{"service.namespace":"acme"}}}') as IManagedSettingsResponse;
 		const numberPath = JSON.parse('{"telemetry":{"filePath":1,"enabled":false}}') as IManagedSettingsResponse;
 		assert.deepStrictEqual({
-			valid: adaptManagedSettings(JSON.parse('{"telemetry":{"filePath":"/managed/copilot.jsonl"}}') as IManagedSettingsResponse),
+			valid: adaptManagedSettings(validPath),
 			nullPath: adaptManagedSettings(nullPath),
 			numberPath: adaptManagedSettings(numberPath),
 		}, {

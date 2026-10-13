@@ -600,6 +600,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 
 	test('managed file path provenance validates service configuration without mutating process environment', async () => {
 		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-file-'));
+		const services = new DisposableStore();
 		const home = join(tmp, 'home');
 		const homeEnv = isWindows ? { USERPROFILE: home } : { HOME: home };
 		const managedFileEnv = {
@@ -609,7 +610,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		const logMessages: string[] = [];
 		let fetchCalls = 0;
 		try {
-			const fileService = store.add(new AgentHostOTelService({
+			const fileService = services.add(new AgentHostOTelService({
 				env: managedFileEnv,
 				fetchFn: async () => {
 					fetchCalls++;
@@ -620,7 +621,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			await fileService.flush();
 			ok((await readFile(join(home, 'spans.jsonl'), 'utf8')).includes(AgentHostSessionSpanName));
 
-			const missingHomeService = store.add(new AgentHostOTelService({
+			const missingHomeService = services.add(new AgentHostOTelService({
 				env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: '~/spans.jsonl' }),
 			}, new class extends NullLogService {
 				override error(message: string): void { logMessages.push(message); }
@@ -628,7 +629,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual((await missingHomeService.getSdkTelemetryConfig())?.filePath, undefined);
 			strictEqual(logMessages.length, 1);
 
-			const dbService = store.add(new AgentHostOTelService({
+			const dbService = services.add(new AgentHostOTelService({
 				env: buildAgentHostOTelEnv({ dbSpanExporterEnabled: true }, {}, { enabled: true, exporterType: 'file', outfile: '~' }),
 				fetchFn: async () => {
 					fetchCalls++;
@@ -647,6 +648,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			}
 			strictEqual(fetchCalls, 0);
 		} finally {
+			services.dispose();
 			await rm(tmp, { recursive: true, force: true });
 		}
 	});
@@ -760,6 +762,56 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				strictEqual(svc.getSpansDbPath(), undefined);
 				await rejects(access(join(userDataPath, AgentHostOTelSpansDbSubPath)), { code: 'ENOENT' });
 			}
+		} finally {
+			services.dispose();
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	test('scope-fix file parent creation is managed-only with DB off and on', async () => {
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-managed-parent-'));
+		const services = new DisposableStore();
+		let collectorCalls = 0;
+		try {
+			for (const dbSpanExporterEnabled of [false, true]) {
+				for (const managed of [false, true]) {
+					const kind = managed ? 'managed' : 'personal';
+					const outputPath = join(tmp, kind, String(dbSpanExporterEnabled), 'nested', 'spans.jsonl');
+					const warnings: string[] = [];
+					const env = managed
+						? buildAgentHostOTelEnv(
+							{ dbSpanExporterEnabled },
+							{},
+							{ enabled: true, exporterType: 'file', outfile: outputPath },
+						)
+						: buildAgentHostOTelEnv(
+							{ enabled: true, exporterType: 'file', outfile: outputPath, dbSpanExporterEnabled },
+							{},
+						);
+					const service = services.add(new AgentHostOTelService({
+						env,
+						fetchFn: async () => {
+							collectorCalls++;
+							return new Response(null, { status: 200 });
+						},
+					}, new class extends NullLogService {
+						override warn(message: string): void { warnings.push(message); }
+					}, makeEnvService(join(tmp, 'user-data', kind, String(dbSpanExporterEnabled)))));
+
+					ok(service.getSessionTraceContext(`${kind}-${dbSpanExporterEnabled}`, `copilot:/${kind}-${dbSpanExporterEnabled}`));
+					await service.flush();
+
+					if (managed) {
+						ok((await readFile(outputPath, 'utf8')).includes(AgentHostSessionSpanName));
+					} else {
+						await rejects(access(outputPath));
+						await rejects(access(join(tmp, kind, String(dbSpanExporterEnabled), 'nested')));
+						ok(warnings.some(message => message.includes(outputPath)));
+					}
+					strictEqual(service.getSpansDbPath() !== undefined, dbSpanExporterEnabled);
+				}
+			}
+			strictEqual(collectorCalls, 0);
 		} finally {
 			services.dispose();
 			await rm(tmp, { recursive: true, force: true });

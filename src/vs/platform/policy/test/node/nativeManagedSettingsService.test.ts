@@ -87,10 +87,7 @@ suite('NativeManagedSettingsService', () => {
 		});
 		onDidChange?.({ [filePath]: '/managed/copilot.jsonl' });
 		const updated = service.managedSettings;
-		(onDidChange as ((update: Record<string, PolicyValue | undefined>, ignored?: unknown) => void) | undefined)?.(
-			{ [filePath]: undefined },
-			{ invalidPolicies: [filePath] },
-		);
+		onDidChange?.({ [filePath]: undefined });
 
 		assert.deepStrictEqual({ updated, removed: service.managedSettings }, {
 			updated: { [filePath]: '/managed/copilot.jsonl' },

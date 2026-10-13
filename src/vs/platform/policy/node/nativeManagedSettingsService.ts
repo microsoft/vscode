@@ -120,12 +120,12 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 			return;
 		}
 
-		const { createWatcher } = this.watcherFactory ? { createWatcher: this.watcherFactory } : await import('@vscode/policy-watcher');
+		const { createWatcher } = this.watcherFactory ? { createWatcher: this.watcherFactory } : (await import('@vscode/policy-watcher') as { createWatcher: NativePolicyWatcherFactory });
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
 				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
-				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, (update: Record<string, PolicyValue | undefined>) => {
-					this._onDidManagedSettingsChange(update);
+				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, update => {
+					this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
 					c();
 				}, this.watcherOptions);
 			} catch (err) {

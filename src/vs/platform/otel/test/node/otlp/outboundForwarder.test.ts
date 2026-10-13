@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
 import { promises as fs } from 'fs';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
@@ -204,7 +204,8 @@ suite('platform/otel - outboundForwarder', () => {
 		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
 		try {
 			const path = join(directory, 'nested', 'traces', 'spans.jsonl');
-			const fwd = store.add(new FileForwarder({ filePath: path }, store.add(new CapturingLogger())));
+			const options = { filePath: path, createParentDirectories: true };
+			const fwd = store.add(new FileForwarder(options, store.add(new CapturingLogger())));
 			fwd.forwardSpans(makeResult([makeSpan('a', '1111111111111111'), makeSpan('b', '2222222222222222')]));
 			fwd.forwardSpans(makeResult([makeSpan('c', '3333333333333333')]));
 			await fwd.flush();
@@ -223,7 +224,8 @@ suite('platform/otel - outboundForwarder', () => {
 			const path = join(blockingParent, 'spans.jsonl');
 			await fs.writeFile(blockingParent, 'blocking file');
 			const logger = store.add(new CapturingLogger());
-			const fwd = store.add(new FileForwarder({ filePath: path }, logger));
+			const options = { filePath: path, createParentDirectories: true };
+			const fwd = store.add(new FileForwarder(options, logger));
 
 			fwd.forwardSpans(makeResult([makeSpan('failed', '1111111111111111')]));
 			await fwd.flush();
@@ -236,6 +238,27 @@ suite('platform/otel - outboundForwarder', () => {
 
 			const lines = (await fs.readFile(path, 'utf8')).split('\n').filter(l => l.length > 0);
 			deepStrictEqual(lines.map(line => JSON.parse(line).name), ['recovered']);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('FileForwarder default and false options leave missing parents untouched', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
+		try {
+			for (const [name, options] of [
+				['default', { filePath: join(directory, 'default', 'spans.jsonl') }],
+				['false', { filePath: join(directory, 'false', 'spans.jsonl'), createParentDirectories: false }],
+			] as const) {
+				const logger = store.add(new CapturingLogger());
+				const fwd = store.add(new FileForwarder(options, logger));
+				fwd.forwardSpans(makeResult([makeSpan(name, '1111111111111111')]));
+				await fwd.flush();
+
+				ok(logger.messages.some(message => message.level === 'Warning' && message.msg.includes(options.filePath)));
+				await rejects(fs.access(options.filePath), { code: 'ENOENT' });
+				await rejects(fs.access(join(directory, name)), { code: 'ENOENT' });
+			}
 		} finally {
 			await fs.rm(directory, { recursive: true, force: true });
 		}

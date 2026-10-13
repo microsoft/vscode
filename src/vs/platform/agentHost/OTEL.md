@@ -641,9 +641,11 @@ Only managed paths receive the additional validation and expansion:
   replacement. A valid path that later proves unwritable is different: its
   existing lazy writer reports the failed write and can retry later writes after
   repair, without falling back to a collector or SQLite.
-- The file forwarder creates missing parent directories, appends to an existing
-  file in its existing JSONL format, and reports failures without blocking the
-  host.
+- The host-owned file forwarder creates missing parent directories only for a
+  managed path, then appends in the existing JSONL format and reports failures
+  without blocking the host. For a personal or inherited path with a missing
+  parent, it reports the failed write and produces no output until the parent
+  exists. Native runtime file-export behavior is unchanged.
 
 The managed path is a shared field consumed by the native Copilot runtime and
 the host-owned writer on each executing host. Producer-specific JSONL formats

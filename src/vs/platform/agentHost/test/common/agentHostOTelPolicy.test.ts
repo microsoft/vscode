@@ -11,11 +11,20 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { AgentHostOTelEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, readAgentHostOTelPolicySettings } from '../../common/agentService.js';
-import '../../common/agentHostStarter.config.contribution.js';
 
 suite('Agent Host OTel managed policy registration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	let introducedConfigurations: ReturnType<IConfigurationRegistry['getConfigurations']> = [];
+
+	suiteSetup(async () => {
+		const configurationsBeforeImport = new Set(registry.getConfigurations());
+		await import('../../common/agentHostStarter.config.contribution.js');
+		introducedConfigurations = registry.getConfigurations().filter(configuration => !configurationsBeforeImport.has(configuration));
+	});
+
+	suiteTeardown(() => registry.deregisterConfigurations(introducedConfigurations));
 
 	class PolicyConfigurationService extends TestConfigurationService {
 		constructor(private readonly policyData: IPolicyData) {
@@ -23,8 +32,7 @@ suite('Agent Host OTel managed policy registration', () => {
 		}
 
 		override inspect<T>(key: string): IConfigurationValue<T> {
-			const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-			const properties = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
+				const properties = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
 			return {
 				...super.inspect<T>(key),
 				policyValue: properties[key]?.policy?.value?.(this.policyData) as T | undefined,
@@ -53,7 +61,7 @@ suite('Agent Host OTel managed policy registration', () => {
 	}
 
 	test('registers managed file selection callbacks', () => {
-		const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const properties = registry.getConfigurationProperties();
 		const filePolicyData = { managedSettings: { 'telemetry.filePath': '/managed/copilot.jsonl', 'telemetry.endpoint': 'https://collector.example', 'telemetry.protocol': 'grpc' } } as IPolicyData;
 		const disabledFilePolicyData = { managedSettings: { 'telemetry.filePath': '/managed/copilot.jsonl', 'telemetry.enabled': false } } as IPolicyData;
 

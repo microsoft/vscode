@@ -52,6 +52,8 @@ interface ResolvedConfig {
 	readonly otlpEndpoint: string | undefined;
 	/** Pass-through file path (file exporter). */
 	readonly filePath: string | undefined;
+	/** Whether the file path originated from managed policy. */
+	readonly managedFilePath: boolean;
 	/** Safe reason why a managed file path was ignored. */
 	readonly filePathError?: string;
 	/** Instrumentation source/service name. */
@@ -189,6 +191,7 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 		exporterType,
 		otlpEndpoint,
 		filePath,
+		managedFilePath,
 		...(managedFilePathResult?.error ? { filePathError: managedFilePathResult.error } : {}),
 		sourceName: env.COPILOT_OTEL_SOURCE_NAME,
 		captureContent: env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT === undefined
@@ -792,7 +795,10 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 				break;
 			case 'file':
 				if (this._config.filePath) {
-					children.push(new FileForwarder({ filePath: this._config.filePath }, this._logService));
+					children.push(new FileForwarder({
+						filePath: this._config.filePath,
+						createParentDirectories: this._config.managedFilePath,
+					}, this._logService));
 				}
 				break;
 			case 'console':
