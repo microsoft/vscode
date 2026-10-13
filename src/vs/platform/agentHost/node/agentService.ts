@@ -5852,7 +5852,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return;
 		}
-		this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext);
+		// The submitting client cleared its composer once `createChat` resolved,
+		// so a rejection here is the only surviving record of the prompt.
+		this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext, { recoverableRejection: false });
 	}
 
 	/**

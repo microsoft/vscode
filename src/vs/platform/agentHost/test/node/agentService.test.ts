@@ -9380,6 +9380,42 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('an ordinary rejected turn stays in the session it was refused in', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(sessionDatabase);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const first = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(first, agent);
+			const session = await first.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			first.addSubscriber(session, 'client');
+			getStateManager(first).dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			first.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'rejected-turn',
+				startedAt: '2026-09-29T17:00:00.000Z',
+				message: { text: 'refused prompt', origin: { kind: MessageKind.User } },
+			}, 'client', 1, AgentHostClientType.EditorWindow);
+			await waitForCondition(
+				() => getStateManager(first).getChatState(chat)?.turns[0]?.responseParts.some(part => part.kind === ResponsePartKind.Error) === true,
+				'the turn should be rejected before the service is restarted',
+			);
+			first.dispose();
+
+			const restarted = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			registerTestAgentProvider(restarted, agent);
+			await restarted.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persisted: (await sessionDatabase.getPersistedTurns()).map(record => record.kind),
+				restoredTurns: getStateManager(restarted).getChatState(chat)?.turns.map(turn => turn.message.text),
+			}, {
+				persisted: [],
+				restoredTurns: [],
+			});
+		});
+
 		function getStartupTestInternals(service: AgentService) {
 			return service as unknown as {
 				_migrateLegacyEnabledSnapshot: boolean | undefined;

@@ -48,7 +48,9 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 			}
 			return;
 		}
-		if (ended.reason.kind !== 'rejected' && (ended.reason.kind !== 'error' || ended.reason.resumable)) {
+		if (ended.reason.kind === 'rejected'
+			? ended.reason.recoverable
+			: (ended.reason.kind !== 'error' || ended.reason.resumable)) {
 			return;
 		}
 
