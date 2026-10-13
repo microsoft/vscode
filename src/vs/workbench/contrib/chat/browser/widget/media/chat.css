@@ -1274,6 +1274,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: inherit;
 	padding: var(--chat-input-working-border-width);
 	container-type: size;
+	/* Masking alone does not keep the oversized gradient out of ancestor scroll areas. */
+	overflow: clip;
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);

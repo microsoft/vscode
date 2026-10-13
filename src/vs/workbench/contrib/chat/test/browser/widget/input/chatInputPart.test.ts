@@ -54,14 +54,15 @@ suite('ChatInputPart', () => {
 		const beam = dom.append(input, dom.$('.chat-input-working-border'));
 		const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
 		const geometry = [];
-		for (const [width, height] of [[400, 80], [200, 300]]) {
+		for (const [width, height] of [[400, 80], [200, 300], [333.33, 97.25]]) {
 			input.style.width = `${width}px`;
 			input.style.height = `${height}px`;
 			geometry.push(...[beam, glow].map(border => {
 				const bounds = border.getBoundingClientRect();
 				const style = mainWindow.getComputedStyle(border, '::before');
+				// Allow 1/64px layout rounding plus computed-style serialization.
 				return {
-					coversCorners: Math.abs(parseFloat(style.width) - Math.hypot(bounds.width, bounds.height)) < 0.01,
+					coversCorners: Math.abs(parseFloat(style.width) - Math.hypot(bounds.width, bounds.height)) < 0.02,
 					animation: style.animationName,
 					timing: style.animationTimingFunction,
 				};
@@ -79,11 +80,43 @@ suite('ChatInputPart', () => {
 			keyframes,
 			idleAnimations: input.getAnimations({ subtree: true }).filter(animation => animation instanceof mainWindow.CSSAnimation).length,
 		}, {
-			geometry: Array.from({ length: 4 }, () => ({
+			geometry: Array.from({ length: 6 }, () => ({
 				coversCorners: true, animation: reduced ? 'none' : 'chat-input-working-border-spin', timing: reduced ? 'ease' : 'linear',
 			})),
 			keyframes: reduced ? [] : Array.from({ length: 2 }, () => ['translate(-50%, -50%) rotate(0deg)', 'translate(-50%, -50%) rotate(360deg)']),
 			idleAnimations: 0,
 		});
+	});
+
+	test('decorative input borders do not increase ancestor scroll overflow', () => {
+		const snapshots = [];
+		for (const compact of [false, true]) {
+			for (const working of [false, true]) {
+				const host = mainWindow.document.body.appendChild(dom.$('.monaco-workbench'));
+				host.style.cssText = 'position: relative; width: 500px; height: 100px; overflow: hidden; --vscode-strokeThickness: 1px;';
+				store.add(toDisposable(() => host.remove()));
+				const session = dom.append(host, dom.$('.interactive-session'));
+				const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+				inputPart.classList.toggle('compact', compact);
+				const input = dom.append(inputPart, dom.$('.chat-input-container'));
+				input.classList.toggle('working', working);
+				input.style.cssText = 'width: 400px; height: 40px;';
+				const before = { width: host.scrollWidth, height: host.scrollHeight };
+				dom.append(input, dom.$('.chat-input-working-border'));
+				dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
+				snapshots.push({
+					compact,
+					working,
+					widthIncrease: host.scrollWidth - before.width,
+					heightIncrease: host.scrollHeight - before.height,
+				});
+			}
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0 },
+		]);
 	});
 });
