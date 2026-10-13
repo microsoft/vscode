@@ -5553,7 +5553,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
 		const defaultChat = this._requireDefaultChat(session);
-		const chatUriError = createChatUriError(defaultChat, chat.toString());
+		const chatUriError = createChatUriError(defaultChat, this._stateManager.getSessionState(sessionKey)?.chats.map(existing => existing.resource) ?? [], chat.toString());
 		if (chatUriError !== undefined) {
 			throw new Error(`[AgentService] createChat: ${chatUriError}`);
 		}

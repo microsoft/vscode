@@ -6214,6 +6214,30 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('createChat rejects a chat whose client chat id collides with an existing chat', async () => {
+			const session = 'copilot:/collision-session';
+			const defaultUuid = '33333333-3333-4333-8333-333333333333';
+			stateManager.createSession({ ...makeSessionSummary(session), defaultChat: `ahp-chat:/${defaultUuid}` });
+			const transport = connectClient('client-cc');
+			const lookalike = buildChatUri(session, defaultUuid);
+			const normal = 'ahp-chat:/44444444-4444-4444-8444-444444444444';
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const chat of [lookalike, normal]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel: session, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [JsonRpcErrorCodes.InvalidParams, undefined],
+				created: [normal],
+			});
+		});
+
 		test('createChat rejects a source without kind', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');

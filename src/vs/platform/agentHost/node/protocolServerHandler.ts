@@ -1914,7 +1914,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
 			}
-			const chatUriError = createChatUriError(defaultChat, params.chat);
+			const chatUriError = createChatUriError(defaultChat, state.chats.map(existing => existing.resource), params.chat);
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}

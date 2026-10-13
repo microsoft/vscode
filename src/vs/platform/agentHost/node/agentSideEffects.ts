@@ -1741,7 +1741,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const state = this._stateManager.getSessionState(channel);
 				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, resumedTurn.message.model?.id);
-				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)));
+				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
 				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 				const key = this._resumedTurnExecutionKey(channel, action.turnId);
 				const execution: IResumedTurnExecution = {

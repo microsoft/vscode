@@ -695,6 +695,19 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual(completedEvents().map(event => (event.data as { agentSessionId: string }).agentSessionId), ['recorded-owner']);
 	});
 
+	test('classifies a turn as root only when it has no parent ids and no subagent kind', () => {
+		const session = sessionUri.toString();
+		turnTracker.turnStarted(agent, defaultChatUri, session, 'plain', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, buildChatUri(sessionKey, 'a'), session, 'kind-only', undefined, undefined, 'default', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'task');
+		for (const turn of ['plain', 'kind-only']) {
+			turnTracker.turnCompleted(turn === 'plain' ? defaultChatUri : buildChatUri(sessionKey, 'a'), turn, 'success');
+		}
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number };
+			return { turnId: data.turnId, rooted: data.hostRootTurnOrdinal !== undefined };
+		}), [{ turnId: 'plain', rooted: true }, { turnId: 'kind-only', rooted: false }]);
+	});
+
 	test('enriches the local root timing marker with the captured strategy without resampling start fields', () => {
 		const info = sinon.spy(logService, 'info');
 		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn', undefined, undefined, 'default', undefined, undefined);

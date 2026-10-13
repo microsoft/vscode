@@ -258,7 +258,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
 		const key = this._key(session, turnId);
 		let rootTiming = this._rootTurnTimings.get(key);
-		const isNewRootTurn = !parentTurnId && parentToolCallId === undefined && !isSubagentSession(owner) && !rootTiming;
+		const isNewRootTurn = !parentTurnId && parentToolCallId === undefined && subagentKind === undefined && !isSubagentSession(owner) && !rootTiming;
 		if (isNewRootTurn) {
 			rootTiming = {
 				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,

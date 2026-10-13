@@ -5,7 +5,7 @@
 
 import { generateUuid } from '../../../base/common/uuid.js';
 import { isShapedChatUri, uuidFromSha1 } from './agentHostChatIdentity.js';
-import { AHP_CHAT_SCHEME, buildChatUri, buildDefaultChatUri, buildSubagentChatUri } from './state/sessionState.js';
+import { AHP_CHAT_SCHEME, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, getAgentHostChatId } from './state/sessionState.js';
 
 /**
  * The spelling new chats of a session use. It follows the session's recorded
@@ -50,14 +50,22 @@ export function subagentChatUri(format: ChatUriFormat, session: string, rootConv
  * Why a client-supplied `createChat` URI is unacceptable, or `undefined` when it
  * is fine: it must be an `ahp-chat:` URI, and a session with a shaped default
  * chat cannot hold opaque chats because clients of such sessions may not
- * understand them.
+ * understand them. Its client chat id must not equal that of a different
+ * existing chat (`existingChats`, including the default chat), because client
+ * links address chats by id and an opaque and a shaped chat can share one.
  */
-export function createChatUriError(defaultChat: string | undefined, chat: string): string | undefined {
+export function createChatUriError(defaultChat: string | undefined, existingChats: readonly string[], chat: string): string | undefined {
 	if (!chat.startsWith(`${AHP_CHAT_SCHEME}:`)) {
 		return `Chat URI must use the ${AHP_CHAT_SCHEME} scheme: ${chat}`;
 	}
 	if (chatUriFormatOf(defaultChat) === 'shaped' && !isShapedChatUri(chat)) {
 		return `Opaque chat URI is not allowed in a session with a shaped default chat: ${chat}`;
+	}
+	const chatId = getAgentHostChatId(chat);
+	const collision = [...(defaultChat === undefined ? [] : [defaultChat]), ...existingChats]
+		.find(existing => existing !== chat && getAgentHostChatId(existing) === chatId);
+	if (collision !== undefined) {
+		return `Chat URI ${chat} has the same chat id as the existing chat ${collision}`;
 	}
 	return undefined;
 }

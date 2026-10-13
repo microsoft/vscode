@@ -49,11 +49,24 @@ suite('Agent host chat minting', () => {
 		const shapedDefault = mintDefaultChatUri('shaped', session, '1');
 		const opaquePeer = mintPeerChatUri('opaque', session);
 		assert.deepStrictEqual({
-			anyInOpaque: createChatUriError(opaqueDefault, 'ahp-chat:/x/y'),
-			shapedInOpaque: createChatUriError(opaqueDefault, mintPeerChatUri('shaped', session)),
-			opaqueInShaped: createChatUriError(shapedDefault, opaquePeer) !== undefined,
-			shapedInShaped: createChatUriError(shapedDefault, mintPeerChatUri('shaped', session)),
-			foreignScheme: createChatUriError(opaqueDefault, 'file:///x') !== undefined,
+			anyInOpaque: createChatUriError(opaqueDefault, [], 'ahp-chat:/x/y'),
+			shapedInOpaque: createChatUriError(opaqueDefault, [], mintPeerChatUri('shaped', session)),
+			opaqueInShaped: createChatUriError(shapedDefault, [], opaquePeer) !== undefined,
+			shapedInShaped: createChatUriError(shapedDefault, [], mintPeerChatUri('shaped', session)),
+			foreignScheme: createChatUriError(opaqueDefault, [], 'file:///x') !== undefined,
 		}, { anyInOpaque: undefined, shapedInOpaque: undefined, opaqueInShaped: true, shapedInShaped: undefined, foreignScheme: true });
+	});
+
+	test('createChat rejects a chat whose client chat id equals that of another existing chat', () => {
+		const opaqueDefault = mintDefaultChatUri('opaque', session, undefined);
+		const uuid = opaqueDefault.slice('ahp-chat:/'.length);
+		const lookalike = `ahp-chat://${uuid}/${Buffer.from(session).toString('base64url')}`;
+		const peer = mintPeerChatUri('opaque', session);
+		assert.deepStrictEqual({
+			againstDefault: createChatUriError(opaqueDefault, [], lookalike) !== undefined,
+			againstPeer: createChatUriError(opaqueDefault, [peer], `ahp-chat://${peer.slice('ahp-chat:/'.length)}/x`) !== undefined,
+			recreateSame: createChatUriError(opaqueDefault, [peer], peer),
+			freshPeer: createChatUriError(opaqueDefault, [peer], mintPeerChatUri('opaque', session)),
+		}, { againstDefault: true, againstPeer: true, recreateSame: undefined, freshPeer: undefined });
 	});
 });
