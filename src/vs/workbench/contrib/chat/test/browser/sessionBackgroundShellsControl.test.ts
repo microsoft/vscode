@@ -27,6 +27,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { INotificationService, type NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ChatDropdownPillActionViewItem } from '../../../../browser/chatDropdownPill.js';
+import type { IChatPillEntry } from '../../../../browser/chatPills.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, IDetachedXTermOptions, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
 import { sessionBackgroundShellsPillOptions } from '../../browser/sessionChatPillOptions.js';
@@ -39,7 +40,29 @@ suite('SessionBackgroundShellsControl', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override createDetachedTerminal(): Promise<IDetachedTerminalInstance> { return new Promise(() => { }); }
+		}());
+		instantiationService.stub(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
+			override render(markdown: IMarkdownString): IRenderedMarkdown {
+				const element = document.createElement('div');
+				element.textContent = markdown.value;
+				return { element, dispose: () => { } };
+			}
+		}());
+		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+			override getOpenAriaHint(): string | null { return null; }
+		}());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	});
+
+	/** Opens a row's details, as the picker does. */
+	function showDetails(entry: IChatPillEntry): HTMLElement {
+		const content = entry.hover?.content;
+		const details = typeof content === 'function' ? content() : content;
+		assert.ok(isHTMLElement(details));
+		return details;
+	}
 
 	test('updates elapsed time while observed and stops when the list becomes empty', () => runWithFakedTimers({}, async () => {
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
@@ -52,28 +75,23 @@ suite('SessionBackgroundShellsControl', () => {
 			badge = control.sections.read(reader)[0]?.entries[0].badge;
 		}));
 		const initial = badge;
-		const details = control.sections.get()[0].entries[0].hover?.content;
-		assert.ok(isHTMLElement(details));
-		const initialDetails = details.children[1]?.textContent;
+		const details = showDetails(control.sections.get()[0].entries[0]);
 		await timeout(2100);
 		const elapsed = badge;
-		const elapsedDetails = details.children[1]?.textContent;
-		const sameDetails = control.sections.get()[0].entries[0].hover?.content === details;
+		const sameDetails = showDetails(control.sections.get()[0].entries[0]) === details;
 		shells.set([], undefined);
 		await timeout(2000);
 		observer.dispose();
 
-		assert.deepStrictEqual({ initial, elapsed, initialDetails, elapsedDetails, sameDetails, empty: badge }, {
+		assert.deepStrictEqual({ initial, elapsed, sameDetails, empty: badge }, {
 			initial: '0ms',
 			elapsed: '2s',
-			initialDetails: '0ms',
-			elapsedDetails: '2s',
 			sameDetails: true,
 			empty: undefined,
 		});
 	}));
 
-	test('updates shell rows independently of turns and exposes the full command as plain text', () => {
+	test('updates shell rows independently of turns and shows the full command in the details', () => {
 		const shell: IChatBackgroundShell = {
 			id: 'silent', description: 'Run tests', command: 'npm test -- --grep "<script>"',
 			startedAt: new Date(0).toISOString(), attachmentMode: 'attached',
@@ -81,30 +99,28 @@ suite('SessionBackgroundShellsControl', () => {
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [shell]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 		const entry = control.sections.get()[0].entries[0];
-		const details = entry.hover?.content;
-		assert.ok(isHTMLElement(details));
+		const details = showDetails(entry);
 		shells.set([{ ...shell, attachmentMode: 'detached' }], undefined);
 		const updated = control.sections.get()[0].entries[0];
+		const sameDetails = showDetails(updated) === details;
 		shells.set([], undefined);
 
 		assert.deepStrictEqual({
 			entry: { id: entry.id, label: entry.label, detached: entry.badge?.startsWith('Detached, ') },
 			updated: updated.badge?.startsWith('Detached, '),
-			plainCommand: details.textContent?.includes(shell.command),
+			command: details.querySelector('.chat-terminal-command-block')?.textContent?.includes(shell.command),
 			noMarkup: details.querySelector('script') === null,
 			title: details.firstElementChild?.textContent,
-			liveDetails: details.children[1]?.textContent?.startsWith('Detached, '),
-			sameDetails: updated.hover?.content === details,
+			sameDetails,
 			expandable: updated.hover?.expandable,
 			aboveInput: updated.hover?.alignToParentBottom,
 			empty: control.sections.get(),
 		}, {
 			entry: { id: 'silent', label: 'Run tests', detached: false },
 			updated: true,
-			plainCommand: true,
+			command: true,
 			noMarkup: true,
 			title: 'Run tests',
-			liveDetails: true,
 			sameDetails: true,
 			expandable: true,
 			aboveInput: true,
@@ -123,9 +139,9 @@ suite('SessionBackgroundShellsControl', () => {
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
 		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => {
-			const details = entry.hover?.content;
-			const title = isHTMLElement(details) ? details.querySelector<HTMLElement>('.chat-background-shell-title') : null;
-			return { label: entry.label, title: title?.hidden ? undefined : title?.textContent, first: isHTMLElement(details) && details.firstElementChild === title };
+			const details = showDetails(entry);
+			const title = details.querySelector<HTMLElement>('.chat-background-shell-title');
+			return { label: entry.label, title: title?.hidden ? undefined : title?.textContent, first: details.firstElementChild === title };
 		}), [
 			{ label: description, title: description, first: true },
 			{ label: 'npm test', title: undefined, first: true },
@@ -145,7 +161,7 @@ suite('SessionBackgroundShellsControl', () => {
 		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => entry.badge), ['0ms', 'Detached, 0ms', '0ms']);
 	}));
 
-	test('keys rows by entry id and shows the shell ID only when the agent reports one', () => {
+	test('keys rows by entry id and describes the shell ID only when the agent reports one', () => {
 		const startedAt = new Date(0).toISOString();
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [
 			{ id: 'shell:3', shellId: '3', description: 'Run tests', command: 'npm test', startedAt },
@@ -153,16 +169,12 @@ suite('SessionBackgroundShellsControl', () => {
 		]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
-		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => {
-			const details = entry.hover?.content;
-			return {
-				id: entry.id,
-				described: entry.ariaDescription?.split('\n').filter(line => line.startsWith('Shell ID')),
-				shown: isHTMLElement(details) ? details.textContent?.includes('Shell ID') : undefined,
-			};
-		}), [
-			{ id: 'shell:3', described: ['Shell ID: 3'], shown: true },
-			{ id: 'build', described: [], shown: false },
+		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => ({
+			id: entry.id,
+			described: entry.ariaDescription?.split('\n').filter(line => line.startsWith('Shell ID')),
+		})), [
+			{ id: 'shell:3', described: ['Shell ID: 3'] },
+			{ id: 'build', described: [] },
 		]);
 	});
 
@@ -204,17 +216,6 @@ suite('SessionBackgroundShellsControl', () => {
 				}();
 			}
 		}());
-		instantiationService.stub(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-			override render(markdown: IMarkdownString): IRenderedMarkdown {
-				const element = document.createElement('div');
-				element.textContent = markdown.value;
-				return { element, dispose: () => { } };
-			}
-		}());
-		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
-			override getOpenAriaHint(): string | null { return null; }
-		}());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		const output = observableValue<ChatBackgroundShellOutput>('output', { status: 'loading' });
 		const shells = constObservable<readonly IChatBackgroundShell[]>([{
 			id: 'stream', description: 'Stream', command: 'stream.sh', startedAt: new Date(0).toISOString(), output,
@@ -263,13 +264,6 @@ suite('SessionBackgroundShellsControl', () => {
 				return new Promise(() => { });
 			}
 		}());
-		instantiationService.stub(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-			override render(): IRenderedMarkdown { return { element: document.createElement('div'), dispose: () => { } }; }
-		}());
-		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
-			override getOpenAriaHint(): string | null { return null; }
-		}());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		let rows: readonly IActionListItem<unknown>[] = [];
 		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
 			override get isVisible(): boolean { return false; }
@@ -307,35 +301,43 @@ suite('SessionBackgroundShellsControl', () => {
 		});
 	}));
 
-	test('shows Stop beside the command only for shells that can be stopped', () => {
+	test('shows each shell as its command and status, with Stop beside the command when it can be stopped and a terminal only for live output', () => {
+		let terminals = 0;
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override createDetachedTerminal(): Promise<IDetachedTerminalInstance> { return new Promise(() => { }); }
+			override createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
+				terminals++;
+				return new Promise(() => { });
+			}
 		}());
-		instantiationService.stub(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-			override render(): IRenderedMarkdown { return { element: document.createElement('div'), dispose: () => { } }; }
-		}());
-		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
-			override getOpenAriaHint(): string | null { return null; }
-		}());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		const startedAt = new Date(0).toISOString();
 		const stop = async () => true;
 		const output = constObservable<ChatBackgroundShellOutput>({ status: 'running', text: '' });
 		const shells = constObservable<readonly IChatBackgroundShell[]>([
-			{ id: 'silent', description: 'Watch', command: 'npm run watch', startedAt, stop },
+			{ id: 'detached', description: 'Watch', command: 'npm run watch', startedAt, attachmentMode: 'detached', stop },
 			{ id: 'streaming', description: 'Serve', command: 'npm start', startedAt, output, stop },
 			{ id: 'unstoppable', description: 'Build', command: 'npm run build', startedAt },
 		]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
-		// Without live output the button follows the command line; with it, the output's title holds it.
-		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => {
-			const content = entry.hover?.content;
-			const details = typeof content === 'function' ? content() : content;
-			assert.ok(isHTMLElement(details));
-			const beside = typeof content === 'function' ? '.chat-terminal-content-title' : '.chat-background-shell-command';
-			return Array.from(details.querySelectorAll(`${beside} .action-label`), label => label.getAttribute('aria-label'));
-		}), [['Stop Shell'], ['Stop Shell'], []]);
+		assert.deepStrictEqual({
+			shells: control.sections.get()[0].entries.map(entry => {
+				const details = showDetails(entry);
+				return {
+					shown: Array.from(details.children).filter(child => !(isHTMLElement(child) && child.hidden)).map(child => child.className),
+					status: details.querySelector('.chat-terminal-command-decoration')?.getAttribute('aria-label'),
+					stop: Array.from(details.querySelectorAll('.chat-terminal-content-title .action-label'), label => label.getAttribute('aria-label')),
+					output: details.querySelector('.chat-terminal-output-container') !== null,
+				};
+			}),
+			terminals,
+		}, {
+			shells: [
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', stop: ['Stop Shell'], output: false },
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-output'], status: 'Running', stop: ['Stop Shell'], output: true },
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', stop: [], output: false },
+			],
+			terminals: 1,
+		});
 	});
 
 	test('stops a shell once at a time and offers Stop again when stopping fails', async () => {
@@ -353,9 +355,8 @@ suite('SessionBackgroundShellsControl', () => {
 			},
 		}]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
-		const details = control.sections.get()[0].entries[0].hover?.content;
-		assert.ok(isHTMLElement(details));
-		const stop = details.querySelector<HTMLElement>('.chat-background-shell-command .action-label');
+		const details = showDetails(control.sections.get()[0].entries[0]);
+		const stop = details.querySelector<HTMLElement>('.chat-terminal-content-title .action-label');
 		assert.ok(stop);
 
 		stop.click();

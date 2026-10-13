@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
@@ -16,11 +18,15 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources,
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../common/customizationHarnessService.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { isAgentFinderPublicFeedAvailable } from './customizationMarketplaceConfiguration.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
+
+export function getProviderMarketplaceSourceId(name: string): string {
+	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
+}
 
 export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
@@ -49,8 +55,12 @@ export class PlatformCustomizationMarketplaceWorkbenchService implements ICustom
 export class CustomizationMarketplaceWorkbenchService extends Disposable implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	get allSources() {
+		const pluginSources = this.marketplaceManagementProvider
+			? []
+			: getAllPluginCustomizationMarketplaceSourceInfos(this.pluginMarketplaceService);
 		return [
-			...getAllPluginCustomizationMarketplaceSourceInfos(this.pluginMarketplaceService),
+			...pluginSources,
+			...this.getProviderMarketplaceSources(true),
 			...(this.platformService.allSources ?? this.platformService.sources),
 			CustomizationMarketplaceSources.AgentFinderPublicFeed,
 			CustomizationMarketplaceSources.CopilotConnectors,
@@ -59,17 +69,29 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	readonly onDidChangeSources: Event<void>;
 	get sources(): readonly ICustomizationMarketplaceSourceInfo[] {
 		const githubFeedAvailable = this.isGitHubFeedAvailable();
+		const pluginSources = this.marketplaceManagementProvider
+			? []
+			: getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService, githubFeedAvailable);
 		const harnessSources = githubFeedAvailable
 			? [CustomizationMarketplaceSources.AgentFinderPublicFeed]
 			: [];
 		return [
-			...getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService, githubFeedAvailable),
+			...pluginSources,
+			...this.getProviderMarketplaceSources(false),
 			...this.platformService.sources.filter(source => source.id !== CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 			...harnessSources,
 			CustomizationMarketplaceSources.CopilotConnectors,
 		];
 	}
 	private readonly harnessBindingCancellation: MutableDisposable<CancellationTokenSource>;
+	private readonly marketplaceManagementBinding = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _onDidChangeSources = this._register(new Emitter<void>());
+	private providerMarketplaces: readonly ICustomizationMarketplaceInfo[] = [];
+	private marketplaceSessionResource: URI | undefined;
+	private marketplaceSearchProvider: ICustomizationMarketplaceSearchProvider | undefined;
+	private marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined;
+	private marketplaceManagementVersion = 0;
+	private marketplaceManagementRefreshVersion = 0;
 	private service: CustomizationMarketplaceService | undefined;
 	private serviceSignature: string | undefined;
 
@@ -84,34 +106,119 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		super();
 		this.harnessBindingCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			const descriptor = this.harnessService.getDescriptorForSession(sessionResource);
 			this.harnessBindingCancellation.value = new CancellationTokenSource();
+			this.bindMarketplaceProviders(
+				sessionResource,
+				descriptor?.marketplaceSearchProvider,
+				descriptor?.marketplaceManagementProvider,
+			);
 		}));
 		this.onDidChangeSources = Event.any(
+			this._onDidChangeSources.event,
 			pluginMarketplaceService.onDidChangeMarketplaces,
-			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
+			Event.filter(configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
+				|| event.affectsConfiguration(ChatConfiguration.PluginsEnabled)),
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
 		);
 	}
 
+	private getProviderMarketplaceSources(includeUnavailable: boolean): readonly ICustomizationMarketplaceSourceInfo[] {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
+			return [];
+		}
+		return this.providerMarketplaces
+			.filter(marketplace => includeUnavailable || marketplace.available !== false)
+			.map(marketplace => ({
+				id: getProviderMarketplaceSourceId(marketplace.name),
+				displayName: marketplace.name,
+				enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+				configurationDependencies: [ChatConfiguration.PluginsEnabled],
+			}));
+	}
+
+	private bindMarketplaceProviders(
+		sessionResource: URI,
+		searchProvider: ICustomizationMarketplaceSearchProvider | undefined,
+		managementProvider: ICustomizationMarketplaceManagementProvider | undefined,
+	): void {
+		this.marketplaceSessionResource = sessionResource;
+		this.marketplaceSearchProvider = searchProvider;
+		this.marketplaceManagementProvider = managementProvider;
+		const version = ++this.marketplaceManagementVersion;
+		const hadMarketplaces = this.providerMarketplaces.length > 0;
+		this.providerMarketplaces = [];
+		if (hadMarketplaces) {
+			this._onDidChangeSources.fire();
+		}
+		if (!managementProvider) {
+			this.marketplaceManagementBinding.clear();
+			return;
+		}
+		const store = new DisposableStore();
+		this.marketplaceManagementBinding.value = store;
+		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(sessionResource, managementProvider, version, true)));
+		void this.refreshProviderMarketplaces(sessionResource, managementProvider, version);
+	}
+
+	private async refreshProviderMarketplaces(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider, version: number, forceChangeEvent = false): Promise<void> {
+		const refreshVersion = ++this.marketplaceManagementRefreshVersion;
+		try {
+			const marketplaces = await provider.list(sessionResource);
+			if (version !== this.marketplaceManagementVersion || refreshVersion !== this.marketplaceManagementRefreshVersion || this._store.isDisposed) {
+				return;
+			}
+			const previous = JSON.stringify(this.providerMarketplaces);
+			this.providerMarketplaces = marketplaces;
+			if (forceChangeEvent || JSON.stringify(marketplaces) !== previous) {
+				this._onDidChangeSources.fire();
+			}
+		} catch (error) {
+			if (version === this.marketplaceManagementVersion && !this._store.isDisposed) {
+				onUnexpectedError(error);
+			}
+		}
+	}
+
 	private isGitHubFeedAvailable(): boolean {
 		return isAgentFinderPublicFeedAvailable(
 			this.configurationService,
-			!!this.harnessService.getActiveDescriptor().marketplaceSearchProvider,
+			!!this.marketplaceSearchProvider,
 		);
 	}
 
 	private getService(): CustomizationMarketplaceService {
 		const githubFeedAvailable = this.isGitHubFeedAvailable();
-		const pluginProviders = createPluginCustomizationMarketplaceProviders(
-			this.instantiationService,
-			this.configurationService,
-			this.pluginMarketplaceService,
-			githubFeedAvailable,
-		);
+		const managementProvider = this.marketplaceManagementProvider;
+		const pluginProviders = managementProvider
+			? []
+			: createPluginCustomizationMarketplaceProviders(
+				this.instantiationService,
+				this.configurationService,
+				this.pluginMarketplaceService,
+				githubFeedAvailable,
+			);
+		const providerMarketplaceProviders = managementProvider
+			? this.providerMarketplaces
+				.filter(marketplace => marketplace.available !== false)
+				.map(marketplace => createLazyCustomizationMarketplaceProvider(
+					getProviderMarketplaceSourceId(marketplace.name),
+					() => ({
+						id: getProviderMarketplaceSourceId(marketplace.name),
+						query: (options, token) => {
+							const sessionResource = this.marketplaceSessionResource;
+							return sessionResource
+								? managementProvider.queryMarketplace(sessionResource, marketplace, options, token)
+								: Promise.resolve({ items: [], total: 0 });
+						},
+					}),
+				))
+			: [];
 		const platformProviders = (this.platformService.allSources ?? this.platformService.sources)
 			.filter(source => source.id !== CustomizationMarketplaceSources.AgentFinderPublicFeed.id)
 			.map(source => {
@@ -135,22 +242,25 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		const signature = JSON.stringify([
 			githubFeedAvailable,
 			...pluginProviders.map(provider => provider.id),
+			...providerMarketplaceProviders.map(provider => provider.id),
 			...platformProviders.map(provider => provider.id),
 		]);
 		if (!this.service || this.serviceSignature !== signature) {
 			this.serviceSignature = signature;
 			this.service = new CustomizationMarketplaceService([
 				...pluginProviders,
+				...providerMarketplaceProviders,
 				...platformProviders,
 				createLazyCustomizationMarketplaceProvider('harness.githubFeed', () => ({
 					id: 'harness.githubFeed',
 					query: async (options, token) => {
 						const cacheToken = this.harnessBindingCancellation.value?.token;
-						const provider = this.harnessService.getActiveDescriptor().marketplaceSearchProvider;
-						if (!provider || !cacheToken || cacheToken.isCancellationRequested) {
+						const provider = this.marketplaceSearchProvider;
+						const sessionResource = this.marketplaceSessionResource;
+						if (!provider || !sessionResource || !cacheToken || cacheToken.isCancellationRequested) {
 							return { items: [], total: 0, ...(cacheToken ? { cacheToken } : {}) };
 						}
-						const page = await provider.query(this.harnessService.activeSessionResource.get(), options, token);
+						const page = await provider.query(sessionResource, options, token);
 						return page ? { ...page, cacheToken } : { items: [], total: 0, cacheToken };
 					},
 				}), CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
@@ -163,7 +273,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
 		if (sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
 			return this.isGitHubFeedAvailable()
-				? this.harnessService.getActiveDescriptor().marketplaceSearchProvider?.getRecoveryAction?.()
+				? this.marketplaceSearchProvider?.getRecoveryAction?.()
 				: undefined;
 		}
 		if (sourceId !== CustomizationMarketplaceSources.CopilotConnectors.id ||

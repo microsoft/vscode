@@ -217,8 +217,8 @@
 .ai-customization-management-editor .content-inner {
 	height: 100%;
 	box-sizing: border-box;
-	padding-right: 16px;
-	padding-bottom: 16px;
+	padding-right: var(--vscode-spacing-size80);
+	padding-bottom: var(--vscode-spacing-size80);
 	display: flex;
 	flex-direction: column;
 }

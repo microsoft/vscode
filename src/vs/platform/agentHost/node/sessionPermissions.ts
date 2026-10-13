@@ -324,7 +324,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
+			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories, sessionKey)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -342,7 +342,7 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories);
+			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories, sessionKey);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -581,7 +581,7 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined): Promise<CommandApprovalResult> {
+	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<CommandApprovalResult> {
 		const writeDestinations: string[] = [];
 		const result = this._commandAutoApprover.shouldAutoApprove(toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
@@ -594,18 +594,18 @@ export class SessionPermissionManager extends Disposable {
 		if (result !== 'approved' || writeDestinations.length === 0) {
 			return result;
 		}
-		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories)));
+		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)));
 		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
 	}
 
-	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		// A shell command runs in exactly one process cwd = the primary root
 		// (index 0), so a *relative* redirect can only resolve against that cwd.
 		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
 		if (!resource) {
 			return false;
 		}
-		return this._isEditAutoApproved(resource, workingDirectories);
+		return this._isEditAutoApproved(resource, workingDirectories, sessionKey);
 	}
 
 	/**
@@ -663,7 +663,7 @@ export class SessionPermissionManager extends Disposable {
 	 *    `~/Library`, `%APPDATA%`, ...).
 	 * 5. The path must match the edit auto-approve glob rules.
 	 */
-	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			// A write is never auto-approved without a working directory to
 			// contain it (matches the previous behaviour).
@@ -675,10 +675,35 @@ export class SessionPermissionManager extends Disposable {
 		if (resourcesToCheck === undefined) {
 			return false;
 		}
+		if (await this._matchesSensitiveEditLocations(resourcesToCheck, workingDirectories, sessionKey)) {
+			return false;
+		}
 		// Approve if ANY root clears the write checks for every resource
 		// candidate. `_checkWriteResource` is synchronous, so a plain `.some`
 		// already short-circuits — there is no per-root async work to parallelize.
 		return workingDirectories.some(workingDirectory => resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory)));
+	}
+
+	private async _matchesSensitiveEditLocations(resources: readonly URI[], workingDirectories: readonly URI[], sessionKey: ProtocolURI): Promise<boolean> {
+		const locations = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.SensitiveEditLocations);
+		if (!locations?.length) {
+			return false;
+		}
+
+		for (const workingDirectory of workingDirectories) {
+			for (const location of locations) {
+				const literalLocation = URI.joinPath(workingDirectory, location.path);
+				const resolvedLocations = await this._resolveResourcesForApproval(literalLocation) ?? [literalLocation];
+				for (const resource of resources) {
+					if (resolvedLocations.some(candidate => location.isDirectory
+						? extUriBiasedIgnorePathCase.isEqualOrParent(resource, candidate)
+						: extUriBiasedIgnorePathCase.isEqual(resource, candidate))) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	/**

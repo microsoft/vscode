@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import { hostname } from 'os';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -27,10 +28,11 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
-import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
+import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -116,6 +118,7 @@ suite('Mission Control host integration', () => {
 		}());
 		const host = store.add(instantiation.createInstance(MissionControlHost, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			publishTelemetryClock: StopWatch.create(false),
 			clientFileSystemProvider: store.add(instantiation.createInstance(AgentHostClientFileSystemProvider)),
 			trackProtocolHandler: handler => {
 				counts.handlers++;
@@ -124,6 +127,268 @@ suite('Mission Control host integration', () => {
 		}));
 		return { host, counts, events };
 	}
+
+	suite('bounded publish telemetry', () => {
+		function fixture(connected = true) {
+			const instantiation = store.add(new TestInstantiationService());
+			const creations = sinon.spy(instantiation, 'createInstance');
+			store.add(toDisposable(() => creations.restore()));
+			const { host, events } = createHost(instantiation);
+			const options = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+			const setServiceConnected = (connected: boolean) => options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayConnection', timestamp: Date.now(), outcome: 'info', connected,
+			});
+			setServiceConnected(connected);
+			const publish = (bytes = 100, frameCount = 1, durationMs = 10, queueWaitMs = 2, ackLatencyMs = 8) => options.onPublishDiagnostic!({
+				operationId: 'private-client-id', phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded', durationMs,
+				detail: 'private paths and credentials',
+				measurements: { bytes, frameCount, chunked: frameCount > 1, queueWaitMs, ackLatencyMs, maxAckLatencyMs: ackLatencyMs, peakInFlight: frameCount },
+			});
+			const error = (failure: 'ackTimeout' | 'publishRejected' | 'socketFailure' | 'queueLimit' | 'mirrorBackpressure' = 'ackTimeout') => options.onPublishDiagnostic!({
+				operationId: 'private-client-id', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+				detail: 'private failure', error: { name: 'private error', message: 'private-token' },
+			});
+			const summaries = () => events.filter(event => event.eventName === 'agentHost.missionControlPublishSummary');
+			return { host, options, publish, error, summaries, setServiceConnected };
+		}
+
+		test('counts background-only mirroring and backpressure while connected to the service without any clients', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				for (let index = 0; index < 1_000; index++) {
+					f.publish();
+					f.error('mirrorBackpressure');
+					f.options.onPublishDiagnostic!({ operationId: '', phase: 'relayQueue', timestamp: Date.now(), outcome: 'info', measurements: { frames: 40, bytes: 50_000 } });
+				}
+				clock.tick(10 * 60_000);
+				assert.deepStrictEqual(f.summaries().map(event => ({
+					publishCount: event.data!.publishCount, peakOutstandingFrames: event.data!.peakOutstandingFrames,
+					mirrorBackpressureCount: event.data!.mirrorBackpressureCount,
+				})), [{ publishCount: 1_000, peakOutstandingFrames: 40, mirrorBackpressureCount: 1_000 }]);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('ignores healthy traffic and backpressure without a service connection', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture(false);
+				for (let index = 0; index < 1_000; index++) {
+					f.publish();
+					f.error('mirrorBackpressure');
+					f.options.onPublishDiagnostic!({ operationId: '', phase: 'relayQueue', timestamp: Date.now(), outcome: 'info', measurements: { frames: 40, bytes: 50_000 } });
+				}
+				clock.tick(10 * 60_000);
+				const offline = f.summaries().length;
+				f.setServiceConnected(true);
+				f.publish();
+				clock.tick(5 * 60_000);
+				assert.deepStrictEqual({
+					offline, summaries: f.summaries().map(event => ({
+						publishCount: event.data!.publishCount, peakOutstandingFrames: event.data!.peakOutstandingFrames,
+						mirrorBackpressureCount: event.data!.mirrorBackpressureCount,
+					})),
+				}, { offline: 0, summaries: [{ publishCount: 1, peakOutstandingFrames: 0, mirrorBackpressureCount: 0 }] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('drops healthy-only statistics on service disconnection and retains the budget across service reconnects', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				f.publish();
+				f.publish();
+				f.publish();
+				clock.tick(5 * 60_000);
+				f.publish();
+				f.setServiceConnected(false);
+				f.options.onDiagnostic!({ operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info' });
+				clock.tick(5 * 60_000);
+				const afterLastDisconnect = f.summaries().length;
+				f.setServiceConnected(true);
+				f.publish();
+				f.error();
+				f.setServiceConnected(false);
+				f.setServiceConnected(true);
+				f.publish();
+				f.error();
+				const beforeNextBudget = f.summaries().length;
+				clock.tick(5 * 60_000);
+				f.setServiceConnected(false);
+				assert.deepStrictEqual({
+					afterLastDisconnect, beforeNextBudget,
+					publishCounts: f.summaries().map(event => event.data!.publishCount),
+				}, { afterLastDisconnect: 1, beforeNextBudget: 2, publishCounts: [3, 1, 1] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('reports failures without a service connection but shares the budget with later connected traffic', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture(false);
+				f.error();
+				f.publish();
+				f.error('publishRejected');
+				clock.tick(60_000);
+				f.setServiceConnected(true);
+				f.publish();
+				f.setServiceConnected(false);
+				f.publish();
+				clock.tick(4 * 60_000);
+				assert.deepStrictEqual(f.summaries().map(event => ({
+					publishCount: event.data!.publishCount, timeouts: event.data!.ackTimeoutCount, rejections: event.data!.publishRejectedCount,
+				})), [
+					{ publishCount: 0, timeouts: 1, rejections: 0 },
+					{ publishCount: 1, timeouts: 0, rejections: 1 },
+				]);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('aggregates heavy traffic once per period and emits nothing when idle', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				clock.tick(10 * 60_000);
+				const idleCount = f.summaries().length;
+				for (let index = 0; index < 10_000; index++) {
+					f.publish();
+				}
+				clock.tick(5 * 60_000 - 1);
+				const beforePeriod = f.summaries().length;
+				clock.tick(1);
+				const first = f.summaries()[0].data!;
+				clock.tick(10 * 60_000);
+				assert.deepStrictEqual({
+					idleCount, beforePeriod, count: f.summaries().length,
+					publishCount: first.publishCount, bytes: first.bytes, windowDurationMs: first.windowDurationMs,
+				}, { idleCount: 0, beforePeriod: 0, count: 1, publishCount: 10_000, bytes: 1_000_000, windowDurationMs: 5 * 60_000 });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('shares the five-minute budget across errors, traffic and reconnects', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				f.error();
+				for (let index = 0; index < 1_000; index++) {
+					f.error('publishRejected');
+					f.publish();
+					f.options.onDiagnostic!({ operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info' });
+					f.options.onError(new Error('private reconnect error'));
+				}
+				const beforePeriod = f.summaries().length;
+				clock.tick(5 * 60_000 - 1);
+				const beforeDeadline = f.summaries().length;
+				clock.tick(1);
+				const second = f.summaries()[1].data!;
+				f.error('socketFailure');
+				f.host.dispose();
+				clock.tick(10 * 60_000);
+				assert.deepStrictEqual({
+					beforePeriod, beforeDeadline, count: f.summaries().length,
+					firstError: f.summaries()[0].data!.ackTimeoutCount,
+					publishCount: second.publishCount, rejectedCount: second.publishRejectedCount,
+				}, { beforePeriod: 1, beforeDeadline: 1, count: 2, firstError: 1, publishCount: 1_000, rejectedCount: 1_000 });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('summarizes typed measurements and bounded failures without exporting diagnostic identity or content', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				f.options.onPublishDiagnostic!({ operationId: 'private-id', phase: 'relayQueue', timestamp: Date.now(), outcome: 'info', measurements: { frames: 40, bytes: 50_000 } });
+				f.publish(100, 1, 10, 2, 8);
+				f.publish(300, 3, 30, 6, 24);
+				f.error('mirrorBackpressure');
+				clock.tick(100);
+				f.error('queueLimit');
+				type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number | undefined : string };
+				const expected: ClassifiedSample<MissionControlPublishSummaryClassification> = {
+					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, windowDurationMs: 100,
+					publishCount: 2, chunkedPublishCount: 1, frameCount: 4, bytes: 400,
+					meanQueueWaitMs: 4, maxQueueWaitMs: 6, meanAckLatencyMs: 8, maxAckLatencyMs: 24,
+					meanPublishDurationMs: 20, maxPublishDurationMs: 30,
+					peakInFlight: 3, peakOutstandingFrames: 40, peakOutstandingBytes: 50_000,
+					ackTimeoutCount: 0, publishRejectedCount: 0, socketFailureCount: 0, queueLimitCount: 1, mirrorBackpressureCount: 1,
+				};
+				assert.deepStrictEqual(f.summaries(), [{ eventName: 'agentHost.missionControlPublishSummary', data: expected }]);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('counts every failure kind but leaves unavailable timing averages absent', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				f.error('ackTimeout');
+				f.error('publishRejected');
+				f.error('socketFailure');
+				f.error('queueLimit');
+				f.error('mirrorBackpressure');
+				clock.tick(5 * 60_000);
+				const second = f.summaries()[1].data!;
+				assert.deepStrictEqual({
+					count: f.summaries().length, firstTimeouts: f.summaries()[0].data!.ackTimeoutCount,
+					rejections: second.publishRejectedCount, sockets: second.socketFailureCount, limits: second.queueLimitCount, backpressure: second.mirrorBackpressureCount,
+					meanQueueWaitMs: second.meanQueueWaitMs, meanAckLatencyMs: second.meanAckLatencyMs, meanPublishDurationMs: second.meanPublishDurationMs,
+				}, {
+					count: 2, firstTimeouts: 1, rejections: 1, sockets: 1, limits: 1, backpressure: 1,
+					meanQueueWaitMs: undefined, meanAckLatencyMs: undefined, meanPublishDurationMs: undefined,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('emits at most twelve summaries in an hour of continuous error and reconnect storms', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				for (let minute = 0; minute < 60; minute++) {
+					for (let index = 0; index < 100; index++) {
+						f.error();
+						f.publish();
+						f.options.onDiagnostic!({ operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info' });
+					}
+					clock.tick(minute === 59 ? 59_999 : 60_000);
+				}
+				f.host.dispose();
+				assert.strictEqual(f.summaries().length, 12);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('flushes on disposal when the shared budget permits and cancels the idle timer', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = fixture();
+				f.publish();
+				clock.tick(100);
+				f.host.dispose();
+				f.publish();
+				clock.tick(10 * 60_000);
+				assert.deepStrictEqual(f.summaries().map(event => ({
+					publishCount: event.data!.publishCount, windowDurationMs: event.data!.windowDurationMs,
+				})), [{ publishCount: 1, windowDurationMs: 100 }]);
+			} finally {
+				clock.restore();
+			}
+		});
+	});
 
 	test('registration counts registry identities without requesting session metadata', async () => {
 		const instantiation = store.add(new TestInstantiationService());
@@ -253,7 +518,8 @@ suite('Mission Control host integration', () => {
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
+			sessionList: config.sessionListAdapter === toMissionControlSessionList,
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true, sessionList: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {

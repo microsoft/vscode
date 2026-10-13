@@ -346,6 +346,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				() => this._resolveMarketplaceAuthenticationInteractively(this._protectedResourcesService.getProtectedResources(agent.provider) ?? []),
 			))
 			: undefined;
+		const marketplaceManagementProvider = marketplaceInstallProvider
+			&& this._agentHostService.listPluginMarketplaces
+			&& this._agentHostService.addPluginMarketplace
+			&& this._agentHostService.browsePluginMarketplace
+			&& this._agentHostService.removePluginMarketplace
+			&& this._agentHostService.refreshPluginMarketplaces
+			? marketplaceInstallProvider
+			: undefined;
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
 			label: agent.displayName,
@@ -368,6 +376,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				: undefined,
 			marketplaceInstallProvider,
 			marketplaceSearchProvider: marketplaceInstallProvider,
+			marketplaceManagementProvider,
 		}));
 
 		// Session handler
