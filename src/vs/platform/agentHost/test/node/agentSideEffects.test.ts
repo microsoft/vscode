@@ -1716,13 +1716,13 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Create a plan');
 		});
 
-		test('omits the current chat link from Markdown plan guidance when the chat has no link', async () => {
+		test('links the current chat in Markdown plan guidance for a peer whose chat id is `default`', async () => {
 			setupSession();
 			stateManager.dispatchServerAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
 				config: { [AgentHostMarkdownPlanRichLinksEnabledConfigKey]: true },
 			});
-			// A peer whose chat id is `default`: the link format reads that id as the default chat.
+			// A peer whose shaped chat id is `default` is addressed by its full URI, never by the default chat's bare link.
 			const recreatedDefaultIdPeer = URI.parse(defaultChatUri).with({ query: 'peer=1' }).toString();
 			stateManager.addChat(sessionUri.toString(), recreatedDefaultIdPeer, creationTimeChatStorageResource(sessionUri.toString(), recreatedDefaultIdPeer, defaultChatUri), { title: 'Plan chat' });
 
@@ -1736,7 +1736,7 @@ suite('AgentSideEffects', () => {
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			const instructions = !URI.isUri(sendContext) ? sendContext?.hostInstructions?.join('\n') : undefined;
-			assert.deepStrictEqual({ hasGuidance: instructions?.includes('<rich_plan_markdown>'), hasCurrentChat: instructions?.includes('Current chat') }, { hasGuidance: true, hasCurrentChat: false });
+			assert.deepStrictEqual({ hasGuidance: instructions?.includes('<rich_plan_markdown>'), hasCurrentChat: instructions?.includes('Current chat') }, { hasGuidance: true, hasCurrentChat: true });
 		});
 
 		test('adds terminal command guidance for a terminal surface', async () => {
@@ -2213,10 +2213,10 @@ suite('AgentSideEffects', () => {
 			});
 
 			await waitForSendMessageCalls(1);
-			const links = agent.sendMessageCalls[0].attachments?.map(attachment => attachment.type === MessageAttachmentKind.Simple ? /agent-host-session:\/\/[\w./?=-]*[\w/=-]/.exec(attachment.modelRepresentation ?? '')?.[0] : undefined);
+			const links = agent.sendMessageCalls[0].attachments?.map(attachment => attachment.type === MessageAttachmentKind.Simple ? /agent-host-session:\/\/[\w./?=%-]*[\w/=%-]/.exec(attachment.modelRepresentation ?? '')?.[0] : undefined);
 			assert.deepStrictEqual(links, [
 				'agent-host-session://mock/session-2',
-				undefined,
+				`agent-host-session://mock/session-2?chat=${encodeURIComponent(defaultIdPeer)}`,
 				'agent-host-session://mock/session-2?chat=peer',
 			]);
 		});

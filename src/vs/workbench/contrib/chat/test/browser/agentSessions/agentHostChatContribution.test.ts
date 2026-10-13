@@ -5922,9 +5922,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('marks an initial remote delegation prompt as agent-authored without changing target permissions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-			const metadata = toRemoteSessionMessageMetadata({
-				session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat',
-			}, undefined, 'source-turn');
+			const metadata = toRemoteSessionMessageMetadata('remote-original-copilot:/source', undefined, 'source-turn');
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Delegated task', agentHostMessageOrigin: { kind: MessageKind.Agent }, metadata,
 			});

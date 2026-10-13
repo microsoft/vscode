@@ -72,7 +72,7 @@ import {
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, parseChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -2810,7 +2810,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		} catch {
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
 		}
-		if (!parseChatUri(chat)) {
+		if (!isAhpChatChannel(chat.toString())) {
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI'));
 		}
 		return this._agentService.stopBackgroundWork(chat, id).then(stopped => ({ stopped }));
@@ -2839,7 +2839,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string');
 		}
 		if (!session.scheme || !session.path.startsWith('/') || session.path.length < 2
-			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+			|| session.authority || session.query || session.fragment || isAhpChatChannel(session.toString())) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI');
 		}
 		return session;

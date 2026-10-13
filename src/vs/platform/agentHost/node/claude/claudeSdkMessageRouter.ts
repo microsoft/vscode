@@ -78,7 +78,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext, this._getEditChatUri(message.parent_tool_use_id));
 		} else if (message.type === 'user' && turnId !== undefined) {
-			await this._editObserver.observeUser(message, turnId, this._mapperState, this._getEditChatUri(message.parent_tool_use_id));
+			await this._editObserver.observeUser(message, turnId, this._mapperState, { uri: this._getEditChatUri(message.parent_tool_use_id), isSubagent: !!message.parent_tool_use_id });
 			const retainedToolCallId = await this._terminalOutputs.capture(this._resource, this._ownerSession, this._chatChannelUri, turnId, message, this._mapperState, context?.signal);
 			if (retainedToolCallId && context?.signal?.aborted) {
 				await this._terminalOutputs.discard(this._resource, retainedToolCallId, this._mapperState);

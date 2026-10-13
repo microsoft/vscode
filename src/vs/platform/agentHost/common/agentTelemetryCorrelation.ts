@@ -8,7 +8,7 @@ import { getErrorCode } from '../../../base/common/errors.js';
 import { hash, StringSHA1 } from '../../../base/common/hash.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import type { URI } from '../../../base/common/uri.js';
-import { DEFAULT_CHAT_ID, parseChatUri } from './state/sessionState.js';
+import { DEFAULT_CHAT_ID, getAgentHostChatId, parseChatUri } from './state/sessionState.js';
 
 /** Correlates migration diagnostics without emitting the backend session URI. */
 export function getTelemetryMigrationSessionId(session: URI): string {
@@ -39,5 +39,5 @@ export function getTelemetryMigrationErrorMessage(error: unknown, session: URI):
 
 /** Hashes the chat identifier within its owning session; correlate it with the session identifier, not on its own. */
 export function getTelemetryChatSessionId(chat: string | URI): string {
-	return String(hash(parseChatUri(chat)?.chatId ?? DEFAULT_CHAT_ID));
+	return String(hash(parseChatUri(chat)?.chatId === DEFAULT_CHAT_ID ? DEFAULT_CHAT_ID : getAgentHostChatId(chat)));
 }

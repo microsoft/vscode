@@ -32,7 +32,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -714,7 +714,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const turns = [
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
-			{ chat: buildSubagentChatUri(sessionKey, 'tool'), owner: sessionKey, turnId: 'child-chat', client: 'window-one', ordinal: undefined },
+			{ chat: buildSubagentChatUri(sessionKey, 'tool'), owner: sessionKey, turnId: 'child-chat', client: 'window-one', ordinal: undefined, parentToolCallId: 'tool' },
 			{ chat: childSession, owner: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
 			{ chat: buildDefaultChatUri(childSession), owner: childSession, turnId: 'child-default', client: 'window-one', ordinal: undefined },
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
@@ -722,7 +722,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), owner: AgentSession.uri('mock', 'other').toString(), turnId: 'other-session', client: 'window-two', ordinal: 3 },
 		];
 		for (const turn of turns) {
-			turnTracker.turnStarted(agent, turn.chat, turn.owner, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
+			turnTracker.turnStarted(agent, turn.chat, turn.owner, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId, turn.parentToolCallId);
 			turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, 'deferred');
 		}
 		for (const turn of turns) {
@@ -1410,8 +1410,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		startTurn('turn-parent');
 		const phaseToolCallId = 'fusion:fusion-1:phase-1';
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), buildDefaultChatUri(sessionKey)));
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: phaseToolCallId } });
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'call-task' } });
 		const chat = URI.parse(defaultChatUri);
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: 'Main pass', subagentKind: 'fusionPhase' });
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: 'call-task', agentName: 'explore', agentDisplayName: 'Explore', parentToolCallId: phaseToolCallId });
@@ -2057,7 +2057,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('attributes billed nano-AIU only to the parent turn, which already includes subagent cost', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tool-call-1' } });
 
 		startTurn('turn-parent');
 		startTurn('turn-subagent', 'hello', undefined, subagentChatUri);
@@ -2227,7 +2227,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('reports subagent completion and failure without collapsing the chat identity', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tool-call-1' } });
 
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);

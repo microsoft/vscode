@@ -62,7 +62,7 @@ suite('SessionServerTools', () => {
 	const recordedDefaultChat = (session: string) => buildDefaultChatUri(session);
 
 	function sessionMeta(id: string, status: SessionStatus, dir: URI): IAgentSessionMetadata {
-		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
+		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}`, chats: [{ chat: URI.parse(buildDefaultChatUri(`copilot:/${id}`)), kind: 'default' }, ...['peer', 'c9'].map(chatId => ({ chat: URI.parse(buildChatUri(`copilot:/${id}`, chatId)), kind: 'peer' as const }))] };
 	}
 
 	function executionContext(sessionUri: string) {
@@ -2129,14 +2129,14 @@ suite('SessionServerTools', () => {
 	test('chat targets without a chat id resolve to the recorded default chat, not the default-shaped URI', () => {
 		const recordedDefault = URI.parse(buildChatUri('copilot:/s1', 'primary'));
 		const listed: IAgentSessionMetadata = { ...sessionMeta('s1', SessionStatus.Idle, workspace), chats: [{ chat: recordedDefault, kind: 'default' }] };
-		const unlisted = sessionMeta('s2', SessionStatus.Idle, workspace);
+		const unlisted = { ...sessionMeta('s2', SessionStatus.Idle, workspace), chats: undefined };
 		const recorded = (session: string) => session === 'copilot:/s2' ? buildChatUri(session, 'recorded') : undefined;
 		assert.deepStrictEqual({
 			listedSend: getSendMessageArgs({ session: 'copilot:/s1', message: 'x' }, [listed, unlisted], recorded).chat.toString(),
 			recordedSend: getSendMessageArgs({ session: 'copilot:/s2', message: 'x' }, [listed, unlisted], recorded).chat.toString(),
 			listedRename: (({ session, chat, title }) => ({ session: session.toString(), chat: chat.toString(), title }))(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1', title: '  `fix-input_flicker`  ' }, [listed], undefined, undefined, recorded)),
 			shapedRename: getRenameChatArgs({ title: '`fix-input_flicker`' }, [listed], buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'), recorded).title,
-			unknownDefault: (() => { try { return getSendMessageArgs({ session: 'copilot:/s1', message: 'x' }, [unlisted, sessionMeta('s1', SessionStatus.Idle, workspace)], () => undefined).chat.toString(); } catch (error) { return (error as Error).message; } })(),
+			unknownDefault: (() => { try { return getSendMessageArgs({ session: 'copilot:/s1', message: 'x' }, [unlisted, { ...sessionMeta('s1', SessionStatus.Idle, workspace), chats: undefined }], () => undefined).chat.toString(); } catch (error) { return (error as Error).message; } })(),
 		}, {
 			listedSend: recordedDefault.toString(),
 			recordedSend: buildChatUri('copilot:/s2', 'recorded'),

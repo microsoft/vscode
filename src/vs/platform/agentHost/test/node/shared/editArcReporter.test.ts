@@ -21,7 +21,7 @@ import { EditArcReporterService } from '../../../node/shared/editArcReporter.js'
 import { TestDiffComputeService, createNoopGitService } from '../../common/sessionTestHelpers.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
-import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
+import { buildSubagentSessionUri } from '../../../common/state/sessionState.js';
 import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
@@ -150,13 +150,13 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 	});
 
-	test('reports edits from subagent chat channels', async () => {
+	test('reports edits from subagent sessions', async () => {
 		const resource = URI.file('/workspace/subagent.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
 		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
 
 		await service.reportEdit({
-			sessionUri: buildSubagentChatUri('copilotcli:/session-1', 'parent-tool'),
+			sessionUri: buildSubagentSessionUri('copilotcli:/session-1', 'parent-tool'),
 			ownerSessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',

@@ -52,7 +52,6 @@ import {
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
-	isSubagentChatUri,
 	mergeLogicalTurnUsage,
 	MessageAttachmentKind,
 	MessageKind,
@@ -880,7 +879,7 @@ export class AgentSideEffects extends Disposable {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 		};
-		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
+		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
 		if (startedWithSteering) {
 			this._turnTracker.markSteering(channel, action.turnId, 'started');
 		}
@@ -960,7 +959,7 @@ export class AgentSideEffects extends Disposable {
 				usageMeta.directCopilotUsage?.totalNanoAiu,
 			);
 			// Subagent charges are already folded into the parent turn's aggregate.
-			if (!isSubagentChatUri(sessionKey)) {
+			if (this._chatOwnership.getChatParent(sessionKey) === undefined) {
 				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, usageMeta.copilotUsage?.totalNanoAiu);
 			}
 			if (agent) {
@@ -1407,7 +1406,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** A Fusion phase chat only presents part of its parent's turn, so that parent owns the work done in it. */
 	private _turnOwningChat(chatUri: ProtocolURI): ProtocolURI {
-		if (!isSubagentChatUri(chatUri)) {
+		if (this._chatOwnership.getChatParent(chatUri) === undefined) {
 			return chatUri;
 		}
 		for (const subagent of this._subagentChats.values()) {
@@ -1558,7 +1557,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _toolCallCompletionChat(chatChannel: ProtocolURI): ProtocolURI {
-		if (!isSubagentChatUri(chatChannel)) {
+		if (this._chatOwnership.getChatParent(chatChannel) === undefined) {
 			return chatChannel;
 		}
 

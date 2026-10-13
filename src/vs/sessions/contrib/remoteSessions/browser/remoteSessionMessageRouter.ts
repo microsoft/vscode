@@ -54,8 +54,8 @@ interface IResolvedRemoteChat extends Omit<IRemoteSessionChat, 'chat'> {
 }
 
 interface IResolvedRemoteSource extends IResolvedRemoteChat {
-	/** The source session's advertised default chat. */
-	readonly defaultChat: string | undefined;
+	/** The source chat's recorded resource. */
+	readonly sourceChat: string;
 }
 
 export function parseSendRemoteMessageOptions(value: unknown): ISendRemoteMessageOptions {
@@ -138,7 +138,7 @@ export class RemoteSessionMessageRouter {
 			throw new CancellationError();
 		}
 		const sourceContext = await resolveRemoteSessionSource(sourceResource, this.sessionsService, this.connectionsService, token);
-		const source: IResolvedRemoteSource = { ...this.resolveProvider(sourceContext), defaultChat: sourceContext.defaultChat };
+		const source: IResolvedRemoteSource = { ...this.resolveProvider(sourceContext), sourceChat: sourceContext.sourceChat };
 		if (targetReference === 'origin') {
 			const origin = sourceContext.origin;
 			if (!origin) {
@@ -277,10 +277,7 @@ export class RemoteSessionMessageRouter {
 				message: {
 					text: options.message,
 					origin: { kind: MessageKind.Agent },
-					_meta: toRemoteSessionMessageMetadata({
-						session: source.session.resource.toString(),
-						chat: source.chat.toString(),
-					}, source.defaultChat),
+					_meta: toRemoteSessionMessageMetadata(source.session.resource.toString(), source.sourceChat),
 				},
 			});
 			await raceCancellationError(accepted, cancellation.token);

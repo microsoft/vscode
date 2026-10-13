@@ -5,23 +5,7 @@
 
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { URI } from '../../../base/common/uri.js';
-import { isUUID } from '../../../base/common/uuid.js';
-import { AHP_CHAT_SCHEME, parseChatUri } from './state/sessionState.js';
-
-const canonicalOpaqueChatPrefix = `${AHP_CHAT_SCHEME}:/`;
-
-/**
- * The uuid of a canonical opaque chat URI (`ahp-chat:/<uuid>` with nothing
- * else), or `undefined` for any other resource.
- */
-export function getCanonicalOpaqueChatUuid(resource: URI | string): string | undefined {
-	const value = resource.toString();
-	if (!value.startsWith(canonicalOpaqueChatPrefix)) {
-		return undefined;
-	}
-	const uuid = value.slice(canonicalOpaqueChatPrefix.length);
-	return isUUID(uuid) ? uuid : undefined;
-}
+import { getAgentHostChatId, getCanonicalOpaqueChatUuid, parseChatUri } from './state/sessionState.js';
 
 /** Whether `resource` has the legacy shape that encodes its minting session (`ahp-chat://<chatId>/<base64(session)>`). */
 export function isShapedChatUri(resource: URI | string): boolean {
@@ -41,7 +25,4 @@ export function uuidFromSha1(name: string): string {
 	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${timeHighAndVersion}-${clockSequenceAndVariant}-${hex.slice(20, 32)}`;
 }
 
-/** Preserves existing native chat fragments and uses the complete resource for opaque host chats. */
-export function getAgentHostChatId(resource: URI | string): string {
-	return parseChatUri(resource)?.chatId ?? resource.toString();
-}
+export { getAgentHostChatId, getCanonicalOpaqueChatUuid };

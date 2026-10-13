@@ -12656,7 +12656,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const delegated of [false, true]) {
 		const metadata = delegated
-			? toRemoteSessionMessageMetadata({ session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat' }, undefined)
+			? toRemoteSessionMessageMetadata('remote-original-copilot:/source', undefined)
 			: { 'test.request': { enabled: true } };
 		const agentHostMessageOrigin = delegated ? { kind: MessageKind.Agent } : undefined;
 		const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };

@@ -47,7 +47,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -1959,9 +1959,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * live conversation state exists (e.g. a cold/unsubscribed session).
 	 */
 	private async _getChatContext(session: URI, chatId?: string): Promise<IChatContextSnapshot | undefined> {
-		const chatState = chatId
-			? await this._stateManager.resolveChatState(buildChatUri(session.toString(), chatId))
-			: this._stateManager.getDefaultChatState(session.toString());
+		let chatState: ChatState | undefined;
+		if (chatId) {
+			const chats = (await this._getSessionMetadata(session))?.chats ?? [];
+			const chat = getSessionChatResource({ chats: chats.map(entry => ({ resource: entry.chat.toString() })) }, chatId, this._chatOwnership.getDefaultChat(session.toString()));
+			chatState = chat === undefined ? undefined : await this._stateManager.resolveChatState(chat);
+		} else {
+			chatState = this._stateManager.getDefaultChatState(session.toString());
+		}
 		if (!chatState) {
 			return undefined;
 		}
@@ -2933,7 +2938,7 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: defaultChat === chat.resource ? 'default' : 'peer',
 				title: chat.title,
 				origin: chat.origin,
-				...(chat.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(chat.resource)
+				...(chat.origin?.kind === ChatOriginKind.Tool
 					? { interactivity: ChatInteractivity.Hidden }
 					: chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(isSessionStatusArchived(chat.status) && defaultChat !== chat.resource ? { archived: true } : {}),
@@ -7085,8 +7090,7 @@ export class AgentService extends Disposable implements IAgentService {
 		parsed: INonPtyShellTerminalUri,
 		restoreSession: (session: URI) => Promise<void>,
 	): Promise<TerminalState | undefined> {
-		const chatId = parseChatUri(parsed.chat)?.chatId;
-		if (chatId === undefined) {
+		if (!isAhpChatChannel(parsed.chat.toString())) {
 			return undefined;
 		}
 		const sessionResource = parsed.session.toString();
@@ -7100,7 +7104,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const chatKey = parsed.chat.toString();
-		if ((await this._chatOwnership.resolveChatOwner(chatKey))?.owner !== sessionResource) {
+		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
+		if (chatOwner?.owner !== sessionResource) {
 			return undefined;
 		}
 		let chat = this._stateManager.getChatState(chatKey);
@@ -7108,8 +7113,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._stateManager.resolveChatState(chatKey);
 			chat = this._stateManager.getChatState(chatKey);
 		}
-		if (!chat && chatId.startsWith('subagent/')) {
-			await this._restoreSubagentChat(chatKey, parsed.session, chatId.slice('subagent/'.length));
+		if (!chat && chatOwner.spawnedBy !== undefined) {
+			await this._restoreSubagentChat(chatKey, parsed.session, chatOwner.spawnedBy.toolCallId);
 			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat) {
@@ -7260,16 +7265,13 @@ export class AgentService extends Disposable implements IAgentService {
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
-				if (isSubagentChatUri(resource)) {
+				const subagentOwner = isAhpChatChannel(resourceStr) ? chatOwner ?? await this._chatOwnership.resolveChatOwner(resourceStr) : undefined;
+				if (this._pendingSubagentChats.has(resourceStr) || subagentOwner?.spawnedBy !== undefined) {
 					snapshot = await this._awaitPendingSubagentChat(resourceStr);
-					if (!snapshot) {
-						const chatId = parseChatUri(resource)?.chatId;
-						const owner = chatOwner ?? await this._chatOwnership.resolveChatOwner(resourceStr);
-						if (owner !== undefined && chatId?.startsWith('subagent/')) {
-							telemetry.setSession(URI.parse(owner.owner));
-							await this._restoreSubagentChat(resourceStr, URI.parse(owner.owner), owner.spawnedBy?.toolCallId ?? chatId.slice('subagent/'.length));
-							snapshot = this._stateManager.getSnapshot(resourceStr);
-						}
+					if (!snapshot && subagentOwner?.spawnedBy !== undefined) {
+						telemetry.setSession(URI.parse(subagentOwner.owner));
+						await this._restoreSubagentChat(resourceStr, URI.parse(subagentOwner.owner), subagentOwner.spawnedBy.toolCallId);
+						snapshot = this._stateManager.getSnapshot(resourceStr);
 					}
 				} else {
 					// Changeset URIs are routed through the coordinator (which
@@ -9807,7 +9809,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? { ...entry, workingDirectories: cachedWorkingDirectories.get(entry.uri) }
 			: entry);
 		const toolChatUris = new Set([
-			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(entry.uri)).map(entry => entry.uri),
+			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool).map(entry => entry.uri),
 			...cached?.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.uri) ?? [],
 			...this._stateManager.getSessionState(session.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource) ?? [],
 		]);
@@ -9840,7 +9842,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(defaultChatWorkingDirectories !== undefined ? { workingDirectories: defaultChatWorkingDirectories } : {}),
 					kind: 'default',
 				},
-				...peers.filter(peer => !isSubagentChatUri(peer.uri) && peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
+				...peers.filter(peer => peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
@@ -10078,7 +10080,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const session = this._stateManager.getSessionState(sessionStr);
 		const chat = session?.chats.find(chat => chat.resource.toString() === e.chat.toString());
-		if (this._disposingPeerChats.has(e.chat.toString()) || isSubagentChatUri(e.chat) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
+		if (this._disposingPeerChats.has(e.chat.toString()) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
 			if (chat && !this._disposingPeerChats.has(e.chat.toString())) {
 				void this._peerChatStore.persistPrivateChat(URI.parse(sessionStr), {
 					chat: e.chat.toString(), providerData: e.providerData,

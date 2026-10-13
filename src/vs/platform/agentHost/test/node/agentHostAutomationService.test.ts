@@ -544,7 +544,7 @@ suite('AgentHostAutomationService', () => {
 			startSession: async (_, message) => {
 				reporter.userMessageSent(
 					'copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					session.toString(), session.toString(), 'first-turn', undefined, 'direct', message, false,
+					session.toString(), session.toString(), 'first-turn', undefined, 'direct', message, false, false,
 				);
 				await started.complete();
 			},

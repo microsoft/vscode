@@ -55,7 +55,12 @@ suite('Agent Host session identity', () => {
 				getAgentHostChatId(buildChatUri(session, 'peer')),
 			]),
 			distinct: buildDefaultChatUri(legacy) !== buildDefaultChatUri(standard),
-		}, { providers: ['codex', undefined], chats: [['default', 'peer'], ['default', 'peer']], distinct: true });
+		}, {
+			providers: ['codex', undefined],
+			// The default-shaped URI has no short id: the recorded default is addressed by an empty fragment.
+			chats: [[buildDefaultChatUri(legacy), 'peer'], [buildDefaultChatUri(standard), 'peer']],
+			distinct: true,
+		});
 	});
 
 	test('opaque advertised default and peer chat resources survive frontend fragment adaptation', () => {
