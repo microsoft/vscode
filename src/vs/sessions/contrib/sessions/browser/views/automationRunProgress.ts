@@ -25,6 +25,7 @@ export function automationRunWithLocalProgress(run: IAutomationRun, models: Iter
 				...(request ? { updatedAt: new Date(request.timestamp).toISOString() } : {}),
 			};
 		}
+		// A finished local stream does not establish the remote task's outcome.
 		break;
 	}
 	return run;
