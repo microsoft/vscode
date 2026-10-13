@@ -44,6 +44,8 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+Mission Control's `listSessions` response includes all visible non-archived sessions and at most 100 archived sessions, selected by most recent modification time after visibility and workspace-grant checks. `MissionControlHost` supplies this projection through the listener's optional session-list adapter; local, SSH, and tunnel listings remain unbounded. The cap does not delete archived sessions or prevent subscribing to older sessions by their advertised resources.
+
 ### Web PubSub receive capabilities
 
 VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. The socket/group-join timeout ends when the joins complete; capability publication then has its own 30-second acknowledgement deadline. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.

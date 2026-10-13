@@ -33,6 +33,7 @@ import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlProjects } from './missionControlProjects.js';
 import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
 import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
+import { toMissionControlSessionList } from './missionControlSessionList.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
@@ -187,6 +188,7 @@ export class MissionControlHost extends Disposable {
 				relayRootMeta: relay.rootMeta,
 				advertisedModelProviders: ['copilotcli'],
 				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				sessionListAdapter: toMissionControlSessionList,
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
