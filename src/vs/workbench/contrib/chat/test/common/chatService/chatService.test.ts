@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
-import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -58,6 +58,7 @@ import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
+import { defaultRemoteChatHistoryScheduler, IRemoteChatHistoryScheduler } from '../../../common/chatService/remoteChatSessionRestorer.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
@@ -2807,6 +2808,50 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
 		});
 
+		test('a concurrent load of the real session joins the materialization load', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent-load' });
+			const realContentRequested = new DeferredPromise<void>();
+			const realContent = new DeferredPromise<IChatSession>();
+			let realResolutions = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+				provideContent: resource => {
+					if (resource.toString() !== realResource.toString()) {
+						return Promise.resolve({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } });
+					}
+					realResolutions++;
+					realContentRequested.complete();
+					return realContent.p;
+				},
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const sending = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			await realContentRequested.p;
+			const loading = service.acquireOrLoadSession(realResource, ChatAgentLocation.Chat, CancellationToken.None);
+			realContent.complete({
+				sessionResource: realResource,
+				history: [{ type: 'request', id: 'request-0', prompt: 'Prompt 0', participant: remoteScheme }],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			});
+			const [result, ref] = await Promise.all([sending, loading]);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			assert.deepStrictEqual({
+				realResolutions,
+				sameModel: service.getSession(realResource) === ref.object,
+				requests: ref.object.getRequests().map(request => request.message.text),
+			}, {
+				realResolutions: 1,
+				sameModel: true,
+				requests: ['Prompt 0', `@${remoteScheme} hello`],
+			});
+		});
+
 		test('reports the session type while materializing the first request', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-pending' });
 			const materialization = new DeferredPromise<IChatSessionItem>();
@@ -3613,9 +3658,11 @@ suite('ChatService', () => {
 			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
 			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
 
+			let history = opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }];
+			const onDidChangeHistory = opts.onDidChangeHistory;
 			const provided: IChatSession = {
 				sessionResource: resource,
-				history: opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				get history() { return history; },
 				onWillDispose: Event.None,
 				progressObs: opts.progressObs,
 				isCompleteObs: opts.isCompleteObs,
@@ -3626,7 +3673,8 @@ suite('ChatService', () => {
 				canvasContext: opts.canvasContext,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
-				onDidChangeHistory: opts.onDidChangeHistory,
+				// Like the agent host provider, update the history before announcing the change.
+				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
 				dispose: () => { },
 			};
@@ -3683,22 +3731,68 @@ suite('ChatService', () => {
 			return history;
 		}
 
-		function trackHistoryReplayYields(): { readonly count: () => number; readonly reset: () => void } {
+		/**
+		 * Counts how often history replay waits for the host to become idle, using the real clock.
+		 */
+		function trackHistoryReplayYields(service: ChatService): { readonly count: () => number; readonly reset: () => void } {
 			let count = 0;
-			testDisposables.add(installFakeRunWhenIdle((_targetWindow, callback) => {
-				let disposed = false;
-				count++;
-				queueMicrotask(() => {
-					if (!disposed) {
-						callback({ didTimeout: false, timeRemaining: () => 40 });
-					}
-				});
-				return toDisposable(() => disposed = true);
-			}));
+			service.setRemoteHistoryScheduler({
+				...defaultRemoteChatHistoryScheduler,
+				runWhenIdle: (callback, timeout) => {
+					count++;
+					return defaultRemoteChatHistoryScheduler.runWhenIdle(callback, timeout);
+				},
+			});
 			return {
 				count: () => count,
 				reset: () => count = 0,
 			};
+		}
+
+		/**
+		 * Creates a history replay scheduler whose clock only advances by `advance`, so
+		 * replay slices end at deterministic points. `onIdle` runs before each idle slice starts.
+		 */
+		function createManualHistoryReplayClock(onIdle?: () => void): { readonly scheduler: IRemoteChatHistoryScheduler; readonly advance: (ms: number) => void; readonly yields: () => number } {
+			let now = 0;
+			let yields = 0;
+			return {
+				scheduler: {
+					now: () => now,
+					runWhenIdle: callback => {
+						yields++;
+						return disposableTimeout(() => {
+							onIdle?.();
+							callback({ didTimeout: false, timeRemaining: () => 50 });
+						});
+					},
+					runInNewTask: callback => disposableTimeout(callback),
+				},
+				advance: ms => now += ms,
+				yields: () => yields,
+			};
+		}
+
+		/**
+		 * Creates a history whose prompts each take one millisecond of the given clock to read.
+		 */
+		function createTimedHistory(count: number, clock: { readonly advance: (ms: number) => void }): IChatSessionHistoryItem[] {
+			const history = createHistory(count);
+			for (const item of history) {
+				if (item.type !== 'request') {
+					continue;
+				}
+				const prompt = item.prompt;
+				Object.defineProperty(item, 'prompt', {
+					configurable: true,
+					enumerable: true,
+					get: () => {
+						clock.advance(1);
+						return prompt;
+					},
+				});
+			}
+			return history;
 		}
 
 		test('large history replay stays unpublished until every turn is restored', async () => {
@@ -3748,15 +3842,66 @@ suite('ChatService', () => {
 		});
 
 		test('large history replay uses a bounded number of time-budgeted slices', async () => {
-			const yields = trackHistoryReplayYields();
-			const { resource } = setupRemoteProvider({ history: createSlowHistory(160) });
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(160, clock) });
 			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
 
-			assert.ok(yields.count() >= 2 && yields.count() <= 8, `Expected 2-8 yields, got ${yields.count()}`);
-			assert.strictEqual(ref.object.getRequests().length, 160);
+			// Each request takes 1ms to restore and a slice lasts 40ms.
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().length,
+				yields: clock.yields(),
+			}, {
+				requests: 160,
+				yields: 4,
+			});
+		});
+
+		test('a turn added to the session history during replay is applied after the restored turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const clock = createManualHistoryReplayClock(() => changes.fire(createHistory(81)));
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(80, clock), onDidChangeHistory: changes.event });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				replayYielded: clock.yields() > 0,
+				requests: ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]).slice(-2),
+				requestCount: ref.object.getRequests().length,
+			}, {
+				replayYielded: true,
+				requests: [['request-79', 'Response 79'], ['request-80', 'Response 80']],
+				requestCount: 81,
+			});
+		});
+
+		test('a turn updated in the session history during replay is applied after the restored turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const updatedHistory = createHistory(80);
+			updatedHistory[updatedHistory.length - 1] = { type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Updated 79') }], participant: remoteScheme };
+			const clock = createManualHistoryReplayClock(() => changes.fire(updatedHistory));
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(80, clock), onDidChangeHistory: changes.event });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				replayYielded: clock.yields() > 0,
+				requests: ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]).slice(-2),
+				requestCount: ref.object.getRequests().length,
+			}, {
+				replayYielded: true,
+				requests: [['request-78', 'Response 78'], ['request-79', 'Updated 79']],
+				requestCount: 80,
+			});
 		});
 
 		test('send waits for cooperative history replay to publish the restored model', async () => {
@@ -3854,6 +3999,53 @@ suite('ChatService', () => {
 			}, {
 				requests: 100,
 				resolutions: 1,
+			});
+		});
+
+		test('acquiring a session right after cancelling its only caller joins the running load', async () => {
+			const { resource, resolutionCount } = setupRemoteProvider({ history: createSlowHistory(100) });
+			const service = createChatService();
+			const cancellation = testDisposables.add(new CancellationTokenSource());
+			const first = service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cancellation.token);
+			await timeout(0);
+			cancellation.cancel();
+			const second = service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			await assert.rejects(first, error => error instanceof Error && error.name === 'Canceled');
+			const ref = await second;
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				published: service.getSession(resource) === ref.object,
+				requests: ref.object.getRequests().length,
+				resolutions: resolutionCount(),
+			}, {
+				published: true,
+				requests: 100,
+				resolutions: 1,
+			});
+		});
+
+		test('acquiring a session again after every caller cancelled its load starts a new load', async () => {
+			const { resource, resolutionCount } = setupRemoteProvider({ history: createSlowHistory(100) });
+			const service = createChatService();
+			const cancellation = testDisposables.add(new CancellationTokenSource());
+			const first = service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cancellation.token);
+			await timeout(0);
+			cancellation.cancel();
+			await assert.rejects(first, error => error instanceof Error && error.name === 'Canceled');
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				published: service.getSession(resource) === ref.object,
+				requests: ref.object.getRequests().length,
+				resolutions: resolutionCount(),
+			}, {
+				published: true,
+				requests: 100,
+				resolutions: 2,
 			});
 		});
 
@@ -4101,11 +4293,11 @@ suite('ChatService', () => {
 		});
 
 		test('one-turn refresh of a large history does not yield for scans or unchanged turns', async () => {
-			const yields = trackHistoryReplayYields();
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const history = createHistory(1000);
 			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
 			const service = createChatService();
+			const yields = trackHistoryReplayYields(service);
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
