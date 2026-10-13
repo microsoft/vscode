@@ -35,6 +35,8 @@ export interface IEditArcReporterLaunchParams {
 	readonly sessionUri: string;
 	/** The session that owns the edit's chat. */
 	readonly ownerSessionUri: string;
+	/** Whether the edit was made by a subagent chat, as known by the provider that ran it. */
+	readonly isSubagent: boolean;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -337,7 +339,7 @@ class EditArcReporter extends Disposable {
 			uniqueEditId: this._uniqueEditId,
 			provider,
 			agentSessionId: AgentSession.id(sessionUri),
-			isSubagentSession: isSubagentSession(this._params.sessionUri) || isSubagentSession(sessionUri) ? 'true' : 'false',
+			isSubagentSession: this._params.isSubagent || isSubagentSession(sessionUri) ? 'true' : 'false',
 			didBranchChange: await this._initialBranch === await this._getCurrentBranchName() ? 0 : 1,
 			timeDelayMs,
 			originalCharCount: this._tracker.getOriginalCharacterCount(),

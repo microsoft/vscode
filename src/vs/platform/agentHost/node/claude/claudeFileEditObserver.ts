@@ -137,7 +137,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
 				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext, editChatUri);
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}
