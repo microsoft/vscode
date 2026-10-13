@@ -11,7 +11,7 @@ import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 function createMarkdownPlanRichLinksInstruction(turn: IOutgoingTurn, defaultChat: string | undefined): string {
-	const currentChatLink = buildOpenSessionLinkForChat(turn.session, turn.chat, defaultChat);
+	const currentChatLink = buildOpenSessionLinkForChat(turn.session, turn.chat, defaultChat, undefined);
 	return [
 		'<rich_plan_markdown>',
 		'When creating or editing a Markdown plan document, use these formats when the exact target is known:',

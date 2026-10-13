@@ -1260,7 +1260,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		if (this._store.isDisposed) {
 			return;
 		}
-		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat);
+		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat, owner.connectionAuthority);
 		if (!link) {
 			this._logService.trace(`[ChatReferenceAttachmentWidget] No host lists the referenced chat ${chatResource.toString()}`);
 			return;

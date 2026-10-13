@@ -2306,11 +2306,11 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private async _chatAttachmentLink(resource: ProtocolURI): Promise<string | undefined> {
 		if (!isAhpChatChannel(resource)) {
-			return buildOpenSessionLinkForChat(resource, resource, this._chatOwnership.getDefaultChat(resource));
+			return buildOpenSessionLinkForChat(resource, resource, this._chatOwnership.getDefaultChat(resource), undefined);
 		}
 		try {
 			const owner = this._chatOwnership.getChatOwner(resource) ?? (await this._chatOwnership.resolveChatOwner(resource))?.owner;
-			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource, this._chatOwnership.getDefaultChat(owner));
+			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource, this._chatOwnership.getDefaultChat(owner), undefined);
 		} catch (err) {
 			this._logService.warn(`[AgentSideEffects] Unable to resolve the owner of chat attachment ${resource}`, err);
 			return undefined;
