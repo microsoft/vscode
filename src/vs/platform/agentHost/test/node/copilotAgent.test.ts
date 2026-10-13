@@ -6074,7 +6074,6 @@ suite('CopilotAgent', () => {
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const worktreeIsolation = new NullAgentHostWorktreeIsolation();
 				const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
-				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 				const bindChats = async (target: CopilotAgent) => {
 					await target.authenticate('https://api.github.com', 'token');
 					for (const [index, chat] of chats.entries()) {
@@ -6120,9 +6119,7 @@ suite('CopilotAgent', () => {
 					pluginDirectory: () => activeClient.pluginController.directory?.toString(),
 					restore: async () => {
 						await disposeAgent(agent);
-						// A disposed agent releases its file system providers asynchronously, so the restored agent needs its own file service.
-						const { agent: restored, fileService: restoredFileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
-						disposables.add(restoredFileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
+						const { agent: restored } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
 						await bindChats(restored);
 						return restored;
 					},
@@ -6690,15 +6687,13 @@ suite('CopilotAgent', () => {
 					const replacementDiscovery = client.skillDiscoveryRequests.at(-1)?.projectPaths;
 					const additionalDirectories = activeClient.pluginController.additionalDirectories.map(directory => directory.toString());
 					await disposeAgent(agent);
-					const restoredContext = createTestAgentContext(disposables, {
+					restored = createTestAgentContext(disposables, {
 						sessionDataService: fixture.sessionDataService,
 						copilotClient: client,
 						useRealResumePath: true,
 						worktreeIsolation: fixture.worktreeIsolation,
 						rootConfig: { [AgentHostCopilotMultiRootEnabledConfigKey]: true },
-					});
-					disposables.add(restoredContext.fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
-					restored = restoredContext.agent;
+					}).agent;
 					await restored.authenticate('https://api.github.com', 'token');
 					await restored.materializeChat(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' }));
 					await restored.chats.sendMessage(chats[0], 'Continue after reopening', [secondary], undefined, undefined, undefined, context);
@@ -20844,11 +20839,10 @@ suite('CopilotAgent', () => {
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
 
-			const { agent, fileService } = createTestAgentContext(disposables, {
+			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService: disposables.add(new TestSessionDataService()),
 				copilotClient: client,
 			});
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
