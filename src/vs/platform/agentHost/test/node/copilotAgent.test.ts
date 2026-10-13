@@ -2110,6 +2110,81 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('retries a persisted peer chat when connector authentication replaces the client during resume', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/connector-auth-peer-resume-`);
+			const session = AgentSession.uri('copilotcli', 'connector-auth-peer-owner');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const sdkSessionId = 'connector-auth-peer-sdk';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+			} finally {
+				dbRef.dispose();
+			}
+			const metadata = [sdkSession(sdkSessionId, workingDirectory)];
+			const firstClient = new TestCopilotClient(metadata);
+			const replacementClient = new TestCopilotClient(metadata);
+			const firstResumeStarted = new DeferredPromise<void>();
+			const firstResume = new DeferredPromise<CopilotSession>();
+			let firstClientStops = 0;
+			let replacementResumes = 0;
+			firstClient.resumeSession = () => {
+				firstResumeStarted.complete();
+				return firstResume.p;
+			};
+			firstClient.stop = async () => {
+				firstClientStops++;
+				if (!firstResume.isSettled) {
+					firstResume.error(new CancellationError());
+				}
+				return [];
+			};
+			replacementClient.resumeSession = async () => {
+				replacementResumes++;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: firstClient,
+				useRealResumePath: true,
+				sessionDataService,
+				rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+			});
+			const clients = [firstClient, replacementClient];
+			const internals = agent as unknown as {
+				_createCopilotClient(options: CopilotClientOptions): CopilotClient;
+			};
+			internals._createCopilotClient = () => (clients.shift() ?? replacementClient) as unknown as CopilotClient;
+			chatBackings(agent).set(chat.toString(), { sdkSessionId });
+			chatScopes(agent).set(chat.toString(), session);
+			try {
+				await agent.authenticate('https://api.github.com', 'connector-token-a');
+				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				await firstResumeStarted.p;
+
+				await agent.authenticate('https://api.github.com', 'connector-token-b');
+				const turns = await messages;
+
+				assert.deepStrictEqual({
+					turns,
+					firstClientStops,
+					replacementResumes,
+					live: hasLiveChat(agent, chat),
+				}, {
+					turns: [],
+					firstClientStops: 1,
+					replacementResumes: 1,
+					live: true,
+				});
+			} finally {
+				if (!firstResume.isSettled) {
+					firstResume.error(new CancellationError());
+				}
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('shutdown cancels an MCP authentication-blocked initialization', async () => {
 			const client = new McpAuthChallengeCopilotClient([]);
 			const agent = createTestAgent(disposables, {
