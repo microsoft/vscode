@@ -10,6 +10,9 @@ import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SessionStore } from '../sessionStore';
 
+// Some build agents use Node 22; engine-enforcement tests require Node 24.10+.
+const hasAuthorizer = 'setAuthorizer' in DatabaseSync.prototype && typeof DatabaseSync.prototype.setAuthorizer === 'function';
+
 class TrackedDatabase extends DatabaseSync {
 	readonly preparedSql: string[] = [];
 
@@ -202,7 +205,7 @@ describe('SessionStore', () => {
 		expect(store.getStats().sessions).toBe(0);
 	});
 
-	it('executeReadOnly returns rows for a SELECT query', () => {
+	it.skipIf(!hasAuthorizer)('executeReadOnly returns rows for a SELECT query', () => {
 		store.upsertSession({ id: 'session-1', branch: 'main', repository: 'owner/repo' });
 
 		const rows = store.executeReadOnly('SELECT id, branch FROM sessions WHERE id = \'session-1\'');
@@ -212,6 +215,22 @@ describe('SessionStore', () => {
 	});
 
 	describe('read-only enforcement', () => {
+		it.skipIf(hasAuthorizer).each([
+			'SELECT * FROM sessions',
+			'DELETE FROM sessions',
+			'SELECT LoAd_ExtEnSiOn(\'unused\')',
+		])('fails closed on an unsupported runtime for %s', sql => {
+			let database: TrackedDatabase | undefined;
+			store = new SessionStore(':memory:', undefined, path => database = new TrackedDatabase(path));
+			store.upsertSession({ id: 'session-1' });
+			database!.preparedSql.length = 0;
+
+			expect(() => store.executeReadOnly(sql)).toThrow('require SQLite authorizer support');
+			expect(database!.preparedSql).toEqual([]);
+			store.upsertSession({ id: 'session-2' });
+			expect(store.getStats().sessions).toBe(2);
+		});
+
 		it.each([
 			['missing authorizer', DatabaseWithoutAuthorizer, 'require SQLite authorizer support'],
 			['failing authorizer', DatabaseWithFailingAuthorizer, 'Authorizer installation failed'],
@@ -227,7 +246,7 @@ describe('SessionStore', () => {
 			expect(store.getStats().sessions).toBe(2);
 		});
 
-		it.each([
+		it.skipIf(!hasAuthorizer).each([
 			'DELETE FROM sessions',
 			'WITH ids AS (SELECT id FROM sessions) DELETE FROM sessions WHERE id IN (SELECT id FROM ids)',
 			'UPDATE sessions SET summary = \'changed\'',
@@ -249,7 +268,7 @@ describe('SessionStore', () => {
 		])('denies %s and restores trusted writes', sql => {
 			store.upsertSession({ id: 'session-1' });
 
-			expect(() => store.executeReadOnly(sql)).toThrow(/authoriz|prohibited/i);
+			expect(() => store.executeReadOnly(sql)).toThrow(/not authorized|authorization denied|prohibited/i);
 
 			store.upsertSession({ id: 'session-2' });
 			expect(store.executeReadOnly('SELECT id FROM sessions ORDER BY id')).toEqual([
@@ -257,12 +276,12 @@ describe('SessionStore', () => {
 			]);
 		});
 
-		it('denies native extension functions at preparation', () => {
+		it.skipIf(!hasAuthorizer)('denies native extension functions at preparation', () => {
 			expect(() => store.executeReadOnly('SELECT LoAd_ExtEnSiOn(\'unused\')'))
 				.toThrow(/not authorized to use function: LoAd_ExtEnSiOn/i);
 		});
 
-		it('allows CTEs, functions, and FTS5 queries', () => {
+		it.skipIf(!hasAuthorizer)('allows CTEs, functions, and FTS5 queries', () => {
 			store.insertTurn({ session_id: 'session-1', turn_index: 0, user_message: 'authentication' });
 
 			expect(store.executeReadOnly('WITH RECURSIVE nums(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM nums WHERE n < 3) SELECT sum(n) AS total FROM nums'))
@@ -271,8 +290,8 @@ describe('SessionStore', () => {
 				.toEqual([{ session_id: 'session-1' }]);
 		});
 
-		it('restores trusted writes after query errors', () => {
-			expect(() => store.executeReadOnly('SELECT missing FROM sessions')).toThrow();
+		it.skipIf(!hasAuthorizer)('restores trusted writes after query errors', () => {
+			expect(() => store.executeReadOnly('SELECT missing FROM sessions')).toThrow(/no such column/i);
 			store.upsertSession({ id: 'session-1' });
 			expect(store.getStats().sessions).toBe(1);
 		});
@@ -386,7 +405,9 @@ describe('SessionStore (on-disk resilience)', () => {
 		const sqlPath = destination.replace(/'/g, '\'\'');
 		const sql = `${statement} '${sqlPath}'${statement === 'ATTACH DATABASE' ? ' AS injected' : ''}`;
 
-		expect(() => store!.executeReadOnly(sql)).toThrow(/authoriz|prohibited/i);
+		expect(() => store!.executeReadOnly(sql)).toThrow(hasAuthorizer
+			? /not authorized|authorization denied|prohibited/i
+			: /require SQLite authorizer support/);
 		expect(existsSync(destination)).toBe(false);
 		expect(store.getSession('session-1')?.summary).toBe('synthetic private history');
 	});
