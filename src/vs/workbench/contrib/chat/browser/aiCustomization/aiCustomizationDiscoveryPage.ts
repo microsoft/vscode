@@ -16,7 +16,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -29,7 +29,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -164,8 +164,14 @@ interface ICatalogPageState {
 
 interface IBrowseCatalogCache {
 	readonly items: readonly ICustomizationMarketplaceResource[];
-	readonly page: ICatalogPageState;
+	readonly page: ICatalogPageState | undefined;
+	readonly curatedSections: readonly ICustomizationMarketplaceBrowseSection[] | undefined;
+	readonly curatedSourceError: ICustomizationMarketplaceSourceError | undefined;
 }
+
+type BrowseSectionsLoadOutcome =
+	| { readonly kind: 'success'; readonly result: ICustomizationMarketplaceBrowseSections | undefined }
+	| { readonly kind: 'error'; readonly error: Error };
 
 interface IDiscoveryRowTemplate {
 	readonly root: HTMLElement;
@@ -798,6 +804,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
 	private catalogItems: readonly ICustomizationMarketplaceResource[] = [];
+	private curatedSections: readonly ICustomizationMarketplaceBrowseSection[] | undefined;
+	private curatedSourceError: ICustomizationMarketplaceSourceError | undefined;
 	private marketplaceSources: readonly ICustomizationMarketplaceSourceInfo[] = [];
 	private selectedSourceId: string | undefined;
 	private visibleSectionIds = new Set<AICustomizationManagementSection>();
@@ -1192,9 +1200,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.catalogPage = cached?.page;
 		if (cached) {
 			this.catalogItems = cached.items;
+			this.curatedSections = cached.curatedSections;
+			this.curatedSourceError = cached.curatedSourceError;
 			this.loaded = true;
 		} else {
 			this.catalogItems = [];
+			this.curatedSections = undefined;
+			this.curatedSourceError = undefined;
 			this.loaded = false;
 		}
 	}
@@ -1268,6 +1280,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.catalogPage = undefined;
 		this.browseCatalogCache.clear();
 		this.catalogItems = [];
+		this.curatedSections = undefined;
+		this.curatedSourceError = undefined;
 		this.loaded = false;
 		this.errorMessage = undefined;
 		this.render();
@@ -1489,53 +1503,82 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render(true);
 
 		try {
-			const backfill = !this.query.isEmpty() && this.query.types.size > 0 && getCatalogMediaType(this.query.types) === undefined;
-			let hasMatchingCatalogItem = false;
-			for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
-				const page = await this.marketplaceService.query({
-					query: this.query.text || undefined,
-					mediaType: getCatalogMediaType(this.query.types),
-					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-					pageSize: this.query.isEmpty() ? browseCatalogPageSize : catalogPageSize,
-					cursor: append ? this.catalogPage?.nextCursor : undefined,
-				}, request.token);
+			const browseSectionsPromise = !append && this.query.isEmpty()
+				? this.loadBrowseSections(request.token)
+				: undefined;
+			let catalogError: Error | undefined;
+			try {
+				const backfill = !this.query.isEmpty() && this.query.types.size > 0 && getCatalogMediaType(this.query.types) === undefined;
+				let hasMatchingCatalogItem = false;
+				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
+					const page = await this.marketplaceService.query({
+						query: this.query.text || undefined,
+						mediaType: getCatalogMediaType(this.query.types),
+						sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
+						pageSize: this.query.isEmpty() ? browseCatalogPageSize : catalogPageSize,
+						cursor: append ? this.catalogPage?.nextCursor : undefined,
+					}, request.token);
+					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+						return;
+					}
+					this.catalogPage = {
+						items: append ? [...(this.catalogPage?.items ?? []), ...page.items] : page.items,
+						nextCursor: page.nextCursor,
+						sourceErrors: page.sourceErrors,
+					};
+					const seen = new Set<string>();
+					this.catalogItems = this.catalogPage.items.filter(item => {
+						if (item.mediaType === CustomizationMarketplaceMediaType.CursorPlugin) {
+							return false;
+						}
+						const key = getCustomizationMarketplaceResourceKey(item);
+						if (seen.has(key)) {
+							return false;
+						}
+						seen.add(key);
+						return true;
+					});
+					hasMatchingCatalogItem = this.catalogItems.some(item => {
+						const type = getCatalogType(item);
+						return type !== undefined && this.matchesType(type);
+					});
+					append = true;
+					if (!backfill || !page.nextCursor || hasMatchingCatalogItem) {
+						break;
+					}
+					if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
+						this.filteredBackfillLimitReached = true;
+					}
+				}
+			} catch (error) {
+				if (sequence !== this.requestSequence || isCancellationError(error)) {
+					return;
+				}
+				this.filteredBackfillLimitReached = false;
+				catalogError = error instanceof Error ? error : new Error(getErrorMessage(error));
+			}
+			if (browseSectionsPromise) {
+				const outcome = await browseSectionsPromise;
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 					return;
 				}
-				this.catalogPage = {
-					items: append ? [...(this.catalogPage?.items ?? []), ...page.items] : page.items,
-					nextCursor: page.nextCursor,
-					sourceErrors: page.sourceErrors,
-				};
-				const seen = new Set<string>();
-				this.catalogItems = this.catalogPage.items.filter(item => {
-					if (item.mediaType === CustomizationMarketplaceMediaType.CursorPlugin) {
-						return false;
-					}
-					const key = getCustomizationMarketplaceResourceKey(item);
-					if (seen.has(key)) {
-						return false;
-					}
-					seen.add(key);
-					return true;
-				});
-				hasMatchingCatalogItem = this.catalogItems.some(item => {
-					const type = getCatalogType(item);
-					return type !== undefined && this.matchesType(type);
-				});
-				append = true;
-				if (!backfill || !page.nextCursor || hasMatchingCatalogItem) {
-					break;
-				}
-				if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
-					this.filteredBackfillLimitReached = true;
+				if (outcome.kind === 'error') {
+					catalogError ??= outcome.error;
+				} else {
+					this.curatedSections = outcome.result?.sections;
+					this.curatedSourceError = outcome.result?.error
+						? { sourceId: outcome.result.sourceId, message: outcome.result.error }
+						: undefined;
 				}
 			}
 			this.loaded = true;
-			if (this.query.isEmpty() && this.catalogPage) {
+			this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
+			if (this.query.isEmpty() && (this.catalogPage || this.curatedSections !== undefined)) {
 				this.browseCatalogCache.set(this.selectedSourceId ?? '', {
 					items: this.catalogItems,
 					page: this.catalogPage,
+					curatedSections: this.curatedSections,
+					curatedSourceError: this.curatedSourceError,
 				});
 			}
 		} catch (error) {
@@ -1551,6 +1594,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.request.clear();
 				this.render(this.loadingMore);
 			}
+		}
+	}
+
+	private async loadBrowseSections(token: CancellationToken): Promise<BrowseSectionsLoadOutcome> {
+		try {
+			return {
+				kind: 'success',
+				result: await this.marketplaceService.getBrowseSections?.({
+					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
+				}, token),
+			};
+		} catch (error) {
+			return { kind: 'error', error: error instanceof Error ? error : new Error(getErrorMessage(error)) };
 		}
 	}
 
@@ -1571,8 +1627,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private render(preserveResults = false): void {
+		const sourceErrors = [...this.catalogPage?.sourceErrors ?? []];
+		if (this.curatedSourceError && !sourceErrors.some(error => error.sourceId === this.curatedSourceError?.sourceId)) {
+			sourceErrors.push(this.curatedSourceError);
+		}
 		this.sourceWarnings.update(
-			this.catalogPage?.sourceErrors ?? [],
+			sourceErrors,
 			this.loading,
 			this.loaded && !this.loading,
 			this.isCatalogEnabled() && !this.query.installed ? this.getCurrentQuerySources().map(source => source.id) : [],
@@ -1756,7 +1816,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.browseStatus.textContent = '';
 			return;
 		}
-		if (this.errorMessage && this.catalogItems.length === 0) {
+		if (this.errorMessage && this.catalogItems.length === 0 && !this.curatedSections?.some(section => section.items.length > 0)) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.browseStatus.textContent = message;
 			this.announce(message);
@@ -1766,31 +1826,44 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.browseStatus.textContent = '';
-		const prioritizedResources = prioritizeLinkedCopilotConnectors(this.catalogItems);
-		const leading = getLeadingBrowseItems(prioritizedResources);
-		const leadingIds = new Set(leading.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource)));
-		if (leading.length) {
-			this.renderBrowseSection(
-				localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
-				leading,
-				undefined,
-				true,
-			);
-		}
-		const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
-			{ type: 'skill', label: localize('customizationDiscovery.skillsSection', "Skills") },
-			{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
-			{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
-		];
-		const remainingGroups = groupPrioritizedMarketplaceResources(prioritizedResources)
-			.filter(group => group.every(({ resource }) => !leadingIds.has(getCustomizationMarketplaceResourceKey(resource))));
-		for (const group of groups) {
-			const items = remainingGroups
-				.filter(items => getCatalogType(items[0].resource) === group.type)
-				.slice(0, leadingBrowseItemCount)
-				.flat();
-			if (items.length) {
-				this.renderBrowseSection(group.label, items, group.type, false);
+		const curatedSections = this.curatedSections?.filter(section => section.items.length > 0);
+		if (curatedSections?.length) {
+			for (let index = 0; index < curatedSections.length; index++) {
+				const section = curatedSections[index];
+				this.renderBrowseSection(
+					section.title,
+					section.items.map<IPrioritizedMarketplaceResource>(resource => ({ resource })),
+					undefined,
+					index === 0,
+				);
+			}
+		} else {
+			const prioritizedResources = prioritizeLinkedCopilotConnectors(this.catalogItems);
+			const leading = getLeadingBrowseItems(prioritizedResources);
+			const leadingIds = new Set(leading.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource)));
+			if (leading.length) {
+				this.renderBrowseSection(
+					localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
+					leading,
+					undefined,
+					true,
+				);
+			}
+			const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
+				{ type: 'skill', label: localize('customizationDiscovery.skillsSection', "Skills") },
+				{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
+				{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
+			];
+			const remainingGroups = groupPrioritizedMarketplaceResources(prioritizedResources)
+				.filter(group => group.every(({ resource }) => !leadingIds.has(getCustomizationMarketplaceResourceKey(resource))));
+			for (const group of groups) {
+				const items = remainingGroups
+					.filter(items => getCatalogType(items[0].resource) === group.type)
+					.slice(0, leadingBrowseItemCount)
+					.flat();
+				if (items.length) {
+					this.renderBrowseSection(group.label, items, group.type, false);
+				}
 			}
 		}
 		if (this.loading) {
@@ -1802,10 +1875,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const retry = this.browseDisposables.add(new Button(this.browseStatus, { ...defaultButtonStyles, secondary: true, small: true }));
 			retry.label = localize('customizationDiscovery.retry', "Retry");
 			this.browseDisposables.add(retry.onDidClick(() => void this.loadCatalog(false)));
-		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasFailures) {
+		} else if (!this.catalogItems.length && !curatedSections?.length && this.loaded && this.sourceWarnings.hasFailures) {
 			this.browseStatus.textContent = '';
-		} else if (!this.catalogItems.length && this.loaded && !this.sourceWarnings.hasInlinePrompts) {
+		} else if (!this.catalogItems.length && !curatedSections?.length && this.loaded && !this.sourceWarnings.hasInlinePrompts) {
 			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
+		} else if (this.errorMessage) {
+			this.browseStatus.textContent = localize('customizationDiscovery.additionalItemsError', "Some additional customizations could not be loaded. {0}", this.errorMessage);
 		} else {
 			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';
 		}
@@ -1899,6 +1974,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			item.icon,
 			this.themeService.getColorTheme().type,
 			this.browseDisposables,
+			true,
 		);
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
@@ -2361,7 +2437,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	getAccessibilityContent(): string {
-		const searchResources = this.getSearchMarketplaceResources();
+		const curatedSections = this.query.isEmpty()
+			? this.curatedSections?.filter(section => section.items.length > 0)
+			: undefined;
+		const searchResources = curatedSections?.length
+			? curatedSections.flatMap(section => section.items.map<IPrioritizedMarketplaceResource>(resource => ({ resource })))
+			: this.getSearchMarketplaceResources();
 		const collapsedAlternatives = searchResources.filter(({ resource, linkedConnectionRole }) =>
 			linkedConnectionRole === 'alternative' && !this.isAlternativeExpanded(resource));
 		const visibleSearchResources = searchResources.filter(({ resource, linkedConnectionRole }) =>
@@ -2386,6 +2467,27 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const type = getCatalogType(resource);
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(resource));
 		});
+		const marketplaceContent = curatedSections?.length
+			? curatedSections.map(section => [
+				section.title,
+				...section.items.map(item => {
+					const state = this.getInstallState(item);
+					const type = getCatalogType(item);
+					const stateLabel = hasInstallationTarget(state)
+						? getInstallationStateLabel(state, isCopilotConnectorResource(item))
+						: state.kind === 'unavailable'
+							? state.message
+							: localize('customizationDiscovery.available', "Available");
+					return `${item.displayName}\n${[type ? getTypeLabel(type) : item.mediaType, this.getMarketplaceResourceLabel(item), stateLabel].join(' · ')}\n${item.description}`;
+				}),
+			].join('\n\n'))
+			: [
+				...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), getInstallationStateLabel(state, isCopilotConnectorResource(resource))].join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
+				...available.map(({ resource }) => {
+					const state = this.getInstallState(resource);
+					return `${resource.displayName}\n${getTypeLabel(getCatalogType(resource) ?? 'plugin')} · ${this.getMarketplaceResourceLabel(resource)}\n${resource.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
+				}),
+			];
 		return [
 			localize('customizationDiscovery.title', "Browse customizations"),
 			this.query.isEmpty()
@@ -2399,11 +2501,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.sourceWarnings.getAccessibilityContent(),
 			...collapsedAlternatives.map(() => getAlternativeDisclosureLabel()),
 			...installed.map(item => `${item.name}\n${[getTypeLabel(item.type), item.sourceLabel, localize('customizationDiscovery.installed', "Installed")].filter(Boolean).join(' · ')}\n${item.description}`),
-			...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), getInstallationStateLabel(state, isCopilotConnectorResource(resource))].join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
-			...available.map(({ resource }) => {
-				const state = this.getInstallState(resource);
-				return `${resource.displayName}\n${getTypeLabel(getCatalogType(resource) ?? 'plugin')} · ${this.getMarketplaceResourceLabel(resource)}\n${resource.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
-			}),
+			...marketplaceContent,
 		].filter(Boolean).join('\n\n');
 	}
 

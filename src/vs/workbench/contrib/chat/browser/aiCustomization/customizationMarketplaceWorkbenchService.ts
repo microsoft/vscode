@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,11 +15,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../common/customizationHarnessService.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
@@ -28,6 +32,11 @@ import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizatio
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
+}
+
+interface IAgentFinderBrowseFeed {
+	readonly id: string;
+	readonly title: string;
 }
 
 function sortMarketplaceSources(sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -114,7 +123,10 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
 		super();
 		this.harnessBindingCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -137,6 +149,12 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
+			Event.map(defaultAccountService.onDidChangeDefaultAccount, () => undefined),
+			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
+				const account = defaultAccountService.currentDefaultAccount;
+				return !!account && event.providerId === account.authenticationProvider.id &&
+					[...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
+			}), () => undefined),
 		);
 	}
 
@@ -299,6 +317,69 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
 			run: token => this.copilotConnectorsService.signIn(token),
 		};
+	}
+
+	async getBrowseSections(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined> {
+		const source = CustomizationMarketplaceSources.AgentFinderPublicFeed;
+		const feeds = this.getAgentFinderBrowseFeeds();
+		const provider = this.marketplaceSearchProvider;
+		const sessionResource = this.marketplaceSessionResource;
+		if (!feeds.length || !provider?.getFeed || !sessionResource ||
+			!getEnabledCustomizationMarketplaceSources(this.configurationService, this.sources).some(candidate => candidate.id === source.id) ||
+			(options.sourceIds && !options.sourceIds.includes(source.id))) {
+			return undefined;
+		}
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		store.add(this.onDidChangeSources(() => cancellation.cancel()));
+		store.add(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(source.enablementSetting) || event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			const results = await raceCancellationError(Promise.all(feeds.map(async feed => {
+				try {
+					const page = await provider.getFeed!(sessionResource, feed.id, cancellation.token);
+					return { section: { ...feed, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
+				} catch (error) {
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					return { error: getErrorMessage(error) };
+				}
+			})), cancellation.token);
+			const errors = [...new Set(results.flatMap(result => result.error ? [result.error] : []))];
+			return {
+				sourceId: source.id,
+				sections: results.flatMap(result => result.section ? [result.section] : []),
+				error: errors.length === 0
+					? undefined
+					: errors.length === 1
+						? errors[0]
+						: localize('customizationMarketplace.partialFeedsError', "Some curated customization sections could not be loaded. {0}", errors[0]),
+			};
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private getAgentFinderBrowseFeeds(): readonly IAgentFinderBrowseFeed[] {
+		const feedIds = this.productService.defaultChatAgent?.agentFinderCustomizationFeedIds;
+		return feedIds ? [
+			{
+				id: feedIds.editorsPicks,
+				title: localize('customizationMarketplace.editorsPicks', "Editor's picks"),
+			},
+			{
+				id: feedIds.planBuildAndShip,
+				title: localize('customizationMarketplace.planBuildAndShip', "Plan, build, and ship"),
+			},
+			{
+				id: feedIds.connectYourWork,
+				title: localize('customizationMarketplace.connectYourWork', "Connect your work"),
+			},
+		] : [];
 	}
 
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {

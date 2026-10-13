@@ -183,6 +183,42 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editorWidget-background));
 }
 
+.customization-discovery-section.hero .customization-discovery-card {
+	align-items: flex-start;
+	min-height: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size400));
+	padding: var(--vscode-spacing-size120);
+	background: var(--vscode-editorWidget-background);
+}
+
+.customization-discovery-section.hero .customization-discovery-card-icon {
+	width: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size160));
+	height: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size160));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.customization-discovery-section.hero .customization-discovery-card-name {
+	font-size: var(--vscode-fontSize-heading3);
+}
+
+.customization-discovery-section.hero .customization-discovery-card-description {
+	margin-top: var(--vscode-spacing-size60);
+	-webkit-line-clamp: 2;
+}
+
+.customization-discovery-section.list .customization-discovery-grid {
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--vscode-spacing-size20);
+}
+
+.customization-discovery-section.list .customization-discovery-card {
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-section.list .customization-discovery-card-icon {
+	width: var(--vscode-spacing-size320);
+	height: var(--vscode-spacing-size320);
+}
+
 .customization-discovery-section-header {
 	display: flex;
 	align-items: center;
