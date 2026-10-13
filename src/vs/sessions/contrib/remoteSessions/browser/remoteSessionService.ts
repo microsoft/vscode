@@ -294,7 +294,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 			};
 			const request = {
 				query: options.prompt,
-				metadata: toRemoteSessionMessageMetadata(origin),
+				metadata: toRemoteSessionMessageMetadata(origin, source.defaultChat),
 				title: options.title,
 				background: true,
 			};

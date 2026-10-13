@@ -12,7 +12,7 @@ import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatOriginKind, isDefaultChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -331,9 +331,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {
-		return summary.defaultChat !== undefined
-			? summary.defaultChat === chat.resource
-			: isDefaultChatUri(chat.resource);
+		return summary.defaultChat === chat.resource;
 	}
 
 	private _resource(rawId: string): URI {

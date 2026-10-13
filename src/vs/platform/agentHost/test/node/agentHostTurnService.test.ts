@@ -38,6 +38,7 @@ suite('AgentHostTurnService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return { service, stateManager, session, chat, turnEnds };
 	}

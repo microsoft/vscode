@@ -7,7 +7,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../agentHostConnectionsService.js';
 import { isRemoteAgentHostSessionType } from '../../agentHostSessionType.js';
-import { buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, readSessionSpawnDepth, withSessionSpawnDepth } from '../../state/sessionState.js';
+import { buildChatUri, buildSubagentChatUri, readSessionSpawnDepth, withSessionSpawnDepth } from '../../state/sessionState.js';
 import { toAgentMessageDelegationMeta } from './agentMessageDelegationMeta.js';
 
 export const REMOTE_SESSION_ORIGIN_METADATA_KEY = 'vscode.remoteSession.origin';
@@ -75,14 +75,19 @@ export function withRemoteSessionOrigin(meta: Record<string, unknown> | undefine
 	};
 }
 
-/** Request metadata for an agent-authored prompt with a host-qualified source-chat link. */
-export function toRemoteSessionMessageMetadata(origin: Pick<IRemoteSessionOrigin, 'session' | 'chat'>, sourceTurnId?: string): Record<string, unknown> {
+/**
+ * Request metadata for an agent-authored prompt with a host-qualified source-chat link.
+ * `defaultChat` is the source session's advertised default chat, which a source chat
+ * without a fragment addresses; without one the metadata names no source chat.
+ */
+export function toRemoteSessionMessageMetadata(origin: Pick<IRemoteSessionOrigin, 'session' | 'chat'>, defaultChat: string | undefined, sourceTurnId?: string): Record<string, unknown> {
 	const chat = URI.parse(origin.chat);
+	const sourceChat = chat.fragment.startsWith('subagent/')
+		? buildSubagentChatUri(origin.session, chat.fragment.slice('subagent/'.length))
+		: chat.fragment ? buildChatUri(origin.session, chat.fragment) : defaultChat;
 	return toAgentMessageDelegationMeta({
 		sourceSession: origin.session,
-		sourceChat: chat.fragment.startsWith('subagent/')
-			? buildSubagentChatUri(origin.session, chat.fragment.slice('subagent/'.length))
-			: buildChatUri(origin.session, chat.fragment || DEFAULT_CHAT_ID),
+		...(sourceChat !== undefined ? { sourceChat } : {}),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	});
 }

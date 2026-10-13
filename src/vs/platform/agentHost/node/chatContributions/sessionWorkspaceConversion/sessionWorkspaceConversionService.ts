@@ -22,7 +22,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isDefaultChatUri, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
@@ -114,6 +114,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private readonly _isolatedChats = new Set<string>();
 	/** Owning session of every chat tracked above, recorded when tracking starts. */
 	private readonly _trackedChatOwners = new Map<string, string>();
+	/** Each session's default chat, captured at registration so session removal can still clear its state. */
+	private readonly _defaultChats = new Map<string, string>();
 
 	constructor(
 		private readonly _chatIsolationHost: IChatIsolationHost | undefined,
@@ -141,15 +143,27 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				}
 			}
 		}));
+		this._register(this._chatOwnership.onDidRegisterChat(({ session, chat }) => {
+			if (this._chatOwnership.isDefaultChat(session, chat)) {
+				this._defaultChats.set(session, chat);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
-			const chat = buildDefaultChatUri(session);
-			this._clearChatIsolationState(chat);
+			const chat = this._defaultChat(session);
+			this._defaultChats.delete(session);
+			if (chat !== undefined) {
+				this._clearChatIsolationState(chat);
+			}
 			for (const [key, owner] of [...this._trackedChatOwners]) {
 				if (owner === session) {
 					this._clearChatIsolationState(key);
 				}
 			}
 		}));
+	}
+
+	private _defaultChat(session: ProtocolURI): ProtocolURI | undefined {
+		return this._defaultChats.get(session) ?? this._chatOwnership.getDefaultChat(session);
 	}
 
 	/** Records the owner of a chat when it starts being tracked, so session removal can clear it later. */
@@ -352,7 +366,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		while ((parent = parseSubagentSessionUri(session))) {
 			session = parent.parentSession.toString();
 		}
-		return buildDefaultChatUri(session);
+		return this._defaultChat(session) ?? chat;
 	}
 
 	cancel(chat: ProtocolURI, turnId: string | undefined): void {
@@ -562,7 +576,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			} else {
 				this._isolatedChats.delete(chat.toString());
 			}
-			if (isDefaultChatUri(chat)) {
+			if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 				this._stateManager.setSessionMeta(session.toString(), withSessionHasWorkspaceTransitions(this._stateManager.getSessionState(session.toString())?._meta, true));
 			}
 			this._serverToolHost.advertise(session.toString());
@@ -956,7 +970,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if ((state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived) {
 			throw new Error('An archived session cannot be converted to a workspace session.');
 		}
-		if (!isDefaultChatUri(chat) || state.defaultChat !== chat.toString()) {
+		if (!this._chatOwnership.isDefaultChat(session.toString(), chat.toString()) || state.defaultChat !== chat.toString()) {
 			throw new Error('Only the owning default chat can convert the session to a workspace session.');
 		}
 		if (state.workingDirectories?.length !== 1) {
@@ -1053,7 +1067,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		try {
 			await database.object.deleteTurnWorkspaceTransition(turnId);
 			const hasTransitions = await database.object.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY) === 'true';
-			if (isDefaultChatUri(chat)) {
+			if (this._chatOwnership.isDefaultChat(session, chat.toString())) {
 				const state = this._stateManager.getSessionState(session);
 				this._stateManager.setSessionMeta(session, withSessionHasWorkspaceTransitions(state?._meta, hasTransitions));
 			}

@@ -11,7 +11,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -38,8 +38,8 @@ suite('AgentHostLocalCommands', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const session = 'copilot:/local-command-owner';
 		const chat = buildChatUri('copilot:/encoded', 'peer');
-		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
-		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat));
+		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)));
 		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: '/hold', origin: { kind: MessageKind.User } } });
 		const turnEnds: ITurnEnd[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
