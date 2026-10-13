@@ -238,6 +238,7 @@ type ExtensionsCriteria = {
 	readonly compatible: boolean;
 	readonly includePreRelease: boolean | (IExtensionIdentifier & { includePreRelease: boolean })[];
 	readonly versions?: (IExtensionIdentifier & { version: string })[];
+	readonly includeBlockedVersions?: boolean;
 	readonly isQueryForReleaseVersionFromPreReleaseVersion?: boolean;
 };
 
@@ -252,6 +253,7 @@ type ExtensionVersionCriteria = {
 	readonly targetPlatform: TargetPlatform;
 	readonly compatible: boolean;
 	readonly version: VersionKind | string;
+	readonly includeBlockedVersions?: boolean;
 };
 
 class Query {
@@ -788,6 +790,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				versions,
 				compatible: !!options.compatible,
 				productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date },
+				includeBlockedVersions: options.includeBlockedVersions,
 				isQueryForReleaseVersionFromPreReleaseVersion
 			},
 			extensionGalleryManifest,
@@ -1286,7 +1289,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						targetPlatform: criteria.targetPlatform,
 						productVersion: criteria.productVersion,
 						version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
+							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release),
+						includeBlockedVersions: criteria.includeBlockedVersions
 					},
 					allTargetPlatforms
 				);
@@ -1322,7 +1326,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					targetPlatform: criteria.targetPlatform,
 					productVersion: criteria.productVersion,
 					version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
+						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release),
+					includeBlockedVersions: criteria.includeBlockedVersions
 				},
 				allTargetPlatforms
 			);
@@ -1400,6 +1405,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				return rawGalleryExtensionVersion;
 			}
 			if (version && rawGalleryExtensionVersion.version === version) {
+				if (criteria.includeBlockedVersions && isBlocked(rawGalleryExtensionVersion.flags, rawGalleryExtensionVersion.blocking)) {
+					return rawGalleryExtensionVersion;
+				}
 				return null;
 			}
 		}
@@ -1412,8 +1420,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		 * Fallback: Return the latest version
 		 * This can happen when the extension does not have a release version or does not have a version compatible with the given target platform.
 		 */
-		const latestVersion = rawGalleryExtension.versions[0];
-		return latestVersion && !isBlocked(latestVersion.flags, latestVersion.blocking) ? latestVersion : null;
+		return rawGalleryExtensionVersions.find(version => !isBlocked(version.flags, version.blocking)) ?? null;
 	}
 
 	private async setEngineIfNotExists(extensionId: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion): Promise<void> {

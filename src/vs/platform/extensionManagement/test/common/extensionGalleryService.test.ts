@@ -90,7 +90,7 @@ function galleryQueryResponse(extensions: object[]): object {
 	};
 }
 
-function rawVersion(version: string, flags?: string) {
+function rawVersion(version: string, flags?: string, preRelease = false) {
 	const date = '2026-01-01T00:00:00Z';
 	return {
 		version,
@@ -98,7 +98,10 @@ function rawVersion(version: string, flags?: string) {
 		assetUri: `https://marketplace.test/assets/publisher/extension/${version}`,
 		fallbackAssetUri: `https://marketplace.test/fallback/publisher/extension/${version}`,
 		files: [],
-		properties: [{ key: 'Microsoft.VisualStudio.Code.Engine', value: '*' }],
+		properties: [
+			{ key: 'Microsoft.VisualStudio.Code.Engine', value: '*' },
+			...(preRelease ? [{ key: 'Microsoft.VisualStudio.Code.PreRelease', value: 'true' }] : [])
+		],
 		flags
 	};
 }
@@ -256,6 +259,29 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
+	test('getExtensions fallback skips a blocked latest version', async () => {
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked', true)])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked', true), rawVersion('1.0.0', undefined, true)])
+		])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			versions: extensions.map(extension => extension.version),
+			requests: requestService.requests
+		}, {
+			versions: ['1.0.0'],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
 	test('getExtensions skips a blocked latest version in compatible queries', async () => {
 		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
 		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
@@ -308,6 +334,23 @@ suite('Extension Gallery Service', () => {
 		);
 
 		assert.deepStrictEqual(extensions, []);
+	});
+
+	test('getExtensions can return blocking metadata for an explicitly requested version', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension', version: '2.0.0' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL, includeBlockedVersions: true },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(
+			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service } }]
+		);
 	});
 
 	test('sorting single extension version without target platform', async () => {

@@ -406,6 +406,7 @@ export interface IExtensionQueryOptions {
 	productVersion?: IProductVersion;
 	compatible?: boolean;
 	queryAllVersions?: boolean;
+	includeBlockedVersions?: boolean;
 	source?: string;
 }
 
@@ -820,4 +821,3 @@ export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryM
 	}
 	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
 }
-
