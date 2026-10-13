@@ -248,7 +248,7 @@ suite('Session storage identity compatibility', () => {
 		await raw.close();
 		const db = await database();
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const peer = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: peer }]);
 		const normalized = await db.registerChatCatalogV2(session.toString(), {
@@ -282,6 +282,23 @@ suite('Session storage identity compatibility', () => {
 			deleted: await next.isSessionTombstoned('ahp-session:/new'),
 			sessions: (await next.listSessionV2Registrations()).map(entry => entry.session),
 		}, { deleted: true, sessions: ['copilotcli:/created-by-old'] });
+	});
+
+	test('normalized catalogs read their session and default chat in runtime spelling', async () => {
+		const db = await database();
+		const session = 'ahp-session:/normalized-compat';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const recordedDefault = `${buildDefaultChatUri(session)}?generation=1`;
+		// The compatibility format keeps this session's catalog in its storage spelling.
+		await db.raw.registerChatCatalogV2('copilotcli:/normalized-compat', { defaultChat: { chat: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1`, order: 0 }, peers: [], privateDescendants: [] });
+		assert.deepStrictEqual({
+			runtime: (await db.readSessionRegistrations()).normalizedCatalogs,
+			storage: (await db.raw.readSessionRegistrations()).normalizedCatalogs,
+		}, {
+			runtime: [{ session, defaultChatUri: recordedDefault }],
+			storage: [{ session: 'copilotcli:/normalized-compat', defaultChatUri: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1` }],
+		});
 	});
 
 	test('catalog payload checksums and per-session receipts round-trip through storage encoding', async () => {
@@ -513,7 +530,7 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
 		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const first = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: first, providerData: 'sdk-first' }]);
 		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());

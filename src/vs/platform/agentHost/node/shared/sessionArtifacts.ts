@@ -7,7 +7,6 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /** Shared artifact mutations for server tools and direct user requests. */
@@ -26,9 +25,9 @@ export class SessionArtifacts {
 	}
 
 	private _readAll(): readonly ISessionArtifact[] {
-		const defaultChat = buildDefaultChatUri(this._session);
+		const defaultChat = this._stateManager.getDefaultChat(this._session);
 		return readSessionArtifacts(this._getState()._meta).map(artifact =>
-			artifact.chat ? artifact : { ...artifact, chat: defaultChat }
+			artifact.chat || defaultChat === undefined ? artifact : { ...artifact, chat: defaultChat }
 		);
 	}
 
