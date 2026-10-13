@@ -127,6 +127,19 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-divider {
+	display: none;
+	position: absolute;
+	top: 50%;
+	left: 0;
+	z-index: 9;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	background-color: var(--vscode-tab-divider, transparent);
+	pointer-events: none;
+	transform: translateY(-50%);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
 	display: none;
 }
@@ -316,7 +329,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.two-tab-bars) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars .tabs-and-actions-container:not(:first-child) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
-	display: block;
+	display: var(--editor-tab-border-indicator-display, block);
 	position: absolute;
 	left: 0;
 	pointer-events: none;

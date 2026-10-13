@@ -289,6 +289,7 @@ export class Throttler implements IDisposable {
 
 	dispose(): void {
 		this.cancellationTokenSource.cancel();
+		this.queuedPromiseFactory = null;
 	}
 }
 
@@ -439,19 +440,21 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((resolve, reject) => {
+			const completionPromise: Promise<any> = new Promise((resolve, reject) => {
 				this.doResolve = resolve;
 				this.doReject = reject;
 			}).then(() => {
+				if (this.completionPromise !== completionPromise) {
+					// canceled after the delay elapsed, possibly followed by a new trigger
+					throw new CancellationError();
+				}
 				this.completionPromise = null;
 				this.doResolve = null;
-				if (this.task) {
-					const task = this.task;
-					this.task = null;
-					return task();
-				}
-				return undefined;
+				const task = this.task!;
+				this.task = null;
+				return task();
 			});
+			this.completionPromise = completionPromise;
 		}
 
 		const fn = () => {
@@ -470,6 +473,7 @@ export class Delayer<T> implements IDisposable {
 
 	cancel(): void {
 		this.cancelTimeout();
+		this.task = null;
 
 		if (this.completionPromise) {
 			this.doReject?.(new CancellationError());

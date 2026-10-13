@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -74,6 +75,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	instantiationService.stub(ISessionDataService, createNullSessionDataService());
 	instantiationService.stub(ICodexProxyService, disposables.add(new CodexProxyService(undefined, logService, apiService)));
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	const sdkDownloader = new RecordingAgentSdkDownloader();
@@ -95,7 +97,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 		agent, createAgent, apiService, authentication, configurationService, endpoints, telemetry, events, reporter, tracker, toolTracker, session, warnings,
 		authenticate: (token: string) => authentication.authenticate({ resource: endpoints.getCopilotResource().resource, token }, [agent]),
 		completeTurn: (turnId: string, turnAgent = agent) => {
-			tracker.turnStarted(turnAgent, session, turnId, 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+			tracker.turnStarted(turnAgent, session, session, turnId, 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 			tracker.turnCompleted(session, turnId, 'success');
 		},
 		turnSkus: () => events.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => event.data.copilotSku),
@@ -104,6 +106,40 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 
 suite('Codex Copilot SKU telemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares account tracking IDs across turn and tool telemetry without relabeling delayed events', async () => {
+		let account = 'a';
+		const harness = createHarness(disposables, async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' },
+			access_type_sku: `sku-${account}`, analytics_tracking_id: `analytics-${account}`,
+		}));
+		await harness.authenticate('test-token-a');
+		harness.completeTurn('account-a');
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'tools-a', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, harness.session, 'tools-a', 'tool-a', 'grep', undefined, 'gpt-5.4', 'trusted');
+		harness.toolTracker.updateTurnModel(harness.session, 'tools-a', 'gpt-5.4', 'trusted');
+		harness.toolTracker.toolCallCompleted(harness.session, 'tool-a', { success: true, content: [], pastTenseMessage: 'Searched' });
+		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, harness.session, 'tools-a', 'delayed-tool-a', 'grep', undefined, 'gpt-5.4', 'trusted');
+		account = 'b';
+		await harness.authenticate('test-token-b');
+		harness.toolTracker.toolCallCompleted(harness.session, 'delayed-tool-a', { success: true, content: [], pastTenseMessage: 'Searched' });
+		harness.toolTracker.clearSession(harness.session);
+		harness.tracker.turnCompleted(harness.session, 'tools-a', 'success');
+		harness.completeTurn('account-b');
+		await harness.authenticate('');
+		harness.completeTurn('signed-out');
+
+		assert.deepStrictEqual(harness.events
+			.filter(event => event.eventName === 'agentHost.turnCompleted' || event.eventName === 'languageModelToolInvoked')
+			.map(({ eventName, data }) => ({ eventName, copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'] })), [
+			{ eventName: 'agentHost.turnCompleted', copilotSku: 'sku-a', trackingId: 'analytics-a' },
+			{ eventName: 'languageModelToolInvoked', copilotSku: 'sku-a', trackingId: 'analytics-a' },
+			{ eventName: 'languageModelToolInvoked', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: 'sku-b', trackingId: 'analytics-b' },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: undefined, trackingId: undefined },
+		]);
+	});
 
 	test('reports the authenticated CAPI account SKU without initializing Copilot', async () => {
 		const harness = createHarness(disposables, async () => Response.json({
@@ -125,7 +161,7 @@ suite('Codex Copilot SKU telemetry', () => {
 
 		await harness.authenticate('test-token-a');
 		harness.completeTurn('account-a');
-		harness.tracker.turnStarted(harness.agent, harness.session, 'overlapping-a', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'overlapping-a', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		await harness.authenticate('test-token-b');
 		harness.tracker.turnCompleted(harness.session, 'overlapping-a', 'success');
 		harness.completeTurn('account-b');
@@ -255,7 +291,7 @@ suite('Codex Copilot SKU telemetry', () => {
 		}));
 		await harness.authenticate('test-token-a');
 		const revoking = harness.authenticate('');
-		harness.tracker.turnStarted(harness.agent, harness.session, 'revoking', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'revoking', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		await revoking;
 		harness.tracker.turnCompleted(harness.session, 'revoking', 'success');
 
@@ -268,8 +304,8 @@ suite('Codex Copilot SKU telemetry', () => {
 			access_type_sku: new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a' ? 'sku-a' : 'sku-b',
 		}));
 		await harness.authenticate('test-token-a');
-		harness.tracker.turnStarted(harness.agent, harness.session, 'tool-turn', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
-		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, 'tool-turn', 'tool', 'grep', undefined, 'gpt-5.4', 'trusted');
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'tool-turn', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, harness.session, 'tool-turn', 'tool', 'grep', undefined, 'gpt-5.4', 'trusted');
 		await harness.authenticate('test-token-b');
 		harness.toolTracker.toolCallCompleted(harness.session, 'tool', { success: true, content: [], pastTenseMessage: 'Searched' });
 		harness.toolTracker.clearSession(harness.session);
@@ -353,7 +389,7 @@ suite('Codex Copilot SKU telemetry', () => {
 			: new Response('Unavailable', { status: 503 }));
 		await harness.authenticate('test-token-a');
 		await harness.agent.refreshModels();
-		harness.tracker.turnStarted(harness.agent, harness.session, 'recovering', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'recovering', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		available = true;
 		await harness.apiService.models('test-token-a');
 		harness.tracker.turnCompleted(harness.session, 'recovering', 'success');
@@ -487,7 +523,7 @@ suite('Codex Copilot SKU telemetry', () => {
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
 		}));
 		await harness.authenticate('test-token-a');
-		harness.tracker.turnStarted(harness.agent, harness.session, 'same-account', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'same-account', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		await harness.authenticate('test-token-a');
 		harness.tracker.turnCompleted(harness.session, 'same-account', 'success');
 
@@ -499,11 +535,11 @@ suite('Codex Copilot SKU telemetry', () => {
 			endpoints: { api: 'https://api.githubcopilot.com' },
 			access_type_sku: new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a' ? 'sku-a' : 'sku-b',
 		}));
-		harness.tracker.turnStarted(harness.agent, harness.session, 'initializing', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'initializing', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		await harness.authenticate('test-token-a');
 		harness.tracker.markSendDispatched(harness.session, 'initializing');
 		harness.tracker.turnCompleted(harness.session, 'initializing', 'success');
-		harness.tracker.turnStarted(harness.agent, harness.session, 'preparing', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.tracker.turnStarted(harness.agent, harness.session, harness.session, 'preparing', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 		await harness.authenticate('test-token-b');
 		harness.tracker.markSendDispatched(harness.session, 'preparing');
 		harness.tracker.turnCompleted(harness.session, 'preparing', 'success');

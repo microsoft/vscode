@@ -47,6 +47,22 @@ suite('Chat usage aggregation', () => {
 		});
 	});
 
+	test('marks missing request usage as partial when model totals are available', () => {
+		assert.deepStrictEqual(aggregateChatUsage([
+			usage([
+				{ model: 'Claude', inputTokens: 10, cachedTokens: 4, outputTokens: 2 },
+			]),
+			undefined,
+		]), {
+			inputTokens: 10,
+			outputTokens: 2,
+			models: [
+				{ model: 'Claude', inputTokens: 10, cachedTokens: 4, outputTokens: 2 },
+			],
+			isComplete: false,
+		});
+	});
+
 	test('ignores invalid totals and returns undefined without usable usage', () => {
 		assert.strictEqual(aggregateChatUsage([
 			undefined,

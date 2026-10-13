@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { buildCollectionArgs, buildSingleImageArgs, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -16,6 +21,8 @@ import { ToolDataSource } from '../../common/tools/languageModelToolsService.js'
 
 suite('ChatImageCarouselService helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function makeRequest(id: string, variables: IChatRequestViewModel['variables'], messageText: string = 'Request'): IChatRequestViewModel {
 		return {
@@ -74,7 +81,44 @@ suite('ChatImageCarouselService helpers', () => {
 		}));
 	}
 
+	function makeGeneratedImageTool(uri: URI): IChatToolInvocationSerialized {
+		return {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'generated',
+			toolId: 'image_generation',
+			toolSpecificData: { kind: 'generatedImage' },
+			invocationMessage: 'Generating images',
+			pastTenseMessage: 'Generated images',
+			originMessage: undefined,
+			presentation: undefined,
+			isComplete: true,
+			isConfirmed: true,
+			source: ToolDataSource.Internal,
+			resultDetails: {
+				input: '',
+				output: [
+					{ type: 'embed', value: 'AQID', mimeType: 'image/png' },
+					{ type: 'ref', uri, mimeType: 'image/png' },
+				],
+			},
+		};
+	}
+
 	suite('findClickedImageIndex', () => {
+
+		test('matches embedded generated images independently of gallery display names', () => {
+			const sessionResource = URI.parse('chat-session://test/session');
+			const sections: ICarouselSection[] = [{
+				title: 'Images',
+				images: [
+					makeImage(ChatResponseResource.createUri(sessionResource, 'first-tool', 0, 'file.png').toString()),
+					makeImage(ChatResponseResource.createUri(sessionResource, 'second-tool', 2, 'file.png').toString()),
+				],
+			}];
+			const clicked = ChatResponseResource.createUri(sessionResource, 'second-tool', 2, 'generated-image-2.png');
+
+			assert.strictEqual(findClickedImageIndex(sections, clicked), 1);
+		});
 
 		test('finds image by URI string match in first section', () => {
 			const sections = makeSections(3);
@@ -209,6 +253,32 @@ suite('ChatImageCarouselService helpers', () => {
 
 	suite('collectCarouselSections', () => {
 
+		test('combines attached and generated images across turns, including URI-backed attachments', async () => {
+			const generatedUri = URI.parse('vscode-agent-host://remote/generated-images/image?version=1');
+			const attachmentUri = URI.file('/attached.png');
+			const firstRequest = makeRequest('req-1', [makeImageVariableEntry({ value: new Uint8Array([4, 5, 6]) })], 'Generate images');
+			const firstResponse = makeResponse('req-1', 'response-1', [makeGeneratedImageTool(generatedUri)]);
+			const secondRequest = makeRequest('req-2', [makeImageVariableEntry({ value: attachmentUri })], 'Another image');
+			const result = await collectCarouselSections([firstRequest, firstResponse, secondRequest], async () => {
+				throw new Error('Referenced images should be loaded lazily');
+			});
+
+			assert.deepStrictEqual(result.map(section => ({
+				title: section.title,
+				images: section.images.map(image => ({ id: image.id, uri: image.uri, data: image.data && [...image.data] })),
+			})), [{
+				title: 'Generate images',
+				images: [
+					{ id: URI.from({ scheme: 'data', path: 'img-1/cat.png' }).toString(), uri: undefined, data: [4, 5, 6] },
+					{ id: ChatResponseResource.createUri(firstResponse.sessionResource, 'generated', 0, 'generated-image-e38b1aae6592.png').toString(), uri: undefined, data: [1, 2, 3] },
+					{ id: generatedUri.toString(), uri: generatedUri, data: undefined },
+				],
+			}, {
+				title: 'Another image',
+				images: [{ id: attachmentUri.toString(), uri: attachmentUri, data: undefined }],
+			}]);
+		});
+
 		test('collects request attachment images for pending requests', async () => {
 			const request = makeRequest('req-1', [
 				makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) }),
@@ -223,7 +293,7 @@ suite('ChatImageCarouselService helpers', () => {
 				id: result[0].images[0].id,
 				name: result[0].images[0].name,
 				mimeType: result[0].images[0].mimeType,
-				data: [...result[0].images[0].data],
+				data: result[0].images[0].data && [...result[0].images[0].data],
 			}, {
 				id: URI.from({ scheme: 'data', path: 'img-1/cat.png' }).toString(),
 				name: 'cat.png',
@@ -243,7 +313,7 @@ suite('ChatImageCarouselService helpers', () => {
 
 			assert.deepStrictEqual(result.map(section => ({
 				...section,
-				images: section.images.map(image => ({ ...image, data: [...image.data] })),
+				images: section.images.map(image => ({ ...image, data: image.data && [...image.data] })),
 			})), [{
 				title: 'Current Input',
 				images: [
@@ -261,7 +331,7 @@ suite('ChatImageCarouselService helpers', () => {
 
 			const result = await collectCarouselSections([request], async () => new Uint8Array());
 
-			assert.deepStrictEqual([...result[0].images[0].data], [4, 5, 6]);
+			assert.deepStrictEqual(result[0].images[0].data && [...result[0].images[0].data], [4, 5, 6]);
 		});
 
 		test('merges request images into matching response section', async () => {
@@ -430,6 +500,62 @@ suite('ChatImageCarouselService helpers', () => {
 			// new Blob([data]) in the carousel editor works correctly.
 			assert.ok(data instanceof Uint8Array, 'image data should be Uint8Array');
 			assert.deepStrictEqual([...data], [1, 2, 3]);
+		});
+	});
+
+	suite('opening a conversation carousel', () => {
+		test('uses the originating chat and retains additional artifact images without duplicating generated images', async () => {
+			const sessionResource = URI.parse('chat-session://test/session');
+			const generatedUri = URI.file('/generated.png');
+			const artifactUri = URI.file('/artifact.png');
+			const request = makeRequest('req-1', [makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) })]);
+			const response = makeResponse('req-1', 'response-1', [makeGeneratedImageTool(generatedUri)]);
+			const widget = upcastDeepPartial<IChatWidget>({
+				viewModel: { sessionResource, getItems: () => [request, response] },
+				attachmentModel: { attachments: [] },
+				getInput: () => '',
+			});
+			const executeCommand = sinon.stub().resolves();
+			const getWidgetBySessionResource = sinon.stub().returns(widget);
+			const service = new ChatImageCarouselService(
+				upcastPartial<IChatWidgetService>({
+					lastFocusedWidget: upcastDeepPartial<IChatWidget>({ viewModel: { getItems: () => [] } }),
+					getWidgetBySessionResource,
+				}),
+				upcastPartial<ICommandService>({ executeCommand }),
+				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+			);
+			const clicked = ChatResponseResource.createUri(sessionResource, 'generated', 0, 'generated-image-1.png');
+			await service.openCarouselAtResource(clicked, undefined, {
+				sessionResource,
+				additionalImages: [{ uri: clicked, mimeType: 'image/png' }, { uri: generatedUri, mimeType: 'image/png' }, { uri: artifactUri, mimeType: 'image/png' }],
+			});
+
+			const sections = await collectCarouselSections([request, response], async () => new Uint8Array());
+			sections.push({ title: 'Artifact Images', images: [{ id: artifactUri.toString(), name: 'artifact.png', mimeType: 'image/png', uri: artifactUri }] });
+			assert.deepStrictEqual({
+				requestedChats: getWidgetBySessionResource.args,
+				commands: executeCommand.args,
+			}, {
+				requestedChats: [[sessionResource]],
+				commands: [['workbench.action.chat.openImageInCarousel', buildCollectionArgs(sections, 1, sessionResource)]],
+			});
+		});
+
+		test('keeps the artifact gallery when its chat widget is not available', async () => {
+			const sessionResource = URI.parse('chat-session://test/session');
+			const uri = URI.file('/artifact.png');
+			const executeCommand = sinon.stub().resolves();
+			const service = new ChatImageCarouselService(
+				upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined }),
+				upcastPartial<ICommandService>({ executeCommand }),
+				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+			);
+			await service.openCarouselAtResource(uri, undefined, { sessionResource, additionalImages: [{ uri, mimeType: 'image/png' }] });
+
+			assert.deepStrictEqual(executeCommand.args, [['workbench.action.chat.openImageInCarousel', buildCollectionArgs([
+				{ title: 'Artifact Images', images: [{ id: uri.toString(), name: 'artifact.png', mimeType: 'image/png', uri }] },
+			], 0, sessionResource)]]);
 		});
 	});
 

@@ -34,7 +34,7 @@ Do not turn those files into general Sessions guidance.
 | Automations ownership, AHP routing, persistence, and run lifecycle | [AUTOMATIONS.md](AUTOMATIONS.md) |
 | Workbench parts, grid, title bar, and editor presentation | [LAYOUT.md](LAYOUT.md) |
 | Session-aware layout capture and restoration | [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) |
-| Single-pane behavior scenarios | [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) |
+| Desktop behavior scenarios | [DESKTOP.md](DESKTOP.md) |
 | Sessions sidebar list | [SESSIONS_LIST.md](SESSIONS_LIST.md) |
 | Multi-harness implementation comparisons | [SESSION_COMPARISONS.md](SESSION_COMPARISONS.md) |
 | System-wide Open Agents Window keybinding ownership | [SYSTEM_WIDE_KEYBINDING.md](SYSTEM_WIDE_KEYBINDING.md) |

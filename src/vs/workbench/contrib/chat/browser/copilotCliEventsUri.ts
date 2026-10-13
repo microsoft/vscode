@@ -8,7 +8,7 @@ import { env } from '../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getCopilotHomePath } from '../../../../platform/agentHost/common/copilotHome.js';
+import { getCopilotHomePath } from '../../../../platform/environment/common/copilotHome.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';

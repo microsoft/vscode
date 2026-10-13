@@ -28,8 +28,8 @@ import {
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
@@ -72,7 +72,7 @@ export interface PullRequestPollingPolicy {
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
 	readonly participants: number;
-	readonly failureBackoff: GitHubBackoffPolicy;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -120,6 +120,7 @@ interface IFragmentOperation {
 	readonly generation: number;
 	readonly interest: EffectivePullRequestFragmentInterest;
 	readonly promise: Promise<void>;
+	requestSignal?: AbortSignal;
 }
 
 class PullRequestResourceImpl implements PullRequestResource {
@@ -219,7 +220,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler = systemGitHubScheduler,
+		scheduler: IRequestScheduler = systemRequestScheduler,
 		private readonly _policy: PullRequestPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _queries: IPullRequestQuery,
@@ -231,7 +232,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
 
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		const normalized = normalizeRef(ref);
@@ -373,6 +374,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					this._scheduler.cancel(this._bodyTaskKey(entry, fragment));
 				}
 				if (oldInterest.priority !== newInterest.priority) {
+					const requestSignal = entry.operations.get(fragment)?.requestSignal;
+					if (requestSignal) {
+						this._queries.promote(requestSignal, newInterest.priority);
+					}
 					this._scheduleNext(entry, fragment, newInterest);
 				}
 			}
@@ -455,13 +460,19 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (!sameAccount(credential.account, entry.ref)) {
 				throw new GitHubRequestError('Pull request resource account does not match the current GitHub credential', 'authentication');
 			}
+			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			const operation = entry.operations.get(fragment);
+			if (operation?.controller === controller) {
+				operation.requestSignal = signal;
+			}
+			const options = pullRequestOptionsForFragment(fragment, interest);
 			const result = await this._queries.fetch(
 				fragment,
 				entry.ref,
 				entry.snapshot.get().core.value,
-				pullRequestOptionsForFragment(fragment, interest),
+				{ ...options, get priority() { return entry.effective.get(fragment)?.priority ?? interest.priority; } },
 				credential,
-				AbortSignal.any([controller.signal, credential.signal]),
+				signal,
 			);
 			if (!this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
 				if (!controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
@@ -672,7 +683,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		const failures = (entry.failureCounts.get(fragment) ?? 0) + 1;
 		entry.failureCounts.set(fragment, failures);
-		this._scheduleFragment(entry, fragment, this._clock.now() + gitHubBackoffDelay(this._policy.failureBackoff, this._clock, failures));
+		this._scheduleFragment(entry, fragment, this._clock.now() + backoffDelay(this._policy.failureBackoff, this._clock, failures));
 	}
 
 	private _pollDelay(entry: PullRequestEntry, fragment: PullRequestFragment, interest: EffectivePullRequestFragmentInterest): number | undefined {

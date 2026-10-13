@@ -30,13 +30,12 @@
 	width: 100%;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding: 0 var(--vscode-spacing-size60);
 	box-sizing: border-box;
 }
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
@@ -244,24 +243,28 @@
 	flex-shrink: 0;
 }
 
-/* Keep header toolbar buttons from dictating the row height */
-.chat-composite-bar-title-actions .action-item .action-label {
-	height: 20px;
-	line-height: 20px;
-	padding: 0 2px;
+/* Keep header toolbar buttons square and centered without dictating the row height. */
+.chat-composite-bar-toolbar .action-item .action-label.codicon {
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size200, 20px);
+	padding: 0;
+	line-height: 1;
 }
 
 .chat-composite-bar-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
 }
 
-.session-header-bar .chat-composite-bar-title-actions .action-label.codicon-close {
+.monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
 	opacity: 0;
 	pointer-events: none;
 }
 
-.session-header-bar:hover .chat-composite-bar-title-actions .action-label.codicon-close,
-.session-header-bar:focus-within .chat-composite-bar-title-actions .action-label.codicon-close {
+.monaco-workbench.session-comparison-grid-active .session-header-bar:hover .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small),
+.monaco-workbench.session-comparison-grid-active .session-header-bar:focus-within .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -578,14 +581,62 @@
 	--modern-ui-connected-tab-surface: var(--session-view-background);
 }
 
+/* Default-density sessions own their individual frames in both tab styles.
+ * Connected tabs retain the same ownership in compact density. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card {
+	border-color: transparent;
+	background-clip: padding-box;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card::after {
+	content: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view {
+	position: relative;
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content {
+	/* Keep sticky-scroll and other transcript overlays below the session frame. */
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .modern-ui-editor-tab-content::after {
+	border: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .chat-composite-bar-tab:first-child > :is(.chat-composite-bar-tab-fill, .tab-connected-edge) {
+	border-top-left-radius: 0;
+	border-left-color: transparent;
+	background-clip: border-box;
+}
+
 .modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0;
 	max-width: none;
 }
 
+.modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .session-chat-tabs-actions {
+	padding-right: var(--vscode-spacing-size60);
+}
+
 .modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs-row {
 	position: relative;
-	height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+	height: calc(var(--modern-ui-connected-tab-row-height) + var(--vscode-strokeThickness));
 	border-bottom: 0;
 	--modern-ui-editor-tab-active-background: var(--modern-ui-connected-tab-surface);
 	--modern-ui-editor-tab-unfocused-active-background: var(--modern-ui-connected-tab-surface);

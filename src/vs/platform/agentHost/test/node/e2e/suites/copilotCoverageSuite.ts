@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -25,7 +25,9 @@ import type { TerminalCommandPart, TerminalState } from '../../../../common/stat
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -42,6 +44,51 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 	const { config, createdSessions, tempDirs } = context;
 
+	providerHostOnlyTest(context, 'runtime compaction: an empty conversation returns to idle without a model request', async function () {
+		const { sessionUri } = await createWorkspaceSession('compact-empty');
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'compact-empty', '/compact', 1);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: result.responseText.trim(),
+			active: state.activeTurn,
+			states: state.turns.map(turn => turn.state),
+			requests: context.observedModelRequestBodies.length,
+		}, { response: 'Compaction completed', active: undefined, states: ['complete'], requests: 0 });
+	});
+
+	test('runtime compaction: explicit compaction retains conversation facts and permits followup', async function () {
+		this.timeout(240_000);
+		const { sessionUri } = await createWorkspaceSession('compact-context');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-memory',
+			'Remember COMPACT_ORCHID as the exact project code word for this conversation. Reply exactly "remembered".', 1);
+		const compacted = await driveTurnToCompletion(context.client, sessionUri, 'compact-request', '/compact', 100);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'compact-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 200);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			compacted: compacted.responseText.trim(),
+			followup: followup.responseText.trim(),
+			active: state.activeTurn,
+			finalState: state.turns.at(-1)?.state,
+		}, { compacted: 'Compaction completed', followup: 'COMPACT_ORCHID', active: undefined, finalState: 'complete' });
+	});
+
+	// Windows currently restores the original transcript instead of the compacted context.
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('runtime compaction: a compacted conversation retains context after host restart', async function () {
+		this.timeout(240_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('compact-restart');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-memory',
+			'Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".', 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-request', '/compact', 100);
+		await context.restartServer();
+		await initialize('compact-restored', workspace);
+		await context.client.call('subscribe', { channel: sessionUri });
+		await context.client.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const response = await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 1);
+		assert.strictEqual(response.responseText.trim(), 'PERSISTED_COMPACTION');
+	});
+
 	async function initialize(clientId: string, workingDirectory: string): Promise<void> {
 		context.client.setWorkingDirectory(workingDirectory);
 		await context.client.call('initialize', {
@@ -57,7 +104,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function createWorkspacelessSession(prefix: string): Promise<string> {
-		const clientWorkingDirectory = mkdtempSync(join(tmpdir(), `ahp-${prefix}-client-`));
+		const clientWorkingDirectory = createTestDirectory(join(tmpdir(), `ahp-${prefix}-client-`));
 		tempDirs.push(clientWorkingDirectory);
 		await initialize(`${prefix}-client`, clientWorkingDirectory);
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
@@ -74,7 +121,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function createWorkspaceSession(prefix: string, beforeCreateSession?: () => Promise<void>): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace), beforeCreateSession);
 		return { sessionUri, workspace };
@@ -417,7 +464,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('view range returns only the requested workspace lines', async function () {
+	fullOnlyTest('view range returns only the requested workspace lines', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('view-range');
 		writeFileSync(join(workspace, 'range.txt'), 'RANGE_ONE\nRANGE_TWO\nRANGE_THREE\nRANGE_FOUR\nRANGE_FIVE\n');
@@ -447,7 +494,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('grep searches workspace content through the provider tool', async function () {
+	fullOnlyTest('grep searches workspace content through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('grep-tool');
 		writeFileSync(join(workspace, 'needle.txt'), 'COPILOT_E2E_NEEDLE\n');
@@ -463,7 +510,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('glob finds a nested workspace file through the provider tool', async function () {
+	fullOnlyTest('glob finds a nested workspace file through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('glob-tool');
 		mkdirSync(join(workspace, 'nested'));
@@ -724,7 +771,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 
 	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'edited.txt'), 'before\n');

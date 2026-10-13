@@ -9,8 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsService, OpenSessionsInGridOutcome } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -19,7 +18,7 @@ import { SessionComparisonViewService } from '../../browser/sessionComparisonVie
 suite('Session comparison navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(gridOutcome = OpenSessionsInGridOutcome.Committed) {
+	function setup() {
 		const roles = [
 			SessionComparisonParticipantRole.Attempt,
 			SessionComparisonParticipantRole.Attempt,
@@ -49,7 +48,6 @@ suite('Session comparison navigation', () => {
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const openedSessions: string[] = [];
 		const openedGrids: string[][] = [];
-		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override comparisons = comparisons;
@@ -64,18 +62,12 @@ suite('Session comparison navigation', () => {
 			override async openSession(resource: URI): Promise<void> {
 				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
 			}
-			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<OpenSessionsInGridOutcome> {
+			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
 				openedGrids.push(targets.map(session => session.sessionId));
-				return gridOutcome;
-			}
-		}());
-		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
-			override setPartHidden(hidden: boolean, part: Parts): void {
-				hiddenParts.push({ hidden, part });
 			}
 		}());
 		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, statuses, openedSessions, openedGrids, hiddenParts };
+		return { service, comparisons, statuses, openedSessions, openedGrids };
 	}
 
 	test('opens attempts in the grid when the Judge is available', async () => {
@@ -84,14 +76,9 @@ suite('Session comparison navigation', () => {
 		assert.deepStrictEqual({
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
-			hiddenParts: fixture.hiddenParts,
 		}, {
 			openedSessions: [],
 			openedGrids: [['attempt-0', 'attempt-1']],
-			hiddenParts: [
-				{ hidden: true, part: Parts.EDITOR_PART },
-				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
-			],
 		});
 	});
 
@@ -124,14 +111,9 @@ suite('Session comparison navigation', () => {
 		assert.deepStrictEqual({
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
-			hiddenParts: fixture.hiddenParts,
 		}, {
 			openedSessions: [],
 			openedGrids: [['attempt-0']],
-			hiddenParts: [
-				{ hidden: true, part: Parts.EDITOR_PART },
-				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
-			],
 		});
 	});
 
@@ -148,23 +130,10 @@ suite('Session comparison navigation', () => {
 		assert.deepStrictEqual({
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
-			hiddenParts: fixture.hiddenParts,
 		}, {
 			openedSessions: [],
 			openedGrids: [],
-			hiddenParts: [],
 		});
 	});
 
-	test('does not hide panes when grid navigation is superseded', async () => {
-		const fixture = setup(OpenSessionsInGridOutcome.NotCommitted);
-		await fixture.service.open('comparison');
-		assert.deepStrictEqual({
-			openedGrids: fixture.openedGrids,
-			hiddenParts: fixture.hiddenParts,
-		}, {
-			openedGrids: [['attempt-0', 'attempt-1']],
-			hiddenParts: [],
-		});
-	});
 });

@@ -19,13 +19,30 @@ interface IChangesEditorFileStats {
 	readonly deletions: number;
 }
 
-export function getChangesEditorFileStats(resource: URI, changes: readonly ISessionFileChange[]): IChangesEditorFileStats | undefined {
-	const change = changes.find(change => {
+/**
+ * Returns the resource that identifies a change in the Changes editor. This is
+ * the file's own URI (not a content snapshot URI), and is defined for deleted
+ * files, whose `modifiedUri` is `undefined`.
+ */
+export function getChangesEditorFileResource(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
+/**
+ * Finds the change that `resource` refers to, matching the change's file URI
+ * as well as its original and modified (snapshot) URIs.
+ */
+export function findChangesEditorFileChange(resource: URI, changes: readonly ISessionFileChange[]): ISessionFileChange | undefined {
+	return changes.find(change => {
 		const resources = isIChatSessionFileChange2(change)
 			? [change.uri, change.modifiedUri, change.originalUri]
 			: [change.modifiedUri, change.originalUri];
 		return resources.some(candidate => candidate && isEqual(candidate, resource));
 	});
+}
+
+export function getChangesEditorFileStats(resource: URI, changes: readonly ISessionFileChange[]): IChangesEditorFileStats | undefined {
+	const change = findChangesEditorFileChange(resource, changes);
 	return change ? { insertions: change.insertions, deletions: change.deletions } : undefined;
 }
 

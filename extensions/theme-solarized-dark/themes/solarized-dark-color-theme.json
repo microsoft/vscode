@@ -335,8 +335,6 @@
 		"focusBorder": "#2AA19899",
 		// agent sessions
 		"agentsPanel.border": "#586E7566",
-		"agentsBottomPanel.border": "#00000000",
-		"agentsCard.border": "#00000000",
 		"agentsChatInput.border": "#586E7566",
 		"agentsChatInput.focusBorder": "#2AA19899",
 		"agentsNewSessionButton.border": "#586E7566",

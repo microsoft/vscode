@@ -31,9 +31,11 @@ A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` an
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
 | Installed Insiders, else Stable | *(none — the default)* | nothing | Reproducing a report against shipped behavior |
-| Dev build from this checkout | `--dev` | `npm run electron`, `npm run transpile-client` | Verifying an unmerged change |
+| Dev build from this checkout | `--dev` | Matching Electron runtime, `npm run build-fast` | Verifying an unmerged change |
 | A specific install | `--build <app-root>` | nothing | Pinning an exact build |
-| Web | `--web --headless` | `npm run transpile-client` | Browser-only behavior |
+| Web | `--web --headless` | `npm run build-fast -- --client-only` | Browser-only behavior |
+
+Reuse the matching Electron runtime when present; run `npm run electron` only when it is missing or incompatible. Fast builds refresh outputs without type checking; validate types separately when warranted.
 
 With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root — the install directory on Windows and Linux, or the `.app` bundle on macOS:
 
@@ -113,11 +115,14 @@ module.exports = {
 | `id`, `title` | Identify the run; `id` names the evidence directory |
 | `source` | Issue or test-plan item the scenario came from |
 | `workspacePath` | Disposable folder to open |
-| `userSettings` | Settings seeded into the profile before launch |
+| `userSettings` | Settings seeded into the profile before launch, including the built-in Agents profile when using `--agents` |
 | `extraArgs` | Extra VS Code command-line arguments |
+| `extraEnv` | Environment overrides for the launched app; `undefined` unsets a variable. Keep the automation runner's HOME unchanged and isolate application discovery with this field. |
 | `stepPauseMs` | How long to hold each finished step so its caption is readable. Defaults to `1000`; set `0` when the scenario is timing-sensitive |
 
 Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason, options)`. `workbench` exposes the feature helpers (`settingsEditor`, `quickaccess`, `editors`, `terminal`, `chat`, …); `page` is the Playwright page for anything they do not cover.
+
+Use `context.code.driver.resizeWindow({ width, height })` for responsive-layout scenarios. It resizes the current native Electron window (or the browser viewport on web) and returns the previous size for restoration.
 
 - **Return a string** describing how the step was validated. It appears in the report.
 - **Throw** to fail the step. The message is recorded, and the run stops.

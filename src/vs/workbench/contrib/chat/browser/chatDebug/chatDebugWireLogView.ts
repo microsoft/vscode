@@ -26,6 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -156,6 +157,7 @@ export class ChatDebugWireLogView extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IFileService private readonly fileService: IFileService,
@@ -280,6 +282,7 @@ export class ChatDebugWireLogView extends Disposable {
 		return {
 			pathService: this.pathService,
 			agentHostService: this.agentHostService,
+			agentHostConnectionsService: this.agentHostConnectionsService,
 			remoteAgentHostService: this.remoteAgentHostService,
 			outputService: this.outputService,
 			fileService: this.fileService,

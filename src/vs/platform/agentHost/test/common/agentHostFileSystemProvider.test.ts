@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
-import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
@@ -203,13 +203,101 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 	test('a content ref that is directly resolvable on the local connection stays unwrapped', () => {
 		const file = URI.file('/workspace/test.ts');
 		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+		const displayFile = URI.file('/repo/test.ts');
 
 		assert.deepStrictEqual({
 			file: toAgentHostContentUri(file, 'local').toString(),
 			remote: toAgentHostContentUri(remote, 'local').toString(),
+			fileWithLabel: toAgentHostContentUri(file, 'local', displayFile).toString(),
+			remoteWithLabel: toAgentHostContentUri(remote, 'local', displayFile).toString(),
 		}, {
 			file: file.toString(),
 			remote: remote.toString(),
+			fileWithLabel: file.toString(),
+			remoteWithLabel: remote.toString(),
+		});
+	});
+
+	test('content refs display file paths and preserve their original addresses after serialization', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const files = [
+			URI.parse('file:///repo/src/index.html'),
+			URI.parse('file:///repo/docs/index.html'),
+			URI.parse('file:///C:/repo/file%20name.ts'),
+		];
+		const wrapped = files.map(file => toAgentHostContentUri(content, 'remote-host', file));
+
+		assert.deepStrictEqual({
+			paths: wrapped.map(uri => uri.path),
+			unique: new Set(wrapped.map(uri => uri.toString())).size,
+			restored: wrapped.map(uri => {
+				const restored = URI.parse(uri.toString());
+				return {
+					contentRef: isAgentHostContentRefUri(restored),
+					content: fromAgentHostUri(restored).toString(),
+				};
+			}),
+		}, {
+			paths: ['/repo/src/index.html', '/repo/docs/index.html', '/C:/repo/file name.ts'],
+			unique: 3,
+			restored: files.map(() => ({ contentRef: true, content: content.toString() })),
+		});
+	});
+
+	test('file display paths preserve pathless content addresses', () => {
+		const content = URI.parse('opaque-content://store?revision=1');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', URI.file('/repo/index.html'));
+
+		assert.deepStrictEqual({
+			path: wrapped.path,
+			content: fromAgentHostUri(URI.parse(wrapped.toString())).toString(),
+		}, {
+			path: '/repo/index.html',
+			content: content.toString(),
+		});
+	});
+
+	test('preserves full file identities for snapshots with the same display path', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const file = URI.parse('file://first/repo/index.html?ref=main#L1');
+		const files = [
+			file,
+			file.with({ scheme: 'other-file' }),
+			file.with({ authority: 'second' }),
+			file.with({ query: 'ref=feature' }),
+			file.with({ fragment: 'L2' }),
+		];
+		const restored = files.map(file => URI.parse(toAgentHostContentUri(content, 'remote-host', file).toString()));
+
+		assert.deepStrictEqual({
+			paths: restored.map(uri => uri.path),
+			unique: new Set(restored.map(uri => uri.toString())).size,
+			content: restored.map(uri => fromAgentHostUri(uri).toString()),
+		}, {
+			paths: files.map(() => '/repo/index.html'),
+			unique: files.length,
+			content: files.map(() => content.toString()),
+		});
+	});
+
+	test('content refs with matching file paths retain local routing and content read-back', () => {
+		const file = URI.file('/repo/index.html');
+		const content = URI.parse('opaque-content:/repo/index.html');
+		const legacy = toAgentHostContentUri(content, 'remote-host');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', file);
+
+		assert.deepStrictEqual({
+			local: toAgentHostContentUri(file, 'local', file).toString(),
+			path: wrapped.path,
+			legacyContent: fromAgentHostUri(legacy).toString(),
+			content: fromAgentHostUri(wrapped).toString(),
+			distinct: legacy.toString() !== wrapped.toString(),
+		}, {
+			local: file.toString(),
+			path: file.path,
+			legacyContent: content.toString(),
+			content: content.toString(),
+			distinct: true,
 		});
 	});
 
@@ -647,6 +735,36 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		});
 	});
 
+	for (const authority of ['remote', 'local']) {
+		test(`reads the original content address when a ${authority} snapshot displays a different file path`, async () => {
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			const connection = new StubConnection();
+			disposables.add(provider.registerAuthority(authority, connection));
+			const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+			const wrapped = toAgentHostContentUri(content, authority, URI.file('/repo/index.html'));
+
+			const stat = await provider.stat(wrapped);
+			const path = await provider.realpath(wrapped);
+			const bytes = await provider.readFile(wrapped);
+
+			assert.deepStrictEqual({
+				path,
+				readonly: stat.permissions === FilePermission.Readonly,
+				content: VSBuffer.wrap(bytes).toString(),
+				resources: connection.readCalls.map(uri => uri.toString()),
+				resolved: connection.resolveCalls.length,
+				listed: connection.listCalls.length,
+			}, {
+				path: '/repo/index.html',
+				readonly: true,
+				content: 'stub-content',
+				resources: [content.toString()],
+				resolved: 0,
+				listed: 0,
+			});
+		});
+	}
+
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
 		const { provider, connection } = setup();
 		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
@@ -886,6 +1004,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		readonly mkdirCalls: ResourceMkdirParams[] = [];
 		readonly copyCalls: ResourceCopyParams[] = [];
 		readonly watchCalls: CreateResourceWatchParams[] = [];
+		onDidReconnect?: Event<void>;
 		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
 		watchError: unknown | undefined;
 		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
@@ -1146,6 +1265,110 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 				[[agentHostUri('remote', '/watched/a.txt').toString(), FileChangeType.UPDATED]],
 				[[agentHostUri('remote', '/watched/b.txt').toString(), FileChangeType.ADDED]],
 			],
+		});
+	});
+
+	test('watch discards a late setup result from before the same connection recovered', async () => {
+		const { provider, connection } = setup();
+		const reconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = reconnect.event;
+		const oldChanges = disposables.add(new Emitter<readonly IFileChange[]>());
+		const newChanges = disposables.add(new Emitter<readonly IFileChange[]>());
+		const setupResult = new DeferredPromise<IRemoteWatchHandle>();
+		let oldDisposed = 0;
+		let newDisposed = 0;
+		connection.watchResource = async params => {
+			connection.watchCalls.push(params);
+			return connection.watchCalls.length === 1 ? setupResult.p : {
+				onDidChange: newChanges.event,
+				dispose: () => { newDisposed++; },
+			};
+		};
+		const received: string[] = [];
+		disposables.add(provider.onDidChangeFile(changes => received.push(...changes.map(change => change.resource.toString()))));
+		const watch = disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		reconnect.fire();
+		setupResult.complete({ onDidChange: oldChanges.event, dispose: () => { oldDisposed++; } });
+		await timeout(0);
+		await timeout(0);
+		oldChanges.fire([{ resource: URI.file('/watched/stale.txt'), type: FileChangeType.UPDATED }]);
+		newChanges.fire([{ resource: URI.file('/watched/current.txt'), type: FileChangeType.UPDATED }]);
+		watch.dispose();
+		reconnect.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls: connection.watchCalls.length,
+			oldDisposed,
+			newDisposed,
+			received,
+		}, {
+			calls: 2,
+			oldDisposed: 1,
+			newDisposed: 1,
+			received: [agentHostUri('remote', '/watched/current.txt').toString()],
+		});
+	});
+
+	test('watch reports a failed recovery and retries on a later reconnect', async () => {
+		const { provider, connection } = setup();
+		const reconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = reconnect.event;
+		let firstDisposed = 0;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { firstDisposed++; } };
+		const errors: string[] = [];
+		disposables.add(provider.onDidWatchError(error => errors.push(error)));
+		const watch = disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		await timeout(0);
+		connection.watchError = new Error('Watch unavailable');
+		reconnect.fire();
+		await timeout(0);
+
+		connection.watchError = undefined;
+		let recoveredDisposed = 0;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { recoveredDisposed++; } };
+		reconnect.fire();
+		await timeout(0);
+		watch.dispose();
+
+		assert.deepStrictEqual({
+			calls: connection.watchCalls.length,
+			firstDisposed,
+			recoveredDisposed,
+			errors,
+		}, {
+			calls: 3,
+			firstDisposed: 1,
+			recoveredDisposed: 1,
+			errors: ['Watch unavailable'],
+		});
+	});
+
+	test('watch ignores reconnects from an authority connection that was replaced', async () => {
+		const { provider, connection } = setup();
+		const oldReconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = oldReconnect.event;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { } };
+		disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		await timeout(0);
+
+		const replacement = new FullConnection();
+		const newReconnect = disposables.add(new Emitter<void>());
+		replacement.onDidReconnect = newReconnect.event;
+		replacement.nextWatchHandle = { onDidChange: Event.None, dispose: () => { } };
+		disposables.add(provider.registerAuthority('remote', replacement));
+		await timeout(0);
+		oldReconnect.fire();
+		await timeout(0);
+		newReconnect.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			oldCalls: connection.watchCalls.length,
+			newCalls: replacement.watchCalls.length,
+		}, {
+			oldCalls: 1,
+			newCalls: 2,
 		});
 	});
 

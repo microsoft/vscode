@@ -11,6 +11,10 @@ import { IThemingParticipant, IThemingRegistry, Extensions as ThemingExtensions 
 import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 
+// Register shared product tokens before generating and caching any fixture theme CSS.
+import '../../../common/agentsColors.js';
+import '../../../common/agentsSizes.js';
+
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 const mockEnvironmentService: IEnvironmentService = Object.create(null);
 

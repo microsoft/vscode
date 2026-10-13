@@ -5,46 +5,66 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { IAction } from '../../../../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
+import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
-import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { ICanvas, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
+import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
+import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
+import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
+	override resourceUris = identityAgentHostResourceUriMapper;
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
 	readonly released: URI[] = [];
 	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
@@ -116,29 +136,43 @@ suite('AgentHostSessionInputPills', () => {
 	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
-			credentials: upcastPartial<IGitHubService['credentials']>({
-				onDidInvalidate: Event.None,
-				getCredential: () => new Promise(() => { }),
-			}),
+		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => new Promise(() => { }),
 		}));
+		instantiationService.stub(IChatArtifactsService, upcastPartial<IChatArtifactsService>({
+			getArtifacts: () => upcastPartial<IChatArtifacts>({ artifactGroups: constObservable([]) }),
+		}));
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
 		return instantiationService;
 	};
-	const createRichGitHubService = (disposed: string[]) => upcastPartial<IGitHubService>({
-		credentials: upcastPartial<IGitHubService['credentials']>({
-			onDidInvalidate: Event.None,
-			getCredential: async signal => ({
-				account: { host: 'github.com', accountId: 'test' },
-				token: 'token',
-				generation: 1,
-				signal,
+	const createRichGitHubService = (disposed: string[], options?: {
+		readonly credentialState?: { fail: boolean; calls: number };
+		readonly pullRequestSnapshots?: Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>;
+		readonly issueStates?: Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>;
+		readonly leases?: { acquired: number; released: number };
+	}) => {
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({
+				onDidInvalidate: Event.None,
+				getCredential: async signal => {
+					if (options?.credentialState) {
+						options.credentialState.calls++;
+						if (options.credentialState.fail) {
+							throw new Error('offline');
+						}
+					}
+					return {
+						account: { host: 'api.github.com', accountId: 'test' },
+						token: 'token',
+						generation: 1,
+						signal,
+					};
+				},
 			}),
-		}),
-		query: upcastPartial<IGitHubService['query']>({
-			subscribeIssue: ref => upcastPartial({
-				resource: {
-					ref,
-					state: constObservable({
+			query: upcastPartial<IGitHubClient['query']>({
+				subscribeIssue: ref => {
+					const state = observableValue<FragmentState<GitHubIssue>>(`issue.${ref.number}`, {
 						status: 'ready',
 						complete: true,
 						value: {
@@ -154,18 +188,19 @@ suite('AgentHostSessionInputPills', () => {
 							createdAt: '2026-09-01T12:00:00Z',
 							updatedAt: '2026-09-02T00:00:00Z',
 						},
-					}),
+					});
+					options?.issueStates?.set(ref.number, state);
+					return upcastPartial({
+						resource: { ref, state },
+						update: () => { },
+						refresh: async () => { },
+						dispose: () => disposed.push(`issue:${ref.number}`),
+					});
 				},
-				update: () => { },
-				refresh: async () => { },
-				dispose: () => disposed.push(`issue:${ref.number}`),
 			}),
-		}),
-		pullRequests: upcastPartial<IGitHubService['pullRequests']>({
-			subscribePullRequest: (ref): ReturnType<IGitHubService['pullRequests']['subscribePullRequest']> => upcastPartial({
-				resource: upcastPartial({
-					ref,
-					snapshot: constObservable(upcastPartial<PullRequestSnapshot>({
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+				subscribePullRequest: (ref): ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']> => {
+					const snapshot = observableValue<PullRequestSnapshot>(`pullRequestSnapshot.${ref.number}`, upcastPartial<PullRequestSnapshot>({
 						core: {
 							status: 'ready',
 							complete: true,
@@ -190,13 +225,696 @@ suite('AgentHostSessionInputPills', () => {
 							complete: true,
 							value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
 						},
-					})),
-				}),
-				update: () => { },
-				refresh: async () => { },
-				dispose: () => disposed.push(`pullRequest:${ref.number}`),
+					}));
+					options?.pullRequestSnapshots?.set(ref.number, snapshot);
+					return upcastPartial({
+						resource: upcastPartial({
+							ref,
+							snapshot,
+						}),
+						update: () => { },
+						refresh: async () => { },
+						dispose: () => disposed.push(`pullRequest:${ref.number}`),
+					});
+				},
 			}),
-		}),
+		});
+		return upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => {
+				if (!options?.leases) {
+					return new ImmortalReference(client);
+				}
+				const leases = options.leases;
+				leases.acquired++;
+				const release = toDisposable(() => leases.released++);
+				return { object: client, dispose: () => release.dispose() };
+			},
+		});
+	};
+
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }) {
+		const instantiationService = createInstantiationService();
+		if (transcript) {
+			instantiationService.stub(IChatArtifactsService, transcript.service);
+		}
+		if (gitHubService) {
+			instantiationService.stub(IGitHubService, gitHubService);
+		}
+		if (workbenchGitHubService) {
+			instantiationService.stub(IWorkbenchGitHubService, workbenchGitHubService);
+		}
+		const states = new Map<StateComponents, SessionState | ChatState>([[StateComponents.Session, initialSession]]);
+		if (initialChat) {
+			states.set(StateComponents.Chat, initialChat);
+		}
+		const connection = new StaticAgentConnection(states);
+		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
+		const sessionResource = URI.parse('agent-host-test:/session');
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		let inputFocused = false;
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: () => { },
+			focusInput: () => { inputFocused = true; },
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: () => transcript?.local ? undefined : ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42') }),
+		}));
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		}));
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, noProvisionalSessions);
+		instantiationService.stub(INotificationService, notificationService);
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		const openedImages: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		instantiationService.stub(IChatImageCarouselService, {
+			openCarouselAtResource: async (...args) => { openedImages.push(args); },
+		});
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({
+					id,
+					args: args.map(arg => {
+						if (arg && typeof arg === 'object') {
+							const revealUri: unknown = Reflect.get(arg, 'revealUri');
+							if (URI.isUri(revealUri)) {
+								return { ...arg, revealUri: revealUri.toString() };
+							}
+						}
+						return arg;
+					}),
+				});
+				return undefined;
+			},
+		}));
+		let dropdownItems: readonly { readonly label: string | undefined; readonly badge: string | undefined; readonly leading: boolean | undefined; readonly description: string | undefined; readonly icon: ThemeIcon | undefined; readonly hover: IActionListItem<object>['hover']; readonly toolbarActions: readonly IAction[]; select(): void }[] = [];
+		let hideDropdown = () => { };
+		const toDropdownItems = <T>(items: readonly IActionListItem<T>[], delegate?: IActionListDelegate<T>) => items.map(item => ({
+			label: item.label,
+			badge: item.badge,
+			leading: item.badgeBeforeLabel,
+			description: item.ariaDescription,
+			icon: item.group?.icon,
+			hover: item.hover,
+			toolbarActions: item.toolbarActions ?? [],
+			select: () => {
+				if (item.item) {
+					delegate?.onSelect(item.item);
+				}
+			},
+		}));
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items, delegate) => {
+				hideDropdown = () => delegate.onHide();
+				dropdownItems = toDropdownItems(items, delegate);
+			},
+			updateItems: items => { dropdownItems = toDropdownItems(items); },
+			hide: () => hideDropdown(),
+		}));
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+			},
+		});
+		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
+		return {
+			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills, openedImages,
+			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+			dropdownItems: () => dropdownItems,
+			dropdown: (label: string) => {
+				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
+				assert.ok(button, `Missing ${label} pill`);
+				button.click();
+				return dropdownItems;
+			},
+			menu: () => {
+				const row = persistentContent.querySelector<HTMLElement>('.chat-pills-row-content');
+				assert.ok(row);
+				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+				return menuActions;
+			},
+			showChat: (resource: string) => {
+				const previousSessionResource = viewModel.sessionResource;
+				const query = new URLSearchParams();
+				query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, resource);
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: sessionResource.with({ query: query.toString() }) });
+				viewModelChanged.fire({ previousSessionResource, currentSessionResource: viewModel.sessionResource });
+			},
+			showSession: (resource: URI) => {
+				const previousSessionResource = viewModel.sessionResource;
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
+				viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
+			},
+			showModel: (model: IChatModel) => {
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: viewModel.sessionResource, model });
+				viewModelChanged.fire({ previousSessionResource: viewModel.sessionResource, currentSessionResource: viewModel.sessionResource });
+			},
+			inputFocused: () => inputFocused,
+		};
+	}
+
+	for (const local of [false, true]) {
+		test(`generated images use the shared editor artifacts pill (${local ? 'local chat' : 'remote agent host'})`, async () => {
+			const uri = URI.parse('vscode-agent-host://remote/generated/image?version=1');
+			const name = 'generated-image-a1b2c3d4e5f6.jpg';
+			const artifactGroups = observableValue<readonly IArtifactSourceGroup[]>('artifacts', []);
+			const service = upcastPartial<IChatArtifactsService>({
+				getArtifacts: session => upcastPartial<IChatArtifacts>({
+					artifactGroups: session.path === '/session' ? artifactGroups : constObservable([]),
+				}),
+			});
+			const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }), undefined, undefined, 'remote', undefined, { service, local });
+			const before = harness.persistentContent.querySelectorAll('.chat-pill-button').length;
+			artifactGroups.set([{
+				source: { kind: 'rules' }, artifacts: [{
+					uri: uri.toString(), label: name, fileName: name, generatedImageMimeType: 'image/jpeg', groupName: 'Generated Images', type: 'screenshot',
+				}]
+			}], undefined);
+			const button = harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button');
+			assert.ok(button);
+			button.click();
+			await timeout(0);
+			const single = {
+				label: button.textContent,
+				legacyList: harness.persistentContent.querySelector('.chat-artifacts-widget'),
+				opened: harness.openedImages.map(([resource, , options]) => ({ uri: resource.toString(), session: options?.sessionResource?.toString() })),
+			};
+			artifactGroups.set([{
+				source: { kind: 'rules' }, artifacts: [0, 1].map(index => ({
+					uri: uri.with({ path: `/generated/image-${index}` }).toString(), label: `generated-${index}.jpg`, fileName: `generated-${index}.jpg`,
+					generatedImageMimeType: 'image/jpeg', groupName: 'Generated Images', type: 'screenshot',
+				}))
+			}], undefined);
+			const multiple = harness.dropdown('2 Artifacts').map(item => item.label);
+			harness.visibility.hide(SessionChatPillKind.Artifacts);
+			const hidden = harness.persistentContent.querySelectorAll('.chat-pill-button').length;
+			harness.visibility.toggle(SessionChatPillKind.Artifacts);
+			harness.showSession(URI.parse('another-chat:/empty'));
+			assert.deepStrictEqual({
+				before, single, multiple, hidden,
+				afterSwitch: harness.persistentContent.querySelectorAll('.chat-pill-button').length,
+			}, {
+				before: 0,
+				single: { label: name, legacyList: null, opened: [{ uri: uri.toString(), session: harness.sessionResource.toString() }] },
+				multiple: ['Generated Images', 'generated-0.jpg', 'generated-1.jpg'],
+				hidden: 0, afterSwitch: 0,
+			});
+		});
+	}
+
+	test('legacy artifact rules join the editor pill only when their setting is enabled', async () => {
+		const service = upcastPartial<IChatArtifactsService>({
+			getArtifacts: () => upcastPartial<IChatArtifacts>({
+				artifactGroups: constObservable([{ source: { kind: 'rules' }, artifacts: [{ uri: 'file:///plan.md', label: 'Plan', type: 'plan' }] }]),
+			}),
+		});
+		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }), undefined, undefined, 'local', undefined, { service, local: true });
+		const configuration = harness.instantiationService.get(IConfigurationService);
+		assert.ok(configuration instanceof TestConfigurationService);
+		const before = harness.persistentContent.querySelectorAll('.chat-pill-button').length;
+		await configuration.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === ChatConfiguration.ArtifactsEnabled }));
+		const enabled = harness.persistentContent.querySelector('.chat-resource-pill-button')?.textContent;
+		await configuration.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, false);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === ChatConfiguration.ArtifactsEnabled }));
+		assert.deepStrictEqual({ before, enabled, after: harness.persistentContent.querySelectorAll('.chat-pill-button').length }, { before: 0, enabled: 'Plan', after: 0 });
+	});
+
+	for (const opaque of [false, true]) {
+		test(`subagent chats retain their transcript artifact pill without session metadata (${opaque ? 'host-advertised' : 'canonical'} identity)`, async () => {
+			const backendSession = URI.parse('vendor:/sessions/42');
+			const mainChat = opaque ? 'vendor-chat:/conversations/main' : buildDefaultChatUri(backendSession);
+			const childChat = opaque ? 'vendor-chat:/workers/image-child' : buildSubagentChatUri(backendSession, 'image-child');
+			const emptyChat = opaque ? 'vendor-chat:/workers/empty-child' : buildSubagentChatUri(backendSession, 'empty-child');
+			const artifactGroups = observableValue<readonly IArtifactSourceGroup[]>('child artifacts', []);
+			const imageUri = URI.parse('vscode-agent-host://remote/generated/child-image?version=1');
+			const service = upcastPartial<IChatArtifactsService>({
+				getArtifacts: resource => upcastPartial<IChatArtifacts>({
+					artifactGroups: new URLSearchParams(resource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) === childChat
+						|| (!opaque && resource.fragment === 'subagent/image-child') ? artifactGroups : constObservable([]),
+				}),
+			});
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: mainChat,
+				chats: [childChat, emptyChat].map(resource => ({
+					resource, title: resource === childChat ? 'Images' : 'Empty', status: SessionStatus.Idle,
+					modifiedAt: '2026-10-09T00:00:00.000Z',
+					origin: { kind: ChatOriginKind.Tool, chat: mainChat, toolCallId: resource },
+				})),
+				_meta: withSessionArtifacts(undefined, [
+					{ id: 'parent-file', label: 'Session file', uri: 'file:///session.md', type: SessionArtifactType.File, isArtifact: true },
+					{ id: 'parent-reference', label: 'Session reference', uri: 'file:///reference.md', type: SessionArtifactType.File, isArtifact: false },
+				]),
+			}), undefined, undefined, 'remote', undefined, { service });
+			const parentLabels = harness.labels();
+			harness.showChat(childChat);
+			const emptyChildHidden = harness.persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden');
+			artifactGroups.set([{
+				source: { kind: 'rules' }, artifacts: [
+					{ label: 'child-image.jpg', uri: imageUri.toString(), type: 'screenshot', generatedImageMimeType: 'image/jpeg', groupName: 'Generated Images' },
+					{ label: 'Child plan', uri: 'file:///child-plan.md', type: 'plan' },
+				],
+			}], undefined);
+			const generatedOnly = [...harness.persistentContent.querySelectorAll('.chat-pill-button')].map(button => button.textContent);
+			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			await timeout(0);
+			const configuration = harness.instantiationService.get(IConfigurationService);
+			assert.ok(configuration instanceof TestConfigurationService);
+			await configuration.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === ChatConfiguration.ArtifactsEnabled }));
+			const childArtifacts = harness.dropdown('2 Artifacts').map(item => item.label).filter(Boolean);
+			const offeredKinds = harness.menu().filter(action => action.id.startsWith('chatInputPills.toggle.')).map(action => action.id);
+			harness.visibility.hide(SessionChatPillKind.Artifacts);
+			const hiddenByUser = harness.persistentContent.querySelectorAll('.chat-pill-button').length;
+			harness.visibility.toggle(SessionChatPillKind.Artifacts);
+			harness.showChat(emptyChat);
+			const siblingHidden = harness.persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden');
+			harness.showSession(harness.sessionResource);
+			const parentRestored = harness.labels();
+			if (opaque) {
+				harness.showChat(childChat);
+			} else {
+				harness.showSession(harness.sessionResource.with({ fragment: 'subagent/image-child' }));
+			}
+			const childRestored = harness.dropdown('2 Artifacts').map(item => item.label).filter(Boolean);
+			const query = new URLSearchParams();
+			query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
+			assert.deepStrictEqual({
+				emptyChildHidden, generatedOnly, childArtifacts, offeredKinds, hiddenByUser, siblingHidden, parentRestored, childRestored,
+				opened: harness.openedImages.map(([uri, , options]) => ({ uri: uri.toString(), session: options?.sessionResource?.toString() })),
+			}, {
+				emptyChildHidden: true, generatedOnly: ['child-image.jpg'],
+				childArtifacts: ['Generated Images', 'child-image.jpg', 'Files', 'Child plan'],
+				offeredKinds: ['chatInputPills.toggle.artifacts'], hiddenByUser: 0, siblingHidden: true, parentRestored: parentLabels,
+				childRestored: ['Generated Images', 'child-image.jpg', 'Files', 'Child plan'],
+				opened: [{ uri: imageUri.toString(), session: harness.sessionResource.with({ query: query.toString() }).toString() }],
+			});
+		});
+	}
+
+	test('generated image presentation replaces a duplicate recorded remote file in the same pill', () => {
+		const remoteUri = URI.parse('vendor-file://workspace/generated/image.jpeg?version=1');
+		const uri = toAgentHostUri(remoteUri, 'remote');
+		const name = 'generated-image-a1b2c3d4e5f6.jpg';
+		const service = upcastPartial<IChatArtifactsService>({
+			getArtifacts: () => upcastPartial<IChatArtifacts>({
+				artifactGroups: constObservable([{
+					source: { kind: 'rules' }, artifacts: [{
+						label: name, fileName: name, uri: uri.toString(), type: 'screenshot', generatedImageMimeType: 'image/jpeg', groupName: 'Generated Images',
+					}]
+				}]),
+			}),
+		});
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [{ id: 'recorded', label: 'Old name', uri: remoteUri.toString(), type: SessionArtifactType.File, isArtifact: true }]),
+		}), undefined, undefined, 'remote', undefined, { service });
+		assert.deepStrictEqual({
+			resources: [...harness.persistentContent.querySelectorAll('.chat-resource-pill-button')].map(button => button.textContent),
+			collections: harness.persistentContent.querySelectorAll('.chat-dropdown-pill-button').length,
+		}, { resources: [name], collections: 0 });
+	});
+
+	test('opens single subagent input pills and every dropdown entry to the side', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const children: ChatSummary[] = [
+			{ title: 'Running', status: SessionStatus.InProgress },
+			{ title: 'Waiting', status: SessionStatus.InputNeeded },
+			{ title: 'Completed', status: SessionStatus.Idle },
+		].map(({ title, status }) => ({
+			resource: `vendor-chat:/workers/${title}`,
+			title,
+			status,
+			modifiedAt: '2026-09-01T00:00:00.000Z',
+			origin: { kind: ChatOriginKind.Tool, chat: mainChat, toolCallId: title },
+		}));
+		const session = upcastPartial<SessionState>({ defaultChat: mainChat, chats: [children[0]] });
+		const harness = createActivityPills(session);
+		const opened: Parameters<IChatWidgetService['openSession']>[] = [];
+		harness.instantiationService.stub(IChatWidgetService, {
+			openSession: async (...args) => {
+				opened.push(args);
+				return undefined;
+			},
+		});
+		const executeCommand: ICommandService['executeCommand'] = async (id, ...args) => {
+			const command = CommandsRegistry.getCommand(id);
+			assert.ok(command);
+			await harness.instantiationService.invokeFunction(command.handler, ...args);
+			return undefined;
+		};
+		harness.instantiationService.stub(ICommandService, harness.instantiationService.get(ICommandService), 'executeCommand', executeCommand);
+		harness.visibility.toggle(SessionChatPillKind.Subagents);
+		const singleLabels = harness.labels();
+		harness.dropdown('Running');
+		await timeout(0);
+		harness.connection.setState(StateComponents.Session, { ...session, chats: children });
+		const multipleLabels = harness.labels();
+		for (const child of children) {
+			const entry = harness.dropdown('3 Subagents').find(item => item.label === child.title);
+			assert.ok(entry);
+			entry.select();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+			singleLabels: ['Running'],
+			multipleLabels: ['3 Subagents'],
+			opened: [children[0], ...children].map(child => [
+				getSubagentEditorResource({ chatResource: child.resource, parentSessionResource: harness.sessionResource.toString() }),
+				SIDE_GROUP,
+				{ pinned: true, revealIfOpened: true, title: { preferred: child.title } },
+			]),
+		});
+	});
+
+	test('offers sourced shared kinds and live subagents for host-advertised chat identities', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const otherChat = 'vendor-chat:/conversations/other';
+		const child = (id: string, status: SessionStatus, parent = mainChat): ChatSummary => ({
+			resource: `vendor-chat:/workers/${id}`,
+			title: id,
+			status,
+			modifiedAt: '2026-09-01T00:00:00.000Z',
+			origin: { kind: ChatOriginKind.Tool, chat: parent, toolCallId: id },
+		});
+		const session = upcastPartial<SessionState>({
+			defaultChat: mainChat,
+			chats: [
+				child('Running', SessionStatus.InProgress | SessionStatus.IsRead),
+				child('Completed', SessionStatus.Idle),
+				child('Waiting', SessionStatus.InputNeeded),
+				child('Other chat worker', SessionStatus.InProgress, otherChat),
+				child('Nested worker', SessionStatus.InProgress, 'vendor-chat:/workers/Running'),
+				{ ...child('Fork', SessionStatus.InProgress), origin: { kind: ChatOriginKind.User } },
+			],
+		});
+		const harness = createActivityPills(session);
+		const hiddenByDefault = harness.labels();
+		const menu = harness.menu();
+		await menu.find(action => action.id === 'chatInputPills.toggle.subagents')?.run();
+		const labels = harness.labels();
+		const dropdown = harness.dropdown('3 Subagents');
+		dropdown.find(item => item.label === 'Waiting')?.select();
+		await timeout(0);
+		const options = harness.menu().find(action => action instanceof SubmenuAction && action.label === 'Subagent Options');
+		assert.ok(options instanceof SubmenuAction);
+		await options.actions.find(action => action.label === 'Show In Progress')?.run();
+		const activeLabels = harness.labels();
+		const updatedSession = {
+			...session,
+			chats: session.chats.map(chat => ({ ...chat, status: SessionStatus.Idle })),
+		};
+		harness.connection.setState(StateComponents.Session, updatedSession);
+		const filteredLabels = harness.labels();
+		const recovery = harness.menu().find(action => action instanceof SubmenuAction && action.label === 'Subagent Options');
+		assert.ok(recovery instanceof SubmenuAction);
+		await recovery.actions.find(action => action.label === 'Show All')?.run();
+		const restoredLabels = harness.labels();
+		harness.showChat(otherChat);
+		const siblingLabels = harness.labels();
+		harness.showChat('vendor-chat:/workers/Running');
+		const subagentLabels = harness.labels();
+		harness.showChat(mainChat);
+		harness.persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.focus();
+		harness.connection.setState(StateComponents.Session, { ...session, chats: [] });
+		await timeout(0);
+		harness.pills.dispose();
+
+		assert.deepStrictEqual({
+			hiddenByDefault,
+			offeredKinds: menu.filter(action => action.id.startsWith('chatInputPills.toggle.')).map(action => action.id.slice('chatInputPills.toggle.'.length)).sort(),
+			labels,
+			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			commands: harness.commands,
+			activeLabels,
+			filteredLabels,
+			restoredLabels,
+			siblingLabels,
+			subagentLabels,
+			inputFocusedAfterRemoval: harness.inputFocused(),
+			releasedSubscriptions: harness.connection.released.length === harness.connection.requested.length,
+		}, {
+			hiddenByDefault: [],
+			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes && kind !== SessionChatPillKind.Canvases).sort(),
+			labels: ['3 Subagents'],
+			dropdown: ['Subagents: In Progress', 'Waiting', 'Running', 'Subagents: Completed', 'Completed'],
+			commands: [{
+				id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+				args: [{ chatResource: 'vendor-chat:/workers/Waiting', parentSessionResource: harness.sessionResource.toString(), title: 'Waiting' }],
+			}],
+			activeLabels: ['2 Subagents'],
+			filteredLabels: [],
+			restoredLabels: ['3 Subagents'],
+			siblingLabels: ['Other chat worker'],
+			subagentLabels: [],
+			inputFocusedAfterRemoval: true,
+			releasedSubscriptions: true,
+		});
+	});
+
+	test('shows the chat\'s live canvases and reveals the selected canvas', async () => {
+		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));
+		const configuration = harness.instantiationService.get(IConfigurationService);
+		assert.ok(configuration instanceof TestConfigurationService);
+		const canvas = (id: string, title: string, source?: string): ICanvas => ({
+			resource: URI.parse(`agent-host-canvas:/${id}`),
+			instanceId: id,
+			title,
+			source: source ? URI.parse(source) : undefined,
+		});
+		const preview = canvas('preview', 'Preview', 'https://example.test/preview');
+		const pending = canvas('pending', 'Pending');
+		const dashboard = canvas('dashboard', 'Dashboard', 'https://example.test/dashboard');
+		const owner = { providerId: 'local/copilotcli', session: URI.parse('ahp-session:/42'), chat: URI.parse('ahp-session:/42/chats/main') };
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [preview, pending]);
+		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases }) }));
+		const disabled = harness.labels();
+		await configuration.setUserConfiguration(CanvasesEnabledSettingId, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CanvasesEnabledSettingId }));
+		const single = {
+			labels: harness.labels(),
+			ariaLabel: harness.persistentContent.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+		};
+		const offersToggle = harness.menu().some(action => action.id === 'chatInputPills.toggle.canvases');
+		canvases.set([preview, pending, dashboard], undefined);
+		const dropdown = harness.dropdown('2 Canvases');
+		dropdown.find(item => item.label === dashboard.title)?.select();
+		harness.showModel(upcastPartial<IChatModel>({}));
+
+		assert.deepStrictEqual({
+			disabled,
+			single,
+			offersToggle,
+			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			commands: harness.commands,
+			withoutCanvasContext: harness.labels(),
+		}, {
+			disabled: [],
+			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview' },
+			offersToggle: true,
+			dropdown: ['Canvases', 'Preview', 'Dashboard'],
+			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
+			withoutCanvasContext: [],
+		});
+	});
+
+	test('shows only used customizations and resets parsing when navigating between chats', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const otherChat = 'vendor-chat:/conversations/other';
+		const skillUri = URI.file('/repo/.github/skills/review/SKILL.md');
+		const instructionUri = URI.file('/repo/.github/instructions/tests.instructions.md');
+		const session = upcastPartial<SessionState>({
+			defaultChat: mainChat,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: [{
+				id: 'skills',
+				type: CustomizationType.Directory,
+				name: 'Skills',
+				uri: URI.file('/repo/.github').toString(),
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: true,
+				children: [
+					{ id: 'review', type: CustomizationType.Skill, name: 'review', uri: skillUri.toString() },
+					{ id: 'tests', type: CustomizationType.Rule, name: 'writing-tests', uri: instructionUri.toString() },
+					{ id: 'unused', type: CustomizationType.Skill, name: 'unused', uri: URI.file('/repo/.github/skills/unused/SKILL.md').toString() },
+				],
+			}],
+		});
+		const chatState = (resource: string, toolName: string, toolInput: string) => upcastPartial<ChatState>({
+			resource,
+			turns: [upcastPartial<Turn>({
+				id: 'shared-turn-id',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool',
+						toolName,
+						displayName: toolName,
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: toolName,
+						pastTenseMessage: toolName,
+						success: true,
+						toolInput,
+					},
+				}],
+			})],
+		});
+		const harness = createActivityPills(session, chatState(mainChat, 'skill', '{"skill":"review"}'));
+		const hiddenByDefault = harness.labels();
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const initialLabels = harness.labels();
+		const skillDropdown = harness.dropdown('1 Customization');
+		skillDropdown.find(item => item.label === 'review')?.select();
+		await timeout(0);
+		harness.connection.setState(StateComponents.Chat, chatState(otherChat, 'read', '{"path":".github/instructions/tests.instructions.md"}'));
+		harness.showChat(otherChat);
+		const instructionDropdown = harness.dropdown('1 Customization');
+		instructionDropdown.find(item => item.label === 'writing-tests')?.select();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hiddenByDefault,
+			initialLabels,
+			skillDropdown: skillDropdown.map(item => ({ label: item.label, description: item.description })),
+			instructionDropdown: instructionDropdown.map(item => ({ label: item.label, description: item.description })),
+			commands: harness.commands,
+		}, {
+			hiddenByDefault: [],
+			initialLabels: ['1 Customization'],
+			skillDropdown: [
+				{ label: 'Skills', description: undefined },
+				{ label: 'review', description: '.github/skills/review/SKILL.md' },
+			],
+			instructionDropdown: [
+				{ label: 'Instructions', description: undefined },
+				{ label: 'writing-tests', description: '.github/instructions/tests.instructions.md' },
+			],
+			commands: [
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Skills, revealUri: skillUri.toString() }] },
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Instructions, revealUri: instructionUri.toString() }] },
+			],
+		});
+	});
+
+	test('reveals remote host customizations without remapping client or synced resources', async () => {
+		const chatResource = 'vendor-chat:/conversations/main';
+		const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
+		const clientUri = URI.file('/client/skills/client/SKILL.md');
+		const syncedUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle/skills/synced/SKILL.md' });
+		const skills = [
+			{ id: 'host', uri: hostUri, clientId: undefined },
+			{ id: 'client', uri: clientUri, clientId: 'test-client' },
+			{ id: 'synced', uri: syncedUri, clientId: undefined },
+		];
+		const session = upcastPartial<SessionState>({
+			defaultChat: chatResource,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: skills.map(skill => ({
+				id: `${skill.id}-container`,
+				type: CustomizationType.Directory,
+				name: skill.id,
+				uri: dirname(skill.uri).toString(),
+				clientId: skill.clientId,
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: false,
+				children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
+			})),
+		});
+		const chat = upcastPartial<ChatState>({
+			resource: chatResource,
+			turns: [upcastPartial<Turn>({
+				id: 'turn',
+				responseParts: skills.map(skill => ({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: skill.id,
+						toolName: skill.id === 'host' ? 'view' : 'skill',
+						displayName: skill.id,
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: skill.id,
+						pastTenseMessage: skill.id,
+						success: true,
+						toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
+					},
+				})),
+			})],
+		});
+		const harness = createActivityPills(session, chat, undefined, 'remote-server');
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
+		for (const entry of entries) {
+			entry.select();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
+			commands: harness.commands,
+		}, {
+			entries: [
+				{ label: 'host', description: '.github/skills/host/SKILL.md' },
+				{ label: 'client', description: clientUri.fsPath },
+				{ label: 'synced', description: syncedUri.toString(true) },
+			],
+			commands: [toAgentHostUri(hostUri, 'remote-server'), clientUri, syncedUri].map(uri => ({
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Skills, revealUri: uri.toString() }],
+			})),
+		});
+	});
+
+	test('matches the Agents Window aggregate issue status icon', async () => {
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/conversations/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [1, 2].map(number => ({
+				id: `issue-${number}`,
+				type: SessionArtifactType.Issue,
+				label: `Issue ${number}`,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+				isGitHub: true,
+				isArtifact: true,
+			}))),
+		}), undefined, createRichGitHubService([]));
+		const icon = () => harness.persistentContent.querySelector<HTMLElement>('.chat-pill-icon');
+		const pending = { open: icon()?.classList.contains('codicon-issue-opened'), color: icon()?.style.color };
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pending,
+			labels: harness.labels(),
+			closed: icon()?.classList.contains('codicon-issue-closed'),
+			color: icon()?.style.color,
+		}, {
+			pending: { open: true, color: 'var(--vscode-charts-green)' },
+			labels: ['2 Issues'],
+			closed: true,
+			color: 'var(--vscode-charts-purple)',
+		});
 	});
 
 	test('Back to an untitled draft does not subscribe to its UI identity', () => {
@@ -249,6 +967,7 @@ suite('AgentHostSessionInputPills', () => {
 			provisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -293,6 +1012,7 @@ suite('AgentHostSessionInputPills', () => {
 			{ id: 'created-pr', type: SessionArtifactType.PullRequest, label: 'Created PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
 			{ id: 'untitled-pr', type: SessionArtifactType.PullRequest, label: '', link: 'https://github.com/microsoft/vscode/pull/3', isGitHub: true, isArtifact: true },
 			{ id: 'duplicate-pr', type: SessionArtifactType.PullRequest, label: 'Existing PR', link: 'https://github.com/microsoft/vscode/pull/1/', isGitHub: true, isArtifact: false },
+			{ id: 'pr-reference', type: SessionArtifactType.PullRequest, label: 'Related PR', link: 'https://github.com/microsoft/vscode/pull/4', isGitHub: true, isArtifact: false },
 			{ id: 'created-issue', type: SessionArtifactType.Issue, label: 'Created Issue', link: 'https://github.com/microsoft/vscode/issues/3', isGitHub: true, isArtifact: true },
 			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Related Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
 			{ id: 'website', type: SessionArtifactType.Website, label: 'Preview', link: 'https://example.com', isArtifact: true },
@@ -332,8 +1052,197 @@ suite('AgentHostSessionInputPills', () => {
 			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
 			issueArtifactIds: [['https://github.com/microsoft/vscode/issues/3', 'created-issue']],
 			artifactIds: ['website'],
-			// Newest first: `resource` was recorded after `issue-reference`.
-			referenceIds: ['resource', 'issue-reference'],
+			// Only artifacts are promoted; references stay listed newest first, even when the pull request pill shows their link.
+			referenceIds: ['resource', 'issue-reference', 'pr-reference', 'duplicate-pr'],
+		});
+	});
+
+	test('uses the same ID-first rows in editor PR, issue, and reference collections', async () => {
+		const artifacts: ISessionArtifact[] = [
+			...[2, 3].map(number => ({
+				id: `pr-${number}`, type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/pull/${number}`,
+			})),
+			...[4, 5].map(number => ({
+				id: `issue-${number}`, type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+			})),
+			{ id: 'pr-reference', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/issues/4' },
+		];
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([]));
+		await timeout(0);
+		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({ label: entry.label, badge: entry.badge, leading: entry.leading });
+		const pr = activity.dropdown('Pull Requests').find(entry => entry.badge === '#2')!;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		const issue = activity.dropdown('Issues').find(entry => entry.badge === '#4')!;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('References');
+		await timeout(0);
+		const references = activity.dropdownItems();
+		assert.deepStrictEqual({
+			pullRequest: [pr, references.find(entry => entry.badge === '#2')!].map(row),
+			issue: [issue, references.find(entry => entry.badge === '#4')!].map(row),
+		}, {
+			pullRequest: Array.from({ length: 2 }, () => ({ label: 'Live pull request 2', badge: '#2', leading: true })),
+			issue: Array.from({ length: 2 }, () => ({ label: 'Live issue title', badge: '#4', leading: true })),
+		});
+	});
+
+	test('updates a dedicated editor issue hover status in place while keeping its title and focus', async () => {
+		const issueStates = new Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>();
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [4, 5].map(number => ({
+				id: `issue-${number}`, type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+			}))),
+		}), undefined, undefined, 'local', createRichGitHubService([], { issueStates }));
+		await timeout(0);
+		const state = issueStates.get(4);
+		assert.ok(state?.get().value);
+		state.set({ ...state.get(), value: { ...state.get().value!, state: 'open', stateReason: undefined } }, undefined);
+		await timeout(0);
+		const first = activity.dropdown('Issues').find(item => item.badge === '#4')!.hover!;
+		assert.ok(typeof first.content === 'function');
+		const element = first.content();
+		assert.ok(element instanceof HTMLElement);
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const control = first.getTabbableElements?.()[1]!;
+		control.focus();
+		state.set({
+			...state.get(), value: { ...state.get().value!, title: 'Renamed issue', state: 'closed', stateReason: 'completed' },
+		}, undefined);
+		await timeout(0);
+		const updated = activity.dropdownItems().find(item => item.badge === '#4')!.hover!;
+		assert.deepStrictEqual({
+			sameDescriptor: first === updated,
+			sameControl: updated.getTabbableElements?.()[1] === control,
+			focusPreserved: document.activeElement === control,
+			title: element.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
+			status: element.querySelector('.sessions-issue-hover-status-label')?.textContent,
+			statusKind: element.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+		}, {
+			sameDescriptor: true, sameControl: true, focusPreserved: true,
+			title: 'Live issue title', status: 'Closed', statusKind: 'closed',
+		});
+	});
+
+	test('promotes rich GitHub reference details on hover intent using the existing client lease', async () => {
+		const credentialState = { fail: false, calls: 0 };
+		const activity = createActivityPills({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [{
+				id: 'reference',
+				type: SessionArtifactType.PullRequest,
+				label: 'Related pull request',
+				link: 'https://github.com/microsoft/vscode/pull/2',
+				isGitHub: true,
+				isArtifact: false,
+			}]),
+		} as unknown as SessionState, undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
+		await timeout(0);
+
+		const beforeHover = credentialState.calls;
+		const entry = activity.dropdown('Reference').find(item => item.label === 'Related pull request');
+		const content = entry?.hover?.content;
+		const hoverElement = typeof content === 'function' ? content() : undefined;
+		await timeout(0);
+		const resolvedEntry = activity.dropdownItems().find(item => item.label === 'Live pull request 2');
+		const resolvedContent = resolvedEntry?.hover?.content;
+
+		assert.deepStrictEqual({
+			beforeHover,
+			afterHover: credentialState.calls,
+			resolvedLabel: resolvedEntry?.label,
+			preservedHover: typeof resolvedContent === 'function' && resolvedContent() === hoverElement,
+			className: hoverElement?.className,
+			text: hoverElement?.textContent,
+			labels: activity.labels(),
+		}, {
+			beforeHover: 0,
+			afterHover: 1,
+			resolvedLabel: 'Live pull request 2',
+			preservedHover: true,
+			className: 'chat-pill-hover-content sessions-pr-hover compact',
+			text: 'microsoft/vscodeon Sep 1Live pull request 2 #2OpenLive pull request bodymain←feature@pr-author opened this pull request',
+			labels: ['1 Reference'],
+		});
+	});
+
+	test('updates cold reference status icons when metadata resolves and keeps them on reopening', async () => {
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'pr', type: SessionArtifactType.PullRequest, label: 'Pull Request', link: 'https://github.com/microsoft/vscode/pull/335387', isGitHub: true, isArtifact: false },
+				{ id: 'issue', type: SessionArtifactType.Issue, label: 'Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
+			]),
+		}), undefined, undefined, 'local', createRichGitHubService([]));
+		const rows = () => activity.dropdownItems().filter(entry => entry.badge).map(entry => ({
+			badge: entry.badge, label: entry.label, icon: entry.icon?.id, color: entry.icon?.color?.id,
+		}));
+		activity.dropdown('References');
+		const cold = rows();
+		await timeout(0);
+		const resolved = rows();
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('References');
+		const reopened = rows();
+		const expected = [
+			{ badge: '#335387', label: 'Live pull request 335387', icon: 'git-pull-request-done', color: 'charts.purple' },
+			{ badge: '#4', label: 'Live issue title', icon: 'issue-closed', color: 'charts.purple' },
+		];
+		assert.deepStrictEqual({ cold, resolved, reopened }, {
+			cold: [
+				{ badge: '#335387', label: 'Pull Request', icon: 'git-pull-request', color: undefined },
+				{ badge: '#4', label: 'Issue', icon: 'issues', color: undefined },
+			],
+			resolved: expected,
+			reopened: expected,
+		});
+	});
+
+	test('keeps recorded reference labels when GitHub metadata fails', async () => {
+		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, links.map((link, index) => ({
+				id: `reference-${index}`, type: index === 0 ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
+				label: 'Related item', link, isGitHub: true, isArtifact: false,
+			}))),
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		activity.dropdown('Reference');
+		await timeout(0);
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label === 'Related item').map(item => ({
+			label: item.label, description: item.description,
+		})), links.map(description => ({ label: 'Related item', description })));
+	});
+
+	test('warms new reference titles before dropdown or hover intent', async () => {
+		const credentialState = { fail: false, calls: 0 };
+		const reference = (id: string): ISessionArtifact => ({
+			id, type: SessionArtifactType.PullRequest, label: `Recorded PR ${id}`,
+			link: `https://github.com/microsoft/vscode/pull/${id}`, isGitHub: true, isArtifact: false,
+		});
+		const session = upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [reference('1')]),
+		});
+		const activity = createActivityPills(session, undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
+		await timeout(0);
+		const initial = credentialState.calls;
+		activity.connection.setState(StateComponents.Session, { ...session, _meta: withSessionArtifacts(undefined, [reference('1'), reference('2')]) });
+		await timeout(0);
+		const warmed = credentialState.calls;
+		const entries = activity.dropdown('References');
+		assert.deepStrictEqual({ initial, warmed, labels: entries.filter(entry => entry.label?.includes('PR') || entry.label?.includes('pull request')).map(entry => entry.label) }, {
+			initial: 0, warmed: 1, labels: ['Live pull request 2', 'Recorded PR 1'],
 		});
 	});
 
@@ -421,7 +1330,10 @@ suite('AgentHostSessionInputPills', () => {
 	test('renders rich GitHub metadata in editor session pills', async () => {
 		const instantiationService = createInstantiationService();
 		const disposedSubscriptions: string[] = [];
-		instantiationService.stub(IGitHubService, createRichGitHubService(disposedSubscriptions));
+		const credentialState = { fail: false, calls: 0 };
+		const leases = { acquired: 0, released: 0 };
+		const pullRequestSnapshots = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
+		instantiationService.stub(IWorkbenchGitHubService, createRichGitHubService(disposedSubscriptions, { credentialState, pullRequestSnapshots, leases }));
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
@@ -490,7 +1402,9 @@ suite('AgentHostSessionInputPills', () => {
 				dropdownItems = items as readonly IActionListItem<object>[];
 			},
 			hide: () => { },
-			updateItems: () => { },
+			updateItems: items => {
+				dropdownItems = items as readonly IActionListItem<object>[];
+			},
 			focusItemById: () => { },
 		}));
 		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
@@ -514,17 +1428,68 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		await timeout(0);
 
 		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
 		const [pullRequestButton, issueButton] = buttons;
+		const pullRequestSnapshot = pullRequestSnapshots.get(332982)!;
+		const currentSnapshot = pullRequestSnapshot.get();
+		pullRequestSnapshot.set({
+			...currentSnapshot,
+			checks: {
+				status: 'ready',
+				complete: true,
+				value: {
+					headSha: 'head',
+					checks: [{ id: 'check', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+					requirednessComplete: true,
+					expectedSuites: [],
+					expectedSuitesComplete: true,
+				},
+			},
+		}, undefined);
+		await timeout(0);
 		pullRequestButton?.click();
+		const checksDescription = dropdownItems.find(item => item.item && (item.item as { id?: string }).id?.endsWith('/332982'))?.ariaDescription;
+		pullRequestSnapshot.set({
+			...pullRequestSnapshot.get(),
+			core: {
+				...pullRequestSnapshot.get().core,
+				value: {
+					...pullRequestSnapshot.get().core.value!,
+					headSha: 'new-head',
+				},
+			},
+		}, undefined);
+		await timeout(0);
+		const staleChecksDescription = dropdownItems.find(item => item.item && (item.item as { id?: string }).id?.endsWith('/332982'))?.ariaDescription;
 		const pullRequestDropdownItems = dropdownItems;
-		const pullRequestHover = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function')?.hover?.content;
+		const pullRequestHoverItem = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function');
+		const pullRequestHover = pullRequestHoverItem?.hover?.content;
 		const pullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
-		const pullRequestHoverCache = Reflect.get(pills, '_pullRequestHoverCache') as ReadonlyMap<string, object>;
+		if (pullRequestHoverElement instanceof HTMLElement) {
+			document.body.appendChild(pullRequestHoverElement);
+			store.add(toDisposable(() => pullRequestHoverElement.remove()));
+		}
+		const focusedControl = pullRequestHoverItem?.hover?.getTabbableElements?.()[0];
+		focusedControl?.focus();
+		const refreshedPullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
+		const refreshedFocusedControl = pullRequestHoverItem?.hover?.getTabbableElements?.()[0];
+		const pullRequestHoverCache = Reflect.get(Reflect.get(pills, '_pullRequestHoverCache'), '_entries') as ReadonlyMap<string, object>;
 		const cachedHoverCount = pullRequestHoverCache.size;
+		const gitHubReferenceResolver = Reflect.get(pills, '_gitHubReferenceResolver') as {
+			getIssue(target: { owner: string; repo: string; number: number }): IObservable<{ title: string } | undefined>;
+			getPullRequest(target: { owner: string; repo: string; number: number }): void;
+			retain(issues: readonly { owner: string; repo: string; number: number }[], pullRequests: readonly { owner: string; repo: string; number: number }[]): void;
+		};
+		credentialState.fail = true;
+		const recoveredIssue = gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 999 });
+		await timeout(0);
+		credentialState.fail = false;
+		gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 999 });
+		await timeout(0);
 		issueButton?.click();
 		const removePullRequest = pullRequestDropdownItems.flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Remove '));
 		await removePullRequest?.run();
@@ -541,6 +1506,8 @@ suite('AgentHostSessionInputPills', () => {
 				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
 				ariaLabel: issueButton?.getAttribute('aria-label'),
 				ariaDescription: issueButton?.getAttribute('aria-description'),
+				closed: issueButton?.querySelector('.chat-pill-icon')?.classList.contains('codicon-issue-closed'),
+				color: issueButton?.querySelector<HTMLElement>('.chat-pill-icon')?.style.color,
 			},
 			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 			removed: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
@@ -557,6 +1524,17 @@ suite('AgentHostSessionInputPills', () => {
 			disposedSubscriptions: disposedSubscriptions.sort(),
 			cachedHoverCount,
 			retainedHoverCount: pullRequestHoverCache.size,
+			checksDescription,
+			staleChecksDescription,
+			credentialRecovery: {
+				calls: credentialState.calls,
+				title: recoveredIssue.get()?.title,
+			},
+			hoverRefresh: {
+				rootPreserved: refreshedPullRequestHoverElement === pullRequestHoverElement,
+				controlReplaced: refreshedFocusedControl !== focusedControl,
+				focusPreserved: document.activeElement === refreshedFocusedControl,
+			},
 		}, {
 			pullRequests: {
 				label: '2 Pull Requests',
@@ -566,32 +1544,113 @@ suite('AgentHostSessionInputPills', () => {
 					'Live pull request 332982',
 					'Live pull request 335387',
 				],
-				hoverClassName: 'sessions-pr-hover compact',
+				hoverClassName: 'chat-pill-hover-content sessions-pr-hover compact',
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
-					'Copy pull request URL',
-					'Remove Chat: unify Agent Host status pills across chat surfaces from session',
-					'Copy pull request URL',
-					'Remove sessions: preserve recorded issue titles in pills from session',
+					'Copy Pull Request URL',
+					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Copy Pull Request URL',
+					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
 			issue: {
-				label: 'Live issue title',
+				label: '#335383',
 				ariaLabel: 'Open Issue #335383: Live issue title',
 				ariaDescription: `Closed. ${issueUrl}`,
+				closed: true,
+				color: 'var(--vscode-charts-purple)',
 			},
 			opened: [{
 				resource: issueUrl,
 				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
 			}],
 			removed: [{ session: backendSession.toString(), artifactId: 'second-pr' }],
-			disposedSubscriptions: ['issue:335383', 'pullRequest:332982', 'pullRequest:335387'],
-			cachedHoverCount: 1,
+			disposedSubscriptions: ['issue:335383', 'issue:999', 'pullRequest:332982', 'pullRequest:335387'],
+			cachedHoverCount: 2,
 			retainedHoverCount: 0,
+			checksDescription: `Open. Checks passed. ${secondPullRequestUrl}`,
+			staleChecksDescription: `Open. ${secondPullRequestUrl}`,
+			credentialRecovery: {
+				calls: 5,
+				title: 'Live issue title',
+			},
+			hoverRefresh: {
+				rootPreserved: true,
+				controlReplaced: false,
+				focusPreserved: true,
+			},
+		});
+
+		gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 1000 });
+		gitHubReferenceResolver.getPullRequest({ owner: 'microsoft', repo: 'vscode', number: 1001 });
+		gitHubReferenceResolver.retain([], []);
+		await timeout(0);
+		assert.deepStrictEqual({ leases, credentialCalls: credentialState.calls }, {
+			leases: { acquired: 7, released: 7 }, credentialCalls: 5,
 		});
 	});
 
-	test('resolves the configured session changeset and ignores templated entries', () => {
+	test('keeps an editor PR dropdown hover frozen through metadata updates and refreshes it on reopening', async () => {
+		const snapshots = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
+		const artifacts = [335387, 332982].map(number => ({
+			id: `pr-${number}`, type: SessionArtifactType.PullRequest, label: `Recorded PR ${number}`,
+			link: `https://github.com/microsoft/vscode/pull/${number}`, isGitHub: true, isArtifact: true,
+		}));
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chat/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([], { pullRequestSnapshots: snapshots }));
+		await timeout(0);
+		activity.persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+		const firstHover = activity.dropdownItems().find(item => item.label === 'Live pull request 332982')!.hover!;
+		const firstContent = firstHover.content;
+		assert.ok(typeof firstContent === 'function');
+		const element = firstContent();
+		assert.ok(element instanceof HTMLElement);
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const focusedControl = firstHover.getTabbableElements?.()[0];
+		focusedControl?.focus();
+		const snapshot = snapshots.get(332982)!;
+		snapshot.set({
+			...snapshot.get(),
+			core: {
+				...snapshot.get().core,
+				value: { ...snapshot.get().core.value!, title: 'Updated PR title', headRef: 'updated-branch' },
+			},
+		}, undefined);
+		await timeout(0);
+		const updatedItem = activity.dropdownItems().find(item => item.badge === '#332982')!;
+		const updatedHover = updatedItem.hover!;
+		const updatedContent = updatedHover.content;
+		assert.ok(typeof updatedContent === 'function');
+		const whileOpen = {
+			sameRoot: updatedContent() === element,
+			sameControl: updatedHover.getTabbableElements?.()[0] === focusedControl,
+			focusPreserved: document.activeElement === focusedControl,
+			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			head: element.querySelector('.sessions-pr-hover-branches')?.textContent,
+		};
+		element.remove();
+		const reopened = updatedContent();
+		assert.ok(reopened instanceof HTMLElement);
+
+		assert.deepStrictEqual({
+			rowLabelWhileOpen: updatedItem.label,
+			whileOpen,
+			reopenedTitle: reopened.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			reopenedHead: reopened.querySelector('.sessions-pr-hover-branches')?.textContent,
+		}, {
+			rowLabelWhileOpen: 'Live pull request 332982',
+			whileOpen: {
+				sameRoot: true, sameControl: true, focusPreserved: true,
+				title: 'Live pull request 332982', head: 'main←feature',
+			},
+			reopenedTitle: 'Updated PR title', reopenedHead: 'main←updated-branch',
+		});
+	});
+
+	test('resolves Session Changes by default, honors a configured changeset, and ignores templated entries', () => {
 		const backendSession = URI.parse('ahp-session:/session');
 		const changesets: readonly Changeset[] = [
 			{ label: 'Last Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
@@ -600,19 +1659,123 @@ suite('AgentHostSessionInputPills', () => {
 		];
 
 		assert.deepStrictEqual({
-			preferred: resolveAgentHostChangeset(backendSession, changesets, ChangesetKind.Session),
+			default: resolveAgentHostChangeset(backendSession, changesets),
+			configured: resolveAgentHostChangeset(backendSession, changesets, ChangesetKind.Branch),
 			fallback: resolveAgentHostChangeset(backendSession, changesets.slice(0, 2), ChangesetKind.Branch),
 			turnOnly: resolveAgentHostChangeset(backendSession, changesets.slice(0, 1), ChangesetKind.Session),
 		}, {
-			preferred: {
+			default: {
 				changeset: changesets[1],
 				resource: URI.parse('ahp-session:/session/changeset/session'),
+			},
+			configured: {
+				changeset: changesets[2],
+				resource: URI.parse('ahp-session:/session/changeset/branch'),
 			},
 			fallback: {
 				changeset: changesets[1],
 				resource: URI.parse('ahp-session:/session/changeset/session'),
 			},
 			turnOnly: undefined,
+		});
+	});
+
+	test('targets and opens Session Changes by default when Branch Changes is also offered', async () => {
+		const instantiationService = createInstantiationService();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const backendChat = URI.parse(buildDefaultChatUri(backendSession));
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: backendChat.toString(),
+				chats: [],
+				changesets: [{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: ChangesetKind.Session }],
+			} as unknown as SessionState],
+			[StateComponents.Chat, {
+				changesets: [
+					{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch },
+					{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: ChangesetKind.Uncommitted },
+					{ label: 'This Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
+				],
+			} as unknown as ChatState],
+			[StateComponents.Changeset, {
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'change',
+					edit: {
+						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+						diff: { added: 3, removed: 1 },
+					},
+				}],
+			} as unknown as ChangesetState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const opened: { readonly label: string | undefined; readonly files: readonly (string | undefined)[] }[] = [];
+		const editorService = upcastPartial<IEditorService>({
+			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
+				if (isResourceMultiDiffEditorInput(input)) {
+					opened.push({ label: input.label, files: input.resources?.map(resource => resource.goToFileResource?.toString()) ?? [] });
+				}
+				return undefined;
+			},
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+		));
+		const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
+		button?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			ariaLabel: button?.getAttribute('aria-label'),
+			changesetSubscriptions: [...new Set(connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString()))],
+			opened,
+		}, {
+			ariaLabel: 'Session Changes: 1 File, +3, -1',
+			changesetSubscriptions: [`${backendSession.toString()}/changeset/session`],
+			opened: [{ label: 'Session Changes', files: [toAgentHostUri(URI.file('/changed.ts'), 'local').toString()] }],
 		});
 	});
 
@@ -641,6 +1804,7 @@ suite('AgentHostSessionInputPills', () => {
 		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
 		const canonicalChildResource = sessionResource.with({ fragment: childChatId, query: null });
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
+		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
 		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
 		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
@@ -655,6 +1819,7 @@ suite('AgentHostSessionInputPills', () => {
 			before: [sessionResource.toString()],
 			after: [
 				sessionResource.toString(),
+				opaqueChildResource.toString(),
 				canonicalChildResource.toString(),
 				explicitChildResource.toString(),
 			],
@@ -662,6 +1827,25 @@ suite('AgentHostSessionInputPills', () => {
 			hasExplicitChild: true,
 			hasUnrelatedChild: false,
 		});
+	});
+
+	test('includes browsers owned by opaque tool-origin chat URIs', () => {
+		const sessionResource = URI.parse('remote-server-agent:/session');
+		const parentChat = 'vendor-chat:/conversations/main';
+		const childChat = 'vendor-chat:/workers/Waiting?revision=1#result';
+		const query = new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: childChat });
+		const state = upcastPartial<SessionState>({
+			defaultChat: parentChat,
+			chats: [upcastPartial<ChatSummary>({
+				resource: childChat,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'delegate' },
+			})],
+		});
+
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+			sessionResource.toString(),
+			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
+		]);
 	});
 
 	test('does not render pills for a Local chat input', () => {
@@ -713,6 +1897,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -729,7 +1914,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible from a legacy session catalogue', () => {
+	test('uses cached recomputing files in floating persistent content from a legacy session catalogue', () => {
 		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -742,16 +1927,17 @@ suite('AgentHostSessionInputPills', () => {
 			} as unknown as SessionState],
 			[StateComponents.Chat, {} as ChatState],
 			[StateComponents.Changeset, {
-				status: ChangesetStatus.Ready,
-				files: [{
-					id: 'change',
-					edit: {
-						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-						diff: { added: 3, removed: 1 },
-					},
-				}],
+				status: ChangesetStatus.Computing,
+				files: [],
 			} as unknown as ChangesetState],
 		]));
+		const cachedFiles: ChangesetState['files'] = [{
+			id: 'change',
+			edit: {
+				after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+				diff: { added: 3, removed: 1 },
+			},
+		}];
 		const otherConnection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
 			[StateComponents.Session, {
 				defaultChat: backendChat.toString(),
@@ -818,14 +2004,30 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
+		const initial = {
+			hidden: row?.classList.contains('hidden'),
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
+		connection.setState(StateComponents.Changeset, {
+			status: ChangesetStatus.Recomputing,
+			files: cachedFiles,
+		} as ChangesetState);
 		const button = row?.querySelector('.chat-pill-button');
+		const recomputing = {
+			hidden: row?.classList.contains('hidden'),
+			label: row?.querySelector('.changes-stats-files')?.textContent,
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
 			files: [],
 		} as ChangesetState);
-		const recomputing = {
+		const computing = {
 			hidden: row?.classList.contains('hidden'),
 			buttonPreserved: row?.querySelector('.chat-pill-button') === button,
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
@@ -842,13 +2044,7 @@ suite('AgentHostSessionInputPills', () => {
 		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Ready,
-			files: [{
-				id: 'change',
-				edit: {
-					after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-					diff: { added: 3, removed: 1 },
-				},
-			}],
+			files: cachedFiles,
 		} as ChangesetState);
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
@@ -859,7 +2055,9 @@ suite('AgentHostSessionInputPills', () => {
 		resolutionChanged.fire();
 
 		assert.deepStrictEqual({
+			initial,
 			recomputing,
+			computing,
 			readyEmpty,
 			otherConnection: {
 				hidden: row?.classList.contains('hidden'),
@@ -871,7 +2069,18 @@ suite('AgentHostSessionInputPills', () => {
 				return [`${value.kind}:${value.resource}`, value];
 			})).values()],
 		}, {
+			initial: {
+				hidden: true,
+				persistentContentVisible: false,
+				persistentContentHeight: undefined,
+			},
 			recomputing: {
+				hidden: false,
+				label: '1 File',
+				persistentContentVisible: true,
+				persistentContentHeight: 28,
+			},
+			computing: {
 				hidden: false,
 				buttonPreserved: true,
 				persistentContentVisible: true,
@@ -967,6 +2176,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -1145,6 +2355,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
+			instantiationService.get(ICommandService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -1153,7 +2364,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Preview from session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove Reference Preview from Session')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -1167,16 +2378,16 @@ suite('AgentHostSessionInputPills', () => {
 			pills: ['4 References'],
 			empty: false,
 			dropdownActionLabels: [
-				'Copy commit URL',
-				'Remove Commit from session',
-				'Copy website URL',
-				'Remove Preview from session',
-				'Copy path',
-				'Remove README from session',
+				'Copy Commit URL',
+				'Remove Reference Commit from Session',
+				'Copy Website URL',
+				'Remove Reference Preview from Session',
+				'Copy Path',
+				'Remove Reference README from Session',
 				'Copy URI',
-				'Remove Chat settings from session',
+				'Remove Reference Chat settings from Session',
 			],
-			dropdownFooterActionLabels: ['Copy hash', 'Copy relative path'],
+			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [
 				'https://github.com/microsoft/vscode/commit/abc123',
 				website.toString(true),
@@ -1199,6 +2410,8 @@ suite('AgentHostSessionInputPills', () => {
 				defaultChat,
 				chats: [{
 					resource: subagentChat,
+					title: 'Subagent',
+					status: SessionStatus.InProgress,
 					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-1' },
 				}],
 				_meta: withSessionArtifacts(undefined, [{
@@ -1259,6 +2472,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -1286,5 +2500,70 @@ suite('AgentHostSessionInputPills', () => {
 			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 		});
+	});
+
+	test('shows the chat\'s background shells until they finish', () => {
+		const instantiationService = createInstantiationService();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const shell: BackgroundShellWork = {
+			kind: BackgroundWorkKind.Shell, id: 'shell:dev-server', label: 'Start dev server', command: 'npm run dev',
+			startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta('dev-server', 'detached'),
+		};
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState>([
+			[StateComponents.Session, upcastPartial<SessionState>({ defaultChat: buildDefaultChatUri(backendSession), chats: [] })],
+			[StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [shell] })],
+		]));
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+		));
+		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+		const running = pills();
+		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
+
+		assert.deepStrictEqual({ running, finished: pills() }, { running: ['1 Background Shell'], finished: [] });
 	});
 });

@@ -118,9 +118,10 @@ export class SessionInputBanners extends Disposable {
 			return this._debugStates(debugData);
 		}
 
+		const states: BannerState[] = [];
 		const session = this._session.read(reader);
 		if (!session) {
-			return [];
+			return states;
 		}
 
 		this._feedbackChanged.read(reader);
@@ -134,19 +135,20 @@ export class SessionInputBanners extends Disposable {
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
 		const legacyCommentsDismissed = this._legacyCommentsDismissed.read(reader).has(session.sessionId);
 		const agentMerge = this._agentMergeConfiguration.read(reader);
-		const states: BannerState[] = [];
-
 		for (const pullRequest of pullRequests) {
 			const id = pullRequestBannerId(session.sessionId, pullRequest);
 			if (dismissed.has(id)) {
 				continue;
 			}
 
-			const comments = legacyCommentsDismissed || (agentMerge?.enabled && agentMerge.actions.addressReviews)
-				? []
-				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 			const livePullRequest = prModelRef.object.pullRequest.read(reader);
+			const pullRequestState = livePullRequest?.state ?? pullRequest.liveState ?? pullRequest.state;
+			const comments = pullRequestState === GitHubPullRequestState.Merged
+				|| legacyCommentsDismissed
+				|| (agentMerge?.enabled && agentMerge.actions.addressReviews)
+				? []
+				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			let failed = 0;
 			let completed = 0;
 			let pending = 0;

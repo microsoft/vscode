@@ -29,7 +29,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { storeSelectedModel } from '../../common/chatSelectedModel.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
@@ -240,16 +240,19 @@ suite('ChatTipService', () => {
 		}
 	});
 
-	test('btw tip is limited to active side-chat sessions in the Agents window', () => {
+	test('btw tip is controlled by its experiment setting and limited to active side-chat sessions in the Agents window', () => {
 		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.btw');
 		assert.ok(tip?.when);
 
+		const isEnabled = contextKeyService.createKey<boolean>(`config.${ChatConfiguration.BtwTipEnabled}`, false);
 		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
 		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', true);
 		const isArchived = contextKeyService.createKey<boolean>('sessionIsArchived', false);
 		const supportsSideChat = contextKeyService.createKey<boolean>('sessionSupportsSideChat', true);
 		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
 
+		isEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isSessionsWindow.set(false);
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isSessionsWindow.set(true);
@@ -264,7 +267,7 @@ suite('ChatTipService', () => {
 
 		assert.deepStrictEqual(
 			eligibility,
-			[true, false, false, false, false],
+			[false, true, false, false, false, false],
 		);
 		assert.strictEqual(
 			tip.buildMessage({
@@ -463,6 +466,7 @@ suite('ChatTipService', () => {
 
 	test('removes btw tip from rotation after the slash command is used', () => {
 		const service = createService();
+		contextKeyService.createKey<boolean>(`config.${ChatConfiguration.BtwTipEnabled}`, true);
 		contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
 		contextKeyService.createKey<boolean>('sessionIsCreated', true);
 		contextKeyService.createKey<boolean>('sessionIsArchived', false);

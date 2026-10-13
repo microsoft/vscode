@@ -51,17 +51,15 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			() => accessibilityService.isScreenReaderOptimized(),
 		);
 		this._register(autorun(reader => {
-			const layout = this.sessionsService.sessionGridLayout.read(reader);
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
-			this._comparisonGridActive = layout === 'grid' && this._isComparisonGrid(visibleSessions, comparisons);
+			this._comparisonGridActive = this._isComparisonGrid(visibleSessions, comparisons);
 			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
 				hideInactiveInputs.read(reader)
 				&& !screenReaderOptimized.read(reader)
-				&& layout === 'grid'
 				&& visibleSessions.length > 2
 				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
 			);
@@ -124,7 +122,12 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return;
 		}
 		this._isolatedJudgeSessionId = sessionId;
-		this.sessionsService.showOnlySession(judgeSession);
+		for (const session of visibleSessions) {
+			if (session?.sessionId !== sessionId) {
+				this.sessionsService.closeSession(session);
+			}
+		}
+		this.sessionsService.showSession(judgeSession.resource);
 		this._setSidePaneSuppressed(true);
 	}
 
@@ -155,8 +158,9 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return undefined;
 		}
 		const firstSession = visibleSessions[0]!;
-		const comparison = comparisons.find(candidate =>
-			candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
+		// Archived comparisons are history only; they must not drive the comparison layout.
+		const comparison = comparisons.find(candidate => candidate.archivedAt === undefined
+			&& candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
 		return comparison && visibleSessions.every(session => comparison.participants.some(participant =>
 			participant.sessionResource && isEqual(participant.sessionResource, session!.resource)))
 			? comparison
