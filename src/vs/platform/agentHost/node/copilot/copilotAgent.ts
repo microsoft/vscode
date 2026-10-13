@@ -44,7 +44,7 @@ import { createContextSizeConfigSchemaProperty } from '../../common/agentModelCo
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
@@ -1101,9 +1101,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here. Refreshing BYOK models
-			// republishes the whole catalog, which also re-applies the Claude default
-			// thinking level (see `_withClaudeDefaultReasoningEffort`).
+			// window reload), so nothing reacts to it here.
 			this._refreshByokModels();
 		}));
 
@@ -2643,7 +2641,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				});
 			}
 		}
-		const capiModels = this._withClaudeDefaultReasoningEffort(this._capiModels)
+		const capiModels = this._capiModels
 			// Ensemble's tiers route through HydraFusion, so they only offer what its settings enable.
 			.filter(model => !ensemble || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
 			.map(model => ensemble ? this._asEnsemble(model) : model);
@@ -2694,41 +2692,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// HydraFusion stays published either way, so sessions that already selected it keep working.
 			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion() }),
 		};
-	}
-
-	private _getClaudeDefaultReasoningEffort(): string | undefined {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeDefaultReasoningEffort) || undefined;
-	}
-
-	/**
-	 * Applies {@link CopilotCliConfigKey.ClaudeDefaultReasoningEffort} to the Claude models'
-	 * thinking-level picker at publish time, so a setting change takes effect without re-listing.
-	 * Models that do not support the configured level keep their built-in default.
-	 *
-	 * The SDK model list carries no family, so a model is classified by its configured
-	 * `family` capability override when present, falling back to its id.
-	 */
-	private _withClaudeDefaultReasoningEffort(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
-		const effort = this._getClaudeDefaultReasoningEffort();
-		if (!effort) {
-			return models;
-		}
-		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-		const isClaudeFamily = (modelId: string) => {
-			const family = resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
-			return (family ?? modelId).toLowerCase().startsWith('claude');
-		};
-		return models.map(model => {
-			const configSchema = model.configSchema;
-			const thinkingLevel = configSchema?.properties[ThinkingLevelConfigKey];
-			if (!configSchema || !thinkingLevel?.enum?.includes(effort) || !isClaudeFamily(model.id)) {
-				return model;
-			}
-			return {
-				...model,
-				configSchema: { ...configSchema, properties: { ...configSchema.properties, [ThinkingLevelConfigKey]: { ...thinkingLevel, default: effort } } },
-			};
-		});
 	}
 
 	/**
