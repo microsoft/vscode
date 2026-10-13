@@ -29,7 +29,10 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 	constructor(private readonly editor: ICodeEditor) {
 		super();
 
-		this._register(this.editor.onDidChangeModel(() => this._updateAllDecorations()));
+		this._register(this.editor.onDidChangeModel(() => {
+			this._decorationIds.clear();
+			this._updateAllDecorations();
+		}));
 		this._register(this.editor.onDidChangeConfiguration(event => {
 			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)) {
 				this._updateMode();
