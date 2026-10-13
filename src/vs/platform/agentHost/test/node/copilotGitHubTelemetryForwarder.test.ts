@@ -504,6 +504,26 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('forwards the runtime Auto tier and HydraFusion phase on successes unchanged', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => true, telemetryService);
+		const routing = { fusionId: 'fusion-1', fusionPattern: 'cascade', fusionPhaseKind: 'judge' };
+		// The runtime hashes a custom tier on standard rows and sends it raw only on restricted rows.
+		forwarder.forward({ sessionId: 'sdk-session', restricted: false, event: { kind: 'response.success', properties: { autoTier: 'sha256-of-custom', ...routing }, metrics: { isAuto: 1 } } });
+		forwarder.forward({ sessionId: 'sdk-session', restricted: true, event: { kind: 'response.success', properties: { autoTier: 'custom-tier', ...routing }, metrics: { isAuto: 1 } } });
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			restricted: event.data?.restricted,
+			autoTier: event.data?.autoTier,
+			fusionId: event.data?.fusionId,
+			fusionPattern: event.data?.fusionPattern,
+			fusionPhaseKind: event.data?.fusionPhaseKind,
+		})), [
+			{ restricted: false, autoTier: 'sha256-of-custom', ...routing },
+			{ restricted: true, autoTier: 'custom-tier', ...routing },
+		]);
+	});
+
 	test('reports usage availability on successes and errors without changing counters', () => {
 		const cases: { metrics: Record<string, number>; status: string }[] = [
 			{ metrics: {}, status: 'notReported' },

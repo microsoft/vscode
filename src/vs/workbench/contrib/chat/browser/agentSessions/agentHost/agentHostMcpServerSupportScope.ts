@@ -102,10 +102,6 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 			return localize('mcpCompatibilityEnvironmentFileIgnored', "Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.");
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
-		case AgentHostMcpSupportReason.GalleryMetadataNotPortable:
-			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata isn't supported. Migrating removes it and stops registry updates.");
-		case AgentHostMcpSupportReason.ServerVersionNotPortable:
-			return localize('mcpCompatibilityServerVersionNotPortable', "Version metadata isn't supported. Migrating removes it; version pins are kept.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:
 			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
 		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:

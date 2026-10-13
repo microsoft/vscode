@@ -25,6 +25,7 @@ import type { TerminalCommandPart, TerminalState } from '../../../../common/stat
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -463,7 +464,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('view range returns only the requested workspace lines', async function () {
+	fullOnlyTest('view range returns only the requested workspace lines', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('view-range');
 		writeFileSync(join(workspace, 'range.txt'), 'RANGE_ONE\nRANGE_TWO\nRANGE_THREE\nRANGE_FOUR\nRANGE_FIVE\n');
@@ -493,7 +494,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('grep searches workspace content through the provider tool', async function () {
+	fullOnlyTest('grep searches workspace content through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('grep-tool');
 		writeFileSync(join(workspace, 'needle.txt'), 'COPILOT_E2E_NEEDLE\n');
@@ -509,7 +510,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('glob finds a nested workspace file through the provider tool', async function () {
+	fullOnlyTest('glob finds a nested workspace file through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('glob-tool');
 		mkdirSync(join(workspace, 'nested'));

@@ -5,7 +5,7 @@
 
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
-import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 
@@ -31,7 +31,7 @@ export function resolveChangesetOwnerScope(stateManager: AgentHostStateManager, 
 			workingDirectories: [],
 		};
 	}
-	const sessionUri = parseChatUri(ownerUri)?.session ?? ownerUri;
+	const sessionUri = (isAhpChatChannel(ownerUri) ? stateManager.getChatOwner(ownerUri) : undefined) ?? ownerUri;
 	const sourceUri = isAhpChatChannel(ownerUri) ? ownerUri : buildDefaultChatUri(sessionUri);
 	return {
 		ownerUri,
@@ -62,7 +62,7 @@ export function resolveBranchChangesetScopeForSource(stateManager: AgentHostStat
 		};
 	}
 
-	const sessionUri = parseChatUri(sourceUri)?.session ?? sourceUri;
+	const sessionUri = (isAhpChatChannel(sourceUri) ? stateManager.getChatOwner(sourceUri) : undefined) ?? sourceUri;
 	const effectiveSource = isAhpChatChannel(sourceUri) ? sourceUri : buildDefaultChatUri(sessionUri);
 	const workingDirectories = getEffectiveWorkingDirectories(stateManager, effectiveSource) ?? [];
 	return {

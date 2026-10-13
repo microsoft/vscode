@@ -13,7 +13,6 @@ import { ILogService } from '../../../log/common/log.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
-import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostSandboxEngine } from './agentHostSandboxEngine.js';
@@ -69,7 +68,9 @@ export class ShellManager extends Disposable {
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		private readonly _ownerSession: URI,
+		/** The chat's recorded storage resource; keys the sandbox temp dir so each chat gets its own. */
+		private readonly _sandboxScope: URI,
 		workingDirectory: URI | undefined,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
@@ -141,7 +142,8 @@ export class ShellManager extends Disposable {
 		if (!this._sandboxEngine) {
 			const sandboxEngine = this._instantiationService.createInstance(
 				AgentHostSandboxEngine,
-				this._sessionUri.toString(),
+				this._ownerSession.toString(),
+				this._sandboxScope.toString(),
 				this._workingDirectory,
 			);
 			this._register(sandboxEngine);
@@ -191,9 +193,7 @@ export class ShellManager extends Disposable {
 
 		const claim: TerminalSessionClaim = {
 			kind: TerminalClaimKind.Session,
-			// The chat URI is authoritative: this manager's own scope URI is the
-			// chat for a peer chat, so the owning session comes from the chat.
-			session: parseRequiredSessionUriFromChatUri(chat),
+			session: this._ownerSession.toString(),
 			chat: chat.toString(),
 			turnId,
 			toolCallId,

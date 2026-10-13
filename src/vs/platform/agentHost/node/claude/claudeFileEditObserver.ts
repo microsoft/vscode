@@ -61,6 +61,7 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	constructor(
 		sessionUri: string,
+		ownerSessionUri: string,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -75,6 +76,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._editTracker = instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
+			ownerSessionUri,
 			dbRef.object,
 			CLAUDE_AGENT_PROVIDER_ID,
 		);

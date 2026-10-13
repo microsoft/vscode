@@ -10,10 +10,11 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { readChatInputState, withChatInputState, type AgentChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, parseRequiredSessionUriFromChatUri, type ErrorInfo } from '../common/state/sessionState.js';
+import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export const IAgentHostChatInputService = createDecorator<IAgentHostChatInputService>('agentHostChatInputService');
 
@@ -33,13 +34,17 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
 
 	prepareChat(chat: URI): Promise<void> {
 		const chatKey = chat.toString();
-		const session = parseRequiredSessionUriFromChatUri(chatKey);
+		const session = this._chatOwnership.getChatOwner(chatKey);
+		if (session === undefined) {
+			return Promise.resolve();
+		}
 		const state = this._stateManager.getChatState(chatKey);
 		const sessionState = this._stateManager.getSessionState(session);
 		const previous = readChatInputState(sessionState, chatKey);
@@ -61,7 +66,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 				if (!this._isCurrent(session, chatKey, marker)) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat));
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey)));
 				if (this._isCurrent(session, chatKey, marker)) {
 					this._setState(session, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
 				}
@@ -80,8 +85,10 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 	}
 
 	setBlocked(chat: string, error: ErrorInfo): void {
-		const session = parseRequiredSessionUriFromChatUri(chat);
-		this._setState(session, chat, { kind: 'blocked', error });
+		const session = this._chatOwnership.getChatOwner(chat);
+		if (session !== undefined) {
+			this._setState(session, chat, { kind: 'blocked', error });
+		}
 	}
 
 	clear(session: string, chat: string): void {

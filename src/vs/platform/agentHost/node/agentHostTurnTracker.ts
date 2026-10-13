@@ -21,7 +21,7 @@ import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleCo
 import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
+import { isSubagentChatUri, isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -69,6 +69,8 @@ interface ITurnTiming {
 	readonly providerTiming: AgentHostProviderTiming;
 	readonly agent: IAgent;
 	readonly session: string;
+	/** Owning session of the chat, recorded when the turn started. */
+	readonly owner: string;
 	readonly providerChat: URI;
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
@@ -169,7 +171,7 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	readonly _serviceBrand: undefined;
 	readonly onDidStartTurn: Event<string>;
 	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }>;
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
+	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
 	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void;
 	markFirstProgress(session: string, turnId: string): void;
 	markFirstSubstantiveProgress(session: string, turnId: string): void;
@@ -253,10 +255,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
+	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
 		const key = this._key(session, turnId);
 		let rootTiming = this._rootTurnTimings.get(key);
-		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !rootTiming;
+		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(owner) && !rootTiming;
 		if (isNewRootTurn) {
 			rootTiming = {
 				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
@@ -271,6 +273,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			providerTiming: new AgentHostProviderTiming(() => stopWatch.elapsed()),
 			agent,
 			session,
+			owner,
 			providerChat,
 			turnId,
 			parentTurnId,
@@ -335,7 +338,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 
 	private _logTurnTiming(timing: ITurnTiming): void {
 		this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
-			schemaVersion: 1, sessionId: parseChatUri(timing.session)?.session ?? timing.session,
+			schemaVersion: 1, sessionId: timing.owner,
 			chatId: timing.session, turnId: timing.turnId, provider: timing.agent.id,
 			...timing.rootTiming,
 		})}`);
@@ -778,6 +781,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			codexModelProvider: timing.codexModelProvider,
 			provider: timing.agent.id,
 			session: timing.session,
+			owner: timing.owner,
 			turnId,
 			parentTurnId: timing.parentTurnId,
 			parentToolCallId: timing.parentToolCallId,
@@ -822,6 +826,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				telemetryContext: timing.telemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
+				owner: timing.owner,
 				turnId,
 				subagentKind: timing.subagentKind,
 				messageOriginKind: timing.messageOriginKind,
@@ -837,7 +842,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				this._reporter.requestTokenUsage({
 					clientContext: timing.clientContext, provider: timing.agent.id,
 					telemetryContext: timing.telemetryContext,
-					session, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId, subagentKind: timing.subagentKind,
+					session, owner: timing.owner, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId, subagentKind: timing.subagentKind,
 					selectedModel: timing.selectedModel, selectedModelTelemetryKind: timing.selectedModelTelemetryKind,
 					modelTelemetryKind: summary.model ? getModelTelemetryContext(timing.agent, summary.model).modelTelemetryKind : undefined,
 					result, summary,
@@ -932,6 +937,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				providerTelemetryContext: timing.providerTelemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
+				owner: timing.owner,
 				turnId: timing.turnId,
 				subagentKind: timing.subagentKind,
 				messageOriginKind: timing.messageOriginKind,

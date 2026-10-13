@@ -30,7 +30,7 @@ import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState }
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -540,7 +540,7 @@ suite('AgentHostAutomationService', () => {
 			startSession: async (_, message) => {
 				reporter.userMessageSent(
 					'copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					session.toString(), 'first-turn', undefined, 'direct', message, false,
+					session.toString(), session.toString(), 'first-turn', undefined, 'direct', message, false,
 				);
 				await started.complete();
 			},
@@ -583,7 +583,7 @@ suite('AgentHostAutomationService', () => {
 			const service = createService({
 				createSession: async () => session,
 				startSession: async () => {
-					stateManager.addChat(session.toString(), defaultChat);
+					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat));
 					stateManager.dispatchServerAction(defaultChat, {
 						type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(),
 						message: { text: 'Review changes', origin: { kind: MessageKind.Automation } },

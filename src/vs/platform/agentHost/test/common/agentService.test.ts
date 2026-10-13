@@ -11,7 +11,6 @@ import { thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManag
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
 import { affectsAgentHostProviderPreference, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('AgentSession namespace', () => {
@@ -577,23 +576,6 @@ suite('AgentHostOTelPolicyState', () => {
 			duplicateAfterRestart: false,
 			nextChange: true,
 		});
-	});
-});
-
-suite('resolveChatUri', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	const session = AgentSession.uri('copilot', 'sess-1');
-
-	test('default chat collapses onto the scope (session) URI', () => {
-		const defaultChat = URI.parse(buildDefaultChatUri(session));
-		assert.strictEqual(resolveChatUri(session, defaultChat).toString(), session.toString());
-	});
-
-	test('peer chat is addressed by its own URI', () => {
-		const peer = URI.parse(buildChatUri(session, 'peer-42'));
-		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
 	});
 });
 

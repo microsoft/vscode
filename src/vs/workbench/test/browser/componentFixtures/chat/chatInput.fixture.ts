@@ -299,6 +299,22 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
 	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
 	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
+	VoiceDictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceControl: 'dictationIdle', focusVoiceControl: 'dictation' }),
+	}),
+	VoiceModeFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceControl: 'voiceIdle', focusVoiceControl: 'voice' }),
+	}),
+	VoiceInputModeDictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceInputMode: true, focusVoiceControl: 'dictation' }),
+	}),
+	VoiceInputModeVoiceFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceInputMode: true, focusVoiceControl: 'voice' }),
+	}),
 	// The segmented voice pill at the chat view's minimum width: the pickers
 	// collapse into the overflow menu so the send button and the voice pill stay
 	// inside the input (#331228).
