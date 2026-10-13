@@ -25,7 +25,7 @@ export class SessionArtifacts {
 	}
 
 	private _readAll(): readonly ISessionArtifact[] {
-		const defaultChat = this._stateManager.getPrimaryChat(this._session);
+		const defaultChat = this._stateManager.getDefaultChat(this._session);
 		return readSessionArtifacts(this._getState()._meta).map(artifact =>
 			artifact.chat || defaultChat === undefined ? artifact : { ...artifact, chat: defaultChat }
 		);

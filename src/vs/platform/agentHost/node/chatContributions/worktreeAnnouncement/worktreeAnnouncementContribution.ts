@@ -32,7 +32,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	}
 
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		if (context.isPrimaryChat) {
+		if (context.isDefaultChat) {
 			return this._worktreeIsolation.applyRestoreAnnouncement(URI.parse(context.session), turns);
 		}
 		const worktree = await this._findOwnedWorktree(context.session, context.chat);
@@ -47,7 +47,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<undefined> {
-		if (this._stateManager.isPrimaryChat(turn.session, turn.chat)) {
+		if (this._stateManager.isDefaultChat(turn.session, turn.chat)) {
 			return undefined;
 		}
 		const emitted = this._context.memento(announcementEmittedKey, turn.chat);

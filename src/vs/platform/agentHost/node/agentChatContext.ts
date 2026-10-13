@@ -62,7 +62,7 @@ export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, se
 	if (!state) {
 		return undefined;
 	}
-	const defaultChat = state.defaultChat ?? stateManager.getPrimaryChat(sessionKey);
+	const defaultChat = state.defaultChat ?? stateManager.getDefaultChat(sessionKey);
 	const seen = new Set<string>();
 	const chats: URI[] = [];
 	for (const summary of state.chats) {

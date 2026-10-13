@@ -1834,10 +1834,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			// The primary chat is created alongside its session; creating it
+			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
-			const primaryChat = state.defaultChat ?? this._stateManager.getPrimaryChat(params.channel);
-			if (primaryChat !== undefined && URI.parse(params.chat).toString() === URI.parse(primaryChat).toString()) {
+			const defaultChat = state.defaultChat ?? this._stateManager.getDefaultChat(params.channel);
+			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
 			}
 			const source = params.source;

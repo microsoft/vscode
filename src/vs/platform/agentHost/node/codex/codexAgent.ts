@@ -46,7 +46,7 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { createErrorResponsePart, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
-import { deriveLegacyPrimaryChat } from '../agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from '../agentHostStateManager.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
@@ -5136,7 +5136,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const target: ICodexTargetChat = { resource: chat, configurationResource: operationContext.configurationResource, storage: operationContext.resource };
 		let decoded: ICodexPersistedChat | undefined;
 		if (providerData === undefined) {
-			// Only the session-backed (primary) chat can recover its backing from the session.
+			// Only the session-backed default chat can recover its backing from the session.
 			if (!isEqual(operationContext.resource, operationContext.configurationResource)) {
 				return;
 			}
@@ -7456,8 +7456,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				const isDesktop = thread.modelProvider === CODEX_OPENAI_MODEL_PROVIDER
 					? this._desktopThreadIds.has(thread.id) || (await this._desktopRolloutPrefixLimiter.queue(() => this._readCodexDesktopRolloutPrefix(thread))) !== null
 					: this._desktopThreadIds.has(thread.id);
-				// A provider-native thread records no primary chat.
-				const chat = URI.parse(deriveLegacyPrimaryChat(sessionUri));
+				// A provider-native thread records no default chat.
+				const chat = URI.parse(deriveLegacyDefaultChat(sessionUri));
 				const result = { ...this._withWorkingDirectories(await this._threadToMetadata(thread, chat, undefined, isDesktop), liveWorkingDirectories), session: sessionUri };
 				nextMetadata.set(thread.id, { key, metadata: result });
 				return result;

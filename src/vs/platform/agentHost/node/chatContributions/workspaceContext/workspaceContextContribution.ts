@@ -250,7 +250,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		// The session's worktree may already exist, e.g. when its creation finished before this turn started.
-		const worktree = this._stateManager.isPrimaryChat(session, chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		const worktree = this._stateManager.isDefaultChat(session, chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
 		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 

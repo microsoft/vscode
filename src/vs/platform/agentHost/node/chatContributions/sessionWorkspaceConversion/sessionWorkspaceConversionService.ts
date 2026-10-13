@@ -114,8 +114,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private readonly _isolatedChats = new Set<string>();
 	/** Owning session of every chat tracked above, recorded when tracking starts. */
 	private readonly _trackedChatOwners = new Map<string, string>();
-	/** Each session's primary chat, captured at registration so session removal can still clear its state. */
-	private readonly _primaryChats = new Map<string, string>();
+	/** Each session's default chat, captured at registration so session removal can still clear its state. */
+	private readonly _defaultChats = new Map<string, string>();
 
 	constructor(
 		private readonly _chatIsolationHost: IChatIsolationHost | undefined,
@@ -144,13 +144,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			}
 		}));
 		this._register(this._chatOwnership.onDidRegisterChat(({ session, chat }) => {
-			if (this._chatOwnership.isPrimaryChat(session, chat)) {
-				this._primaryChats.set(session, chat);
+			if (this._chatOwnership.isDefaultChat(session, chat)) {
+				this._defaultChats.set(session, chat);
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
-			const chat = this._primaryChat(session);
-			this._primaryChats.delete(session);
+			const chat = this._defaultChat(session);
+			this._defaultChats.delete(session);
 			if (chat !== undefined) {
 				this._clearChatIsolationState(chat);
 			}
@@ -162,8 +162,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}));
 	}
 
-	private _primaryChat(session: ProtocolURI): ProtocolURI | undefined {
-		return this._primaryChats.get(session) ?? this._chatOwnership.getPrimaryChat(session);
+	private _defaultChat(session: ProtocolURI): ProtocolURI | undefined {
+		return this._defaultChats.get(session) ?? this._chatOwnership.getDefaultChat(session);
 	}
 
 	/** Records the owner of a chat when it starts being tracked, so session removal can clear it later. */
@@ -366,7 +366,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		while ((parent = parseSubagentSessionUri(session))) {
 			session = parent.parentSession.toString();
 		}
-		return this._primaryChat(session) ?? chat;
+		return this._defaultChat(session) ?? chat;
 	}
 
 	cancel(chat: ProtocolURI, turnId: string | undefined): void {
@@ -576,7 +576,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			} else {
 				this._isolatedChats.delete(chat.toString());
 			}
-			if (this._chatOwnership.isPrimaryChat(session.toString(), chat.toString())) {
+			if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 				this._stateManager.setSessionMeta(session.toString(), withSessionHasWorkspaceTransitions(this._stateManager.getSessionState(session.toString())?._meta, true));
 			}
 			this._serverToolHost.advertise(session.toString());
@@ -970,7 +970,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if ((state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived) {
 			throw new Error('An archived session cannot be converted to a workspace session.');
 		}
-		if (!this._chatOwnership.isPrimaryChat(session.toString(), chat.toString()) || state.defaultChat !== chat.toString()) {
+		if (!this._chatOwnership.isDefaultChat(session.toString(), chat.toString()) || state.defaultChat !== chat.toString()) {
 			throw new Error('Only the owning default chat can convert the session to a workspace session.');
 		}
 		if (state.workingDirectories?.length !== 1) {
@@ -1067,7 +1067,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		try {
 			await database.object.deleteTurnWorkspaceTransition(turnId);
 			const hasTransitions = await database.object.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY) === 'true';
-			if (this._chatOwnership.isPrimaryChat(session, chat.toString())) {
+			if (this._chatOwnership.isDefaultChat(session, chat.toString())) {
 				const state = this._stateManager.getSessionState(session);
 				this._stateManager.setSessionMeta(session, withSessionHasWorkspaceTransitions(state?._meta, hasTransitions));
 			}

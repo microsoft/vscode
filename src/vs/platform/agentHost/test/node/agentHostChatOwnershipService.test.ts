@@ -274,15 +274,15 @@ suite('AgentHostChatOwnershipService', () => {
 		});
 	});
 
-	test('the registered default-chat index never claims a chat its session does not record as primary', async () => {
+	test('the registered default-chat index never claims a chat its session does not record as default', async () => {
 		const { stateManager, database, service } = create();
-		// A resident session whose recorded primary chat is not default-shaped.
+		// A resident session whose recorded default chat is not default-shaped.
 		const resident = 'copilot:/resident';
 		stateManager.restoreSession({ ...summary(resident), defaultChat: buildChatUri(resident, 'primary') }, [], creationTimeChatStorageResource);
-		// A cold session whose normalized catalog records a primary chat that is not default-shaped.
+		// A cold session whose normalized catalog records a default chat that is not default-shaped.
 		const normalized = 'copilot:/normalized';
 		database.normalizedCatalogs.push({ session: normalized, defaultChatUri: buildChatUri(normalized, 'primary') });
-		// A cold legacy session that records no primary chat.
+		// A cold legacy session that records no default chat.
 		const legacy = 'copilot:/legacy';
 		database.sessions.push(registeredSession(resident), registeredSession(normalized), registeredSession(legacy));
 

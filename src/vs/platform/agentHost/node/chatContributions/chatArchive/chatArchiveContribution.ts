@@ -34,7 +34,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		if (dispatched.rejectionReason !== undefined
 			|| dispatched.action.type !== ActionType.ChatIsArchivedChanged
 			|| !isAhpChatChannel(dispatched.channel)
-			|| this._stateManager.isPrimaryChat(dispatched.session, dispatched.channel)) {
+			|| this._stateManager.isDefaultChat(dispatched.session, dispatched.channel)) {
 			return;
 		}
 		const session = URI.parse(dispatched.session);

@@ -215,11 +215,11 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!agent) {
 			return undefined;
 		}
-		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._stateManager.getPrimaryChat(context.session);
+		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._stateManager.getDefaultChat(context.session);
 		if (chat === undefined) {
 			return undefined;
 		}
-		const state = this._stateManager.getChatState(chat) ?? (this._stateManager.isPrimaryChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
+		const state = this._stateManager.getChatState(chat) ?? (this._stateManager.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model

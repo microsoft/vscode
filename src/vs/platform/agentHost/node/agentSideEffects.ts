@@ -576,11 +576,11 @@ export class AgentSideEffects extends Disposable {
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
-		const primaryChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._stateManager.getPrimaryChat(session);
-		if (primaryChat === undefined) {
+		const defaultChat = this._stateManager.getSessionState(session)?.defaultChat ?? this._stateManager.getDefaultChat(session);
+		if (defaultChat === undefined) {
 			return;
 		}
-		const chat = URI.parse(primaryChat);
+		const chat = URI.parse(defaultChat);
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
 
 		// Skip the dispatch when the resolved customizations match what the

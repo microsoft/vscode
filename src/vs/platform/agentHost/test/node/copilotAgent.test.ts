@@ -1707,7 +1707,7 @@ suite('CopilotAgent', () => {
 		const { agent, fileService } = createTestAgentContext(disposables, { userHome: URI.file('/home/test') });
 		try {
 			const session = AgentSession.uri('copilotcli', 'agent-host-session-id');
-			// The host stores the primary chat under its session and a peer under itself.
+			// The host stores the default chat under its session and a peer under itself.
 			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { configurationResource: session, resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
 			await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));

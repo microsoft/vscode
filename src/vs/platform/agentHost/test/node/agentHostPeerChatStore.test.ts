@@ -828,23 +828,23 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
-	test('the recorded primary chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
-		const primary = buildChatUri(session, 'primary');
+	test('the recorded default chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
+		const recordedDefault = buildChatUri(session, 'primary');
 		const shapedPeer = URI.parse(buildDefaultChatUri(session));
 		const local = new TestSessionDatabase();
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? primary : undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined));
 		await store.upsert(session, shapedPeer, 'peer-backing');
 		await store.setRead(session, shapedPeer, false);
 		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
-		await store.setRead(session, URI.parse(primary), true);
+		await store.setRead(session, URI.parse(recordedDefault), true);
 
 		assert.deepStrictEqual({
 			afterPeer,
-			afterPrimary: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			afterDefault: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
 			peers: (await store.tryRead(session))?.map(entry => ({ uri: entry.uri.toString(), isRead: entry.isRead })),
 		}, {
 			afterPeer: undefined,
-			afterPrimary: 'true',
+			afterDefault: 'true',
 			peers: [{ uri: shapedPeer.toString(), isRead: false }],
 		});
 	});

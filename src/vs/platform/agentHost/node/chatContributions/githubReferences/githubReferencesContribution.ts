@@ -40,7 +40,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	 * reconciles the session folder's through the session.
 	 */
 	private _getPullRequestKey(turn: ITurnEnd): ProtocolURI {
-		if (isAhpChatChannel(turn.channel) && !this._stateManager.isPrimaryChat(turn.session, turn.channel)) {
+		if (isAhpChatChannel(turn.channel) && !this._stateManager.isDefaultChat(turn.session, turn.channel)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, turn.channel);
 			if (!folder.isSessionFolder && folder.folderKey !== undefined) {
 				return turn.channel;

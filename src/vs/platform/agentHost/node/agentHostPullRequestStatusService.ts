@@ -318,7 +318,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return [];
 		}
 		const folders = new Map<string, IGitHubStateFolder>();
-		const defaultChat = this._stateManager.getPrimaryChat(sessionKey);
+		const defaultChat = this._stateManager.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
 			if (folder && !folders.has(watchKey(folder))) {

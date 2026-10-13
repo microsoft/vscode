@@ -28,7 +28,7 @@ export class TurnAdmissionContribution extends Disposable implements IAgentHostC
 		const chatState = this._stateManager.getChatState(request.chat);
 		const sessionStatus = this._stateManager.getSessionSummary(request.session)?.status ?? 0;
 		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
-		const chatArchived = !this._stateManager.isPrimaryChat(request.session, request.chat) && ((chatState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+		const chatArchived = !this._stateManager.isDefaultChat(request.session, request.chat) && ((chatState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 		if (isChatReadOnly(chatState?.interactivity, sessionArchived || chatArchived)) {
 			const inputState = readChatInputState(this._stateManager.getSessionState(request.session), request.chat);
 			const error = sessionArchived || chatArchived

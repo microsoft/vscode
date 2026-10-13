@@ -118,8 +118,8 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
-	/** Whether the chat is the session's recorded primary chat; hydration can run before the chat is registered. */
-	readonly isPrimaryChat: boolean;
+	/** Whether the chat is the session's recorded default chat; hydration can run before the chat is registered. */
+	readonly isDefaultChat: boolean;
 	/** Resource the chat's persisted data is keyed by, recorded for the chat being hydrated. */
 	readonly storageResource: ProtocolURI;
 	/** Workspace transitions preloaded from this chat's backing storage, when present. */

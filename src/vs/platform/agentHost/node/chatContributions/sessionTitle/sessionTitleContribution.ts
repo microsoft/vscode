@@ -60,7 +60,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 			this._persistSessionMetadata(observed.session, observed.session, customChatTitleMetadataKey(observed.channel), observed.action.title);
 			this._persistSessionMetadata(observed.session, observed.session, customChatTitleSourceMetadataKey(observed.channel), AGENT_HOST_TITLE_SOURCE_USER);
 			this._titleController.markTitleRenamed(observed.session, observed.channel, observed.action.title);
-			if (this._stateManager.isPrimaryChat(observed.session, observed.channel)) {
+			if (this._stateManager.isDefaultChat(observed.session, observed.channel)) {
 				this._stateManager.dispatchServerAction(observed.session, observed.action);
 				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
 				this._persistSessionMetadata(observed.session, observed.session, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
@@ -85,7 +85,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		if (!state || state.chats.length > 1) {
 			return;
 		}
-		const defaultChat = state.defaultChat ?? this._stateManager.getPrimaryChat(session);
+		const defaultChat = state.defaultChat ?? this._stateManager.getDefaultChat(session);
 		if (defaultChat === undefined) {
 			return;
 		}

@@ -30,11 +30,11 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 	async startSessionPrompt(config: IAgentCreateSessionConfig, prompt: string): Promise<URI> {
 		const session = await this._agentService.createSession(config);
 		try {
-			const primaryChat = this._chatOwnership.getPrimaryChat(session.toString());
-			if (primaryChat === undefined) {
-				throw new Error(`Created session ${session.toString()} has no primary chat.`);
+			const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
+			if (defaultChat === undefined) {
+				throw new Error(`Created session ${session.toString()} has no default chat.`);
 			}
-			this._turnService.startTurnMessage(URI.parse(primaryChat), {
+			this._turnService.startTurnMessage(URI.parse(defaultChat), {
 				text: prompt,
 				origin: { kind: MessageKind.User },
 			});

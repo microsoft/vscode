@@ -44,7 +44,7 @@ import {
 	SessionLifecycle,
 	withSessionGitState,
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager, IAgentHostStateManager, isRegisteredPrimaryChat } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, isRegisteredDefaultChat } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -455,10 +455,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const chatOwned = isAhpChatChannel(session);
 		const branchChangesetOwner = this._getBranchChangesetOwner(session);
-		const primaryChat = this._chatOwnership.getPrimaryChat(this._containingSessionUri(session));
-		const canUsePersistedGitState = isRegisteredPrimaryChat(this._chatOwnership, session)
-			|| (chatOwned && primaryChat !== undefined && resolveBranchChangesetScopeForSource(this._stateManager, session).ownerUri
-				=== resolveBranchChangesetScopeForSource(this._stateManager, primaryChat).ownerUri);
+		const defaultChat = this._chatOwnership.getDefaultChat(this._containingSessionUri(session));
+		const canUsePersistedGitState = isRegisteredDefaultChat(this._chatOwnership, session)
+			|| (chatOwned && defaultChat !== undefined && resolveBranchChangesetScopeForSource(this._stateManager, session).ownerUri
+				=== resolveBranchChangesetScopeForSource(this._stateManager, defaultChat).ownerUri);
 		const gitState = this._gitStateService.getSessionGitState?.(session)
 			?? (canUsePersistedGitState ? readSessionGitState(state._meta) : undefined);
 		const catalogState = chatOwned
@@ -469,7 +469,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			: state;
 		const sessionUri = this._containingSessionUri(session);
-		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, isRegisteredPrimaryChat(this._chatOwnership, session), catalogState, branchChangesetOwner,
+		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, isRegisteredDefaultChat(this._chatOwnership, session), catalogState, branchChangesetOwner,
 			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat)));
 	}
 
@@ -479,7 +479,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return this._branchChangesetOwners.get(sessionUri) ?? resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri;
 		}
 		const folderOwner = resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri;
-		if (owner === sessionUri || isRegisteredPrimaryChat(this._chatOwnership, owner)) {
+		if (owner === sessionUri || isRegisteredDefaultChat(this._chatOwnership, owner)) {
 			this._branchChangesetOwners.set(sessionUri, folderOwner);
 		}
 		return folderOwner;
@@ -492,7 +492,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private _getTrackedDatabaseUri(owner: ProtocolURI): ProtocolURI {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.sourceUri ?? owner;
-		return isRegisteredPrimaryChat(this._chatOwnership, source) ? this._containingSessionUri(source) : source;
+		return isRegisteredDefaultChat(this._chatOwnership, source) ? this._containingSessionUri(source) : source;
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
@@ -522,7 +522,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const owners: ProtocolURI[] = [];
-		const defaultChat = this._chatOwnership.getPrimaryChat(session);
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
 		for (const candidate of [
 			...(defaultChat !== undefined ? [defaultChat] : []),
 			...state.chats.map(chat => chat.resource).filter(candidate => candidate !== defaultChat),
@@ -1073,7 +1073,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			owningResources.push(session);
 		}
 		for (const chat of sessionState.chats ?? []) {
-			if (this._chatOwnership.isPrimaryChat(session, chat.resource)) {
+			if (this._chatOwnership.isDefaultChat(session, chat.resource)) {
 				continue;
 			}
 			const chatState = this._stateManager.getChatState(chat.resource);
@@ -1282,7 +1282,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * takes precedence over the session's even when empty.
 	 */
 	private _hasChatWorkingDirectoriesOverride(owner: ProtocolURI): boolean {
-		const chat = isAhpChatChannel(owner) ? owner : this._chatOwnership.getPrimaryChat(owner);
+		const chat = isAhpChatChannel(owner) ? owner : this._chatOwnership.getDefaultChat(owner);
 		return chat !== undefined && this._stateManager.getChatState(chat)?.workingDirectories !== undefined;
 	}
 
@@ -1517,7 +1517,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!state || state.changes !== undefined || (state.turns.length === 0 && !state.activeTurn) || !this._isChatChangesSummaryOwner(chat)) {
 			return;
 		}
-		if (isRegisteredPrimaryChat(this._chatOwnership, chat)) {
+		if (isRegisteredDefaultChat(this._chatOwnership, chat)) {
 			this._publishDefaultChatChangesSummary(this._containingSessionUri(chat));
 		} else {
 			this._queueChatChangesSummary(chat);
@@ -1529,7 +1529,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		this._scheduleStaticRecompute(this._containingSessionUri(chat), 'session', undefined, false, undefined, 'fileEditTracker');
-		if (isRegisteredPrimaryChat(this._chatOwnership, chat)) {
+		if (isRegisteredDefaultChat(this._chatOwnership, chat)) {
 			return;
 		}
 		this._queueChatChangesSummary(chat);
@@ -1550,7 +1550,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/** Publishes the session's ready Session Changes as its default chat's aggregate. */
 	private _publishDefaultChatChangesSummary(session: ProtocolURI): void {
-		const defaultChat = this._chatOwnership.getPrimaryChat(session);
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
 		const changeset = this._stateManager.getChangesetState(buildSessionChangesetUri(session));
 		if (defaultChat !== undefined && changeset?.status === ChangesetStatus.Ready && this._isChatChangesSummaryOwner(defaultChat)) {
 			this._setChatChangesSummary(defaultChat, changeset.files.map(file => file.edit));
@@ -1562,7 +1562,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Session Changes, that computation publishes the aggregate instead.
 	 */
 	private _scheduleChatChangesSummary(chat: ProtocolURI, debounce: boolean): void {
-		if (!isAhpChatChannel(chat) || isRegisteredPrimaryChat(this._chatOwnership, chat) || !this._isChatChangesSummaryOwner(chat) || this._hasSubscription(chat, buildSessionChangesetUri(chat))) {
+		if (!isAhpChatChannel(chat) || isRegisteredDefaultChat(this._chatOwnership, chat) || !this._isChatChangesSummaryOwner(chat) || this._hasSubscription(chat, buildSessionChangesetUri(chat))) {
 			return;
 		}
 		if (!debounce) {
@@ -2008,7 +2008,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (kind === ChangesetKind.Session) {
 				if (!isAhpChatChannel(session)) {
 					this._publishDefaultChatChangesSummary(session);
-				} else if (!isRegisteredPrimaryChat(this._chatOwnership, session) && this._isChatChangesSummaryOwner(session)) {
+				} else if (!isRegisteredDefaultChat(this._chatOwnership, session) && this._isChatChangesSummaryOwner(session)) {
 					this._setChatChangesSummary(session, diffs);
 				}
 			}
@@ -2128,7 +2128,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
 		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
 		for (const chat of chats) {
-			if (this._chatOwnership.isPrimaryChat(session, chat.resource)) {
+			if (this._chatOwnership.isDefaultChat(session, chat.resource)) {
 				continue;
 			}
 			try {
@@ -2173,7 +2173,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const turns: { readonly id: string; readonly completedAt: string }[] = [];
 		for (const chat of chats) {
-			const chatTurns = this._chatOwnership.isPrimaryChat(session, chat.resource)
+			const chatTurns = this._chatOwnership.isDefaultChat(session, chat.resource)
 				? sessionState.turns
 				: this._stateManager.getChatState(chat.resource)?.turns;
 			const lastTurn = chatTurns?.findLast(turn => !isHostNoticeTurn(turn));
@@ -2238,12 +2238,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
-		const sourceIsPrimaryChat = isRegisteredPrimaryChat(this._chatOwnership, source);
-		const persistedBaseBranch = !sourceIsPrimaryChat || isSessionFolder
+		const sourceIsDefaultChat = isRegisteredDefaultChat(this._chatOwnership, source);
+		const persistedBaseBranch = !sourceIsDefaultChat || isSessionFolder
 			? await db.getMetadata(META_DIFF_BASE_BRANCH)
 			: undefined;
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
-			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsPrimaryChat)
+			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
 				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {

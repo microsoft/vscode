@@ -1878,7 +1878,7 @@ suite('SessionWorkspaceConversionService', () => {
 
 		const hydrated = contribution.onHydrateTurns({
 			session: session.toString(),
-			chat: buildDefaultChatUri(session), isPrimaryChat: true, storageResource: creationTimeChatStorageResource(session.toString(), buildDefaultChatUri(session), buildDefaultChatUri(session.toString())),
+			chat: buildDefaultChatUri(session), isDefaultChat: true, storageResource: creationTimeChatStorageResource(session.toString(), buildDefaultChatUri(session), buildDefaultChatUri(session.toString())),
 		}, turns);
 
 		assert.strictEqual(hydrated, turns);
@@ -1929,12 +1929,12 @@ suite('SessionWorkspaceConversionService', () => {
 			const workspaceTransitions = await restoredDatabase.getTurnWorkspaceTransitions();
 			const restoredOnce = await restoredContribution.onHydrateTurns({
 				session: harness.session.toString(),
-				chat: harness.chat.toString(), isPrimaryChat: true, storageResource: creationTimeChatStorageResource(harness.session.toString(), harness.chat.toString(), buildDefaultChatUri(harness.session.toString())),
+				chat: harness.chat.toString(), isDefaultChat: true, storageResource: creationTimeChatStorageResource(harness.session.toString(), harness.chat.toString(), buildDefaultChatUri(harness.session.toString())),
 				workspaceTransitions,
 			}, providerTurns);
 			const restoredTwice = await restoredContribution.onHydrateTurns({
 				session: harness.session.toString(),
-				chat: harness.chat.toString(), isPrimaryChat: true, storageResource: creationTimeChatStorageResource(harness.session.toString(), harness.chat.toString(), buildDefaultChatUri(harness.session.toString())),
+				chat: harness.chat.toString(), isDefaultChat: true, storageResource: creationTimeChatStorageResource(harness.session.toString(), harness.chat.toString(), buildDefaultChatUri(harness.session.toString())),
 				workspaceTransitions,
 			}, restoredOnce);
 			const restoredTurn = restoredTwice[0];
@@ -2002,7 +2002,7 @@ suite('SessionWorkspaceConversionService', () => {
 
 		const restored = await contribution.onHydrateTurns({
 			session: 'copilot:/workspace-less',
-			chat: buildDefaultChatUri('copilot:/workspace-less'), isPrimaryChat: true, storageResource: creationTimeChatStorageResource('copilot:/workspace-less', buildDefaultChatUri('copilot:/workspace-less'), buildDefaultChatUri('copilot:/workspace-less')),
+			chat: buildDefaultChatUri('copilot:/workspace-less'), isDefaultChat: true, storageResource: creationTimeChatStorageResource('copilot:/workspace-less', buildDefaultChatUri('copilot:/workspace-less'), buildDefaultChatUri('copilot:/workspace-less')),
 			workspaceTransitions: await database.getTurnWorkspaceTransitions(),
 		}, turns);
 
@@ -2042,7 +2042,7 @@ suite('SessionWorkspaceConversionService', () => {
 
 		const restored = await contribution.onHydrateTurns({
 			session: session.toString(),
-			chat: buildChatUri(session, 'peer-chat'), isPrimaryChat: false, storageResource: creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer-chat'), buildDefaultChatUri(session.toString())),
+			chat: buildChatUri(session, 'peer-chat'), isDefaultChat: false, storageResource: creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer-chat'), buildDefaultChatUri(session.toString())),
 			workspaceTransitions: await database.getTurnWorkspaceTransitions(),
 		}, turns);
 

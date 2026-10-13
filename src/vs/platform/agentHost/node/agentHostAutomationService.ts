@@ -835,9 +835,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			&& action.type !== ActionType.ChatError) {
 			return;
 		}
-		// Match the run's recorded sessions to their primary chats, so a run still completes after its session left the registry.
+		// Match the run's recorded sessions to their default chats, so a run still completes after its session left the registry.
 		const run = [...this._runs.values()].find(candidate => !isTerminalLifecycle(candidate.lifecycle)
-			&& candidate.sessions.some(session => this._stateManager.getPrimaryChat(session) === envelope.channel));
+			&& candidate.sessions.some(session => this._stateManager.getDefaultChat(session) === envelope.channel));
 		if (!run) {
 			return;
 		}

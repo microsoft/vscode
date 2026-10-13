@@ -128,7 +128,7 @@ export class AgentHostChatCompletionProvider implements IAgentHostCompletionItem
 		if (sessionUri === undefined) {
 			return [];
 		}
-		const defaultChatUri = session.defaultChat ?? this._stateManager.getPrimaryChat(sessionUri);
+		const defaultChatUri = session.defaultChat ?? this._stateManager.getDefaultChat(sessionUri);
 		if (defaultChatUri === undefined) {
 			return [];
 		}
@@ -204,7 +204,7 @@ export class AgentHostChatCompletionProvider implements IAgentHostCompletionItem
 	private _canonicalChatId(uri: string, sessionUri: string, defaultChatUri: string): string {
 		const normalizedDefault = URI.parse(defaultChatUri).toString();
 		const normalized = URI.parse(uri).toString();
-		if (normalized === URI.parse(sessionUri).toString() || this._stateManager.isPrimaryChat(sessionUri, uri)) {
+		if (normalized === URI.parse(sessionUri).toString() || this._stateManager.isDefaultChat(sessionUri, uri)) {
 			return normalizedDefault;
 		}
 		return normalized;

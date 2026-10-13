@@ -87,7 +87,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
-		this._onPrimaryChatAvailable(sessionStr);
+		this._onDefaultChatAvailable(sessionStr);
 	}
 
 	/** Seeds the catalogue and static repository changesets for an available chat state. */
@@ -117,7 +117,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
-		this._onPrimaryChatAvailable(sessionStr);
+		this._onDefaultChatAvailable(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
@@ -340,16 +340,16 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 	}
 
-	/** Makes the session's primary chat available once the session is in state. */
-	private _onPrimaryChatAvailable(session: string): void {
-		const primaryChat = this._chatOwnership.getPrimaryChat(session);
-		if (primaryChat !== undefined) {
-			this.onChatAvailable(primaryChat);
+	/** Makes the session's default chat available once the session is in state. */
+	private _onDefaultChatAvailable(session: string): void {
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		if (defaultChat !== undefined) {
+			this.onChatAvailable(defaultChat);
 		}
 	}
 
 	private _reconcileBranchSummaryResources(session: string): void {
-		const defaultChat = this._chatOwnership.getPrimaryChat(session);
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
 		const desiredSources = new Set([
 			...(defaultChat !== undefined ? [defaultChat] : []),
 			...this._stateManager.getSessionState(session)?.chats
@@ -617,9 +617,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			}
 		} else {
 			this._refreshChangesetCatalogs(sessionStr);
-			const primaryChat = this._chatOwnership.getPrimaryChat(sessionStr);
+			const defaultChat = this._chatOwnership.getDefaultChat(sessionStr);
 			for (const source of [
-				...(primaryChat !== undefined ? [primaryChat] : []),
+				...(defaultChat !== undefined ? [defaultChat] : []),
 				...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
 			]) {
 				branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, source).ownerUri);

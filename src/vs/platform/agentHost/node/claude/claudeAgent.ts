@@ -66,7 +66,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
-import { deriveLegacyPrimaryChat } from '../agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from '../agentHostStateManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
@@ -1881,7 +1881,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const resolved = resolveAgentChatContext(context, chat);
 		this._recordChatScope(chat, resolved.configurationResource, resolved.resource);
 		if (providerData === undefined) {
-			// Only the session-backed (primary) chat can recover its backing from the session.
+			// Only the session-backed default chat can recover its backing from the session.
 			if (!isEqual(resolved.resource, resolved.configurationResource)) {
 				return;
 			}
@@ -2077,8 +2077,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		return Promise.all(sdkEntries.map(async entry => {
 			const session = AgentSession.uri(this.id, entry.sessionId);
-			// A provider-native SDK session records no primary chat.
-			const chat = URI.parse(deriveLegacyPrimaryChat(session));
+			// A provider-native SDK session records no default chat.
+			const chat = URI.parse(deriveLegacyDefaultChat(session));
 			return { ...await this._withPersistedWorkingDirectories(session, { chat, ...this._metadataStore.project(entry) }), session };
 		}));
 	}

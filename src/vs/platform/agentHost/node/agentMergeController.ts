@@ -319,7 +319,7 @@ export class AgentMergeController extends Disposable {
 	 * run their own turns concurrently. A session URI stands for its default chat.
 	 */
 	getTurnContext(chat: string): IAgentMergeTurnContext | undefined {
-		const caller = isAhpChatChannel(chat) ? chat : this._stateManager.getPrimaryChat(chat);
+		const caller = isAhpChatChannel(chat) ? chat : this._stateManager.getDefaultChat(chat);
 		if (caller === undefined) {
 			return undefined;
 		}
@@ -1437,7 +1437,7 @@ export class AgentMergeController extends Disposable {
 		try {
 			const state = this._stateManager.getSessionState(session.toString());
 			const chat = this._resolveOwningChat(session, folderKey, readAgentMergeFolderState(state?.config?.values, folderKey, this._sessionFolderKey(state)));
-			const target = chat ?? this._stateManager.getPrimaryChat(session);
+			const target = chat ?? this._stateManager.getDefaultChat(session);
 			if (target === undefined) {
 				this._logService.warn(`[AgentMergeController] No chat to post an Agent Merge notice to: session=${session}`);
 				return;

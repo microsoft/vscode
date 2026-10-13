@@ -49,7 +49,7 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 			this._context.persistSessionFlag(chatTarget, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 			this._context.persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatTarget), title);
 			this._context.persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatTarget), AGENT_HOST_TITLE_SOURCE_USER);
-			if (this._context.isPrimaryChat(sessionChannel, chatTarget)) {
+			if (this._context.isDefaultChat(sessionChannel, chatTarget)) {
 				this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 				this._context.markTitleRenamed(sessionChannel);
 				this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, title);

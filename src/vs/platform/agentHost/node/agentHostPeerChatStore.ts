@@ -18,7 +18,7 @@ import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type I
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import { deriveLegacyPrimaryChat } from './agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from './agentHostStateManager.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -662,7 +662,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	private async _setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
-		if (this._chatOwnership.isPrimaryChat(session.toString(), chat.toString())) {
+		if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 			return this.persistMetadata(session, session, { [AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: isRead ? 'true' : '' });
 		}
 		const values = { [AH_META_IS_READ_DB_KEY]: isRead ? 'true' : '' };
@@ -1181,8 +1181,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		const entryCount = parsed.length;
 		const sessionKey = session.toString();
-		// The legacy catalog lists only peers; it records no primary chat of its own.
-		const primaryChat = this._chatOwnership.getPrimaryChat(sessionKey) ?? deriveLegacyPrimaryChat(session);
+		// The legacy catalog lists only peers; it records no default chat of its own.
+		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey) ?? deriveLegacyDefaultChat(session);
 		const seen = new Set<string>();
 		const result: IPersistedPeerChat[] = [];
 		for (let index = 0; index < entryCount; index++) {
@@ -1200,8 +1200,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI`);
 				continue;
 			}
-			if (value.uri === primaryChat) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is the primary chat of ${sessionKey}`);
+			if (value.uri === defaultChat) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is the default chat of ${sessionKey}`);
 				continue;
 			}
 			if (value.providerData !== undefined && typeof value.providerData !== 'string') {

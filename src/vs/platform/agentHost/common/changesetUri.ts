@@ -421,9 +421,9 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * When chats share the folder, `resolveAgentMergeOwner` picks the one chat
  * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
- * `isPrimaryChat` is whether `ownerUri` is its session's recorded primary chat.
+ * `isDefaultChat` is whether `ownerUri` is its session's recorded default chat.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, isPrimaryChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
@@ -458,7 +458,6 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, isPrimaryChat: boole
 		}];
 	}
 
-	const isDefaultChat = isPrimaryChat;
 	const gitState = readSessionGitState(state._meta);
 	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(ownerUri, state, isDefaultChat, resolveAgentMergeOwner)
 		? [{

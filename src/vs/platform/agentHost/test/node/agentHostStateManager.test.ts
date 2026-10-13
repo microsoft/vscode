@@ -14,7 +14,7 @@ import { ActionType, NotificationType, type ActionEnvelope, type INotification }
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
-import { AgentHostStateManager, creationTimeChatStorageResource, deriveLegacyPrimaryChat } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, deriveLegacyDefaultChat } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -628,7 +628,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peer });
 			manager.removeSession(sessionUri);
 			const evicted = {
-				physical: manager.getPrimaryChat(sessionUri),
+				physical: manager.getDefaultChat(sessionUri),
 				routing: manager.getSurfacedSessionSummary(sessionUri)?.defaultChat,
 			};
 			if (cleanup === 'delete') {
@@ -640,90 +640,90 @@ suite('AgentHostStateManager', () => {
 			} else {
 				manager.restoreSession({ ...makeSessionSummary(), defaultChat: peer }, [], creationTimeChatStorageResource);
 			}
-			assert.deepStrictEqual({ evicted, after: manager.getPrimaryChat(sessionUri) }, {
+			assert.deepStrictEqual({ evicted, after: manager.getDefaultChat(sessionUri) }, {
 				evicted: { physical, routing: peer }, after: cleanup === 'restore' ? peer : undefined,
 			});
 		});
 	}
 
-	suite('primary chat role', () => {
-		// The recorded primary chat is not default-shaped, and a default-shaped peer is not the primary chat.
-		const primary = buildChatUri(sessionUri, 'peer-x');
+	suite('default chat role', () => {
+		// The recorded default chat is not default-shaped, and a default-shaped peer is not the default chat.
+		const recordedDefault = buildChatUri(sessionUri, 'peer-x');
 		const shapedPeer = buildDefaultChatUri(sessionUri);
 
 		function createMismatchedSession(): void {
-			manager.createSession({ ...makeSessionSummary(), defaultChat: primary });
-			manager.addChat(sessionUri, shapedPeer, creationTimeChatStorageResource(sessionUri, shapedPeer, manager.getPrimaryChat(sessionUri)), { title: 'Peer' });
+			manager.createSession({ ...makeSessionSummary(), defaultChat: recordedDefault });
+			manager.addChat(sessionUri, shapedPeer, creationTimeChatStorageResource(sessionUri, shapedPeer, manager.getDefaultChat(sessionUri)), { title: 'Peer' });
 		}
 
-		test('role decisions follow the recorded primary chat, not the URI shape', () => {
+		test('role decisions follow the recorded default chat, not the URI shape', () => {
 			createMismatchedSession();
-			manager.dispatchServerAction(primary, { type: ActionType.ChatTurnStarted, turnId: 'primary-turn', startedAt: new Date(0).toISOString(), message: { text: 'hi', origin: { kind: MessageKind.User } } });
+			manager.dispatchServerAction(recordedDefault, { type: ActionType.ChatTurnStarted, turnId: 'default-turn', startedAt: new Date(0).toISOString(), message: { text: 'hi', origin: { kind: MessageKind.User } } });
 			const unregistered = buildDefaultChatUri(URI.from({ scheme: 'copilot', path: '/other' }).toString());
 
 			const decisions = {
-				primary: manager.getPrimaryChat(sessionUri),
-				isPrimary: manager.isPrimaryChat(sessionUri, primary),
-				isShapedPeerPrimary: manager.isPrimaryChat(sessionUri, shapedPeer),
-				primaryStorage: manager.getChatStorageResource(primary),
+				recordedDefault: manager.getDefaultChat(sessionUri),
+				isDefault: manager.isDefaultChat(sessionUri, recordedDefault),
+				isShapedPeerDefault: manager.isDefaultChat(sessionUri, shapedPeer),
+				defaultStorage: manager.getChatStorageResource(recordedDefault),
 				shapedPeerStorage: manager.getChatStorageResource(shapedPeer),
 				unregisteredShapedStorage: manager.resolveChatStorageResource(sessionUri, unregistered),
 				activeTurn: manager.getActiveTurnId(sessionUri),
 				defaultChatStateTurn: manager.getDefaultChatState(sessionUri)?.activeTurn?.id,
 			};
-			manager.removeChat(sessionUri, primary);
+			manager.removeChat(sessionUri, recordedDefault);
 			manager.removeChat(sessionUri, shapedPeer);
 
 			assert.deepStrictEqual({ ...decisions, chatsAfterRemoval: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource) }, {
-				primary,
-				isPrimary: true,
-				isShapedPeerPrimary: false,
-				primaryStorage: sessionUri,
+				recordedDefault,
+				isDefault: true,
+				isShapedPeerDefault: false,
+				defaultStorage: sessionUri,
 				shapedPeerStorage: shapedPeer,
 				unregisteredShapedStorage: unregistered,
-				activeTurn: 'primary-turn',
-				defaultChatStateTurn: 'primary-turn',
-				chatsAfterRemoval: [primary],
+				activeTurn: 'default-turn',
+				defaultChatStateTurn: 'default-turn',
+				chatsAfterRemoval: [recordedDefault],
 			});
 		});
 
-		test('restore records the primary chat its source records and stores only it under the session', () => {
-			const storageRequests: { chat: string; primaryChat: string }[] = [];
+		test('restore records the default chat its source records and stores only it under the session', () => {
+			const storageRequests: { chat: string; defaultChat: string }[] = [];
 			manager.restoreSession({
 				...makeSessionSummary(),
-				defaultChat: primary,
+				defaultChat: recordedDefault,
 				chats: [
-					{ resource: primary, title: '', origin: { kind: ChatOriginKind.User }, status: SessionStatus.Idle },
+					{ resource: recordedDefault, title: '', origin: { kind: ChatOriginKind.User }, status: SessionStatus.Idle },
 					{ resource: shapedPeer, title: 'Peer', origin: { kind: ChatOriginKind.User }, status: SessionStatus.Idle },
 				],
-			}, [], (session, chat, primaryChat) => {
-				storageRequests.push({ chat, primaryChat });
-				return creationTimeChatStorageResource(session, chat, primaryChat);
+			}, [], (session, chat, defaultChat) => {
+				storageRequests.push({ chat, defaultChat });
+				return creationTimeChatStorageResource(session, chat, defaultChat);
 			});
 
 			assert.deepStrictEqual({
 				storageRequests,
-				primary: manager.getPrimaryChat(sessionUri),
-				primaryStorage: manager.getChatStorageResource(primary),
+				recordedDefault: manager.getDefaultChat(sessionUri),
+				defaultStorage: manager.getChatStorageResource(recordedDefault),
 				shapedPeerStorage: manager.getChatStorageResource(shapedPeer),
 			}, {
-				storageRequests: [{ chat: primary, primaryChat: primary }, { chat: shapedPeer, primaryChat: primary }],
-				primary,
-				primaryStorage: sessionUri,
+				storageRequests: [{ chat: recordedDefault, defaultChat: recordedDefault }, { chat: shapedPeer, defaultChat: recordedDefault }],
+				recordedDefault,
+				defaultStorage: sessionUri,
 				shapedPeerStorage: shapedPeer,
 			});
 		});
 
-		test('an unknown session has no primary chat', () => {
+		test('an unknown session has no default chat', () => {
 			assert.deepStrictEqual({
-				primary: manager.getPrimaryChat(sessionUri),
-				isShapedPrimary: manager.isPrimaryChat(sessionUri, shapedPeer),
+				recordedDefault: manager.getDefaultChat(sessionUri),
+				isShapedDefault: manager.isDefaultChat(sessionUri, shapedPeer),
 				defaultChatState: manager.getDefaultChatState(sessionUri),
-			}, { primary: undefined, isShapedPrimary: false, defaultChatState: undefined });
+			}, { recordedDefault: undefined, isShapedDefault: false, defaultChatState: undefined });
 		});
 
 		test('the legacy derivation is the default-shaped chat', () => {
-			assert.strictEqual(deriveLegacyPrimaryChat(sessionUri), shapedPeer);
+			assert.strictEqual(deriveLegacyDefaultChat(sessionUri), shapedPeer);
 		});
 	});
 
@@ -1929,7 +1929,7 @@ suite('AgentHostStateManager', () => {
 			manager.addChat(sessionUri, buildChatUri(sessionUri, 'peer-2'), creationTimeChatStorageResource(sessionUri, buildChatUri(sessionUri, 'peer-2'), buildDefaultChatUri(sessionUri)), { title: 'Peer 2' });
 
 			assert.deepStrictEqual({
-				catalogDefault: manager.getPrimaryChat(sessionUri),
+				catalogDefault: manager.getDefaultChat(sessionUri),
 				routingDefault: manager.getSessionState(sessionUri)?.defaultChat,
 				defaultTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
 				peerTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.title,
@@ -1970,9 +1970,9 @@ suite('AgentHostStateManager', () => {
 			const peer = buildChatUri(foreign, 'peer');
 			const foreignDefault = buildDefaultChatUri(foreign);
 			const spawned = buildChatUri(foreign, 'spawned');
-			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, manager.getPrimaryChat(owner)));
-			manager.addChat(owner, foreignDefault, creationTimeChatStorageResource(owner, foreignDefault, manager.getPrimaryChat(owner)));
-			manager.registerRestoredChatSummary(owner, spawned, { storageResource: creationTimeChatStorageResource(owner, spawned, manager.getPrimaryChat(owner)), origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tool' } });
+			manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, manager.getDefaultChat(owner)));
+			manager.addChat(owner, foreignDefault, creationTimeChatStorageResource(owner, foreignDefault, manager.getDefaultChat(owner)));
+			manager.registerRestoredChatSummary(owner, spawned, { storageResource: creationTimeChatStorageResource(owner, spawned, manager.getDefaultChat(owner)), origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tool' } });
 			const unregistered = buildChatUri(owner, 'unregistered');
 
 			assert.deepStrictEqual({
@@ -2001,7 +2001,7 @@ suite('AgentHostStateManager', () => {
 				...makeSessionSummary(owner),
 				defaultChat,
 				chats: [{ resource: peer, title: 'Peer', status: SessionStatus.Idle, interactivity: ChatInteractivity.Full }],
-			}, [], (session, chat, primaryChat) => recorded.get(chat) ?? creationTimeChatStorageResource(session, chat, primaryChat));
+			}, [], (session, chat, defaultChat) => recorded.get(chat) ?? creationTimeChatStorageResource(session, chat, defaultChat));
 			manager.registerRestoredChatSummary(owner, peer, { storageResource: 'copilot:/other-storage', title: 'Peer' });
 			manager.dispatchServerAction(owner, { type: ActionType.SessionIsReadChanged, isRead: true });
 

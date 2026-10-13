@@ -1789,7 +1789,7 @@ suite('AgentService (node dispatcher)', () => {
 				const [listed] = await svc.listSessions();
 				await svc.whenCatalogReconciliationIdle();
 				assert.deepStrictEqual({
-					stableDefault: manager.getPrimaryChat(session.toString()),
+					stableDefault: manager.getDefaultChat(session.toString()),
 					routingDefault: manager.getSessionState(session.toString())?.defaultChat,
 					persisted: after.sourceRevision > before.sourceRevision,
 					defaults: data.chats.filter(chat => chat.kind === 'default').map(chat => chat.uri),
@@ -21841,7 +21841,7 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.restoreSession(session);
 			const row = (await database.readChatV2(session.toString(), child)).chat;
 			assert.deepStrictEqual({
-				physical: getStateManager(svc).getPrimaryChat(session.toString()),
+				physical: getStateManager(svc).getDefaultChat(session.toString()),
 				parent: row?.parentChat,
 				origin: row?.origin,
 				publicOrder: row?.order,
@@ -27684,7 +27684,7 @@ suite('AgentService (node dispatcher)', () => {
 					afterPeer,
 					physical: (await database.getChatV2ProviderDetail(physical))?.providerData,
 					peer: (await database.getChatV2ProviderDetail(peer))?.providerData,
-					stableDefault: getStateManager(svc).getPrimaryChat(session.toString()),
+					stableDefault: getStateManager(svc).getDefaultChat(session.toString()),
 				}, { afterPeer: 'default-backing', physical: 'default-update', peer: 'peer-update', stableDefault: physical });
 			});
 		}
@@ -27719,7 +27719,7 @@ suite('AgentService (node dispatcher)', () => {
 					registerTestAgentProvider(svc, agent);
 					if (restore) {
 						await svc.restoreSession(session);
-						assert.strictEqual(getStateManager(svc).getPrimaryChat(session.toString()), physical);
+						assert.strictEqual(getStateManager(svc).getDefaultChat(session.toString()), physical);
 						svc.dispatchAction(physical, {
 							type: ActionType.ChatTurnStarted, turnId: 'cold-turn', startedAt: new Date().toISOString(),
 							message: { text: 'Cold send', origin: { kind: MessageKind.User } },
@@ -27741,9 +27741,9 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		test('a normalized session whose primary chat is not default-shaped treats a default-shaped chat as a peer', async () => {
-			const session = URI.parse('ahp-session:/recorded-primary');
-			const primary = buildChatUri(session, 'advertised-default');
+		test('a normalized session whose default chat is not default-shaped treats a default-shaped chat as a peer', async () => {
+			const session = URI.parse('ahp-session:/recorded-default');
+			const recordedDefault = buildChatUri(session, 'advertised-default');
 			const shaped = buildDefaultChatUri(session);
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
@@ -27757,7 +27757,7 @@ suite('AgentService (node dispatcher)', () => {
 			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
 			await database.registerChatCatalogV2(session.toString(), {
-				defaultChat: { chat: primary, order: 0, providerData: 'default-backing' },
+				defaultChat: { chat: recordedDefault, order: 0, providerData: 'default-backing' },
 				peers: [], privateDescendants: [],
 			});
 			const svc = disposables.add(createTestAgentService(
@@ -27770,27 +27770,27 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, URI.parse(shaped), { title: 'Shaped peer' });
 			const manager = getStateManager(svc);
 			svc.dispatchAction(shaped, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 1);
-			svc.dispatchAction(primary, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 2);
+			svc.dispatchAction(recordedDefault, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'role-client', 2);
 			assert.deepStrictEqual({
 				coldShapedSubscribe,
-				primary: manager.getPrimaryChat(session.toString()),
+				recordedDefault: manager.getDefaultChat(session.toString()),
 				chats: manager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
-				storage: [primary, shaped].map(chat => manager.getChatStorageResource(chat)),
-				archived: [primary, shaped].map(chat => isSessionStatusArchived(manager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.status)),
+				storage: [recordedDefault, shaped].map(chat => manager.getChatStorageResource(chat)),
+				archived: [recordedDefault, shaped].map(chat => isSessionStatusArchived(manager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat)?.status)),
 			}, {
 				coldShapedSubscribe: `Cannot subscribe to unknown resource: ${shaped}`,
-				primary,
-				chats: [primary, shaped],
+				recordedDefault,
+				chats: [recordedDefault, shaped],
 				storage: [session.toString(), shaped],
 				archived: [false, true],
 			});
 		});
 
-		test('a provider listing or discovering the default-shaped chat keeps a registered session\'s recorded primary', async () => {
+		test('a provider listing or discovering the default-shaped chat keeps a registered session\'s recorded default', async () => {
 			const session = AgentSession.uri('copilot', 'recorded-generation');
 			const shaped = buildDefaultChatUri(session);
-			// A recreated session records a primary with a generation query.
-			const primary = URI.parse(shaped).with({ query: 'generation=1' }).toString();
+			// A recreated session records a default chat with a generation query.
+			const recordedDefault = URI.parse(shaped).with({ query: 'generation=1' }).toString();
 			class ListingAgent extends MockAgent {
 				override async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 					return [{ session, chat: URI.parse(shaped), startTime: 1, modifiedTime: 2, summary: 'Listed' }];
@@ -27803,7 +27803,7 @@ suite('AgentService (node dispatcher)', () => {
 			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
 			await database.registerChatCatalogV2(session.toString(), {
-				defaultChat: { chat: primary, order: 0, providerData: 'default-backing' },
+				defaultChat: { chat: recordedDefault, order: 0, providerData: 'default-backing' },
 				peers: [], privateDescendants: [],
 			});
 			const svc = disposables.add(createTestAgentService(
@@ -27825,15 +27825,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				listedCold,
 				listedLive,
-				recordedPrimary: snapshot?.header?.defaultChatUri,
-				restoredPrimary: getStateManager(svc).getPrimaryChat(session.toString()),
+				recordedDefault: snapshot?.header?.defaultChatUri,
+				restoredDefault: getStateManager(svc).getDefaultChat(session.toString()),
 				restoredDefaultChat: getStateManager(svc).getSessionState(session.toString())?.defaultChat,
 			}, {
-				listedCold: [{ chat: primary, kind: 'default' }],
-				listedLive: [{ chat: primary, kind: 'default' }],
-				recordedPrimary: primary,
-				restoredPrimary: primary,
-				restoredDefaultChat: primary,
+				listedCold: [{ chat: recordedDefault, kind: 'default' }],
+				listedLive: [{ chat: recordedDefault, kind: 'default' }],
+				recordedDefault: recordedDefault,
+				restoredDefault: recordedDefault,
+				restoredDefaultChat: recordedDefault,
 			});
 		});
 
@@ -28924,7 +28924,7 @@ suite('AgentService (node dispatcher)', () => {
 				svc.dispatchAction(first.toString(), { type: ActionType.SessionDefaultChatChanged, defaultChat: peer.toString() }, 'residency-client', 1);
 				await createUsedSession(svc, residency.agent);
 				await waitForResidency(() => !getStateManager(svc).getSessionState(first.toString()), 'Routed session was not evicted');
-				const evictedDefault = getStateManager(svc).getPrimaryChat(first.toString());
+				const evictedDefault = getStateManager(svc).getDefaultChat(first.toString());
 				if (operation === 'delete') {
 					await svc.disposeSession(first);
 				} else {
@@ -28933,7 +28933,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					evictedDefault,
 					disposed: residency.agent.chatContexts.filter(call => call.boundary === 'disposeChat').map(call => call.chat.toString()),
-					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getPrimaryChat(first.toString()) : undefined,
+					restoredDefault: getStateManager(svc).getSessionState(first.toString()) ? getStateManager(svc).getDefaultChat(first.toString()) : undefined,
 				}, {
 					evictedDefault: physical,
 					disposed: operation === 'delete' ? [peer.toString(), physical] : [],

@@ -307,7 +307,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 
 	private _classifyChannel(resource: URI, session: URI): AgentHostSessionSubscribeChannel {
 		const resourceString = resource.toString();
-		return !isAhpChatChannel(resourceString) ? 'session' : this._chatOwnership.isPrimaryChat(session.toString(), resourceString) ? 'defaultChat' : 'chat';
+		return !isAhpChatChannel(resourceString) ? 'session' : this._chatOwnership.isDefaultChat(session.toString(), resourceString) ? 'defaultChat' : 'chat';
 	}
 
 	private _classify(resource: URI, resolvedOwner: URI | undefined): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider } | undefined {

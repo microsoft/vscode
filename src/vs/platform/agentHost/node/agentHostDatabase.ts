@@ -157,7 +157,7 @@ export interface IAgentHostDatabaseSessionRegistrations {
 	readonly current: readonly IAgentHostDatabaseSession[];
 	/** Legacy registrations, as {@link IAgentHostDatabase.listSessions} lists them. */
 	readonly legacy: readonly IAgentHostDatabaseSession[];
-	/** The primary chat each chat catalog with normalized (v2) authority records for its session. */
+	/** The default chat each chat catalog with normalized (v2) authority records for its session. */
 	readonly normalizedCatalogs: readonly IAgentHostDatabaseNormalizedCatalog[];
 }
 
@@ -726,7 +726,7 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
 
 /**
- * Counts changes to the session registrations, and to the primary chats
+ * Counts changes to the session registrations, and to the default chats
  * normalized chat catalogs record, on this connection with TEMP objects, which live
  * only as long as the connection and never change the database file. Every
  * writer of agent-host.db is this process's connection, so the count covers

@@ -16,7 +16,7 @@ import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTr
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
-import { AgentHostStateManager, IAgentHostStateManager, isRegisteredPrimaryChat } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, isRegisteredDefaultChat } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
@@ -120,7 +120,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		await this.refreshSessionGitState(sessionKey, workingDirectory);
-		if (isAhpChatChannel(sessionKey) && !isRegisteredPrimaryChat(this._stateManager, sessionKey)) {
+		if (isAhpChatChannel(sessionKey) && !isRegisteredDefaultChat(this._stateManager, sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
 				await this._queueFolderPullRequestLookup(folder);
@@ -477,7 +477,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
 		const sessionState = this._stateManager.getSessionState(scope.sessionUri);
-		if (isRegisteredPrimaryChat(this._stateManager, sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
+		if (isRegisteredDefaultChat(this._stateManager, sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
 			return readSessionGitState(sessionState?._meta);
 		}
 		return readFolderScopeGitState(sessionState?._meta, getWorkingDirectoryScopeId(scope.workingDirectories))
@@ -597,7 +597,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			if (state?.lifecycle !== SessionLifecycle.Ready) {
 				return undefined;
 			}
-			const defaultChat = this._stateManager.getPrimaryChat(session);
+			const defaultChat = this._stateManager.getDefaultChat(session);
 			if (defaultChat === undefined) {
 				return undefined;
 			}
@@ -847,7 +847,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const state = this._getStateForGitScope(sessionKey);
 		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
-		if (!isSessionFolder && isRegisteredPrimaryChat(this._stateManager, sessionKey)) {
+		if (!isSessionFolder && isRegisteredDefaultChat(this._stateManager, sessionKey)) {
 			return gitStateBaseBranch;
 		}
 		const configValues = state?.config?.values;
@@ -922,7 +922,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
 		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
-		if (isRegisteredPrimaryChat(this._stateManager, sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
+		if (isRegisteredDefaultChat(this._stateManager, sessionKey) && scope.workingDirectories[0] === this._stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0]) {
 			await this._setSessionGitState(scope.sessionUri, gitState);
 			return;
 		}

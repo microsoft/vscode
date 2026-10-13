@@ -28,8 +28,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
-		/** The session's recorded primary chat, whose customizations the completions offer. */
-		private readonly _getPrimaryChat: (session: URI) => URI | undefined,
+		/** The session's recorded default chat, whose customizations the completions offer. */
+		private readonly _getDefaultChat: (session: URI) => URI | undefined,
 		/**
 		 * The owning session's last host-published customization snapshot.
 		 * Supplied by Agent Host so the provider hands it to
@@ -89,7 +89,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
-		const chat = this._getPrimaryChat(session);
+		const chat = this._getDefaultChat(session);
 		if (!chat) {
 			return [];
 		}

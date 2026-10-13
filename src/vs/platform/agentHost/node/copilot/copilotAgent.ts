@@ -76,7 +76,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
-import { deriveLegacyPrimaryChat } from '../agentHostStateManager.js';
+import { deriveLegacyDefaultChat } from '../agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -908,7 +908,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Whether a created or materialized chat of `session` is its session-backed
-	 * (primary) chat: the host stores it under its session.
+	 * default chat: the host stores it under its session.
 	 */
 	private _isSessionBackedChat(chat: URI, session: URI): boolean {
 		const scope = this._chatScopes.get(chat.toString());
@@ -3247,8 +3247,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
 		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
-			// A legacy SDK session records no primary chat.
-			const chat = URI.parse(deriveLegacyPrimaryChat(session));
+			// A legacy SDK session records no default chat.
+			const chat = URI.parse(deriveLegacyDefaultChat(session));
 			const metadata = await this._readStoredSessionMetadata(session);
 			if (!metadata || !(
 				metadata.model !== undefined
@@ -3531,8 +3531,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				const discoveredChat = {
 					session,
-					// A provider-native session discovered outside Agent Host records no primary chat.
-					chat: URI.parse(deriveLegacyPrimaryChat(session)),
+					// A provider-native session discovered outside Agent Host records no default chat.
+					chat: URI.parse(deriveLegacyDefaultChat(session)),
 					startTime: new Date(s.startTime).getTime(),
 					modifiedTime,
 					// Always key the project off the resolved working directory: a worktree
