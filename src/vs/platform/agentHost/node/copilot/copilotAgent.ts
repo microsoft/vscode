@@ -50,7 +50,7 @@ import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManag
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -2093,6 +2093,52 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async installPlugin(request: IAgentPluginInstallRequest): Promise<void> {
 		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
+	}
+
+	async listPluginMarketplaces(): Promise<readonly IAgentPluginMarketplace[]> {
+		const result = await this._retryAfterClosedConnection('listPluginMarketplaces', client => client.rpc.plugins.marketplaces.list());
+		return result.marketplaces.map(marketplace => ({
+			name: marketplace.name,
+			source: marketplace.source,
+			isDefault: marketplace.isDefault === true,
+			managed: marketplace.managed === true,
+			available: marketplace.available !== false,
+		}));
+	}
+
+	async addPluginMarketplace(source: string): Promise<IAgentPluginMarketplace> {
+		const result = await this._retryAfterClosedConnection('addPluginMarketplace', client => client.rpc.plugins.marketplaces.add({ source }));
+		const marketplaces = await this.listPluginMarketplaces();
+		const marketplace = marketplaces.find(marketplace => marketplace.name === result.name);
+		if (!marketplace) {
+			throw new Error(`Added plugin marketplace '${result.name}' was not present in the refreshed marketplace inventory.`);
+		}
+		return marketplace;
+	}
+
+	async browsePluginMarketplace(name: string): Promise<readonly IAgentPluginMarketplaceItem[]> {
+		const result = await this._retryAfterClosedConnection('browsePluginMarketplace', client => client.rpc.plugins.marketplaces.browse({ name }));
+		return result.plugins.map(plugin => ({
+			name: plugin.name,
+			description: plugin.description,
+		}));
+	}
+
+	async removePluginMarketplace(name: string, force?: boolean): Promise<IAgentPluginMarketplaceRemoveResult> {
+		const result = await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
+		return {
+			removed: result.removed,
+			dependentPlugins: result.dependentPlugins,
+		};
+	}
+
+	async refreshPluginMarketplaces(name?: string): Promise<readonly IAgentPluginMarketplaceRefreshResult[]> {
+		const result = await this._retryAfterClosedConnection('refreshPluginMarketplaces', client => client.rpc.plugins.marketplaces.refresh(name ? { name } : {}));
+		return result.results.map(entry => ({
+			name: entry.name,
+			success: entry.success,
+			error: entry.error,
+		}));
 	}
 
 	searchCustomizationMarketplace(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {

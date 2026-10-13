@@ -565,7 +565,10 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	}
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
+type CopilotPlugins = CopilotClient['rpc']['plugins'];
+type CopilotPluginsInstall = CopilotPlugins['install'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
+type CopilotPluginMarketplaces = CopilotPlugins['marketplaces'];
 type CopilotModelInfo = Awaited<ReturnType<CopilotModelsList>>['models'][number];
 type CopilotAgentDiscovery = Pick<CopilotClient['rpc']['agents'], 'discover' | 'getDiscoveryPaths'>;
 type CopilotInstructionDiscovery = Pick<CopilotClient['rpc']['instructions'], 'discover' | 'getDiscoveryPaths'>;
@@ -607,7 +610,9 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
+		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
@@ -739,8 +744,31 @@ class TestCopilotClient implements ITestCopilotClient {
 			}
 		},
 		plugins: {
+			install: async params => {
+				this.pluginInstallRequests.push(params);
+				return {} as Awaited<ReturnType<CopilotPluginsInstall>>;
+			},
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
+			},
+			marketplaces: {
+				list: async () => ({ marketplaces: this.pluginMarketplaces }),
+				add: async params => {
+					this.pluginMarketplaceAddRequests.push(params);
+					return { name: this.pluginMarketplaceAddName };
+				},
+				browse: async params => {
+					this.pluginMarketplaceBrowseRequests.push(params);
+					return { plugins: this.pluginMarketplaceBrowsePlugins };
+				},
+				remove: async params => {
+					this.pluginMarketplaceRemoveRequests.push(params);
+					return this.pluginMarketplaceRemoveResult;
+				},
+				refresh: async params => {
+					this.pluginMarketplaceRefreshRequests.push(params);
+					return { results: this.pluginMarketplaceRefreshResults };
+				},
 			},
 		},
 	};
@@ -755,7 +783,17 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly sessionListRequests: Parameters<CopilotClient['rpc']['sessions']['list']>[0][] = [];
 	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
+	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
+	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
+	pluginMarketplaceAddName = 'marketplace';
+	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
+	pluginMarketplaceBrowsePlugins: Awaited<ReturnType<CopilotPluginMarketplaces['browse']>>['plugins'] = [];
+	readonly pluginMarketplaceBrowseRequests: Parameters<CopilotPluginMarketplaces['browse']>[0][] = [];
+	pluginMarketplaceRemoveResult: Awaited<ReturnType<CopilotPluginMarketplaces['remove']>> = { removed: true };
+	readonly pluginMarketplaceRemoveRequests: Parameters<CopilotPluginMarketplaces['remove']>[0][] = [];
+	pluginMarketplaceRefreshResults: Awaited<ReturnType<CopilotPluginMarketplaces['refresh']>>['results'] = [];
+	readonly pluginMarketplaceRefreshRequests: Parameters<CopilotPluginMarketplaces['refresh']>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
 	modelListGate: Promise<void> | undefined;
@@ -1682,6 +1720,65 @@ suite('CopilotAgent', () => {
 				{ name: 'spark@copilot-plugins', directSourceId: undefined },
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('manages plugin marketplaces through the SDK server API', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginMarketplaces = [{
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: true,
+			available: true,
+		}];
+		client.pluginMarketplaceAddName = 'marketplace';
+		client.pluginMarketplaceBrowsePlugins = [{ name: 'plugin', description: 'Plugin description' }];
+		client.pluginMarketplaceRemoveResult = { removed: false, dependentPlugins: ['plugin'] };
+		client.pluginMarketplaceRefreshResults = [{ name: 'marketplace', success: true }];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const listed = await agent.listPluginMarketplaces();
+			const added = await agent.addPluginMarketplace('owner/repository');
+			const browsed = await agent.browsePluginMarketplace('marketplace');
+			const removed = await agent.removePluginMarketplace('marketplace', true);
+			const refreshed = await agent.refreshPluginMarketplaces('marketplace');
+
+			assert.deepStrictEqual({
+				listed,
+				added,
+				browsed,
+				removed,
+				refreshed,
+				addRequests: client.pluginMarketplaceAddRequests,
+				browseRequests: client.pluginMarketplaceBrowseRequests,
+				removeRequests: client.pluginMarketplaceRemoveRequests,
+				refreshRequests: client.pluginMarketplaceRefreshRequests,
+			}, {
+				listed: [{
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: true,
+					available: true,
+				}],
+				added: {
+					name: 'marketplace',
+					source: 'GitHub: owner/repository',
+					isDefault: false,
+					managed: true,
+					available: true,
+				},
+				browsed: [{ name: 'plugin', description: 'Plugin description' }],
+				removed: { removed: false, dependentPlugins: ['plugin'] },
+				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
+				addRequests: [{ source: 'owner/repository' }],
+				browseRequests: [{ name: 'marketplace' }],
+				removeRequests: [{ name: 'marketplace', force: true }],
+				refreshRequests: [{ name: 'marketplace' }],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
