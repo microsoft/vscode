@@ -88,6 +88,20 @@ export interface IMcpServerCustomizationMigrationVariable {
 	readonly declaration: IMcpServerCustomizationMigrationInputDeclaration;
 }
 
+/** A setting that a migrated server reads from an environment variable set to the setting's value when migrating. */
+export interface IMcpServerCustomizationMigrationSettingVariable {
+	/** The setting key, as referenced by `${config:key}`. */
+	readonly key: string;
+	/** The environment variable that replaces it. */
+	readonly name: string;
+	/**
+	 * The setting's value as text, retained to revalidate it before writing. Empty if the setting is unset,
+	 * not a string or number, or its value contains a variable, or for a workspace server, if the value is
+	 * not from the workspace or folder settings.
+	 */
+	readonly value: string;
+}
+
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
@@ -98,7 +112,8 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly projectedConfiguration: IMcpServerConfiguration;
 	/**
 	 * Configuration written to the destination when it differs from {@link projectedConfiguration},
-	 * because `${env:NAME}` references are rewritten to `${NAME}` instead of their current values.
+	 * because `${env:NAME}` references are rewritten to `${NAME}` instead of their current values, and
+	 * `${input:}` and `${config:}` references to environment variables.
 	 */
 	readonly migratedConfiguration?: IMcpServerConfiguration;
 	/**
@@ -107,6 +122,11 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	 * can leave {@link migratedConfiguration} unchanged.
 	 */
 	readonly environmentVariables?: readonly IMcpServerCustomizationMigrationVariable[];
+	/**
+	 * The settings that the server reads from environment variables once migrated, in order of first
+	 * appearance. Retained to revalidate their values before writing.
+	 */
+	readonly settingVariables?: readonly IMcpServerCustomizationMigrationSettingVariable[];
 	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
 	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
 }
@@ -147,7 +167,7 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	InvalidSource = 'invalidSource',
 	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
-	/** An `${env:}` reference is used in an environment variable or header name, which the destination never expands. */
+	/** An `${env:}`, `${input:}` or `${config:}` reference is used in an environment variable or header name, which the destination never expands. */
 	EnvironmentVariableInName = 'environmentVariableInName',
 	/** An `${env:}` reference does not name a variable matching `[A-Za-z_][A-Za-z0-9_]*`, so it cannot be written as `${NAME}`. */
 	InvalidEnvironmentVariableName = 'invalidEnvironmentVariableName',
@@ -159,7 +179,7 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	UnsupportedInputType = 'unsupportedInputType',
 	/** An `${input:}` id does not convert to an environment variable name, such as an empty id. */
 	InvalidInputName = 'invalidInputName',
-	/** An input converts to the same environment variable as a different input or `${env:}` reference in the same file, or as an `env` entry of the server. */
+	/** An input or setting converts to the same environment variable as a different input, setting or `${env:}` reference in the same file, or as an `env` entry of the server. */
 	VariableNameCollision = 'variableNameCollision',
 	/** The configuration uses a variable that cannot be migrated, such as `${command:}`, or a workspace variable in a user server. */
 	UnsupportedVariable = 'unsupportedVariable',

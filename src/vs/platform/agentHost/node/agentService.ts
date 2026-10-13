@@ -5411,12 +5411,12 @@ export class AgentService extends Disposable implements IAgentService {
 		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
 	}
 
-	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void> {
+	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.uninstallPlugin) {
 			throw new Error(`Plugin uninstall is unavailable for provider '${providerId}'.`);
 		}
-		await provider.uninstallPlugin(request);
+		await provider.uninstallPlugin(request, session, chat);
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
@@ -5454,12 +5454,52 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._stateManager.resolveChatState(chat.toString());
 	}
 
-	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.installPlugin) {
 			throw new Error(`Plugin install is unavailable for provider '${providerId}'.`);
 		}
-		await provider.installPlugin(request);
+		await provider.installPlugin(request, session, chat);
+	}
+
+	listPluginMarketplaces(providerId: AgentProvider, session: URI, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listPluginMarketplaces) {
+			throw new Error(`Plugin marketplace inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listPluginMarketplaces(session, chat);
+	}
+
+	addPluginMarketplace(providerId: AgentProvider, session: URI, source: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.addPluginMarketplace) {
+			throw new Error(`Plugin marketplace registration is unavailable for provider '${providerId}'.`);
+		}
+		return provider.addPluginMarketplace(session, source, chat);
+	}
+
+	browsePluginMarketplace(providerId: AgentProvider, session: URI, name: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.browsePluginMarketplace) {
+			throw new Error(`Plugin marketplace browse is unavailable for provider '${providerId}'.`);
+		}
+		return provider.browsePluginMarketplace(session, name, chat);
+	}
+
+	removePluginMarketplace(providerId: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.removePluginMarketplace) {
+			throw new Error(`Plugin marketplace removal is unavailable for provider '${providerId}'.`);
+		}
+		return provider.removePluginMarketplace(session, name, force, chat);
+	}
+
+	refreshPluginMarketplaces(providerId: AgentProvider, session: URI, name?: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.refreshPluginMarketplaces) {
+			throw new Error(`Plugin marketplace refresh is unavailable for provider '${providerId}'.`);
+		}
+		return provider.refreshPluginMarketplaces(session, name, chat);
 	}
 
 	searchCustomizationMarketplace(providerId: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {

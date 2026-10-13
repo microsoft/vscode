@@ -72,8 +72,7 @@ import { BrowserEditorInput } from '../../../browserView/common/browserEditorInp
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -1206,13 +1205,18 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
  * Renders an agent-host {@link IChatRequestChatReferenceVariableEntry chat-reference}
  * attachment (`#chat:<title>`) as a clickable chip. Clicking (or pressing
  * Enter/Space) opens the referenced chat in the Agents window by handing an
- * `agent-host-session://` link to the {@link IOpenerService}. When the link
- * cannot be built or the opener declines it (e.g. the chat was deleted or lives
- * in another window) the chip degrades gracefully and still renders its label.
+ * `agent-host-session://` link to the {@link IOpenerService}. A chat reference
+ * never crosses agent hosts, so the referenced chat is resolved, and the link
+ * scoped, on the host connection of the chat that shows the chip
+ * (`sessionResource`). When that session has no agent host connection, the link
+ * cannot be built, or the opener declines it (e.g. the chat was deleted or
+ * lives in another window) the chip degrades gracefully and still renders its
+ * label.
  */
 export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
 		attachment: IChatRequestChatReferenceVariableEntry,
+		private readonly _sessionResource: URI | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -1221,8 +1225,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
@@ -1256,13 +1259,19 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
+		const connectionAuthority = this._sessionResource && this._connectionsService.resolveSessionResourceIdentity(this._sessionResource)?.connectionAuthority;
+		const connection = connectionAuthority && this._connectionsService.getConnectionByAuthority(connectionAuthority);
+		if (!connectionAuthority || !connection) {
+			this._logService.trace(`[ChatReferenceAttachmentWidget] The chat showing the reference to ${chatResource.toString()} has no agent host connection`);
+			return;
+		}
+		const owner = await resolveAgentHostChatOwner(chatResource, connection, connectionAuthority, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
 		if (this._store.isDisposed) {
 			return;
 		}
-		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat);
+		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat, owner.connectionAuthority);
 		if (!link) {
-			this._logService.trace(`[ChatReferenceAttachmentWidget] No host lists the referenced chat ${chatResource.toString()}`);
+			this._logService.trace(`[ChatReferenceAttachmentWidget] ${connectionAuthority} does not list the referenced chat ${chatResource.toString()}`);
 			return;
 		}
 		// The opener returns false when the link cannot be resolved (e.g. the

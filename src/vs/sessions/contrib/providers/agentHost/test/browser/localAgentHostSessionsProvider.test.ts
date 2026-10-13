@@ -87,6 +87,7 @@ import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/
 import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -113,6 +114,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
+			[SessionConfigKey.SensitiveEditLocations]: { type: 'array', title: 'Sensitive edit locations', readOnly: true, sessionMutable: true },
 			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
 			...overrides,
@@ -2293,7 +2295,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resource: hostResource.with({ scheme: 'agent-host-copilotcli' }).toString(),
 			chats: [['', defaultChat.toString()], [peerChat.toString(), peerChat.toString()]],
 			// Opaque chats link into the session that advertises them.
-			links: [buildOpenSessionLinkForChat(hostResource, defaultChat, defaultChat), buildOpenSessionLinkForChat(hostResource, peerChat, defaultChat)],
+			links: [buildOpenSessionLinkForChat(hostResource, defaultChat, defaultChat, undefined), buildOpenSessionLinkForChat(hostResource, peerChat, defaultChat, undefined)],
 			sessionIsRead: false,
 			chatReadState: [true, false],
 		});
@@ -7439,6 +7441,88 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 			discovery: undefined,
 			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+		});
+	});
+
+	test('createNewSession forwards enabled custom hook and agent locations', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, {
+			'custom-hooks/hooks.json': true,
+			'custom-hook-dir': true,
+			'disabled-hooks': false,
+			'~/personal-hooks': true,
+		});
+		configService.setUserConfiguration(ChatAgentFilesLocationsSettingId, {
+			'custom-agents': true,
+			'disabled-agents': false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const seededImmediately = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SensitiveEditLocations];
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			seededImmediately,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.SensitiveEditLocations],
+		}, {
+			seededImmediately: [
+				{ path: 'custom-agents', isDirectory: true },
+				{ path: 'custom-hook-dir', isDirectory: true },
+				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+			],
+			forwardedToAgentHost: [
+				{ path: 'custom-agents', isDirectory: true },
+				{ path: 'custom-hook-dir', isDirectory: true },
+				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+			],
+		});
+	});
+
+	test('updates sensitive edit locations when running-session settings change', async () => {
+		const folder = URI.file('/home/user/project');
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, { 'initial-hooks': true });
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: {
+				isolation: 'worktree',
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'initial-hooks', isDirectory: true }],
+			},
+		};
+		let sends = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			openSession: true,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async resource => {
+				if (++sends === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send', workingDirectory: folder }));
+				}
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		agentHost.dispatchedActions.length = 0;
+
+		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, {
+			'initial-hooks': false,
+			'updated-hooks/hooks.json': true,
+		}, folder);
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'again' });
+
+		const changedConfigs = agentHost.dispatchedActions.flatMap(({ action }) =>
+			action.type === ActionType.SessionConfigChanged ? [action.config] : []);
+		assert.deepStrictEqual(changedConfigs.at(-1), {
+			[SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: false }],
 		});
 	});
 

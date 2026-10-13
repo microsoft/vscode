@@ -113,9 +113,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateEnablement()));
 		}
 		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
-			this.bindInstallProvider();
+			this.harnessService.availableHarnesses.read(reader);
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			const descriptor = this.harnessService.getDescriptorForSession(sessionResource);
+			this.bindInstallProvider(sessionResource, descriptor?.marketplaceInstallProvider);
 		}));
 		this.updateEnablement();
 	}
@@ -140,21 +141,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		);
 	}
 
-	private bindInstallProvider(): void {
+	private bindInstallProvider(session: URI, provider: ICustomizationMarketplaceInstallProvider | undefined): void {
 		this.providerRequest.clear();
 		const hadInstallations = this.providerInstallations.length > 0;
 		this.providerInstallations = [];
 		if (hadInstallations) {
 			this.emitChange();
 		}
-		const provider = this.harnessService.getActiveDescriptor().marketplaceInstallProvider;
 		if (!provider) {
 			this.providerBinding = undefined;
 			return;
 		}
 		const binding: IInstallProviderBinding = {
 			provider,
-			session: this.harnessService.activeSessionResource.get(),
+			session,
 			refreshVersion: 0,
 		};
 		this.providerBinding = binding;
@@ -796,7 +796,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerBinding = this.getInstallProviderBinding(resource);
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin';
+		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin'
+			|| resource.installation?.kind === 'providerPlugin' && resource.installation.providerManaged !== true;
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
 		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
@@ -818,7 +819,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
 				if (providerBinding) {
-					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
+					if (requiresMarketplaceTrust) {
 						const marketplaceReference = resource.installation.kind === 'configuredPlugin'
 							? (await this.resolveConfiguredPlugin(resource, token)).marketplaceReference
 							: this.resolveProviderPluginMarketplaceReference(resource);

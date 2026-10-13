@@ -8,8 +8,9 @@ import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import type { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -19,10 +20,19 @@ import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IOpener, IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatReferenceAttachmentWidget } from '../../../browser/attachments/chatAttachmentWidgets.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { AgentHostOpenSessionLinkOpenerContribution } from '../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
+import { ISessionSummaryHoverService } from '../../../browser/agentSessions/sessionSummaryHoverService.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 
 suite('ChatReferenceAttachment', () => {
 
@@ -53,8 +63,8 @@ suite('ChatReferenceAttachment', () => {
 
 		assert.deepStrictEqual(
 			{
-				chatReferenceMatched: registry.createWidget(chatReferenceEntry, { shouldFocusClearButton: false, supportsDeletion: false }, {} as HTMLElement) === fake,
-				genericMatched: registry.createWidget(genericEntry, { shouldFocusClearButton: false, supportsDeletion: false }, {} as HTMLElement) === fake,
+				chatReferenceMatched: registry.createWidget(chatReferenceEntry, { shouldFocusClearButton: false, supportsDeletion: false }, {} as HTMLElement, undefined) === fake,
+				genericMatched: registry.createWidget(genericEntry, { shouldFocusClearButton: false, supportsDeletion: false }, {} as HTMLElement, undefined) === fake,
 			},
 			{
 				chatReferenceMatched: true,
@@ -70,8 +80,7 @@ suite('ChatReferenceAttachment', () => {
 		const peer = buildChatUri(encoded, 'peer');
 		const defaultChat = buildDefaultChatUri(encoded);
 		const subscribedChat = buildChatUri(encoded, 'subscribed');
-		const remoteChat = buildChatUri(encoded, 'remote');
-		const disconnectedChat = buildChatUri(encoded, 'disconnected');
+		const authority = 'remote.example__1';
 
 		class FakeConnection extends mock<IAgentConnection>() {
 			constructor(private readonly _sessions: readonly IAgentSessionMetadata[], private readonly _subscribed?: { readonly session: string; readonly state: SessionState }) {
@@ -88,15 +97,6 @@ suite('ChatReferenceAttachment', () => {
 				return [...this._sessions];
 			}
 		}
-		const connection = (sessions: readonly IAgentSessionMetadata[], subscribed?: { readonly session: string; readonly state: SessionState }) => new FakeConnection(sessions, subscribed);
-		const record = (session: string, chat: string): IAgentSessionMetadata => ({ session: URI.parse(session), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(chat), kind: 'peer' }] });
-		const remoteHostsOf = (...remotes: FakeConnection[]) => upcastPartial<IRemoteAgentHostService>({
-			connections: remotes.map((_, index) => ({ address: `remote-${index}.example:1`, name: `remote-${index}`, status: RemoteAgentHostConnectionStatus.connected })),
-			getConnectionByAuthority: authority => {
-				const index = remotes.findIndex((_, candidate) => agentHostAuthority(`remote-${candidate}.example:1`) === authority);
-				return index === -1 ? undefined : remotes[index];
-			},
-		});
 		class TraceLog extends NullLogService {
 			readonly traces: string[] = [];
 			override trace(message: string): void {
@@ -104,102 +104,187 @@ suite('ChatReferenceAttachment', () => {
 			}
 		}
 
-		test('resolves owners from held state, then local and connected remote host records, never from the chat URI', async () => {
-			const local = connection([
-				{ session: URI.parse('copilotcli:/local-owner'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peer), kind: 'peer' }] },
+		test('resolves owners on the given connection from held state, then its session records, never from the chat URI', async () => {
+			const connection = new FakeConnection([
+				{ session: URI.parse('copilotcli:/record-owner'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peer), kind: 'peer' }] },
 			], { session: 'copilotcli:/subscribed-owner', state: upcastPartial<SessionState>({ defaultChat: buildDefaultChatUri('copilotcli:/subscribed-owner'), chats: [{ resource: subscribedChat, title: '', status: SessionStatus.Idle, modifiedAt: '' }] }) });
-			const remote = connection([{ session: URI.parse('copilotcli:/remote-owner'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(remoteChat), kind: 'peer' }] }]);
-			const disconnected = connection([{ session: URI.parse('copilotcli:/disconnected-owner'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(disconnectedChat), kind: 'peer' }] }]);
-			const remoteHosts = upcastPartial<IRemoteAgentHostService>({
-				connections: [
-					{ address: 'remote.example:1', name: 'remote', status: RemoteAgentHostConnectionStatus.connected },
-					{ address: 'disconnected.example:1', name: 'disconnected', status: RemoteAgentHostConnectionStatus.disconnected },
-				],
-				getConnectionByAuthority: authority => authority === agentHostAuthority('remote.example:1') ? remote : authority === agentHostAuthority('disconnected.example:1') ? disconnected : undefined,
-			});
 			const owner = async (chat: string) => {
-				const resolved = await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHosts, new NullLogService(), AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
-				return resolved && { session: resolved.session.toString(), defaultChat: resolved.defaultChat };
+				const resolved = await resolveAgentHostChatOwner(URI.parse(chat), connection, authority, new NullLogService(), AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
+				return resolved && { session: resolved.session.toString(), defaultChat: resolved.defaultChat, connectionAuthority: resolved.connectionAuthority };
 			};
 
 			assert.deepStrictEqual({
-				localPeer: await owner(peer),
-				localDefault: await owner(defaultChat),
+				peer: await owner(peer),
+				default: await owner(defaultChat),
 				subscribed: await owner(subscribedChat),
-				remote: await owner(remoteChat),
-				disconnected: await owner(disconnectedChat),
 				unknown: await owner(buildChatUri(encoded, 'unknown')),
 				// A legacy reference holding a bare session URI opens that session.
 				bareSession: await owner('copilotcli:/bare-session'),
 			}, {
-				localPeer: { session: 'copilotcli:/local-owner', defaultChat },
-				localDefault: { session: 'copilotcli:/local-owner', defaultChat },
-				subscribed: { session: 'copilotcli:/subscribed-owner', defaultChat: buildDefaultChatUri('copilotcli:/subscribed-owner') },
-				remote: { session: 'copilotcli:/remote-owner', defaultChat: undefined },
-				disconnected: undefined,
+				peer: { session: 'copilotcli:/record-owner', defaultChat, connectionAuthority: authority },
+				default: { session: 'copilotcli:/record-owner', defaultChat, connectionAuthority: authority },
+				subscribed: { session: 'copilotcli:/subscribed-owner', defaultChat: buildDefaultChatUri('copilotcli:/subscribed-owner'), connectionAuthority: authority },
 				unknown: undefined,
-				bareSession: { session: 'copilotcli:/bare-session', defaultChat: undefined },
+				bareSession: { session: 'copilotcli:/bare-session', defaultChat: undefined, connectionAuthority: authority },
 			});
 		});
 
-		test('queries hosts in parallel with a per-host timeout and keeps the local-then-remote preference', async () => {
-			const chat = buildChatUri(encoded, 'contested');
+		test('gives up on a connection that fails or does not list its sessions in time', async () => {
 			const stalled = new FakeConnection([]);
 			stalled.listSessions = () => new Promise<IAgentSessionMetadata[]>(() => { });
 			const failing = new FakeConnection([]);
 			failing.listSessions = async () => { throw new Error('host unavailable'); };
 			const log = new TraceLog();
-			const owner = async (local: FakeConnection, ...remotes: FakeConnection[]) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHostsOf(...remotes), log, 20))?.session.toString();
 
 			assert.deepStrictEqual({
-				localWins: await owner(connection([record('copilotcli:/local-owner', chat)]), connection([record('copilotcli:/remote-owner', chat)])),
-				firstRemoteWins: await owner(connection([]), connection([record('copilotcli:/first-remote', chat)]), connection([record('copilotcli:/second-remote', chat)])),
-				pastStalledAndFailingHosts: await owner(stalled, failing, connection([record('copilotcli:/reachable-remote', chat)])),
+				stalled: await resolveAgentHostChatOwner(URI.parse(peer), stalled, 'stalled', log, 20),
+				failing: await resolveAgentHostChatOwner(URI.parse(peer), failing, 'failing', log, 20),
 				traces: log.traces.map(trace => trace.replace(/^\[AgentHostChatOwner\] (\S+) .*$/, '$1')),
 			}, {
-				localWins: 'copilotcli:/local-owner',
-				firstRemoteWins: 'copilotcli:/first-remote',
-				pastStalledAndFailingHosts: 'copilotcli:/reachable-remote',
-				traces: ['remote-0.example:1', 'local'],
+				stalled: undefined,
+				failing: undefined,
+				traces: ['stalled', 'failing'],
 			});
 		});
 	});
 
 	suite('chip', () => {
-		const owner = 'copilotcli:/chip-owner';
-		const recordedDefault = buildChatUri(owner, 'main');
-		const defaultIdPeer = buildDefaultChatUri(owner);
-		const peer = buildChatUri(owner, 'peer');
+		const shared = 'copilotcli:/shared';
+		const sharedDefault = buildDefaultChatUri(shared);
+		const sharedPeer = buildChatUri(shared, 'peer');
+		const remoteAddress = 'remote.example:1';
+		const remoteAuthority = agentHostAuthority(remoteAddress);
+		const localSessionResource = URI.parse('agent-host-copilotcli:/containing');
+		const remoteSessionResource = URI.parse(`remote-${remoteAuthority}-copilotcli:/containing`);
 
-		/** Clicks a chip for `chat` whose owner session's state (as the protocol client hands it over) advertises `recordedDefault`. */
-		async function openedLinkFor(chat: string): Promise<string[]> {
-			const instantiationService = workbenchInstantiationService(undefined, store);
-			const opened: string[] = [];
-			const state = upcastPartial<SessionState>({ defaultChat: recordedDefault, chats: [recordedDefault, defaultIdPeer, peer].map(resource => ({ resource, title: '', status: SessionStatus.Idle, modifiedAt: '' })) });
-			instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>({
-				getActiveSubscriptions: () => [{ resource: URI.parse(owner), kind: StateComponents.Session, refCount: 1, holders: [], status: 'snapshot' }],
-				getSubscriptionUnmanaged: <T extends StateComponents>() => upcastPartial<IAgentSubscription<ComponentToState[T]>>({ value: state as ComponentToState[T] }),
-				listSessions: async () => [],
-			}));
-			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ connections: [] }));
-			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async target => { opened.push(target.toString()); return true; } }));
-			const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-			const container = document.createElement('div');
-			const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, createChatReferenceVariableEntry(URI.parse(chat), 'turn-1', 'Chat'), undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, labels));
-			widget.element.click();
-			await timeout(0);
-			return opened;
+		/** A host that lists the shared session, with the same default and peer chat URIs on every host. */
+		class Host extends mock<IAgentConnection>() {
+			readonly onAgentHostStart = Event.None;
+			readonly onAgentHostExit = Event.None;
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				return [{ session: URI.parse(shared), provider: 'copilotcli', startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(sharedDefault), kind: 'default' }, { chat: URI.parse(sharedPeer), kind: 'peer' }] }];
+			}
 		}
 
-		test('opens the session for the advertised default chat and leaves out an unaddressable default-id peer', async () => {
+		/**
+		 * Clicks a chip for `chat` shown in the chat of `sessionResource`, with a
+		 * local and a remote host that both list the shared session, and returns
+		 * the link it hands to the opener and the client session the editor
+		 * window's link opener opens for it.
+		 */
+		async function click(chat: string, sessionResource: URI | undefined): Promise<{ links: string[]; opened: string[] }> {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const remote = new Host();
+			instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>(new Host()));
+			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({
+				onDidChangeConnections: Event.None,
+				connections: [{ address: remoteAddress, name: 'remote', clientId: 'remote', status: RemoteAgentHostConnectionStatus.connected }],
+				getConnection: address => address === remoteAddress ? remote : undefined,
+				getConnectionByAuthority: authority => authority === remoteAuthority ? remote : undefined,
+			}));
+			const connections = store.add(instantiationService.createInstance(AgentHostConnectionsService));
+			instantiationService.stub(IAgentHostConnectionsService, connections);
+
+			let linkOpener: IOpener | undefined;
+			const opened: string[] = [];
+			store.add(new AgentHostOpenSessionLinkOpenerContribution(
+				new class extends mock<IOpenerService>() {
+					override registerOpener(opener: IOpener): IDisposable { linkOpener = opener; return Disposable.None; }
+				}(),
+				new class extends mock<IChatWidgetService>() {
+					override async openSession(resource: URI): Promise<IChatWidget | undefined> { opened.push(resource.toString()); return upcastPartial<IChatWidget>({}); }
+				}(),
+				new class extends mock<IChatSessionsService>() { override async activateChatSessionItemProvider(): Promise<void> { } }(),
+				store.add(new ChatRequestOriginService()),
+				new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } }(),
+				new NullLogService(),
+				new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
+				new class extends mock<IPathService>() { }(),
+				connections,
+			));
+			const links: string[] = [];
+			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+				open: async target => {
+					links.push(target.toString());
+					return linkOpener!.open(target);
+				},
+			}));
+			const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, createChatReferenceVariableEntry(URI.parse(chat), 'turn-1', 'Chat'), sessionResource, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, document.createElement('div'), labels));
+			widget.element.click();
+			await timeout(0);
+			return { links, opened };
+		}
+
+		test('opens the referenced chat on the host of the chat that shows the chip when both hosts list the same chat URIs', async () => {
 			assert.deepStrictEqual({
-				recordedDefault: await openedLinkFor(recordedDefault),
-				defaultIdPeer: await openedLinkFor(defaultIdPeer),
-				peer: await openedLinkFor(peer),
+				remoteDefault: await click(sharedDefault, remoteSessionResource),
+				localDefault: await click(sharedDefault, localSessionResource),
+				remotePeer: await click(sharedPeer, remoteSessionResource),
 			}, {
-				recordedDefault: ['agent-host-session://copilotcli/chip-owner'],
+				remoteDefault: {
+					links: [`agent-host-session://copilotcli/shared?connectionAuthority=${remoteAuthority}`],
+					opened: [`remote-${remoteAuthority}-copilotcli:/shared`],
+				},
+				localDefault: {
+					links: ['agent-host-session://copilotcli/shared?connectionAuthority=local'],
+					opened: ['agent-host-copilotcli:/shared'],
+				},
+				remotePeer: {
+					links: [`agent-host-session://copilotcli/shared?connectionAuthority=${remoteAuthority}&chat=peer`],
+					opened: [`remote-${remoteAuthority}-copilotcli:/shared#peer`],
+				},
+			});
+		});
+
+		test('builds no link when the chat that shows the chip has no agent host connection', async () => {
+			assert.deepStrictEqual({
+				notAgentHost: await click(sharedDefault, URI.parse('vscode-chat-session://local/containing')),
+				disconnectedRemote: await click(sharedDefault, URI.parse('remote-gone.example__1-copilotcli:/containing')),
+				noSession: await click(sharedDefault, undefined),
+			}, {
+				notAgentHost: { links: [], opened: [] },
+				disconnectedRemote: { links: [], opened: [] },
+				noSession: { links: [], opened: [] },
+			});
+		});
+
+		test('opens the session for the advertised default chat and leaves out an unaddressable default-id peer', async () => {
+			const owner = 'copilotcli:/chip-owner';
+			const recordedDefault = buildChatUri(owner, 'main');
+			const defaultIdPeer = buildDefaultChatUri(owner);
+			const peer = buildChatUri(owner, 'peer');
+			const linkFor = async (chat: string) => {
+				const instantiationService = workbenchInstantiationService(undefined, store);
+				const opened: string[] = [];
+				const state = upcastPartial<SessionState>({ defaultChat: recordedDefault, chats: [recordedDefault, defaultIdPeer, peer].map(resource => ({ resource, title: '', status: SessionStatus.Idle, modifiedAt: '' })) });
+				const local = upcastPartial<IAgentConnection>({
+					getActiveSubscriptions: () => [{ resource: URI.parse(owner), kind: StateComponents.Session, refCount: 1, holders: [], status: 'snapshot' }],
+					getSubscriptionUnmanaged: <T extends StateComponents>() => upcastPartial<IAgentSubscription<ComponentToState[T]>>({ value: state as ComponentToState[T] }),
+					listSessions: async () => [],
+				});
+				instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+					resolveSessionResourceIdentity: resource => resource === localSessionResource ? { connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/containing') } : undefined,
+					getConnectionByAuthority: authority => authority === 'local' ? local : undefined,
+				}));
+				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async target => { opened.push(target.toString()); return true; } }));
+				const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, createChatReferenceVariableEntry(URI.parse(chat), 'turn-1', 'Chat'), localSessionResource, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, document.createElement('div'), labels));
+				widget.element.click();
+				await timeout(0);
+				return opened;
+			};
+
+			assert.deepStrictEqual({
+				recordedDefault: await linkFor(recordedDefault),
+				defaultIdPeer: await linkFor(defaultIdPeer),
+				peer: await linkFor(peer),
+			}, {
+				recordedDefault: ['agent-host-session://copilotcli/chip-owner?connectionAuthority=local'],
 				defaultIdPeer: [],
-				peer: ['agent-host-session://copilotcli/chip-owner?chat=peer'],
+				peer: ['agent-host-session://copilotcli/chip-owner?connectionAuthority=local&chat=peer'],
 			});
 		});
 	});

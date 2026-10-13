@@ -10,22 +10,12 @@
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
-/* A background shell's command, with its Stop button beside it when the details show no live output. */
-.chat-background-shell-command {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-}
-
-.chat-background-shell-command[hidden] {
-	display: none;
-}
-
-.chat-background-shell-command-text {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
-.chat-background-shell-command-actions {
-	flex-shrink: 0;
+/*
+ * Stop is red in every window, like the debug toolbar's Stop. The Agents window doesn't load
+ * the debug feature, which registers this color, so it falls back to the error color, which
+ * shares the stop color's defaults.
+ */
+.chat-background-shell-output .chat-terminal-action-bar .action-label.codicon-debug-stop,
+.chat-background-shell-command .chat-terminal-action-bar .action-label.codicon-debug-stop {
+	color: var(--vscode-debugIcon-stopForeground, var(--vscode-errorForeground));
 }

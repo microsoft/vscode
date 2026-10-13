@@ -5,11 +5,8 @@
 
 import { raceTimeout } from '../../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
-import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import type { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isAhpChatChannel, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ILogService } from '../../../../../../platform/log/common/log.js';
 
@@ -26,6 +23,15 @@ export interface IAgentHostChatOwner {
 	readonly defaultChat: string | undefined;
 	/** Whether the chat is the owner's default chat. */
 	readonly isDefaultChat: boolean;
+}
+
+/** The session that owns a chat, resolved on the host connection that holds it. */
+export interface IResolvedAgentHostChatOwner {
+	readonly session: URI;
+	/** `undefined` when the owner's state or record names no default chat. */
+	readonly defaultChat: string | undefined;
+	/** The authority of the host connection that owns the session. */
+	readonly connectionAuthority: string;
 }
 
 /** The subscribed session whose state lists `chat` as its default chat or one of its chats. */
@@ -58,48 +64,31 @@ export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwn
 }
 
 /**
- * Resolves the session that owns a backend chat: first from session state
- * this client already holds, then from the session records of the local host
- * and of each connected remote host, queried in parallel with a per-host
- * timeout. Preference is deterministic: held state, then local, then remotes
- * in connection order. A value that is not a chat channel is a session URI and
- * owns itself. Returns the owner's advertised default chat with it. Never
- * derives the owner or the default chat from the chat URI.
+ * Resolves the session that owns a backend chat on the one host connection
+ * that holds it: first from session state this client already holds, then
+ * from that host's session records, waiting at most `timeoutMs`. A chat
+ * reference never crosses agent hosts, so callers pass the connection of the
+ * chat that shows the reference; no other host is consulted. A value that is
+ * not a chat channel is a session URI and owns itself. Returns the owner's
+ * advertised default chat and `connectionAuthority` with it. Never derives the
+ * owner or the default chat from the chat URI.
  */
-export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostChatOwnerSource, remoteHosts: IRemoteAgentHostService, logService: ILogService, timeoutMs: number): Promise<{ readonly session: URI; readonly defaultChat: string | undefined } | undefined> {
+export async function resolveAgentHostChatOwner(chat: URI, connection: AgentHostChatOwnerSource, connectionAuthority: string, logService: ILogService, timeoutMs: number): Promise<IResolvedAgentHostChatOwner | undefined> {
 	const chatString = chat.toString();
 	if (!isAhpChatChannel(chatString)) {
-		return { session: chat, defaultChat: undefined };
+		return { session: chat, defaultChat: undefined, connectionAuthority };
 	}
-	const connections: { readonly label: string; readonly connection: AgentHostChatOwnerSource }[] = [
-		{ label: 'local', connection: localHost },
-		...remoteHosts.connections
-			.filter(info => info.status.kind === 'connected')
-			.map(info => {
-				const connection = remoteHosts.getConnectionByAuthority(agentHostAuthority(info.address));
-				return connection && { label: info.address, connection };
-			})
-			.filter(isDefined),
-	];
-	for (const { connection } of connections) {
-		const owner = findChatOwnerInSubscribedState(connection, chatString);
-		if (owner !== undefined) {
-			return { session: URI.parse(owner.session), defaultChat: owner.defaultChat };
-		}
+	const held = findChatOwnerInSubscribedState(connection, chatString);
+	if (held !== undefined) {
+		return { session: URI.parse(held.session), defaultChat: held.defaultChat, connectionAuthority };
 	}
-	const lookups = connections.map(({ label, connection }) => raceTimeout(
+	const recorded = await raceTimeout(
 		findChatOwnerInSessionRecords(connection, chatString).catch(error => {
-			logService.trace(`[AgentHostChatOwner] ${label} could not list sessions: ${toErrorMessage(error)}`);
+			logService.trace(`[AgentHostChatOwner] ${connectionAuthority} could not list sessions: ${toErrorMessage(error)}`);
 			return undefined;
 		}),
 		timeoutMs,
-		() => logService.trace(`[AgentHostChatOwner] ${label} did not list sessions within ${timeoutMs}ms`),
-	));
-	for (const lookup of lookups) {
-		const owner = await lookup;
-		if (owner !== undefined) {
-			return { session: URI.parse(owner.session), defaultChat: owner.defaultChat };
-		}
-	}
-	return undefined;
+		() => logService.trace(`[AgentHostChatOwner] ${connectionAuthority} did not list sessions within ${timeoutMs}ms`),
+	);
+	return recorded && { session: URI.parse(recorded.session), defaultChat: recorded.defaultChat, connectionAuthority };
 }
