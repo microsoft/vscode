@@ -4002,7 +4002,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
 
 	protected _refreshSessionWorkspaces(): void {
-		const changed = [...this._sessionCache.values()].filter(session => session.refreshWorkspace());
+		const changed: ISession[] = [];
+		for (const session of this._sessionCache.values()) {
+			try {
+				if (session.refreshWorkspace()) {
+					changed.push(session);
+				}
+			} catch (error) {
+				this._logService.error(`[${this.id}] Failed to refresh workspace for session '${session.sessionId}'.`, error);
+			}
+		}
 		if (changed.length > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed });
 		}
@@ -4700,10 +4709,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
 		const homes: { readonly uri: URI; readonly label: string }[] = [];
 		for (const session of this.getKnownSessions()) {
-			if (session.isQuickChat?.get()) {
-				const adapter = session instanceof AgentHostSessionAdapter ? session : undefined;
-				const label = this.getResourceLabelHomeLabel(session);
-				homes.push(...(adapter?.workingDirectories ?? []).map(uri => ({ uri, label })));
+			try {
+				if (session.isQuickChat?.get()) {
+					const adapter = session instanceof AgentHostSessionAdapter ? session : undefined;
+					const label = this.getResourceLabelHomeLabel(session);
+					homes.push(...(adapter?.workingDirectories ?? []).map(uri => ({ uri, label })));
+				}
+			} catch (error) {
+				this._logService.error(`[${this.id}] Failed to read resource label homes for session '${session.sessionId}'.`, error);
 			}
 		}
 		return homes;
@@ -8050,46 +8063,53 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const listedAgentProviders = new Set<string>();
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
-			const unregistered: string[] = [];
+			const failed: string[] = [];
 
 			// Frontend session keys drop the fragment (it selects a chat), so register exact identities
 			// first: a fragment row such as an older host's `<parent>#subagent/<id>` must not claim its
 			// parent's key just because it was listed earlier.
 			const ordered = [...sessions].sort((a, b) => Number(!!a.session.fragment) - Number(!!b.session.fragment));
 			for (const rawMeta of ordered) {
-				const meta = this._adoptSessionMeta(rawMeta);
-				const rawId = meta.session.toString();
-				currentKeys.add(rawId);
-				const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
-				if (agentProvider) {
-					listedAgentProviders.add(agentProvider);
-				}
+				let rawId = rawMeta.session.toString();
+				try {
+					const meta = this._adoptSessionMeta(rawMeta);
+					rawId = meta.session.toString();
+					currentKeys.add(rawId);
+					const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
+					if (agentProvider) {
+						listedAgentProviders.add(agentProvider);
+					}
 
-				const existing = this._sessionCache.get(rawId);
-				if (existing) {
-					if (announceExistingAsAdded) {
+					const existing = this._sessionCache.get(rawId);
+					if (existing) {
+						if (announceExistingAsAdded) {
+							added.push(existing);
+						}
+						if (this.updateAdapter(existing, meta)) {
+							changed.push(existing);
+						}
+					} else {
+						const cached = this.createAdapter(meta);
+						this._sessionCache.set(rawId, cached);
+						this._backendSessionsChanged.trigger(undefined);
+						added.push(cached);
+					}
+				} catch (error) {
+					// A listed session that failed to apply is not a deletion.
+					currentKeys.add(rawId);
+					const existing = this._sessionCache.get(rawId);
+					const agentProvider = existing?.agentProvider ?? rawMeta.provider ?? AgentSession.provider(rawMeta.session);
+					if (agentProvider) {
+						listedAgentProviders.add(agentProvider);
+					}
+					if (announceExistingAsAdded && existing && !added.includes(existing)) {
 						added.push(existing);
 					}
-					if (this.updateAdapter(existing, meta)) {
-						changed.push(existing);
-					}
-				} else {
-					let cached: AgentHostSessionAdapter;
-					try {
-						cached = this.createAdapter(meta);
-					} catch (err) {
-						// One row whose identity cannot be registered (e.g. it collides with another
-						// listed session) must not keep the rest of the listing from applying.
-						unregistered.push(`${rawId} (${err})`);
-						continue;
-					}
-					this._sessionCache.set(rawId, cached);
-					this._backendSessionsChanged.trigger(undefined);
-					added.push(cached);
+					failed.push(`${rawId} (${error})`);
 				}
 			}
-			if (unregistered.length > 0) {
-				this._logService.warn(`[AgentHostSessionsProvider] Skipped ${unregistered.length} listed session(s) that could not be registered: ${unregistered.join(', ')}`);
+			if (failed.length > 0) {
+				this._logService.warn(`[AgentHostSessionsProvider] Skipped ${failed.length} listed session(s) that could not be applied: ${failed.join(', ')}`);
 			}
 
 			const removed: ISession[] = [];
