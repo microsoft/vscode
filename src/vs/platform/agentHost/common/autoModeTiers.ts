@@ -63,6 +63,45 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 	return autoModeTiers.some(tier => tier === value);
 }
 
+/**
+ * Runtime feature flag that makes the Copilot runtime discover models and Auto routing tiers from
+ * CAPI `/meta`, and return those tiers from server-level `models.list` as `auto`.
+ */
+export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
+
+/**
+ * Tier IDs the provider currently advertises through the runtime's `models.list` `auto` metadata.
+ * Only populated in the agent host process; the workbench validates tiers against the model's
+ * configuration schema instead.
+ */
+const advertisedAutoModeTiers = new Set<string>();
+
+/**
+ * Replaces the provider-advertised tier IDs accepted by {@link isSupportedAutoModeTier}. An empty
+ * list means the provider sent no Auto metadata, so the built-in profiles apply.
+ */
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string>): void {
+	advertisedAutoModeTiers.clear();
+	for (const tier of tiers) {
+		advertisedAutoModeTiers.add(tier);
+	}
+}
+
+/**
+ * Whether the runtime accepts a value as an Auto routing preference: one the provider advertises
+ * when it advertises any (the runtime rejects unlisted IDs then), otherwise a built-in profile.
+ */
+export function isSupportedAutoModeTier(value: unknown): value is string {
+	return advertisedAutoModeTiers.size > 0
+		? typeof value === 'string' && advertisedAutoModeTiers.has(value)
+		: isAutoModeTier(value);
+}
+
+/** The supported tier IDs, for diagnostics. */
+export function getSupportedAutoModeTiers(): readonly string[] {
+	return advertisedAutoModeTiers.size > 0 ? [...advertisedAutoModeTiers] : autoModeTiers;
+}
+
 /** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */
 export function normalizeAutoModeTier(value: unknown): unknown {
 	switch (value) {

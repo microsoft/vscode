@@ -25,7 +25,7 @@ import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -2095,6 +2095,18 @@ suite('getCopilotAutoTier', () => {
 			autoModeTiers.map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
 			[...autoModeTiers]
 		);
+	});
+
+	// With DYNAMIC_AUTO_TIERS the runtime accepts only the tiers CAPI `/meta` advertises.
+	test('accepts exactly the provider-advertised tiers while any are advertised', () => {
+		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'premium-v2']);
+			assert.deepStrictEqual(tiersOf(), ['balance', 'hydrafusion', undefined, 'premium-v2']);
+		} finally {
+			setAdvertisedAutoModeTiers([]);
+		}
+		assert.deepStrictEqual(tiersOf(), ['balance', undefined, 'efficiency', undefined]);
 	});
 
 	test('resolves the override before picker preferences', () => {

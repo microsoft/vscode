@@ -102,7 +102,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.20-preview.2",
+    "@github/copilot-sdk": "file:../copilot-sdk-local/github-copilot-sdk-0.0.0-dev.tgz",
+    "@github/copilot-sdk-win32-x64": "file:../copilot-sdk-local/github-copilot-sdk-win32-x64-0.0.0-dev.tgz",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -282,6 +283,7 @@
       "node-addon-api": "7.1.0"
     },
     "koffi": "3.2.1",
+    "@github/copilot-sdk-win32-x64": "file:../copilot-sdk-local/github-copilot-sdk-win32-x64-0.0.0-dev.tgz",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },
@@ -326,5 +328,5 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
   },
-  "copilotRuntimeVersion": "1.0.96-2"
+  "copilotRuntimeVersion": "0.0.0-dev"
 }
