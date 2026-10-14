@@ -856,6 +856,149 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('provisionally adds a ready remote MCP card through SDK configuration', async () => {
+		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.example%2Fdemo/versions/latest';
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+		const removed: Parameters<CopilotClient['rpc']['mcp']['config']['remove']>[0][] = [];
+		const configured = new Map<string, Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0]['config']>();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		let prepared = 0;
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() {
+					override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+						override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => ({
+							kind: 'outcome',
+							outcome: { kind: 'listed', installations: [] },
+							negotiated,
+						});
+					}();
+				}(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+						override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => {
+							added.push(request);
+							configured.set(request.name, request.config);
+						};
+						override readonly list: CopilotClient['rpc']['mcp']['config']['list'] = async () => ({ servers: Object.fromEntries(configured) });
+						override readonly remove: CopilotClient['rpc']['mcp']['config']['remove'] = async request => {
+							removed.push(request);
+							configured.delete(request.name);
+						};
+					}();
+					override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+						override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => ({
+							kind: 'outcome',
+							outcome: { kind: 'listed', installations: [] },
+							negotiated,
+						});
+					}();
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({
+						kind: 'planned',
+						plan: {
+							planHandle: 'plan',
+							planHandleExpiresAt: expiresAt,
+							identity: { canonicalName: 'io.example/demo', serverName: 'demo' },
+							provenance: {
+								authority: 'api.mcp.github.com',
+								validatedAt: new Date().toISOString(),
+								cardDigest: { algorithm: 'sha256-rfc8785', value: 'a'.repeat(64) },
+								mediaType: 'application/mcp-server+json',
+							},
+							transportChoices: [{
+								choiceId: 'remote',
+								transport: 'streamable-http',
+								installMethod: 'remote',
+								endpoint: 'https://example.com/mcp',
+								requiredValues: [],
+								secretPlaceholders: [],
+							}],
+							recommendedTransportChoiceId: 'remote',
+							target: { scope: 'user', configKey: 'demo' },
+							policy: { decision: 'allowed', source: 'none' },
+							configurationChanges: [{
+								operation: 'add',
+								scope: 'user',
+								configKey: 'demo',
+								changedFields: ['tools', 'type', 'url'],
+								secretReferences: [],
+							}],
+							reloadRequired: true,
+							requiresInteractiveConfiguration: false,
+						},
+						negotiated,
+					});
+					override readonly prepareInstall: CopilotClient['rpc']['mcp']['prepareInstall'] = async () => {
+						prepared++;
+						throw new Error('Unexpected confirmed preparation');
+					};
+				}(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, () => 'policy-session'));
+
+		const review = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
+			mediaType: 'application/mcp-server+json',
+			identifier: 'default:io.example/demo',
+			displayName: 'Demo MCP',
+			description: 'Demo',
+			itemUrl: cardUrl,
+			installation: {
+				kind: 'mcp',
+				source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl },
+			},
+		});
+		await service.apply(review.operationId);
+		const inventory = await service.list(URI.parse('agent-host-copilotcli:///session'));
+		const uninstallReview = await service.prepare(URI.parse('agent-host-copilotcli:///session'), { installationId: inventory[0].installationId });
+		await service.apply(uninstallReview.operationId);
+		const finalInventory = await service.list(URI.parse('agent-host-copilotcli:///session'));
+
+		assert.deepStrictEqual({ prepared, review, added, inventory, uninstallReview, removed, finalInventory }, {
+			prepared: 0,
+			review: {
+				operationId: review.operationId,
+				action: 'install',
+				kind: 'mcp',
+				displayName: 'Demo MCP',
+				serverName: 'demo',
+				target: 'demo',
+				endpoint: 'https://example.com/mcp',
+				configurationFields: ['tools', 'type', 'url'],
+			},
+			added: [{
+				name: 'demo',
+				config: {
+					type: 'http',
+					url: 'https://example.com/mcp',
+					tools: ['*'],
+				},
+			}],
+			inventory: [{
+				installationId: 'mcp-config:demo',
+				kind: 'mcp',
+				mediaType: 'application/mcp-server+json',
+				serverName: 'demo',
+				state: 'installed',
+			}],
+			uninstallReview: {
+				operationId: uninstallReview.operationId,
+				action: 'uninstall',
+				kind: 'mcp',
+				displayName: 'demo',
+				serverName: 'demo',
+				target: 'demo',
+				configurationFields: [],
+				restoresPreviousConfiguration: false,
+				preservesSharedAuthentication: true,
+			},
+			removed: [{ name: 'demo' }],
+			finalInventory: [],
+		});
+	});
+
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const catalogue = {
