@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StringSHA1 } from '../../../base/common/hash.js';
-
 /**
  * agent-host.db tables that hold session state authoritatively (Block 3a):
- * session-level values, per-folder git state, branch-changes blobs, per-chat
+ * session-level values, per-folder git state, per-chat
  * summaries and the merge bases of the old-format
  * mirrors written to session.db for older builds.
  *
@@ -43,14 +41,6 @@ CREATE TABLE IF NOT EXISTS session_folder_state (
 	revision         INTEGER NOT NULL CHECK (revision >= 0),
 	PRIMARY KEY (session_uri, folder_key, kind)
 ) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS session_branch_changesets (
-	session_uri  TEXT NOT NULL,
-	scope_key    TEXT NOT NULL,
-	content_hash TEXT NOT NULL,
-	diffs        TEXT NOT NULL,
-	revision     INTEGER NOT NULL CHECK (revision >= 0),
-	PRIMARY KEY (session_uri, scope_key)
-);
 CREATE TABLE IF NOT EXISTS session_chat_state (
 	session_uri                TEXT NOT NULL,
 	chat_uri                   TEXT NOT NULL,
@@ -81,7 +71,6 @@ export const SESSION_STATE_TABLES = [
 	'session_state',
 	'session_state_values',
 	'session_folder_state',
-	'session_branch_changesets',
 	'session_chat_state',
 	'chat_row_mirror',
 ] as const;
@@ -144,19 +133,12 @@ export interface IAgentHostSessionChatState extends IAgentHostSessionChatStateDa
 	readonly revision: number;
 }
 
-export interface IAgentHostSessionBranchChangesetState {
-	readonly scopeKey: string;
-	readonly contentHash: string;
-	readonly revision: number;
-}
-
-/** Everything central about an imported session except the branch-changes blobs. */
+/** Everything central about an imported session. */
 export interface IAgentHostSessionState {
 	readonly header: IAgentHostSessionStateHeader;
 	readonly values: readonly IAgentHostSessionStateValue[];
 	readonly folders: readonly IAgentHostSessionFolderState[];
 	readonly chats: readonly IAgentHostSessionChatState[];
-	readonly branchChangesets: readonly IAgentHostSessionBranchChangesetState[];
 	/** Merge base of the old-format mirrors. Written and read only by the session state store. */
 	readonly legacyMirrorBase: string | undefined;
 	readonly launchDirsBackfilled: boolean;
@@ -195,18 +177,11 @@ export interface IAgentHostSessionFolderStatePatch {
 	readonly storageResource: string | null;
 }
 
-export interface IAgentHostSessionBranchChangesetPatch {
-	readonly scopeKey: string;
-	/** `null` removes the blob. */
-	readonly diffs: string | null;
-}
-
 export interface IAgentHostSessionStatePatch {
 	/** `null` deletes the value centrally (and, once mirrored, in session.db). */
 	readonly values: Readonly<Record<string, string | null>>;
 	readonly folders: readonly IAgentHostSessionFolderStatePatch[];
 	readonly chats: readonly IAgentHostSessionChatStatePatch[];
-	readonly branchChangesets: readonly IAgentHostSessionBranchChangesetPatch[];
 	/** Whether the patch changes a value the session catalog projects, so its payload must be rebuilt. */
 	readonly markPayloadDirty: boolean;
 }
@@ -217,7 +192,6 @@ export interface IAgentHostSessionStateImport {
 	readonly values: Readonly<Record<string, string>>;
 	readonly folders: readonly Omit<IAgentHostSessionFolderState, 'revision'>[];
 	readonly chats: readonly IAgentHostSessionChatStateData[];
-	readonly branchChangesets: readonly { readonly scopeKey: string; readonly diffs: string }[];
 	readonly legacyMirrorBase: string;
 	readonly launchDirsBackfilled: boolean;
 }
@@ -250,8 +224,6 @@ export interface IAgentHostSessionStateDatabase {
 	markSessionStateRowsMirrored(session: string, expectedRowsRevision: number): Promise<boolean>;
 	markSessionStateLaunchDirsBackfilled(session: string): Promise<AgentHostSessionStateUpdateResult>;
 	markSessionStateRowsMoved(session: string, progress: string): Promise<AgentHostSessionStateUpdateResult>;
-	/** Reads one branch-changes blob. The only reader of the blobs; listing never calls it. */
-	readBranchChangeset(session: string, scopeKey: string): Promise<string | undefined>;
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined>;
 	/** Stores the merge base of a chat's mirrored rows; `undefined` removes it. */
 	writeChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind, base: string | undefined): Promise<AgentHostSessionStateUpdateResult>;
@@ -298,13 +270,6 @@ export async function deleteSessionStateRows(connection: Pick<ISessionStateSqlCo
 	for (const prefix of SESSION_STATE_MARKER_PREFIXES) {
 		await connection.run('DELETE FROM metadata WHERE key = ?', [prefix + session]);
 	}
-}
-
-/** Content hash of a branch-changes blob, as stored in `session_branch_changesets.content_hash`. */
-export function hashBranchChangeset(diffs: string): string {
-	const sha = new StringSHA1();
-	sha.update(diffs);
-	return sha.digest();
 }
 
 function nextRevision(value: number): number {
@@ -399,11 +364,10 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			if (!marker || !header) {
 				return undefined;
 			}
-			const [values, folders, chats, blobs, markers] = await Promise.all([
+			const [values, folders, chats, markers] = await Promise.all([
 				connection.all('SELECT key, value, revision FROM session_state_values WHERE session_uri = ? ORDER BY key', [session]),
 				connection.all('SELECT folder_key, kind, value, storage_resource, revision FROM session_folder_state WHERE session_uri = ? ORDER BY folder_key, kind', [session]),
 				connection.all('SELECT * FROM session_chat_state WHERE session_uri = ? ORDER BY chat_uri', [session]),
-				connection.all('SELECT scope_key, content_hash, revision FROM session_branch_changesets WHERE session_uri = ? ORDER BY scope_key', [session]),
 				connection.all('SELECT key, value FROM metadata WHERE key IN (?, ?, ?)', [legacyMirrorPrefix + session, launchDirsBackfilledPrefix + session, rowsMovedPrefix + session]),
 			]);
 			const marked = new Map(markers.map(row => [row.key as string, row.value as string]));
@@ -424,7 +388,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 					revision: row.revision as number,
 				})),
 				chats: chats.map(toChatState),
-				branchChangesets: blobs.map(row => ({ scopeKey: row.scope_key as string, contentHash: row.content_hash as string, revision: row.revision as number })),
 				legacyMirrorBase: marked.get(legacyMirrorPrefix + session),
 				launchDirsBackfilled: marked.has(launchDirsBackfilledPrefix + session),
 				rowsMoved: marked.get(rowsMovedPrefix + session),
@@ -485,10 +448,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 					chat.changes ?? null, chat.ehcliAdopted === undefined ? null : chat.ehcliAdopted ? 1 : 0, chat.ehcliLastMigratedTurn ?? null, revision,
 				]);
 			}
-			for (const blob of data.branchChangesets) {
-				await connection.run(`INSERT INTO session_branch_changesets (session_uri, scope_key, content_hash, diffs, revision)
-					VALUES (?, ?, ?, ?, ?)`, [session, blob.scopeKey, hashBranchChangeset(blob.diffs), blob.diffs, revision]);
-			}
 			await this._setMarker(connection, legacyMirrorPrefix + session, data.legacyMirrorBase);
 			if (data.launchDirsBackfilled) {
 				await this._setMarker(connection, launchDirsBackfilledPrefix + session, '1');
@@ -529,16 +488,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 					await connection.run(`UPDATE session_chat_state SET ${fields.map(field => `${chatColumns[field]} = ?`).join(', ')}
 						WHERE session_uri = ? AND chat_uri = ?`, [...fields.map(field => chatColumnValue(field, chat.fields)), session, chat.chat]);
 				}
-			}
-			for (const blob of patch.branchChangesets) {
-				if (blob.diffs === null) {
-					await connection.run('DELETE FROM session_branch_changesets WHERE session_uri = ? AND scope_key = ?', [session, blob.scopeKey]);
-					continue;
-				}
-				// An unchanged blob is not rewritten: diff lists are large and recomputed often.
-				await connection.run(`INSERT INTO session_branch_changesets (session_uri, scope_key, content_hash, diffs, revision) VALUES (?, ?, ?, ?, ?)
-					ON CONFLICT(session_uri, scope_key) DO UPDATE SET content_hash = excluded.content_hash, diffs = excluded.diffs, revision = excluded.revision
-					WHERE content_hash <> excluded.content_hash`, [session, blob.scopeKey, hashBranchChangeset(blob.diffs), blob.diffs, revision]);
 			}
 			if (patch.markPayloadDirty) {
 				await connection.markPayloadDirty(session);
@@ -603,13 +552,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 
 	markSessionStateRowsMoved(session: string, progress: string): Promise<AgentHostSessionStateUpdateResult> {
 		return this._updateImported(session, 'mark rows moved', connection => this._setMarker(connection, rowsMovedPrefix + session, progress));
-	}
-
-	readBranchChangeset(session: string, scopeKey: string): Promise<string | undefined> {
-		return this._host.read(async connection => {
-			const row = await connection.get('SELECT diffs FROM session_branch_changesets WHERE session_uri = ? AND scope_key = ?', [session, scopeKey]);
-			return optionalString(row?.diffs);
-		});
 	}
 
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined> {

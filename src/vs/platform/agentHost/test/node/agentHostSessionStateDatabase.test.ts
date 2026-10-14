@@ -61,7 +61,7 @@ async function protectedSchema(database: Database): Promise<Record<string, unkno
 
 /** Rows {@link importFullState} writes to each table and marker. */
 const FULL_STATE_ROWS: Readonly<Record<string, number>> = {
-	session_state: 1, session_state_values: 2, session_folder_state: 2, session_branch_changesets: 1, session_chat_state: 2,
+	session_state: 1, session_state_values: 2, session_folder_state: 2, session_chat_state: 2,
 	chat_row_mirror: 1,
 	'sessionStateImported:': 1, 'sessionStateLegacyMirror:': 1, 'sessionStateLaunchDirsBackfilled:': 1, 'sessionStateRowsMoved:': 1,
 };
@@ -90,7 +90,6 @@ function importData(session: string, chat: string, peer: string): IAgentHostSess
 			{ chat, isDefault: true, storageResource: session, title: 'Default', titleSource: 'user', isRead: true, workingDirectories: undefined, launchWorkingDirectories: ['file:///app'], changes: '{"files":1}', ehcliAdopted: true, ehcliLastMigratedTurn: 'turn-1' },
 			{ chat: peer, isDefault: false, storageResource: peer, title: 'Peer', titleSource: 'agent', isRead: undefined, workingDirectories: [], launchWorkingDirectories: ['file:///lib'], changes: undefined, ehcliAdopted: undefined, ehcliLastMigratedTurn: undefined },
 		],
-		branchChangesets: [{ scopeKey: '', diffs: '[]' }],
 		legacyMirrorBase: '{"v":2}',
 		launchDirsBackfilled: true,
 	};
@@ -148,6 +147,8 @@ suite('AgentHostDatabase session state', () => {
 				...(await rawAll(database, `SELECT name FROM sqlite_master WHERE name LIKE '%checkpoint%'`)).map(row => row.name),
 				...(await rawAll(database, `SELECT name FROM pragma_table_info('session_state') WHERE name LIKE '%checkpoint%'`)).map(row => `session_state.${row.name}`),
 			],
+			// Branch changes are computed live, never stored centrally.
+			centralBranchChangesets: (await rawAll(database, `SELECT name FROM sqlite_master WHERE name LIKE '%branch_changeset%'`)).map(row => row.name),
 		}));
 		const reopened = await open();
 		const reopenedState = await reopened.readSessionState(fixture.session);
@@ -159,6 +160,7 @@ suite('AgentHostDatabase session state', () => {
 			oldBuildViewUnchanged: JSON.stringify(viewAfter) === JSON.stringify(viewBefore),
 			tables: after.tables,
 			centralCheckpointState: after.centralCheckpointState,
+			centralBranchChangesets: after.centralBranchChangesets,
 			reopenedState,
 		}, {
 			versions: [14, 15, 15],
@@ -166,6 +168,7 @@ suite('AgentHostDatabase session state', () => {
 			oldBuildViewUnchanged: true,
 			tables: [...SESSION_STATE_TABLES].sort(),
 			centralCheckpointState: [],
+			centralBranchChangesets: [],
 			reopenedState: undefined,
 		});
 	});
@@ -176,17 +179,16 @@ suite('AgentHostDatabase session state', () => {
 		const chat = 'ahp-chat://default/c2Vzc2lvbg';
 		const peer = 'ahp-chat://peer/c2Vzc2lvbg';
 		await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		const beforeImport = await database.writeSessionState(session, 0, { values: {}, folders: [], chats: [], branchChangesets: [], markPayloadDirty: false });
+		const beforeImport = await database.writeSessionState(session, 0, { values: {}, folders: [], chats: [], markPayloadDirty: false });
 		const imported = await database.importSessionState(session, importData(session, chat, peer));
 		const again = await database.importSessionState(session, importData(session, chat, peer));
 		const write = await database.writeSessionState(session, 1, {
 			values: { configValues: '{"isolation":"worktree"}', 'agentHost.workspaceless': null },
 			folders: [{ folderKey: 'scope', kind: 'git', value: '{"branchName":"docs"}', storageResource: null }],
 			chats: [{ chat: peer, isDefault: false, fields: { title: 'Renamed', workingDirectories: null, isRead: false } }],
-			branchChangesets: [{ scopeKey: '', diffs: '[]' }, { scopeKey: 'scope', diffs: '[{"a":1}]' }],
 			markPayloadDirty: false,
 		});
-		const stale = await database.writeSessionState(session, 1, { values: { configValues: 'stale' }, folders: [], chats: [], branchChangesets: [], markPayloadDirty: false });
+		const stale = await database.writeSessionState(session, 1, { values: { configValues: 'stale' }, folders: [], chats: [], markPayloadDirty: false });
 		const mirroredStale = await database.markSessionStateLegacyMirrored(session, 1, '{"base":"stale"}');
 		const mirrored = await database.markSessionStateLegacyMirrored(session, 2, '{"base":2}');
 		const rows = await database.bumpSessionStateRowsRevision(session);
@@ -199,8 +201,6 @@ suite('AgentHostDatabase session state', () => {
 			values: state?.values,
 			folders: state?.folders,
 			peer: state?.chats.find(entry => entry.chat === peer),
-			blobs: state?.branchChangesets.map(blob => [blob.scopeKey, blob.revision]),
-			blob: await database.readBranchChangeset(session, 'scope'),
 			base: state?.legacyMirrorBase,
 			markers: [state?.launchDirsBackfilled, state?.rowsMoved],
 			values2: [...(await database.readSessionStateValues([session, 'copilotcli:/other'], ['configValues', 'agentHost.workspaceless'])).entries()].map(([key, entry]) => [key, entry.imported, [...entry.values]]),
@@ -226,9 +226,6 @@ suite('AgentHostDatabase session state', () => {
 				{ folderKey: 'scope', kind: 'git', value: '{"branchName":"docs"}', storageResource: undefined, revision: 2 },
 			],
 			peer: { chat: peer, isDefault: false, storageResource: peer, title: 'Renamed', titleSource: 'agent', isRead: false, workingDirectories: undefined, launchWorkingDirectories: ['file:///lib'], changes: undefined, ehcliAdopted: undefined, ehcliLastMigratedTurn: undefined, revision: 2 },
-			// The unchanged blob keeps its revision: it was not rewritten.
-			blobs: [['', 1], ['scope', 2]],
-			blob: '[{"a":1}]',
 			base: '{"base":2}',
 			markers: [true, undefined],
 			values2: [[session, true, [['configValues', '{"isolation":"worktree"}']]], ['copilotcli:/other', false, []]],
@@ -241,7 +238,7 @@ suite('AgentHostDatabase session state', () => {
 		await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.importSessionState(session, importData(session, 'ahp-chat://default/cA', 'ahp-chat://peer/cA'));
 		const before = await database.getSessionV2PayloadDirty(session);
-		await database.writeSessionState(session, 1, { values: { isArchived: 'true' }, folders: [], chats: [], branchChangesets: [], markPayloadDirty: true });
+		await database.writeSessionState(session, 1, { values: { isArchived: 'true' }, folders: [], chats: [], markPayloadDirty: true });
 		assert.deepStrictEqual([before, await database.getSessionV2PayloadDirty(session)], [undefined, 1]);
 	});
 
@@ -312,7 +309,7 @@ suite('AgentHostDatabase session state', () => {
 		await database.tombstoneAndUnregisterSession(session);
 		assert.deepStrictEqual({
 			import: await database.importSessionState(session, importData(session, 'ahp-chat://default/d', 'ahp-chat://peer/d')),
-			write: await database.writeSessionState(session, 1, { values: {}, folders: [], chats: [], branchChangesets: [], markPayloadDirty: false }),
+			write: await database.writeSessionState(session, 1, { values: {}, folders: [], chats: [], markPayloadDirty: false }),
 			rowMirror: await database.writeChatRowMirror(session, 'ahp-chat://peer/d', 'draft', '{}'),
 		}, { import: 'tombstoned', write: { status: 'tombstoned' }, rowMirror: 'tombstoned' });
 	});
@@ -328,7 +325,7 @@ suite('AgentHostDatabase session state', () => {
 		await compatible.importSessionState(session, importData(session, runtimeChat, runtimePeer));
 		await compatible.writeSessionState(session, 1, {
 			values: { 'agentHost.createdBySession': JSON.stringify({ session }) },
-			folders: [], chats: [{ chat: runtimePeer, isDefault: false, fields: { storageResource: runtimePeer } }], branchChangesets: [], markPayloadDirty: false,
+			folders: [], chats: [{ chat: runtimePeer, isDefault: false, fields: { storageResource: runtimePeer } }], markPayloadDirty: false,
 		});
 		const raw = await compatible.raw.readSessionState('copilotcli:/compat');
 		const runtime = await compatible.readSessionState(session);

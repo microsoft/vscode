@@ -556,10 +556,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.markSessionStateRowsMoved(this.identity.toStorage(session), progress);
 	}
 
-	async readBranchChangeset(...[session, scopeKey]: Parameters<IAgentHostDatabase['readBranchChangeset']>): ReturnType<IAgentHostDatabase['readBranchChangeset']> {
-		return this.raw.readBranchChangeset(this.identity.toStorage(session), scopeKey);
-	}
-
 	async readChatRowMirror(...[session, chat, kind]: Parameters<IAgentHostDatabase['readChatRowMirror']>): ReturnType<IAgentHostDatabase['readChatRowMirror']> {
 		return this.raw.readChatRowMirror(this.identity.toStorage(session), this.identity.toStorage(chat), kind);
 	}

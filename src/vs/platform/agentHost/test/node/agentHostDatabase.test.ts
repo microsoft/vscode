@@ -272,7 +272,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
 				version: [{ user_version: 15 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_branch_changesets', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -769,7 +769,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
 				version: [{ user_version: 15 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_branch_changesets', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
 			await close(rawDatabase);

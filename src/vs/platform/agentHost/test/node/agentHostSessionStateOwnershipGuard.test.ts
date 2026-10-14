@@ -90,12 +90,14 @@ const ALLOWLIST: readonly IAllowance[] = [
 ];
 
 /**
- * Checkpoints are chat data: turn rows and checkpoint repositories live in the chats' own
- * databases. None of the removed central checkpoint state may come back under `node/` or `common/`.
+ * Removed central state that may not come back under `node/` or `common/`. Checkpoints are chat
+ * data: turn rows and checkpoint repositories live in the chats' own databases. Branch changes
+ * are computed live and never stored centrally.
  */
-const CENTRAL_CHECKPOINT_STATE: readonly string[] = [
+const REMOVED_CENTRAL_STATE: readonly string[] = [
 	'chat_turn_checkpoints', 'session_checkpoint_repositories', 'checkpoint_sequence', 'IAgentHostCheckpointIndex', 'AgentHostCheckpointIndex',
 	'nextSessionCheckpointSequence', 'upsertTurnCheckpoints', 'readTurnCheckpoints', 'deleteTurnCheckpoints', 'addCheckpointRepositories', 'readCheckpointRepositories',
+	'session_branch_changesets', 'readBranchChangeset', 'hashBranchChangeset', 'IAgentHostSessionBranchChangesetState', 'IAgentHostSessionBranchChangesetPatch',
 ];
 
 /**
@@ -188,14 +190,14 @@ suite('Agent Host session state ownership guard', () => {
 		}
 	});
 
-	test('no central checkpoint state and no ref-prefix listing for checkpoints', () => {
+	test('no removed central checkpoint or branch-changes state and no ref-prefix listing for checkpoints', () => {
 		const agentHostDir = join(FileAccess.asFileUri('').fsPath, '..', 'src', 'vs', 'platform', 'agentHost');
 		const found: string[] = [];
 		const listings: Record<string, number> = {};
 		for (const folder of ['node', 'common']) {
 			for (const file of listSources(join(agentHostDir, folder))) {
 				const text = stripComments(readFileSync(join(agentHostDir, folder, file), 'utf8'));
-				for (const name of CENTRAL_CHECKPOINT_STATE) {
+				for (const name of REMOVED_CENTRAL_STATE) {
 					if (new RegExp(`\\b${name}\\b`).test(text)) {
 						found.push(`${folder}/${file} :: ${name}`);
 					}

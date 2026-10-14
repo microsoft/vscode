@@ -84,7 +84,6 @@ suite('AgentHostSessionStateStore', () => {
 			configValues: snapshot.values.get('configValues'),
 			folders: [...snapshot.folders.keys()].sort(),
 			chats: fixture.chats.map(({ uri }) => snapshot.chats.get(uri)).map(entry => entry && [entry.isDefault, entry.storage, entry.title, entry.isRead, entry.workingDirectories, entry.changes]),
-			blobs: (await database.readSessionState(fixture.session))?.branchChangesets,
 			oldBuildViewUnchanged: JSON.stringify(await readOldBuildView(sessionData.createService(), database, fixture)) === JSON.stringify(before),
 			header: (await database.readSessionState(fixture.session))?.header,
 		}, {
@@ -98,7 +97,6 @@ suite('AgentHostSessionStateStore', () => {
 				[false, sameFolder.uri, sameFolder.title, undefined, undefined, JSON.stringify(sameFolder.changes)],
 				[false, otherFolder.uri, otherFolder.title, undefined, otherFolder.workingDirectories, JSON.stringify(otherFolder.changes)],
 			],
-			blobs: [],
 			oldBuildViewUnchanged: true,
 			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1 },
 		});
@@ -611,7 +609,7 @@ suite('AgentHostSessionStateStore', () => {
 			await writer.writeMetadata(session, session, { [scopedKey]: '[]', 'agentHost.changeset.branch': '[1]' }, SessionStateMirrorFlush.Immediate);
 			assert.deepStrictEqual({
 				unowned: writer.legacyMetadata(session, ['agentHost.changeset.branch', scopedKey]).unowned,
-				central: (await database.readSessionState(fixture.session))?.branchChangesets,
+				central: (await database.readSessionState(fixture.session))?.values.filter(value => value.key.startsWith('agentHost.changeset')),
 			}, {
 				unowned: ['agentHost.changeset.branch', scopedKey],
 				central: [],

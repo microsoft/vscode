@@ -3324,7 +3324,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	markSessionStateRowsMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']>) { return this._sessionState.markSessionStateRowsMirrored(...args); }
 	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>) { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
 	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>) { return this._sessionState.markSessionStateRowsMoved(...args); }
-	readBranchChangeset(...args: Parameters<IAgentHostSessionStateDatabase['readBranchChangeset']>) { return this._sessionState.readBranchChangeset(...args); }
 	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>) { return this._sessionState.readChatRowMirror(...args); }
 	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>) { return this._sessionState.writeChatRowMirror(...args); }
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }

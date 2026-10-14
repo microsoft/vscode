@@ -114,7 +114,6 @@ function toDatabasePatch(patch: ISessionStatePatch, markPayloadDirty: boolean): 
 			const databaseFields: IAgentHostSessionChatStateFields = { ...fields, ...(storage !== undefined ? { storageResource: storage } : {}) };
 			return { chat: chat.chat, isDefault: chat.isDefault, fields: databaseFields };
 		}),
-		branchChangesets: [],
 		markPayloadDirty,
 	};
 }
@@ -592,7 +591,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			values,
 			folders,
 			chats: importedChats,
-			branchChangesets: [],
 			legacyMirrorBase: serializeBase(base),
 			launchDirsBackfilled: true,
 		};
