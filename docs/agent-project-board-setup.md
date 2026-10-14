@@ -185,6 +185,8 @@ node build\eslint.ts src\vs\sessions\contrib\projectBoard\browser\projectBoardSe
 
 Replace the lint target with the files you changed. Run `npm run valid-layers-check` when changing module boundaries. `npm test` intentionally fails with directions to the actual runners.
 
+After rebasing provider or embedded-list integration, also include `agentHostAgentPickerTarget`, `localAgentHostSessionsProvider` and `sessionsList` in the browser/Electron selectors. Keep picker fixtures aligned with the current constructor services without weakening their exact-child targeting assertions; policy-disabled sessions must still reject agent changes made through a scoped chat.
+
 Code baseline `5c1baeb024497351be92d41224d226185ced61f9` passed **217 Chromium / 222 Electron tests** for the cumulative selector above, plus typechecks, lint and Windows native validation. Treat those as recorded baseline results, not a substitute for testing your revision.
 
 ## 6. Native interaction gate
