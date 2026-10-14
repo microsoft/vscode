@@ -6,13 +6,15 @@
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CopyFilesSettings, ResourcePasteOrDropProvider } from '../languageFeatures/copyFiles/dropOrPasteResource';
-import type { MarkdownEditorHost } from './markdownEditorProtocol';
+import type { MarkdownEditorHost, MarkdownEditorRenderer } from './markdownEditorProtocol';
+import { readClipboardMediaContents } from './markdownEditorMediaTransfer';
 
 export class MarkdownEditorImagePaste implements vscode.Disposable {
 	#pending: vscode.CancellationTokenSource | undefined;
 	readonly #drain: () => Promise<void>;
 	readonly #snapshot: () => { readonly text: string; readonly editEpoch: number };
 	readonly #isEditable: () => boolean;
+	readonly #readClipboardMedia: MarkdownEditorRenderer['readClipboardMedia'];
 	readonly #apply: typeof vscode.workspace.applyEdit;
 
 	constructor(
@@ -20,11 +22,13 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 		drain: () => Promise<void>,
 		snapshot: () => { readonly text: string; readonly editEpoch: number },
 		isEditable: () => boolean,
+		readClipboardMedia: MarkdownEditorRenderer['readClipboardMedia'],
 		apply: typeof vscode.workspace.applyEdit = edit => vscode.workspace.applyEdit(edit),
 	) {
 		this.#drain = drain;
 		this.#snapshot = snapshot;
 		this.#isEditable = isEditable;
+		this.#readClipboardMedia = readClipboardMedia;
 		this.#apply = apply;
 	}
 
@@ -58,14 +62,18 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 				throw new Error(vscode.l10n.t('Markdown media paste is disabled by markdown.editor.paste.enabled.'));
 			}
 			const transfer = new vscode.DataTransfer();
+			const ids = new Set<string>();
 			request.images.forEach((image, index) => {
 				if (!/^(image|video|audio)\/[\w.+-]+$/.test(image.mime) || !image.name || /[\\/:]/.test(image.name) || image.name === '.' || image.name === '..'
-					|| !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.base64) || !image.base64) {
+					|| !image.id || ids.has(image.id) || !Number.isSafeInteger(image.size) || image.size <= 0) {
 					throw new Error(vscode.l10n.t('Invalid clipboard media.'));
 				}
-				const contents = Uint8Array.from(atob(image.base64), char => char.charCodeAt(0));
+				ids.add(image.id);
 				const item = new vscode.DataTransferItem('');
-				item.asFile = () => ({ name: image.name, uri: undefined, data: async () => contents });
+				item.asFile = () => ({
+					name: image.name, uri: undefined,
+					data: () => readClipboardMediaContents(image, chunk => this.#readClipboardMedia(chunk), checkCurrent),
+				});
 				transfer.set(`${image.mime};index=${index}`, item);
 			});
 			const edit = await ResourcePasteOrDropProvider.createEditForMediaFiles(this.document, transfer,

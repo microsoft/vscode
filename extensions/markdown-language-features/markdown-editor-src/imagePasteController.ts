@@ -5,7 +5,8 @@
 
 import { AsyncClipboardStrategy, EditorModel, EditorView, Selection, readNativeClipboard, type IClipboardContext, type IClipboardStrategy, type NativeClipboardData } from '@vscode/markdown-editor';
 import { Disposable } from '@vscode/observables';
-import type { MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import type { MarkdownEditorHost, MarkdownEditorRenderer } from '../src/preview/markdownEditorProtocol';
+import { ClipboardMediaStore } from '../src/preview/markdownEditorMediaTransfer';
 import { clipboardFormatsUnavailableMessage, getNativeClipboardMedia } from './clipboardMedia';
 
 export class ImagePasteController extends Disposable implements IClipboardStrategy {
@@ -14,6 +15,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 	#disposed = false;
 	#request = 0;
 	#interaction = 0;
+	#media: ClipboardMediaStore | undefined;
 
 	constructor(
 		readonly editor: EditorModel,
@@ -56,6 +58,13 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 
 	writeText(text: string): Promise<void> { return this.#strategy.writeText(text); }
 
+	readClipboardMedia(request: Parameters<MarkdownEditorRenderer['readClipboardMedia']>[0], signal: AbortSignal): ReturnType<MarkdownEditorRenderer['readClipboardMedia']> {
+		if (!this.#media || this.#disposed) {
+			throw new Error('The clipboard media paste has expired.');
+		}
+		return this.#media.read(request, signal);
+	}
+
 	connect(context: IClipboardContext): { dispose(): void } {
 		const interact = (): void => { this.#interaction++; };
 		context.element.addEventListener('pointerdown', interact);
@@ -72,6 +81,8 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 
 	async #paste(context: IClipboardContext, read: () => Promise<{ readonly images: readonly File[]; readonly text: string }>, plainText = false): Promise<void> {
 		const request = ++this.#request;
+		this.#media?.dispose();
+		this.#media = undefined;
 		const source = this.editor.sourceText.get();
 		const selection = this.editor.selection.get();
 		const epoch = this.epoch();
@@ -80,33 +91,24 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 			this.#showError('Switch to editing mode and place the caret before pasting.');
 			return;
 		}
+		let media: ClipboardMediaStore | undefined;
 		try {
 			const { images, text } = await read();
-			const payload = await Promise.all(images.map(async image => ({
-				name: image.name,
-				mime: image.type,
-				base64: await new Promise<string>((resolve, reject) => {
-					const reader = new FileReader();
-					reader.onload = () => resolve(String(reader.result).split(',')[1]);
-					reader.onerror = () => reject(reader.error ?? new Error('Could not read clipboard media.'));
-					reader.onabort = () => reject(new Error('Clipboard media reading was cancelled.'));
-					reader.readAsDataURL(image);
-				}),
-			})));
 			if (this.#disposed || request !== this.#request) { return; }
 			if (source !== this.editor.sourceText.get() || selection !== this.editor.selection.get() || epoch !== this.epoch()
 				|| this.editor.readonlyMode.get() || document.activeElement !== context.element) {
 				throw new Error('The editor changed while reading the clipboard. Paste again.');
 			}
 			this.#status.hidden = true;
-			if (!payload.length) {
+			if (!images.length) {
 				if (text) { context.insertText(text, plainText); }
 				return;
 			}
 			this.#status.textContent = 'Pasting media...';
 			this.#status.hidden = false;
+			media = this.#media = new ClipboardMediaStore(images);
 			const result = await this.host.pasteImages({
-				start: selection.range.start, endExclusive: selection.range.endExclusive, editEpoch: epoch, images: payload,
+				start: selection.range.start, endExclusive: selection.range.endExclusive, editEpoch: epoch, images: [...media.images],
 			});
 			if (this.#disposed || request !== this.#request) { return; }
 			this.#status.hidden = true;
@@ -118,6 +120,9 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 			if (!this.#disposed && request === this.#request) {
 				this.#showError(`Could not paste: ${error instanceof Error ? error.message : String(error)}`);
 			}
+		} finally {
+			media?.dispose();
+			if (this.#media === media) { this.#media = undefined; }
 		}
 	}
 
@@ -128,6 +133,8 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 
 	override dispose(): void {
 		this.#disposed = true;
+		this.#media?.dispose();
+		this.#media = undefined;
 		super.dispose();
 	}
 }
