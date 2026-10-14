@@ -25,6 +25,10 @@ Ready runtime entries are persisted in the user-data directory. Shared workspace
 
 ## Sessions and authorization
 
+Session creation follows Copilot Host's working-directory resolution: explicit nonempty `workingDirectories` take precedence; an omitted or empty list uses the advertised `defaultDirectory`. The selected directories must remain inside the host's active filesystem grants. An absent or ungranted default does not authorize session creation, and passive connections cannot create sessions.
+
+Simple Copilot SDK user-input requests expose one text or single-select question with the request-scoped ID `answer`, matching Copilot Host clients' input classification. Structured elicitation forms retain their schema field IDs and require a client that supports those forms.
+
 Session requests address the exact host-advertised session URI and route through its owning provider. Copilot approval changes apply the SDK permission mode before publishing the native `autoApprove` configuration selection. Runtime and enterprise policy refusals are returned to the caller. Approval changes require a live Copilot runtime; deferred or unloaded sessions are rejected without publishing an unapplied selection. A host-wide global auto-approval setting must be disabled locally before the legacy toggle can select manual approval.
 
 Plan reads use the live Copilot SDK's plan and SQL todo APIs. The result includes both todo rows and dependency edges. Native plan and todo changes publish `copilot.planHint` and `copilot.todosHint` session metadata, including source event IDs, so clients can refetch the plan.

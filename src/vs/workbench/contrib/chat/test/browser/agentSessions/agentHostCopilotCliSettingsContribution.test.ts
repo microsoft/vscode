@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IPolicyData } from '../../../../../../base/common/defaultAccount.js';
+import { IPolicyData, type IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -18,9 +18,13 @@ import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, 
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -64,6 +68,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 	private readonly _onDidChangePolicyData = new Emitter<IPolicyData | null>();
 	override readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+	private readonly _onDidChangeDefaultAccount = new Emitter<IDefaultAccount | null>();
+	override readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+	override currentDefaultAccount: IDefaultAccount | null = null;
 
 	constructor(override policyData: IPolicyData | null) {
 		super();
@@ -74,8 +81,14 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 		this._onDidChangePolicyData.fire(this.policyData);
 	}
 
+	setDefaultAccount(account: IDefaultAccount | null): void {
+		this.currentDefaultAccount = account;
+		this._onDidChangeDefaultAccount.fire(account);
+	}
+
 	dispose(): void {
 		this._onDidChangePolicyData.dispose();
+		this._onDidChangeDefaultAccount.dispose();
 	}
 }
 
@@ -125,12 +138,14 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>, 
 	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService(settings);
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
+	const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
-	return { agentHostService, defaultAccountService, configurationService };
+	return { agentHostService, defaultAccountService, configurationService, contextKeyService };
 }
 
 suite('AgentHostCopilotCliSettingsContribution', () => {
@@ -347,6 +362,49 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			defaultOff: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
 			policyDisabled: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
 			policyEnabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: true },
+		});
+	});
+
+	test('forwards the on-device model settings and recomputes the account gate', async () => {
+		const localModelSchema: Record<string, ConfigPropertySchema> = {
+			[CopilotCliConfigKey.LocalModelEnabled]: { type: 'boolean', title: 'On-Device Models' },
+			[CopilotCliConfigKey.LocalModelUseInAuto]: { type: 'boolean', title: 'Use On-Device Model in Auto' },
+			[CopilotCliConfigKey.LocalModelLlamaServerPath]: { type: 'string', title: 'llama-server Path' },
+			[CopilotCliConfigKey.LocalModelAccountGate]: { type: 'boolean', title: 'On-Device Models Allowed for Account' },
+		};
+		const mergedConfig = (service: MockAgentHostService) => Object.assign({}, ...service.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
+		const { agentHostService, defaultAccountService, contextKeyService } = setup(disposables, {
+			// Use in Auto is not set: it is forwarded as off.
+			[LocalModelEnabledSettingId]: true,
+			[LocalModelLlamaServerPathSettingId]: '  /opt/llama/llama-server ',
+		});
+		agentHostService.setRootState(makeRootStateWithSchema(localModelSchema));
+		await flush();
+		const signedOut = mergedConfig(agentHostService);
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setDefaultAccount({ authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, accountName: 'octocat', sessionId: 's1', enterprise: false });
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		await flush();
+		const signedIn = mergedConfig(agentHostService);
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setPreviewFeaturesEnabled(false);
+		await flush();
+
+		assert.deepStrictEqual({ signedOut, signedIn, previewDisabled: mergedConfig(agentHostService) }, {
+			signedOut: {
+				[CopilotCliConfigKey.LocalModelEnabled]: true,
+				[CopilotCliConfigKey.LocalModelUseInAuto]: false,
+				[CopilotCliConfigKey.LocalModelLlamaServerPath]: '/opt/llama/llama-server',
+				[CopilotCliConfigKey.LocalModelAccountGate]: false,
+			},
+			signedIn: {
+				[CopilotCliConfigKey.LocalModelAccountGate]: true,
+			},
+			previewDisabled: {
+				[CopilotCliConfigKey.LocalModelAccountGate]: false,
+			},
 		});
 	});
 

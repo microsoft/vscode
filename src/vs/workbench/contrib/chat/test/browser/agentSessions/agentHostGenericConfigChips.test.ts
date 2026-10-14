@@ -586,6 +586,26 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		});
 	});
 
+	test('hides the input request timeout picker without changing host configuration', () => {
+		const config = makeConfig();
+		config.schema.properties.inputRequestTimeout = { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true };
+		config.values.inputRequestTimeout = '4h';
+		const originalConfig = structuredClone(config);
+		const { container, host } = setup(config);
+
+		assert.deepStrictEqual({
+			timeout: container.querySelector('.agent-host-chat-input-picker-host-inputRequestTimeout'),
+			buttons: [...container.querySelectorAll('[role="button"]')].map(element => element.getAttribute('aria-label')),
+			config,
+			writes: host.connection.dispatches,
+		}, {
+			timeout: null,
+			buttons: ['Custom Choice: First Option', 'Toggle: Off'],
+			config: originalConfig,
+			writes: [],
+		});
+	});
+
 	test('native approvals and host-owned reports do not create duplicate generic chips', () => {
 		const config = makeConfig();
 		delete config.schema.properties.autoApprove;

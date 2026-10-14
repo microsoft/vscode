@@ -46,7 +46,7 @@ import {
 } from '../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
@@ -68,7 +68,9 @@ import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
-import { mintedTestChatOwner } from '../common/mintedChatUri.js';
+import { defaultChatChannel, rememberDefaultChats, rememberSubscribedDefaultChat } from './hostDefaultChats.js';
+
+export { defaultChatChannel };
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
@@ -189,6 +191,7 @@ export class TestProtocolClient {
 				if (errResp.error) {
 					pending.reject(new ProtocolError(errResp.error.code, errResp.error.message, errResp.error.data));
 				} else {
+					rememberDefaultChats((msg as JsonRpcSuccessResponse).result);
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
@@ -202,6 +205,7 @@ export class TestProtocolClient {
 				const envelope = notif.params as unknown as ActionEnvelope | undefined;
 				recordAhpSurface('action', envelope?.action?.type ?? '');
 			}
+			rememberDefaultChats(notif.params);
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -500,7 +504,13 @@ export class TestProtocolClient {
 			}, timeoutMs);
 
 			this._pendingCalls.set(id, {
-				resolve: result => { clearTimeout(timer); resolve(result as T); },
+				resolve: result => {
+					clearTimeout(timer);
+					if (method === 'subscribe') {
+						rememberSubscribedDefaultChat((params as { channel: string }).channel, result);
+					}
+					resolve(result as T);
+				},
 				reject: err => { clearTimeout(timer); reject(err); },
 			});
 			try {
@@ -1236,9 +1246,6 @@ export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
-export function defaultChatChannel(sessionUri: string): string {
-	return buildDefaultChatUri(sessionUri);
-}
 
 export function isActionNotification(n: AhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
@@ -1268,7 +1275,7 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	// chat channel in the multi-chat protocol; subscribe to it as well so
 	// `chat/*` action notifications (responsePart, turnComplete, …) are
 	// delivered to this client.
-	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(realSessionUri) });
+	await c.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(realSessionUri) });
 	c.clearReceived();
 
 	return realSessionUri;
@@ -1298,9 +1305,17 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requires merging the session snapshot with its default chat snapshot.
  */
 export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
-	const owningSession = mintedTestChatOwner(sessionUri) ?? sessionUri;
-	const chatUri = mintedTestChatOwner(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession }, timeoutMs);
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri }, timeoutMs);
+	return fetchSessionWithGivenChat(c, sessionSnap, defaultChatChannel(sessionUri), timeoutMs);
+}
+
+/** Like {@link fetchSessionWithChat}, for a specific recorded chat of `sessionUri` (for example a subagent chat). */
+export async function fetchSessionWithRecordedChat(c: TestProtocolClient, sessionUri: string, chatUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri }, timeoutMs);
+	return fetchSessionWithGivenChat(c, sessionSnap, chatUri, timeoutMs);
+}
+
+async function fetchSessionWithGivenChat(c: TestProtocolClient, sessionSnap: SubscribeResult, chatUri: string, timeoutMs: number | undefined): Promise<ISessionWithDefaultChat> {
 	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri }, timeoutMs);
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,
