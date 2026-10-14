@@ -87,7 +87,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
+import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -95,7 +95,7 @@ import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangese
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
-import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { readSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
@@ -8369,7 +8369,7 @@ suite('AgentService (node dispatcher)', () => {
 				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const handle = generateUuid();
-			await writeSessionAdditionalWorktrees(perSession.service, session, [{
+			await seedSessionAdditionalWorktrees(perSession.service, session, [{
 				handle,
 				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -8394,7 +8394,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const session = AgentSession.uri('copilot', 'additional-worktree-delete-safety');
 			const handles = [generateUuid(), generateUuid()];
-			await writeSessionAdditionalWorktrees(perSession.service, session, handles.map((handle, index) => ({
+			await seedSessionAdditionalWorktrees(perSession.service, session, handles.map((handle, index) => ({
 				handle,
 				workingDirectory: URI.file(`/workspace/repository.worktrees/chat-${index}`).toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -8425,7 +8425,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const handle = generateUuid();
-			await writeSessionAdditionalWorktrees(perSession.service, session, [{
+			await seedSessionAdditionalWorktrees(perSession.service, session, [{
 				handle,
 				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -9232,7 +9232,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/worktree'), additionalWorktree],
 			});
 			const additionalWorktreeHandle = generateUuid();
-			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+			await seedSessionAdditionalWorktrees(sessionDataService, session, [{
 				handle: additionalWorktreeHandle,
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: URI.file('/additional-repository').toString(),
@@ -9331,7 +9331,7 @@ suite('AgentService (node dispatcher)', () => {
 			const additionalWorktree = URI.file('/missing-additional-worktree');
 			const additionalRepository = URI.file('/additional-repository');
 			const additionalWorktreeHandle = generateUuid();
-			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+			await seedSessionAdditionalWorktrees(sessionDataService, session, [{
 				handle: additionalWorktreeHandle,
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: additionalRepository.toString(),
@@ -14139,6 +14139,9 @@ suite('AgentService (node dispatcher)', () => {
 				agent.catalog = [metadata(session)];
 
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				for (let i = 0; i < 100 && !await perSession.database(session).getMetadata(META_CHANGES_SUMMARY); i++) {
+					await timeout(5);
+				}
 
 				const expected = { additions: 504, deletions: 1, files: 1 };
 				assert.deepStrictEqual({
@@ -18357,6 +18360,8 @@ suite('AgentService (node dispatcher)', () => {
 				for (let i = 0; i < 5; i++) {
 					await Promise.resolve();
 				}
+				// State writes go through the store's real database I/O, which fake timers cannot advance.
+				await getTestSessionStateStore(localService).whenIdle(undefined);
 				getStateManager(localService).setSessionMeta(session.toString(), undefined);
 				calls.length = 0;
 
@@ -18364,6 +18369,7 @@ suite('AgentService (node dispatcher)', () => {
 				// advance time to let that fire-and-forget refresh run and write
 				// _meta.git.
 				await localService.subscribe(session, 'client-1');
+				await getTestSessionStateStore(localService).whenIdle(undefined);
 				await timeout(5_000);
 
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
@@ -19600,6 +19606,7 @@ suite('AgentService (node dispatcher)', () => {
 					await timeout(5);
 				}
 
+				await getTestSessionStateStore(svc).whenIdle(undefined);
 				assert.deepStrictEqual({
 					isolation: stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation],
 					live: stateManager.getSessionSummary(session.toString())?.changes,
@@ -31603,7 +31610,7 @@ suite('AgentService (node dispatcher)', () => {
 				project: undefined,
 				workingDirectories: [additional.toString()],
 			}, [], creationTimeChatStorageResource);
-			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+			await seedSessionAdditionalWorktrees(sessionDataService, session, [{
 				handle,
 				workingDirectory: additional.toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),

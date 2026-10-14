@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
@@ -172,6 +173,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._worktree = worktree;
@@ -539,10 +541,10 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	private _persistSession(session: string, enablement: ReadonlyMap<string, boolean>): void {
-		const reference = this._sessionDataService.openDatabase(URI.parse(session));
-		const write = reference.object.setMetadata(SESSION_METADATA_KEY, JSON.stringify(Object.fromEntries(enablement))).catch(err => {
+		const resource = URI.parse(session);
+		const write = this._sessionStateStore.writeMetadata(resource, resource, { [SESSION_METADATA_KEY]: JSON.stringify(Object.fromEntries(enablement)) }, SessionStateMirrorFlush.Immediate).catch((err: unknown) => {
 			this._logService.error(`[AgentHostCustomizationEnablementService] Failed to write session enablement for ${session}`, err);
-		}).finally(() => reference.dispose());
+		});
 		this._pendingSessionWrites.add(write);
 		const untrack = () => this._pendingSessionWrites.delete(write);
 		write.then(untrack, untrack);

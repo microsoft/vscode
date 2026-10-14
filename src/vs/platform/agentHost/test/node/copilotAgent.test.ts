@@ -74,7 +74,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -128,6 +128,7 @@ import { createIdleShimLocalModelProviderHost, createSentinelContribution, FakeL
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -1405,6 +1406,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 				logService,
 				worktreeIsolation,
 				createTestChatOwnershipService(stateManager),
+				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService),
 			))
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
@@ -6920,7 +6922,7 @@ suite('CopilotAgent', () => {
 							type: 'session.idle', ephemeral: true, data: {},
 						});
 						const handle = 'c9373c68-e1ee-47c8-9466-cab0e4791f8d';
-						await writeSessionAdditionalWorktrees(sessionDataService, session, [{
+						await seedSessionAdditionalWorktrees(sessionDataService, session, [{
 							handle, chat: chats[index].toString(), workingDirectory: next.toString(), repositoryRoot: secondary.toString(),
 						}]);
 						const owner = sessionDataService.openDatabase(session);
@@ -16976,7 +16978,7 @@ suite('CopilotAgent', () => {
 			const h = await createHarness();
 			const gate = new DeferredPromise<void>();
 			try {
-				await writeSessionAdditionalWorktrees(h.sessionDataService, h.session, [{
+				await seedSessionAdditionalWorktrees(h.sessionDataService, h.session, [{
 					handle: 'c9373c68-e1ee-47c8-9466-cab0e4791f8d', chat: h.chat.toString(),
 					workingDirectory: URI.file('/workspace').toString(), repositoryRoot: URI.file('/fallback').toString(),
 				}]);

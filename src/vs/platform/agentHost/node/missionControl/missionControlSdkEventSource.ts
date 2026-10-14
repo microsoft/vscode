@@ -9,6 +9,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { createAgentChatContext } from '../agentChatContext.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
@@ -65,6 +66,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._register(this._mirror.setSdkAcknowledgementHandler((session, journalEventId) => {
@@ -197,7 +199,8 @@ export class MissionControlSdkEventSource extends Disposable {
 			if (!this._isEnabled() || this._store.isDisposed) {
 				return;
 			}
-			await database.object.setMetadata(key, String(limit));
+			const session = URI.parse(source.session);
+			await this._sessionStateStore.writeMetadata(session, session, { [key]: String(limit) }, SessionStateMirrorFlush.Immediate);
 			if (this._store.isDisposed || !this._isEnabled()) {
 				return;
 			}
@@ -239,7 +242,8 @@ export class MissionControlSdkEventSource extends Disposable {
 		}
 		const database = this._sessionData.openDatabase(URI.parse(source.session));
 		try {
-			await database.object.setMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`, cursor);
+			const session = URI.parse(source.session);
+			await this._sessionStateStore.writeMetadata(session, session, { [`missionControl.sdkJournalCursor.${this._environmentId}`]: cursor }, SessionStateMirrorFlush.Immediate);
 			source.journalCursor = cursor;
 			if (source.pendingCursor === cursor) {
 				source.pendingCursor = undefined;

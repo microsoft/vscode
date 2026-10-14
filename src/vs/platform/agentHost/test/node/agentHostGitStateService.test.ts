@@ -27,9 +27,11 @@ import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withFolderScopeGitState, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -268,6 +270,7 @@ suite('AgentHostGitStateService', () => {
 			getAuthToken: () => 'token',
 		};
 
+		const stateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
@@ -279,6 +282,7 @@ suite('AgentHostGitStateService', () => {
 			configurationService,
 			options?.telemetryService ?? NullTelemetryService,
 			createTestChatOwnershipService(stateManager),
+			stateStore,
 		));
 
 		const runEvents: string[] = [];
@@ -289,6 +293,12 @@ suite('AgentHostGitStateService', () => {
 		return {
 			stateManager,
 			db,
+			whenStateStoreIdle: async () => {
+				// Queued writers may only reach the store after earlier async steps, so drain repeatedly.
+				for (let i = 0; i < 5; i++) {
+					await stateStore.whenIdle(undefined);
+				}
+			},
 			service,
 			configurationService,
 			gitCalls,
@@ -1030,6 +1040,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(peer, URI.parse('file:///peer'));
 		await associated;
+		await h.whenStateStoreIdle();
 
 		assert.deepStrictEqual({
 			peer: h.service.getGitHubState(peer),

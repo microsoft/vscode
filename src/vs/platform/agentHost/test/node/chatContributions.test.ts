@@ -70,10 +70,10 @@ import { SideChatContribution } from '../../node/chatContributions/sideChat/side
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
@@ -2693,7 +2693,7 @@ suite('AgentHostChatContributions', () => {
 				workingDirectories: [worktreeDirectory.toString()],
 			});
 		}
-		await writeSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+		await seedSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
 			handle,
 			workingDirectory: worktreeDirectory.toString(),
 			repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -2944,7 +2944,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables);
 		const session = URI.parse(contributions.session);
 		const handle = generateUuid();
-		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+		await seedSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
 			handle,
 			workingDirectory: URI.file('/worktree').toString(),
 			repositoryRoot: URI.file('/repository').toString(),
@@ -2968,7 +2968,7 @@ suite('AgentHostChatContributions', () => {
 	test('skips rejected and chat-scoped additional worktree archive actions', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const session = URI.parse(contributions.session);
-		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+		await seedSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
 			handle: generateUuid(),
 			workingDirectory: URI.file('/worktree').toString(),
 			repositoryRoot: URI.file('/repository').toString(),

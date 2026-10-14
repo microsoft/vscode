@@ -580,6 +580,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
 		for (const [key, value] of Object.entries(set)) {
+			this.setMetadataCalls.push({ key, value });
 			this._metadata.set(key, value);
 		}
 		for (const key of remove) {

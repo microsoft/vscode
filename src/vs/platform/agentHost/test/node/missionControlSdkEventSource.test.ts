@@ -14,13 +14,17 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -73,16 +77,24 @@ suite('MissionControlSdkEventSource', () => {
 		}();
 		instantiation.stub(IAgentHostProviderService, providers);
 		const writes: string[] = [];
-		const db = new class extends mock<ISessionDatabase>() {
+		const db = new class extends TestSessionDatabase {
 			override async getMetadata(key: string) { return metadata.get(key); }
 			override async setMetadata(key: string, value: string) {
 				if (key.includes('sdkSequence')) { writes.push(value); }
 				metadata.set(key, value);
 			}
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]) {
+				for (const [key, value] of Object.entries(set)) { await this.setMetadata(key, value); }
+				for (const key of remove) { metadata.delete(key); }
+			}
 		}();
-		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() {
+		const sessionData = new class extends mock<ISessionDataService>() {
+			override getSessionDataDir(session: URI) { return URI.from({ scheme: 'test-session-data', path: '/' + encodeURIComponent(session.toString()) }); }
 			override openDatabase() { return { object: db, dispose: () => { } }; }
-		}());
+			override async tryOpenDatabase() { return { object: db, dispose: () => { } }; }
+		}();
+		instantiation.stub(ISessionDataService, sessionData);
+		instantiation.stub(IAgentHostSessionStateStore, store.add(createTestSessionStateStore(store.add(new AgentHostDatabase(':memory:')), sessionData)));
 		const events: MissionControlMirrorEvent[] = [];
 		const mirror = store.add(instantiation.createInstance(MissionControlSessionMirror, 'env', {}));
 		store.add(mirror.attach(value => { events.push(value); }));

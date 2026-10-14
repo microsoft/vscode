@@ -983,10 +983,14 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return;
 		}
 		// Strategy and deferred-seed keys are not central state; production routes titles through `persistMetadata`.
-		const reference = this._options.sessionDataService.openDatabase(URI.parse(session));
-		reference.object.setMetadata(key, value)
-			.catch(err => this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err))
-			.finally(() => reference.dispose());
+		try {
+			const reference = this._options.sessionDataService.openDatabase(URI.parse(session));
+			reference.object.setMetadata(key, value)
+				.catch(err => this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err))
+				.finally(() => reference.dispose());
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
+		}
 	}
 
 	/** Snapshots host-owned scheduling independently of explicit rename-tool availability. */

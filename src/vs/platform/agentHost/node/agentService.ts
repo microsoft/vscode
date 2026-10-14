@@ -8377,7 +8377,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			let recorded = false;
 			try {
-				await writeSessionAdditionalWorktrees(this._sessionDataService, session, [...records, record]);
+				await writeSessionAdditionalWorktrees(this._sessionStateStore, session, [...records, record]);
 				recorded = true;
 				await this._worktree.claimDetachedWorktree(detached.handle);
 				const attached = await this._attachSessionWorkingDirectoryForChat(session, detached.worktree);
@@ -8388,7 +8388,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._worktree.deleteDetachedWorktree(detached.handle);
 					if (recorded) {
 						const current = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-						await writeSessionAdditionalWorktrees(this._sessionDataService, session, current.filter(candidate => candidate.handle !== detached.handle));
+						await writeSessionAdditionalWorktrees(this._sessionStateStore, session, current.filter(candidate => candidate.handle !== detached.handle));
 					}
 				} catch (cleanupError) {
 					this._logService.error(`[AgentService] Failed to clean up additional worktree ${detached.handle}: ${toErrorMessage(cleanupError)}`);
@@ -8409,7 +8409,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const next = records.slice();
 			next[index] = { ...records[index], chat: chat.toString() };
-			await writeSessionAdditionalWorktrees(this._sessionDataService, session, next);
+			await writeSessionAdditionalWorktrees(this._sessionStateStore, session, next);
 		});
 	}
 
@@ -8437,7 +8437,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (createdWorktree) {
 					await this._worktree.deleteDetachedWorktree(createdWorktree.handle);
 					const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-					await writeSessionAdditionalWorktrees(this._sessionDataService, session, records.filter(record => record.handle !== createdWorktree.handle));
+					await writeSessionAdditionalWorktrees(this._sessionStateStore, session, records.filter(record => record.handle !== createdWorktree.handle));
 				}
 			} catch (error) {
 				this._logService.error(`[AgentService] Failed to release working directory ${directory.toString()} of session ${sessionKey}: ${toErrorMessage(error)}`);

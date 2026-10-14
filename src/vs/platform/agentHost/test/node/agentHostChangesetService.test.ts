@@ -36,7 +36,8 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
@@ -57,12 +58,27 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	attachSessionGitHubPullRequest: async () => { },
 };
 
+const settleServices = new Set<TestAgentHostChangesetService>();
+
+/** Reads a metadata value after in-flight central-store writes have mirrored into the session database. */
+async function settledMetadata(db: { getMetadata(key: string): Promise<string | undefined> }, key: string): Promise<string | undefined> {
+	await Promise.all([...settleServices].map(service => service.whenSummaryPersisted()));
+	return db.getMetadata(key);
+}
+
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>) {
+	/** Resolves once every summary write issued so far has reached the session database. */
+	async whenSummaryPersisted(): Promise<void> {
+		await Promise.all([...this._pendingSummaryWrites]);
+	}
+
+	constructor(...args: WithoutLast<WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
-		}, createTestChatOwnershipService(args[0]));
+		}, createTestChatOwnershipService(args[0]),
+			createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]));
+		settleServices.add(this);
 	}
 }
 
@@ -2746,7 +2762,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					assert.deepStrictEqual({
 						afterFirst,
 						live: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+						persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 						branchFiles: stateManager.getChangesetState(branchChangeset(stateManager))?.files.map(file => file.id),
 						sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 					}, {
@@ -2773,7 +2789,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			svc.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			const live = stateManager.getSessionSummary(sessionStr)?.changes;
-			const persisted = await db.getMetadata(META_CHANGES_SUMMARY);
+			const persisted = await settledMetadata(db, META_CHANGES_SUMMARY);
 			stateManager.deleteSession(sessionStr);
 
 			assert.deepStrictEqual({
@@ -2804,8 +2820,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				keys: svc.getListMetadataKeys(sessionStr),
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
 				status: stateManager.getChangesetState(sessionChangeset)?.status,
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await db.getMetadata(META_CHANGES_SUMMARY) }),
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await settledMetadata(db, META_CHANGES_SUMMARY) }),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 			}, {
 				keys: CHANGES_SUMMARY_METADATA_KEYS,
 				live: undefined,
@@ -2830,7 +2846,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
 				assert.deepStrictEqual({
 					listed,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				}, { listed: expected, persisted: expected });
 			});
 		}
@@ -2850,7 +2866,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 					assert.deepStrictEqual({
 						listed,
-						persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+						persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 						sessionState: stateManager.getChangesetState(sessionChangeset),
 						branchState: stateManager.getChangesetState(branchChangeset(stateManager)),
 					}, {
@@ -2874,7 +2890,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			assert.deepStrictEqual({
 				cold,
 				warm: svc.computeListEntryChanges(sessionStr, metadata),
-				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+				persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 			}, { cold: undefined, warm: undefined, persisted: undefined });
 		});
 
@@ -2904,7 +2920,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					const expected = source === 'cached' ? oldSummary : source === 'missing' ? undefined : empty ? { additions: 0, deletions: 0, files: 0 } : branchSummary;
 					assert.deepStrictEqual({
 						listed,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						sessionRestored: !!stateManager.getSessionState(sessionStr),
 						changesetKeysIncludeConfig: Object.hasOwn(keys, 'configValues'),
 					}, {
@@ -2942,7 +2958,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
 			const live = stateManager.getSessionSummary(sessionStr)?.changes;
-			const persisted = await db.getMetadata(META_CHANGES_SUMMARY);
+			const persisted = await settledMetadata(db, META_CHANGES_SUMMARY);
 			stateManager.deleteSession(sessionStr);
 			assert.deepStrictEqual({
 				live,
@@ -3002,7 +3018,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					await Promise.all([waitForChangesetReady(stateManager, branchChangeset(stateManager)), waitForChangesetReady(stateManager, sessionChangeset)]);
 					assert.deepStrictEqual({
 						live: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						branchFiles: stateManager.getChangesetState(branchChangeset(stateManager))?.files.map(file => file.id),
 					}, { live: cached, persisted: JSON.stringify(cached), branchFiles: [URI.file('/wd/old.ts').toString()] });
 				});
@@ -3021,7 +3037,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			assert.deepStrictEqual({
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 			}, { live: { additions: 0, deletions: 0, files: 0 }, persisted: { additions: 0, deletions: 0, files: 0 } });
 		});
 
@@ -3188,7 +3204,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 			assert.deepStrictEqual({
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				peerFiles: stateManager.getChangesetState(branchChangeset(stateManager, peer))?.files.map(file => file.id),
 			}, {
 				live: oldSummary,
@@ -3302,7 +3318,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					assert.deepStrictEqual({
 						beforeBranch,
 						changes: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 						branchCallsBeforeRefresh,
 						branchCalls,
@@ -3519,7 +3535,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.edit),
 					summary: stateManager.getSessionSummary(sessionStr)?.changes,
 					persistedFiles: JSON.parse((await db.getMetadata(META_CHANGESET_SESSION))!),
-					persistedSummary: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persistedSummary: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				}, {
 					status: ChangesetStatus.Error, files: previous, summary: oldSummary,
 					persistedFiles: previous, persistedSummary: oldSummary,
@@ -3600,7 +3616,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				assert.deepStrictEqual({
 					status: stateManager.getChangesetState(sessionChangeset)?.status,
 					changes: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+					persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 				}, { status: ChangesetStatus.Error, changes: cached, persisted: cached ? JSON.stringify(cached) : undefined });
 			});
 		}
@@ -3651,7 +3667,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				await waitForChangesetReady(stateManager, selected);
 				assert.deepStrictEqual({
 					changes: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 					files: stateManager.getChangesetState(selected)?.files.map(file => file.id),
 				}, { changes: oldSummary, persisted: oldSummary, files: [URI.file('/repoA/cached.ts').toString()] });
 			});
@@ -3685,7 +3701,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			await waitForChangesetReady(stateManager, originalBranchChangeset);
 			assert.deepStrictEqual({
 				changes: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				files: stateManager.getChangesetState(originalBranchChangeset)?.files,
 				replacementState: stateManager.getChangesetState(branchChangeset(stateManager)),
 			}, { changes: oldSummary, persisted: oldSummary, files: [], replacementState: undefined });
@@ -3720,7 +3736,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				await waitForChangesetReady(stateManager, sessionChangeset);
 				assert.deepStrictEqual({
 					live: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 					sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 				}, { live: branchSummary, persisted: branchSummary, sessionFiles: [URI.file('/wd/session.ts').toString()] });
 			});

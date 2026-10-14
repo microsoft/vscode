@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { markAsSingleton } from '../../../../base/common/lifecycle.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
+import { type ISessionAdditionalWorktree, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
@@ -168,4 +170,16 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 /** A real session state store over `database` and `service`, outside the leak check. */
 export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
+}
+
+/** Seeds a session's additional worktrees through a throwaway store over `service`'s session database. */
+export async function seedSessionAdditionalWorktrees(service: ISessionDataService, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
+	const database = new AgentHostDatabase(':memory:');
+	const store = createTestSessionStateStore(database, service);
+	try {
+		await writeSessionAdditionalWorktrees(store, session, worktrees);
+	} finally {
+		store.dispose();
+		await database.close();
+	}
 }

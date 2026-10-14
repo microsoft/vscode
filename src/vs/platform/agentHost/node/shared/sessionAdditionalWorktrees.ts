@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { type IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 
 export const ADDITIONAL_WORKTREES_METADATA_KEY = 'agentHost.additionalWorktrees';
@@ -43,20 +44,11 @@ export async function readSessionAdditionalWorktrees(sessionDataService: ISessio
 }
 
 /** Replaces the additional repository worktrees owned by a multi-folder session. */
-export async function writeSessionAdditionalWorktrees(sessionDataService: ISessionDataService, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
+export async function writeSessionAdditionalWorktrees(stateStore: IAgentHostSessionStateStore, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
 	if (!isSessionAdditionalWorktrees(worktrees)) {
 		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
 	}
-	const ref = sessionDataService.openDatabase(session);
-	try {
-		if (worktrees.length === 0) {
-			await ref.object.deleteMetadata([ADDITIONAL_WORKTREES_METADATA_KEY]);
-		} else {
-			await ref.object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(worktrees));
-		}
-	} finally {
-		ref.dispose();
-	}
+	await stateStore.writeMetadata(session, session, { [ADDITIONAL_WORKTREES_METADATA_KEY]: worktrees.length === 0 ? null : JSON.stringify(worktrees) }, SessionStateMirrorFlush.Immediate);
 }
 
 function isSessionAdditionalWorktrees(value: unknown): value is readonly ISessionAdditionalWorktree[] {

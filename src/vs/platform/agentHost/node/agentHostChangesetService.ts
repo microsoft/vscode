@@ -26,6 +26,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
@@ -205,6 +206,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
+	protected readonly _pendingSummaryWrites = new Set<Promise<void>>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -221,6 +223,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._worktree = worktree;
@@ -341,7 +344,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
-		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
+		const session = URI.parse(sessionUri);
+		const write = this._sessionStateStore.writeMetadata(session, session, { [META_CHANGES_SUMMARY]: JSON.stringify(summary) }, SessionStateMirrorFlush.Immediate).catch(err => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to persist ${META_CHANGES_SUMMARY}`, err);
+		});
+		this._pendingSummaryWrites.add(write);
+		const untrack = () => this._pendingSummaryWrites.delete(write);
+		write.then(untrack, untrack);
 	}
 
 	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined {

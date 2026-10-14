@@ -29,6 +29,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -85,7 +86,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -270,6 +271,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService));
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1372,6 +1374,7 @@ suite('AgentSideEffects', () => {
 				new NullLogService(),
 				new NoopWorktreeIsolation(),
 				createTestChatOwnershipService(stateManager),
+				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {
@@ -3512,6 +3515,13 @@ suite('AgentSideEffects', () => {
 			return { sideEffects: persisting, db };
 		}
 
+		/** Session flags are written through the state store, so the db write lands asynchronously. */
+		async function waitForDbValue(read: () => Promise<string | undefined> | string | undefined, expected: string): Promise<void> {
+			for (let i = 0; i < 200 && await read() !== expected; i++) {
+				await timeout(5);
+			}
+		}
+
 		test('marks a read session unread when a turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
@@ -3567,10 +3577,11 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
 
+			await waitForDbValue(() => db.getMetadata('isRead'), '');
 			assert.strictEqual(await db.getMetadata('isRead'), '');
 		});
 
-		test('persists read state exactly once for client- and server-dispatched changes', () => {
+		test('persists read state exactly once for client- and server-dispatched changes', async () => {
 			const { db } = setupPersisting();
 			setupSession();
 
@@ -3582,6 +3593,7 @@ suite('AgentSideEffects', () => {
 			// A rejected client action never reached state and must not persist.
 			stateManager.rejectClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 2 }, 'nope');
 
+			await waitForDbValue(() => db.setMetadataCalls.filter(c => c.key === 'isRead').map(c => c.value).join('|'), 'true|');
 			assert.deepStrictEqual(db.setMetadataCalls.filter(c => c.key === 'isRead'), [
 				{ key: 'isRead', value: 'true' },
 				{ key: 'isRead', value: '' },

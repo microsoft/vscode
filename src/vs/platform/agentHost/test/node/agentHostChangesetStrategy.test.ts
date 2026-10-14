@@ -38,7 +38,8 @@ import { AgentHostChangesetService } from '../../node/agentHostChangesetService.
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostChangesetStrategy', () => {
@@ -186,6 +187,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, new NullAgentHostWorktreeIsolation(),
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
 			createTestChatOwnershipService(state),
+			createTestSessionStateStore(new AgentHostDatabase(':memory:'), data),
 		));
 		state.createSession({
 			resource: session,

@@ -7,7 +7,8 @@ import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 suite('SessionAdditionalWorktrees', () => {
@@ -26,9 +27,9 @@ suite('SessionAdditionalWorktrees', () => {
 		}];
 
 		const initial = await readSessionAdditionalWorktrees(sessionDataService, session);
-		await writeSessionAdditionalWorktrees(sessionDataService, session, worktrees);
+		await seedSessionAdditionalWorktrees(sessionDataService, session, worktrees);
 		const persisted = await readSessionAdditionalWorktrees(sessionDataService, session);
-		await writeSessionAdditionalWorktrees(sessionDataService, session, []);
+		await seedSessionAdditionalWorktrees(sessionDataService, session, []);
 
 		assert.deepStrictEqual({
 			initial,
