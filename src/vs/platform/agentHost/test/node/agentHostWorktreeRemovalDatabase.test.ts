@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData } from '../../node/agentHostSessionStateDatabase.js';
 import type { IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
@@ -31,6 +32,16 @@ function request(overrides: Partial<IWorktreeRemovalRequest> = {}): IWorktreeRem
 async function importSession(database: AgentHostDatabase, session: string, values: Record<string, string>, chats: readonly IAgentHostSessionChatStateData[] = []): Promise<void> {
 	await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 	assert.strictEqual(await database.importSessionState(session, { importVersion: 1, importedAt: 1, values, folders: [], chats, legacyMirrorBase: '{}', launchDirsBackfilled: true }), 'imported');
+}
+
+async function listSession(database: AgentHostDatabase, session: string, workingDirectories: readonly string[], isArchived: boolean): Promise<void> {
+	await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+	const encoded = encodeAgentHostCatalogPayload({ modifiedTime: 1, isRead: true, isArchived, workingDirectories: [...workingDirectories], chats: [] });
+	assert.ok(encoded.ok);
+	assert.strictEqual(await database.upsertSessionV2({
+		session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+		payloadHash: encoded.value.payloadHash, verified: true, payload: encoded.value.payload,
+	}, undefined), 'applied');
 }
 
 function legacyChat(chat: string, workingDirectories: readonly string[]): IAgentHostSessionChatStateData {
@@ -133,6 +144,17 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 				await database.tombstoneAndUnregisterSession('copilotcli:/other');
 			},
 			'a legacy-catalog chat of another session inside the worktree': database => importSession(database, 'copilotcli:/other', {}, [legacyChat('copilotcli:/other-peer', [`${WORKTREE}/src`])]),
+			'another listed session inside the worktree': database => listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], false),
+			'another listed session archived in its list entry': database => listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], true),
+			'another listed session archived in its session state': async database => {
+				await listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], false);
+				assert.strictEqual(await database.importSessionState('copilotcli:/other', { importVersion: 1, importedAt: 1, values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true }), 'imported');
+			},
+			'a chat without folders of a listed session inside the worktree': async database => {
+				await listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], false);
+				await database.registerChatCatalogV2('copilotcli:/other', { defaultChat: { chat: 'ahp-chat:/default', order: 0 }, peers: [{ chat: 'ahp-chat:/fork', order: 1 }], privateDescendants: [] });
+			},
+			'the owner listed inside its own worktree': database => listSession(database, OWNER, [WORKTREE], false),
 		};
 		const inUse: Record<string, boolean> = {};
 		for (const [name, seed] of Object.entries(scenarios)) {
@@ -154,6 +176,11 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			'a chat of an archived session inside the worktree': false,
 			'a chat of a deleted session inside the worktree': false,
 			'a legacy-catalog chat of another session inside the worktree': true,
+			'another listed session inside the worktree': true,
+			'another listed session archived in its list entry': false,
+			'another listed session archived in its session state': false,
+			'a chat without folders of a listed session inside the worktree': true,
+			'the owner listed inside its own worktree': false,
 		});
 	});
 });

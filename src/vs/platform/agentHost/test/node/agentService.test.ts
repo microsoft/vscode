@@ -11,7 +11,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -8777,6 +8777,169 @@ suite('AgentService (node dispatcher)', () => {
 					repositoryRoot: repository.toString(),
 				}],
 			});
+		});
+	});
+
+	suite('deferred worktree clean-up', () => {
+
+		/** A real worktree isolation over a temporary repository, with Git and session database opens recorded. */
+		function createWorktreeHarness() {
+			const root = mkdtempSync(join(tmpdir(), 'agent-worktree-cleanup-'));
+			disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
+			const repository = URI.file(join(root, 'repo'));
+			mkdirSync(repository.fsPath, { recursive: true });
+			const gitCalls: string[] = [];
+			const git: IAgentHostGitService = {
+				...createNoopGitService(),
+				branchExists: async () => true,
+				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
+			};
+			const gitService = new Proxy(git, {
+				get: (target, property, receiver) => {
+					const value = Reflect.get(target, property, receiver);
+					return typeof value === 'function' ? (...args: unknown[]) => {
+						const worktree = args.find((arg): arg is URI => URI.isUri(arg) && arg.path.includes('.worktrees'));
+						gitCalls.push(worktree ? `${String(property)}:${worktree.path.split('/').pop()}` : String(property));
+						return value.apply(target, args);
+					} : value;
+				},
+			});
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			class MultiChatAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return { provider: this.id, displayName: this.id, description: this.id, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: {} } };
+				}
+				override async createChat(): Promise<void> { }
+			}
+			registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot')));
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'unused' },
+				gitService,
+				nullPullRequestResolver,
+				perSession.service,
+				getTestSessionStateStore(svc),
+				new NullLogService(),
+			)));
+			const createWorktreeSession = async (name: string) => {
+				const worktree = URI.file(join(root, 'repo.worktrees', name));
+				mkdirSync(worktree.fsPath, { recursive: true });
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
+				await getTestSessionStateStore(svc).writeMetadata(session, session, {
+					'copilot.worktree.branchName': `agents/${name}`,
+					'copilot.worktree.path': worktree.toString(),
+					'copilot.worktree.repositoryRoot': repository.toString(),
+				}, SessionStateMirrorFlush.Immediate);
+				return { session, worktree };
+			};
+			return { svc, root, gitCalls, perSession, createWorktreeSession };
+		}
+
+		async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+			for (let attempt = 0; attempt < 400; attempt++) {
+				if (await condition()) {
+					return;
+				}
+				await timeout(5);
+			}
+			throw new Error('Condition not met');
+		}
+
+		test('archive and delete do no Git work, and the clean-up opens no session database and keeps a worktree another session or chat still uses', async () => {
+			const { svc, root, gitCalls, perSession, createWorktreeSession } = createWorktreeHarness();
+			const database = getTestAgentHostDatabase(svc);
+			const archived = await createWorktreeSession('archived');
+			const deleted = await createWorktreeSession('deleted');
+			// A session created in the archived session's worktree.
+			const createdIn = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.joinPath(archived.worktree, 'src')] });
+			// A chat of another session working in that worktree, as a cross-session fork leaves it.
+			const forkOwnFolder = URI.file(join(root, 'elsewhere'));
+			const forkSession = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [forkOwnFolder, archived.worktree] });
+			const fork = URI.parse(buildChatUri(forkSession, 'fork'));
+			await svc.createChat(forkSession, fork, { workingDirectories: [archived.worktree] });
+			await svc.listSessions();
+			await waitUntil(() => database.isWorktreeInUse(archived.worktree.toString(), archived.session.toString()));
+
+			gitCalls.length = 0;
+			svc.dispatchAction(archived.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const archivedAtOnce = isSessionStatusArchived(getStateManager(svc).getSessionSummary(archived.session.toString())?.status);
+			await waitForPendingWorktreeRemovals(svc, 1);
+			await svc.disposeSession(deleted.session);
+			const pending = (await waitForPendingWorktreeRemovals(svc, 2)).map(removal => `${removal.owner === archived.session.toString() ? 'archived' : 'deleted'}:${removal.mode}`).sort();
+			const gitCallsOnArchiveAndDelete = [...gitCalls];
+
+			perSession.databaseOpens.length = 0;
+			const cleanup = getTestWorktreeCleanupService(svc);
+			await cleanup.runPass();
+			const afterFirstPass = {
+				databaseOpens: [...perSession.databaseOpens],
+				removals: gitCalls.filter(call => call.startsWith('removeWorktree')),
+				archivedExists: existsSync(archived.worktree.fsPath),
+				deletedExists: existsSync(deleted.worktree.fsPath),
+			};
+
+			// Archiving the session created in the worktree leaves the fork using it.
+			svc.dispatchAction(createdIn.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			await waitUntil(async () => (await database.readSessionState(createdIn.toString()))?.values.some(value => value.key === AH_META_IS_ARCHIVED_DB_KEY && value.value === 'true') ?? false);
+			await cleanup.runPass();
+			const whileForkUses = existsSync(archived.worktree.fsPath);
+
+			// Once the fork's session is archived too, nothing keeps the worktree.
+			svc.dispatchAction(forkSession.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 3, AgentHostClientType.EditorWindow);
+			await waitUntil(async () => !await database.isWorktreeInUse(archived.worktree.toString(), archived.session.toString()));
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({
+				archivedAtOnce,
+				pending,
+				gitCallsOnArchiveAndDelete,
+				afterFirstPass,
+				whileForkUses,
+				archivedExists: existsSync(archived.worktree.fsPath),
+				remaining: await database.listPendingWorktreeRemovals(),
+			}, {
+				archivedAtOnce: true,
+				pending: ['archived:commit', 'deleted:delete'],
+				gitCallsOnArchiveAndDelete: [],
+				afterFirstPass: {
+					databaseOpens: [],
+					removals: ['removeWorktree:deleted'],
+					archivedExists: true,
+					deletedExists: false,
+				},
+				whileForkUses: true,
+				archivedExists: false,
+				remaining: [],
+			});
+		});
+
+		test('clean-up waits until startup settled and the first listing was served', async () => {
+			const { svc, gitCalls, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('startup');
+
+			svc.dispatchAction(archived.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await waitForPendingWorktreeRemovals(svc, 1);
+			svc.markStartupComplete();
+			await timeout(20);
+			const beforeListing = { exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) };
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+			await waitForPendingWorktreeRemovals(svc, 0);
+
+			assert.deepStrictEqual({ beforeListing, exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) }, {
+				beforeListing: { exists: true, removals: [] },
+				exists: false,
+				removals: ['removeWorktree:startup'],
+			});
+		});
+
+		test('automatic deletion records synced removals', async () => {
+			const { svc, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('automatic');
+
+			assert.strictEqual(await svc.disposeSessionIf(archived.session, async () => true, () => true), true);
+
+			assert.deepStrictEqual((await waitForPendingWorktreeRemovals(svc, 1)).map(removal => `${removal.kind}:${removal.mode}`), ['session:synced']);
 		});
 	});
 

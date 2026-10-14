@@ -2289,6 +2289,51 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('automatic deletion keeps work: the worktree must be gone, or exist with its branch synced', async () => {
+		const outcomes: Record<string, boolean> = {};
+		outcomes['no worktree'] = await createIsolation(disposables).canAutomaticallyDeleteArchivedSession(sessionUri);
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		outcomes['branch synced'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['unpushed commits'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
+		branchExists = false;
+		outcomes['branch missing'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['folder gone'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+
+		assert.deepStrictEqual({ outcomes, removeCalls }, {
+			outcomes: { 'no worktree': true, 'branch synced': true, 'unpushed commits': false, 'branch missing': false, 'folder gone': true },
+			// Only checks: the folder is removed later by the clean-up service.
+			removeCalls: [],
+		});
+	});
+
+	test('a deletion force-removes the worktree without needing its branch, and prunes a folder that is already gone', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		branchExists = false;
+		hasUncommittedChanges = true;
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+		const removedExisting = !existsSync(worktree.fsPath);
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+
+		assert.deepStrictEqual({
+			removedExisting,
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			removedExisting: true,
+			commitCalls: 0,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
+		});
+	});
+
 	test('removeSessionWorktree force-removes a worktree for explicit session deletion', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });

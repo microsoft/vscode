@@ -118,12 +118,17 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
 
 /**
  * Every central working directory of a session or chat that keeps a worktree
- * in use: the session's own folders, a normalized chat's folders and a
- * legacy-catalog chat's folders, skipping archived and deleted chats.
- * Archived sessions are filtered by the caller.
+ * in use: the session's folders from its session list entry and from its
+ * session state, a normalized chat's folders and a legacy-catalog chat's
+ * folders, skipping archived and deleted chats. A chat without folders of its
+ * own uses its session's. Archived sessions are filtered by the caller.
  */
 const centralWorkingDirectoriesSql = `
-	SELECT v.session_uri AS session_uri, j.value AS directory
+	SELECT p.session_uri AS session_uri, j.value AS directory
+		FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
+		WHERE p.payload IS NOT NULL AND json_valid(p.payload)
+	UNION ALL
+	SELECT v.session_uri, j.value
 		FROM session_state_values v, json_each(v.value) j
 		WHERE v.key = '${SESSION_WORKING_DIRECTORIES_KEY}' AND json_valid(v.value)
 	UNION ALL
@@ -150,6 +155,7 @@ const worktreeInUseSql = `
 	WHERE d.session_uri <> ?
 		AND (lower(d.directory) = ? OR substr(lower(d.directory), 1, ?) = ?)
 		AND NOT EXISTS (SELECT 1 FROM session_state_values a WHERE a.session_uri = d.session_uri AND a.key = '${AH_META_IS_ARCHIVED_DB_KEY}' AND a.value = 'true')
+		AND NOT EXISTS (SELECT 1 FROM sessions_v2 l WHERE l.session_uri = d.session_uri AND json_valid(l.payload) AND json_extract(l.payload, '$.data.isArchived') = 1)
 	LIMIT 1`;
 
 export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemovalDatabase {
