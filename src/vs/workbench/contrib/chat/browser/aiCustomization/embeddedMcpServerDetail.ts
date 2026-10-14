@@ -34,6 +34,7 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IMcpServerConfigurationFormInput, McpServerConfigurationForm } from '../../../mcp/browser/mcpServerConfigurationForm.js';
 import { mcpServerIcon } from './aiCustomizationIcons.js';
@@ -62,6 +63,12 @@ export interface IMcpServerDetailInput {
 	readonly provenance?: IMcpServerProvenance;
 	/** Explains why there is no definition to show, for a server whose definition the client cannot read. */
 	readonly definitionUnavailable?: IMcpServerDefinitionUnavailable;
+}
+
+export function isMcpServerDetailMigratable(server: Pick<IMcpServerDetailInput, 'compatibilityId' | 'source'>, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): boolean {
+	return server.compatibilityId !== undefined && candidates.some(candidate =>
+		candidate.id === server.compatibilityId
+		&& (!server.source || isEqual(candidate.sourceUri, server.source.uri)));
 }
 
 /** Why an MCP server has no definition to show, and where it can be controlled instead. */

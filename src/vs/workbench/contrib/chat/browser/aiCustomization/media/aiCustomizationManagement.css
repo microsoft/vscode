@@ -838,7 +838,7 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
-.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.partially-supported, .unsupported) {
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.migration-available, .partially-supported, .unsupported) {
 	flex-shrink: 0;
 }
 
