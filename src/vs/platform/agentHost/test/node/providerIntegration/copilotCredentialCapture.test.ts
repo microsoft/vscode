@@ -43,4 +43,12 @@ suite('Copilot credential test capture', () => {
 			normalizeTestSystemPrompt('<environment_context>Unavailable</environment_context>', '/test/L', '/test'),
 		);
 	});
+
+	test('normalizes only the known workspace and home in JSON-escaped Windows environment context', () => {
+		const home = 'C:\\test-home';
+		assert.deepStrictEqual(['A', 'L'].map(name => normalizeTestSystemPrompt(
+			JSON.stringify({ workingDirectory: `${home}\\${name}`, home, otherDirectory: 'C:\\unrelated' }),
+			`${home}\\${name}`, home,
+		)), Array(2).fill('{"workingDirectory":"<workspace>","home":"<home>","otherDirectory":"C:\\\\unrelated"}'));
+	});
 });

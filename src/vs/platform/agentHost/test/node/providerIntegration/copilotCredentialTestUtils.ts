@@ -49,7 +49,9 @@ export function isCredentialEnvironmentKey(key: string): boolean {
 export function normalizeTestSystemPrompt(prompt: string, workspace: string, home: string): string {
 	return prompt
 		.replace(/\r\n/g, '\n')
+		.replaceAll(JSON.stringify(workspace).slice(1, -1), '<workspace>')
 		.replaceAll(workspace, '<workspace>').replaceAll(workspace.replaceAll('\\', '/'), '<workspace>')
+		.replaceAll(JSON.stringify(home).slice(1, -1), '<home>')
 		.replaceAll(home, '<home>').replaceAll(home.replaceAll('\\', '/'), '<home>')
 		.replace(/[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/gi, '<id>')
 		.replace(/<(?:sql|session_store_sql)>[\s\S]*?<\/(?:sql|session_store_sql)>/g, '')

@@ -329,6 +329,18 @@ suite('Copilot Agent credential sponsorship', function () {
 			[probe, modelTraffic.find(traffic => traffic.probe === probe)!.tools.filter(tool => codingTools.includes(tool)).sort()]));
 		const aRequest = modelTraffic.find(traffic => traffic.probe === 'A')!;
 		const legacyRequest = modelTraffic.find(traffic => traffic.probe === 'L')!;
+		const mismatch = [...Array(Math.max(aRequest.normalizedPrompt.length, legacyRequest.normalizedPrompt.length)).keys()]
+			.find(index => aRequest.normalizedPrompt[index] !== legacyRequest.normalizedPrompt[index]);
+		const prefix = aRequest.normalizedPrompt.slice(0, mismatch);
+		const sections = ['environment_context', 'available_skills', 'ask_user', 'task', 'rg', 'view', 'powershell', 'bash', 'custom_instructions', 'instructions'];
+		const section = sections.filter(name => prefix.includes(`<${name}`)).sort((a, b) => prefix.lastIndexOf(`<${b}`) - prefix.lastIndexOf(`<${a}`))[0] ?? 'other';
+		const promptDiagnostics = {
+			mismatch, section, scopedLength: aRequest.normalizedPrompt.length, legacyLength: legacyRequest.normalizedPrompt.length,
+			scopedCharacter: mismatch === undefined ? undefined : aRequest.normalizedPrompt.charCodeAt(mismatch),
+			legacyCharacter: mismatch === undefined ? undefined : legacyRequest.normalizedPrompt.charCodeAt(mismatch),
+			scopedEscapedWorkspacePresent: aRequest.normalizedPrompt.includes(JSON.stringify(join(directory, 'A')).slice(1, -1)),
+			legacyEscapedWorkspacePresent: legacyRequest.normalizedPrompt.includes(JSON.stringify(join(directory, 'L')).slice(1, -1)),
+		};
 		assert.deepStrictEqual({
 			onlyScopedTools: aRequest.tools.filter(tool => !legacyRequest.tools.includes(tool)).sort(),
 			onlyLegacyTools: legacyRequest.tools.filter(tool => !aRequest.tools.includes(tool)).sort(),
@@ -337,7 +349,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			onlyScopedTools: [],
 			onlyLegacyTools: ['session_store_sql', 'sql'],
 			prompt: createHash('sha256').update(legacyRequest.normalizedPrompt).digest('hex'),
-		});
+		}, JSON.stringify(promptDiagnostics));
 		const completions = signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
 		assert.deepStrictEqual(completions.map(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete ? signal.action.result : undefined).filter(result => !result?.success), []);
 		const toolOutcomes = ['A', 'B', 'L'].map(probe => {
