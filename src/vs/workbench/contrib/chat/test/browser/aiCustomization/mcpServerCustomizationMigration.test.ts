@@ -21,10 +21,12 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { parseWorkspaceRootMcpConfiguration } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
+import { mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -190,8 +192,12 @@ suite('McpServerCustomizationMigration', () => {
 		return fileService;
 	}
 
-	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment, configurationService: IConfigurationService = new TestConfigurationService()): McpServerCustomizationMigrator {
-		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders, env, configurationService), configurationService);
+	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment, configurationService: IConfigurationService = new TestConfigurationService(), secretStorageService = createSecretStorageService()): McpServerCustomizationMigrator {
+		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders, env, configurationService), configurationService, secretStorageService);
+	}
+
+	function createSecretStorageService(): TestSecretStorageService {
+		return store.add(new TestSecretStorageService());
 	}
 
 	function candidate(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' }): IMcpServerCustomizationMigrationCandidate {
@@ -578,6 +584,134 @@ suite('McpServerCustomizationMigration', () => {
 		}
 	}
 
+	/** An OAuth server as the client reports it: the projection drops `oauth`. */
+	function oauthSupport(root: URI, name: string, url: string, sourceUri?: URI): IAgentHostMcpServerSupport {
+		const server = support(root, name, {
+			compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.OAuthClientConfigurationIgnored] },
+			projectedConfiguration: { type: McpServerType.REMOTE, url },
+		});
+		return sourceUri ? { ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri } } : server;
+	}
+
+	for (const storage of [PromptsStorage.local, PromptsStorage.user]) {
+		test(`migrates the OAuth client ID of ${storage} servers, except with a stored client secret or enterprise-managed sign-in`, async () => {
+			const root = URI.file('/oauth');
+			const fileService = createFileService();
+			const secretStorageService = createSecretStorageService();
+			const user = storage === PromptsStorage.user ? userCandidate() : undefined;
+			const sourceUri = user?.sourceUri ?? URI.joinPath(root, '.vscode', 'mcp.json');
+			const targetUri = user?.targetUri ?? URI.joinPath(root, '.mcp.json');
+			const servers = {
+				clientOnly: { url: 'https://example.com/a', oauth: { clientId: 'client-a' } },
+				withSecret: { url: 'https://example.com/b%20c', oauth: { clientId: 'client-b' } },
+				notManaged: { url: 'https://example.com/c', oauth: { clientId: 'client-c', enterpriseManaged: false } },
+				managed: { url: 'https://example.com/d', oauth: { clientId: 'client-d', enterpriseManaged: true } },
+			};
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
+			// The *Set Client Secret* code lens stores the secret under the URL without percent-encoding.
+			await secretStorageService.set(mcpOAuthClientSecretStorageKey('https://example.com/b c', 'client-b'), 'secret');
+			const migrator = createMigrator(fileService, [], undefined, undefined, secretStorageService);
+			const plan = await migrator.createPlan({
+				servers: Object.entries(servers).map(([name, server]) => oauthSupport(root, name, URI.parse(server.url).toString(), user?.sourceUri)),
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [root], CancellationToken.None, user?.targetUri);
+			const result = await migrator.migrate(plan.candidates, { userTarget: user?.targetUri });
+
+			assert.deepStrictEqual({
+				candidates: plan.candidates.map(candidate => [candidate.name, candidate.oauth]),
+				exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+				result,
+				source: parse((await fileService.readFile(sourceUri)).value.toString()),
+				target: parse((await fileService.readFile(targetUri)).value.toString()),
+				secretKeys: await secretStorageService.keys(),
+			}, {
+				candidates: [
+					['clientOnly', { clientId: 'client-a' }],
+					['notManaged', { clientId: 'client-c' }],
+				],
+				exclusions: [
+					['withSecret', McpServerCustomizationMigrationFailureReason.OAuthClientSecret],
+					['managed', McpServerCustomizationMigrationFailureReason.EnterpriseManagedOAuth],
+				],
+				result: { migratedCount: 2, failures: [] },
+				source: { servers: { withSecret: servers.withSecret, managed: servers.managed } },
+				target: {
+					mcpServers: {
+						clientOnly: { type: 'http', url: 'https://example.com/a', tools: ['*'], oauthClientId: 'client-a' },
+						notManaged: { type: 'http', url: 'https://example.com/c', tools: ['*'], oauthClientId: 'client-c' },
+					},
+				},
+				secretKeys: [mcpOAuthClientSecretStorageKey('https://example.com/b c', 'client-b')],
+			});
+		});
+	}
+
+	test('rejects an OAuth server whose client secret was stored after planning', async () => {
+		const root = URI.file('/oauth-secret-added');
+		const fileService = createFileService();
+		const secretStorageService = createSecretStorageService();
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const content = JSON.stringify({ servers: { demo: { url: 'https://example.com/mcp', oauth: { clientId: 'client' } } } });
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(content));
+		const migrator = createMigrator(fileService, [], undefined, undefined, secretStorageService);
+		const plan = await migrator.createPlan({
+			servers: [oauthSupport(root, 'demo', 'https://example.com/mcp')],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		await secretStorageService.set(mcpOAuthClientSecretStorageKey('https://example.com/mcp', 'client'), 'secret');
+		const result = await migrator.migrate(plan.candidates);
+		assert.deepStrictEqual({
+			planned: plan.candidates.map(candidate => candidate.oauth),
+			reasons: result.failures.map(failure => failure.reason),
+			sourceUnchanged: (await fileService.readFile(sourceUri)).value.toString() === content,
+			targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+		}, {
+			planned: [{ clientId: 'client' }],
+			reasons: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret],
+			sourceUnchanged: true,
+			targetExists: false,
+		});
+	});
+
+	test('reads the client secret with the source URL, as the Set Client Secret code lens does', async () => {
+		const root = URI.file('/oauth-secret-variable-url');
+		const fileService = createFileService();
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const rawUrl = 'https://${env:MCP_HOST}/mcp';
+		// The code lens keys the secret by the URL as written, while the projection resolves its variables.
+		const key = mcpOAuthClientSecretStorageKey(URI.parse(rawUrl).toString(true), 'client');
+		const content = JSON.stringify({ servers: { demo: { url: rawUrl, oauth: { clientId: 'client' } } } });
+		const folders = [{ uri: root, name: 'oauth-secret-variable-url', index: 0 }];
+		const results = [];
+		for (const storedBeforePlanning of [true, false]) {
+			const secretStorageService = createSecretStorageService();
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(content));
+			if (storedBeforePlanning) {
+				await secretStorageService.set(key, 'secret');
+			}
+			const migrator = createMigrator(fileService, folders, { MCP_HOST: 'example.com' }, undefined, secretStorageService);
+			const plan = await migrator.createPlan({
+				servers: [oauthSupport(root, 'demo', 'https://example.com/mcp')],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [root]);
+			await secretStorageService.set(key, 'secret');
+			const result = await migrator.migrate(plan.candidates);
+			results.push({
+				exclusions: plan.exclusions.map(exclusion => exclusion.reason),
+				failures: result.failures.map(failure => failure.reason),
+				sourceUnchanged: (await fileService.readFile(sourceUri)).value.toString() === content,
+				targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ exclusions: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], failures: [], sourceUnchanged: true, targetExists: false },
+			{ exclusions: [], failures: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], sourceUnchanged: true, targetExists: false },
+		]);
+	});
+
 	test('keeps other unsupported properties blocked even with removable metadata', async () => {
 		const root = URI.file('/unsupported');
 		const fileService = createFileService();
@@ -586,7 +720,6 @@ suite('McpServerCustomizationMigration', () => {
 			{ type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' },
 			{ type: McpServerType.LOCAL, command: 'node', env: { SECRET: null } },
 			{ type: McpServerType.LOCAL, command: 'node', args: ['${input:secret}'] },
-			{ type: McpServerType.REMOTE, url: 'https://example.com', oauth: { clientId: 'required' } },
 			{ type: McpServerType.REMOTE, url: 'https://example.com', transport: 'sse' },
 		];
 		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
@@ -2017,7 +2150,7 @@ suite('McpServerCustomizationMigration', () => {
 				override info(message: string): void { messages.push(message); }
 			}();
 
-			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService(), new TestConfigurationService()).migrate([selected]);
+			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService(), new TestConfigurationService(), createSecretStorageService()).migrate([selected]);
 
 			assert.deepStrictEqual({
 				result,

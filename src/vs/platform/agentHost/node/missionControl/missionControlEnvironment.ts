@@ -35,6 +35,7 @@ interface IEnvironmentResponse {
 		readonly access_token: string;
 		readonly expires_at?: string;
 		readonly hub?: string;
+		readonly session_events_formats?: readonly string[];
 		readonly groups: { readonly control: string; readonly ingest_ack?: string };
 	};
 }
@@ -96,6 +97,10 @@ function parseEnvironment(value: unknown): IEnvironmentResponse {
 		|| typeof wps?.url !== 'string' || typeof wps.access_token !== 'string' || !wps.access_token
 		|| wps.subprotocol !== RELIABLE_JSON_SUBPROTOCOL || typeof wps.groups?.control !== 'string') {
 		throw new Error('Mission Control returned an invalid user-local environment');
+	}
+	if (wps.session_events_formats !== undefined && (!Array.isArray(wps.session_events_formats)
+		|| wps.session_events_formats.length > 256 || wps.session_events_formats.some(value => typeof value !== 'string'))) {
+		throw new Error('Mission Control returned invalid session-event formats');
 	}
 	return { ...environment, id: environment.id, kind: 'user-local', user_id: owner, owner_id: owner, owner_type: 'user', webpubsub: wps };
 }
@@ -554,8 +559,11 @@ export class MissionControlEnvironment extends Disposable {
 				throw new Error('Mission Control returned an invalid token bootstrap');
 			}
 			const token = reply as { url?: unknown; wps_endpoint?: unknown; expires_at?: unknown };
-			const bootstrap = parseEnvironment({ ...this._environment, webpubsub: { ...reply, url: token.wps_endpoint ?? token.url } }).webpubsub;
 			const cached = this._environment.webpubsub;
+			const bootstrap = parseEnvironment({
+				...this._environment,
+				webpubsub: { ...reply, url: token.wps_endpoint ?? token.url, session_events_formats: cached.session_events_formats },
+			}).webpubsub;
 			if (bootstrap.url !== cached.url || bootstrap.subprotocol !== cached.subprotocol || bootstrap.hub !== cached.hub
 				|| JSON.stringify(Object.entries(bootstrap.groups).sort()) !== JSON.stringify(Object.entries(cached.groups).sort())) {
 				this._requiresBootstrap = true;
@@ -671,6 +679,7 @@ export class MissionControlEnvironment extends Disposable {
 			this._server.clear();
 		}
 		if (this._server.value) {
+			this._server.value.setSessionEventsFormats(response.webpubsub.session_events_formats);
 			return;
 		}
 		const sealing = this._sealing.value;
@@ -737,7 +746,18 @@ export class MissionControlEnvironment extends Disposable {
 			this._mirrorAttachment.value = combinedDisposable(attachment, onClose);
 		}
 		if (options.live && Date.now() >= this._heartbeatNotBefore) {
-			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, this._createHeartbeat('online'), options);
+			const reply = await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, this._createHeartbeat('online'), options);
+			if (generation === this._generation && this._options === options && this._server.value === server) {
+				const refreshed = parseEnvironment(reply);
+				if (refreshed.id !== response.id || refreshed.owner_id !== response.owner_id) {
+					throw new Error('Mission Control environment owner changed');
+				}
+				this._environment = {
+					...this._environment!,
+					webpubsub: { ...this._environment!.webpubsub, session_events_formats: refreshed.webpubsub.session_events_formats },
+				};
+				server.setSessionEventsFormats(refreshed.webpubsub.session_events_formats);
+			}
 		}
 		if (generation === this._generation && this._options === options && !this._store.isDisposed) {
 			this._host.onReady?.(response.id);
