@@ -2508,7 +2508,7 @@ suite('mcpListWidget', () => {
 			return { server, workbenchServer, connectionState, enablement, outputCalls, startCalls };
 		}
 
-		test('local built-in rows preserve stopped and starting lifecycle states', async () => {
+		test('local built-in rows can start from stopped and error states', async () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const native = nativeServer();
@@ -2516,7 +2516,11 @@ suite('mcpListWidget', () => {
 			const entry: Entry = { type: 'builtin-item', id: 'native', label: 'Native', description: 'Ordinary description', localServer: native.server };
 
 			ctx.render(entry);
-			const startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
+			let startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
+			startButton?.click();
+			await Promise.resolve();
+			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Failed to start' }, undefined);
+			startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
 			startButton?.click();
 			await Promise.resolve();
 			native.connectionState.set({ state: McpConnectionState.Kind.Starting }, undefined);
@@ -2527,7 +2531,7 @@ suite('mcpListWidget', () => {
 				startingSpinner: ctx.templateData.actions.querySelector('.mcp-server-status.codicon-loading') !== null,
 			}, {
 				startButton: 'Start',
-				startCalls: ['native'],
+				startCalls: ['native', 'native'],
 				startingSpinner: true,
 			});
 		});
@@ -2560,6 +2564,7 @@ suite('mcpListWidget', () => {
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
 					outputActions: ctx.outputActions,
+					inlineStartButton: ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.textContent,
 					inlineOutputButton: showOutputButton?.textContent,
 					errorIcon: statusIcon?.classList.contains('error'),
 				}, {
@@ -2568,6 +2573,7 @@ suite('mcpListWidget', () => {
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
 					outputActions: ['close-editor', 'show-output'],
+					inlineStartButton: 'Start',
 					inlineOutputButton: undefined,
 					errorIcon: true,
 				});
@@ -2983,10 +2989,12 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual({
 				ariaLabel: parent.querySelector('.customization-card-primary-action')?.getAttribute('aria-label'),
 				description: parent.querySelector('.plugin-list-item-description')?.textContent,
+				start: parent.querySelector('.mcp-server-start')?.textContent,
 				showOutput: parent.querySelector('.mcp-server-show-output')?.textContent,
 			}, {
 				ariaLabel: 'Server One, Error, failed to start',
 				description: 'No description provided.',
+				start: 'Start',
 				showOutput: 'Show Output',
 			});
 		});
@@ -3015,12 +3023,12 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('starting, stopped and authentication states use their inline actions', () => {
+		test('starting, stopped, error and authentication states use their inline actions', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);
 			ctx.render();
 			const results = [];
-			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.AuthRequired]) {
+			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.Error, McpServerStatus.AuthRequired]) {
 				ctx.setServers([createAgentHostServer({ ...erroring(), status })]);
 				ctx.notifyUnchanged();
 				results.push({
@@ -3032,11 +3040,12 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(results, [
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Starting', signIn: false, start: false },
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Stopped', signIn: false, start: true },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Error, failed to start', signIn: false, start: true },
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Authentication required', signIn: true, start: false },
 			]);
 		});
 
-		test('start button starts a stopped active-session server', async () => {
+		test('start button starts stopped and errored active-session servers', async () => {
 			let starts = 0;
 			const server = createAgentHostServer({
 				status: McpServerStatus.Stopped,
@@ -3049,8 +3058,15 @@ suite('mcpListWidget', () => {
 
 			ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.click();
 			await Promise.resolve();
+			ctx.setServers([createAgentHostServer({
+				...erroring(),
+				start: async () => { starts++; },
+			})]);
+			ctx.notifyUnchanged();
+			ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.click();
+			await Promise.resolve();
 
-			assert.strictEqual(starts, 1);
+			assert.strictEqual(starts, 2);
 		});
 
 		test('recycling an error row for a healthy row restores its description and hover', () => {
