@@ -14,7 +14,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { EventMultiplexer } from '../../../common/event.js';
 import { ResolvedKeybinding } from '../../../common/keybindings.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../common/lifecycle.js';
 import './toolbar.css';
 import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -100,7 +100,6 @@ export class ToolBar extends Disposable {
 	protected readonly actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
-	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
 	private readonly element: HTMLElement;
 
@@ -110,7 +109,7 @@ export class ToolBar extends Disposable {
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
 	private hiddenActions: IAction[] = [];
 	private minItemsWidth = 0;
-	private readonly disposables = this._register(new DisposableStore());
+	private readonly dropdownMenuDisposables = this._register(new DisposableMap<IActionViewItem>());
 
 	constructor(private readonly container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -151,8 +150,7 @@ export class ToolBar extends Disposable {
 							hoverDelegate: this.options.hoverDelegate
 						}
 					);
-					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
-					this.disposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
+					this.dropdownMenuDisposables.set(this.toggleMenuActionViewItem, this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
 
 					return this.toggleMenuActionViewItem;
 				}
@@ -183,9 +181,7 @@ export class ToolBar extends Disposable {
 							hoverDelegate: this.options.hoverDelegate
 						}
 					);
-					result.setActionContext(this.actionBar.context);
-					this.submenuActionViewItems.push(result);
-					this.disposables.add(this._onDidChangeDropdownVisibility.add(result.onDidChangeVisibility));
+					this.dropdownMenuDisposables.set(result, this._onDidChangeDropdownVisibility.add(result.onDidChangeVisibility));
 
 					return result;
 				}
@@ -219,10 +215,6 @@ export class ToolBar extends Disposable {
 
 	set context(context: unknown) {
 		this.actionBar.context = context;
-		this.toggleMenuActionViewItem?.setActionContext(context);
-		for (const actionViewItem of this.submenuActionViewItems) {
-			actionViewItem.setActionContext(context);
-		}
 	}
 
 	getElement(): HTMLElement {
@@ -670,7 +662,7 @@ export class ToolBar extends Disposable {
 					this.hiddenActions.push(action);
 					const index = this.actionBar.viewItems.findIndex(item => item.action === action);
 					if (index !== -1) {
-						this.actionBar.pull(index);
+						this.pullAction(index);
 					}
 				}
 				this.hiddenActions.sort((a, b) => this.originalPrimaryActions.indexOf(a) - this.originalPrimaryActions.indexOf(b));
@@ -716,7 +708,7 @@ export class ToolBar extends Disposable {
 				// remove the overflow menu making space for the last hidden action to be shown.
 				if (this.originalSecondaryActions.length === 0 && this.hiddenActions.length === 0) {
 					this.toggleMenuAction.menuActions = [];
-					this.actionBar.pull(this.actionBar.viewItems.findIndex(item => item.action === this.toggleMenuAction));
+					this.pullAction(this.actionBar.viewItems.findIndex(item => item.action === this.toggleMenuAction));
 					this.updateOverflowClassName();
 				}
 
@@ -771,15 +763,26 @@ export class ToolBar extends Disposable {
 		this.actionBar.domNode.classList.toggle('has-overflow', this.actionBar.hasAction(this.toggleMenuAction));
 	}
 
+	private pullAction(index: number): void {
+		const viewItem = this.actionBar.viewItems[index];
+		if (viewItem) {
+			this.dropdownMenuDisposables.deleteAndDispose(viewItem);
+			if (this.toggleMenuActionViewItem === viewItem) {
+				this.toggleMenuActionViewItem = undefined;
+			}
+		}
+		this.actionBar.pull(index);
+	}
+
 	private clear(): void {
-		this.submenuActionViewItems = [];
-		this.disposables.clear();
+		this.toggleMenuActionViewItem = undefined;
+		this.toggleMenuAction.menuActions = [];
+		this.dropdownMenuDisposables.clearAndDisposeAll();
 		this.actionBar.clear();
 	}
 
 	override dispose(): void {
 		this.clear();
-		this.disposables.dispose();
 		this.element.remove();
 		super.dispose();
 	}

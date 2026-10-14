@@ -6,7 +6,7 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { pauseCSSAnimationsWhenHidden, synchronizeCSSAnimations } from '../../../../../base/browser/animationSync.js';
+import { animateChatProgress } from '../../../../../workbench/contrib/chat/browser/widget/chatProgressAnimation.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -1128,11 +1128,7 @@ class SessionItemActionRunner extends ActionRunner {
 	}
 }
 
-// Keyframes name of the in-progress title shimmer (see `session-title-shimmer`
-// in sessionsList.css). Used to phase-align the shimmer across rows.
-const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
-const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
-const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
+const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set(['session-title-shimmer']);
 
 function renderInlineRenameInput(
 	container: HTMLElement,
@@ -1377,21 +1373,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
 		}
 		disposables.add(Gesture.ignoreTarget(titleInputContainer));
-		// The shimmer's CSS animation restarts from zero whenever it (re)starts —
-		// e.g. selecting then deselecting an in-progress row re-adds the animation
-		// via the `:not(.selected)` selector, and rows already shimmering at first
-		// render each started on their own clock. Anchor every (re)start to the
-		// shared document timeline so all rows stay perfectly in phase. This fires
-		// once per start (not per frame), so it is effectively free.
-		disposables.add(DOM.addDisposableListener(titleContainer, DOM.EventType.ANIMATION_START, (e: AnimationEvent) => {
-			if (e.target === titleContainer && e.animationName === SESSION_TITLE_SHIMMER_ANIMATION_NAME) {
-				synchronizeCSSAnimations(titleContainer, { animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES });
-			}
-		}));
-		disposables.add(pauseCSSAnimationsWhenHidden(titleContainer, {
-			pausedClass: SESSION_TITLE_SHIMMER_PAUSED_CLASS,
-			animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES,
-		}));
+		disposables.add(animateChatProgress(titleContainer, SESSION_TITLE_SHIMMER_ANIMATION_NAMES));
 		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// Shown when a voice response arrived while this session was unfocused and
@@ -1660,9 +1642,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
-			// The title shimmer (toggled by the `in-progress` class) is phase-aligned
-			// across rows via an `animationstart` handler on the title element, so no
-			// per-state work is needed here.
+			// The shared progress clock owns the title's phase across row recycling.
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
