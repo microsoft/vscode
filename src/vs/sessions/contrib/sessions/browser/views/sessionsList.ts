@@ -4718,7 +4718,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return children;
 		};
 
-		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
+		const renderSection = (section: ISessionSection, renderedSessions: readonly ISession[] = section.sessions): IObjectTreeElement<SessionListItem> => {
 			if (isShortcutSection(section.id)) {
 				return {
 					element: section as SessionListItem,
@@ -4732,7 +4732,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
 				&& this.workspaceGroupCapped;
-			let sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
+			let sectionChildren = renderSessionChildren(renderedSessions, section.id, section.label, limitSessions);
 
 			// The always-visible "Chats" section shows a muted placeholder row
 			// when it has no sessions yet.
@@ -4800,20 +4800,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const renderWorkspaceSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const comparisonGroups = comparisonGroupsByWorkspaceLabel.get(section.label);
-			const comparisonSessionIds = new Set(comparisonGroups?.flatMap(group => group.sessions.map(session => session.sessionId)));
-			const renderedSection = renderSection(comparisonGroups
-				? { ...section, sessions: section.sessions.filter(session => !comparisonSessionIds.has(session.sessionId)) }
-				: section);
-			return comparisonGroups
-				? {
-					...renderedSection,
-					element: section,
-					children: [
-						...comparisonGroups.map(renderGroup),
-						...(renderedSection.children ?? []),
-					],
-				}
-				: renderedSection;
+			if (!comparisonGroups) {
+				return renderSection(section);
+			}
+			const comparisonSessionIds = new Set(comparisonGroups.flatMap(group => group.sessions.map(session => session.sessionId)));
+			const renderedSection = renderSection(section, section.sessions.filter(session => !comparisonSessionIds.has(session.sessionId)));
+			return {
+				...renderedSection,
+				children: [
+					...comparisonGroups.map(renderGroup),
+					...(renderedSection.children ?? []),
+				],
+			};
 		};
 
 		const navigationSections: ISessionSection[] = [];
@@ -4875,9 +4873,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// default above workspaces; workspaces default to their alphabetical
 			// order. Pinned stays first, Done last, and hidden ("+N more")
 			// workspaces are appended below the ordered block.
-			const workspaceSections = sections
-				.filter(s => s.id.startsWith('workspace:'))
-				.sort((a, b) => compareWorkspaceLabels(a.label, b.label));
+			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+			if (comparisonGroupsByWorkspaceLabel.size > 0) {
+				const unknownWorkspaceLabel = localize('unknown', "Unknown");
+				workspaceSections.sort((a, b) => {
+					if (a.label === unknownWorkspaceLabel) {
+						return b.label === unknownWorkspaceLabel ? 0 : 1;
+					}
+					if (b.label === unknownWorkspaceLabel) {
+						return -1;
+					}
+					return a.label.localeCompare(b.label);
+				});
+			}
 			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
 			const primaryWorkspaceIds = workspaceSections
 				.filter(s => !moreFolderSectionIds.has(s.id))
@@ -6589,17 +6597,6 @@ function sessionWorkspaceLabel(session: ISession): string {
 	return session.workspace.get()?.label || localize('unknown', "Unknown");
 }
 
-function compareWorkspaceLabels(a: string, b: string): number {
-	const unknownWorkspaceLabel = localize('unknown', "Unknown");
-	if (a === unknownWorkspaceLabel) {
-		return b === unknownWorkspaceLabel ? 0 : 1;
-	}
-	if (b === unknownWorkspaceLabel) {
-		return -1;
-	}
-	return a.localeCompare(b);
-}
-
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
@@ -6615,7 +6612,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const unknownWorkspaceLabel = localize('unknown', "Unknown");
 	const order = [...groups.keys()]
 		.filter(k => k !== unknownWorkspaceLabel)
-		.sort(compareWorkspaceLabels);
+		.sort((a, b) => a.localeCompare(b));
 
 	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,
