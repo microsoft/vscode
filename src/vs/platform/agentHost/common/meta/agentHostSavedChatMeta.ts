@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostSavedChatCapabilityMetaKey, supportsAgentHostSavedChat } from './vscode/agentHostSavedChatMeta.js';
+export { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey, supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from './vscode/agentHostSavedChatMeta.js';

@@ -5748,7 +5748,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('preserves a supplied imported conversation title as a durable user title', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = 'Unwanted replacement title';
-			const { svc, db } = await setupTitleGeneration(copilotApiService);
+			const { svc, agent, db } = await setupTitleGeneration(copilotApiService);
 			const importConversation = {
 				title: 'Original title: keep punctuation & spacing',
 				turns: [{
@@ -5760,17 +5760,50 @@ suite('AgentService (node dispatcher)', () => {
 				}] satisfies Turn[],
 			};
 			const imported = await svc.createSession({ legacyChatUris: true, provider: 'copilot', importConversation });
+			await completeTitleGenerationTurn(svc, agent, imported, 'Continue the imported conversation');
+			const reopened = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db), copilotApiService));
+			const reopenedAgent = disposables.add(new TitleTestAgent('copilot'));
+			await createAgentSession(reopenedAgent, { session: imported });
+			registerTestAgentProvider(reopened, reopenedAgent);
+			await reopened.restoreSession(imported);
 			assert.deepStrictEqual({
 				title: getStateManager(svc).getSessionState(imported.toString())?.title,
+				reopenedTitle: getStateManager(reopened).getSessionState(imported.toString())?.title,
 				persistedTitle: await db.getMetadata('customTitle'),
 				titleSource: await db.getMetadata('customTitleSource'),
 				utilityCalls: copilotApiService.utilityCalls.length,
 			}, {
 				title: 'Original title: keep punctuation & spacing',
+				reopenedTitle: 'Original title: keep punctuation & spacing',
 				persistedTitle: 'Original title: keep punctuation & spacing',
 				titleSource: 'user',
 				utilityCalls: 0,
 			});
+		});
+
+		test('fails imported creation when the retained user title cannot be persisted', async () => {
+			const db = new class extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[SESSION_CUSTOM_TITLE_SOURCE_KEY] === 'user') {
+						throw new Error('Retained title persistence failed');
+					}
+					await super.setMetadataValues(values);
+				}
+			}();
+			const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db)));
+			registerTestAgentProvider(svc, disposables.add(new TitleTestAgent('copilot')));
+			await assert.rejects(svc.createSession({
+				legacyChatUris: true, provider: 'copilot', importConversation: { title: 'Retain this title', turns: [] },
+			}), /Retained title persistence failed/);
+		});
+
+		test('uses the existing fallback for a blank imported title', async () => {
+			const { svc } = await setupTitleGeneration(new TestCopilotApiService());
+			const imported = await svc.createSession({
+				legacyChatUris: true, provider: 'copilot',
+				importConversation: { title: ' \n ', turns: [{ id: 'old', message: { text: 'The original first question', origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined }] },
+			});
+			assert.strictEqual(getStateManager(svc).getSessionState(imported.toString())?.title, 'The original first question');
 		});
 
 	});

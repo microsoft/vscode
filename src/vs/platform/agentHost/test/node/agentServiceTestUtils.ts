@@ -179,6 +179,7 @@ export function createTestAgentService(
 	catalogReconciliationOptions?: IAgentHostCatalogReconciliationOptions,
 	startupPerformance?: IAgentHostStartupPerformance,
 	initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
+	claudeSdkService?: IClaudeAgentSdkService,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -227,7 +228,7 @@ export function createTestAgentService(
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentSdkDownloader, new class extends mock<IAgentSdkDownloader>() { }());
-	services.set(IClaudeAgentSdkService, new class extends mock<IClaudeAgentSdkService>() { }());
+	services.set(IClaudeAgentSdkService, claudeSdkService ?? new class extends mock<IClaudeAgentSdkService>() { }());
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	// Automation startup cleanup touches the plugin directory, so back it with a provider even when callers pass a bare file service.

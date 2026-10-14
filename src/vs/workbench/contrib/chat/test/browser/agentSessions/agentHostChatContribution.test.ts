@@ -6939,7 +6939,7 @@ suite('AgentHostChatContribution', () => {
 		// `take`, so `_invokeAgent` takes the migration branch that arms the status.
 		function stubImportedConversation(instantiationService: TestInstantiationService): void {
 			const importStore = instantiationService.get(IAgentHostImportConversationStore);
-			importStore.take = () => ({ turns: [] });
+			importStore.take = () => ({ turns: [], title: 'Original conversation title' });
 		}
 
 		test('normal (non-imported) session never emits the status even past the 500ms threshold', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -6971,6 +6971,7 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
+			assert.strictEqual(agentHostService.createSessionCalls[0].importConversation?.title, 'Original conversation title');
 		}));
 
 		test('first real progress cancels the pending status before it fires', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -14015,7 +14016,7 @@ suite('AgentHostChatContribution', () => {
 			for (const provider of ['claude', 'codex']) {
 				agentHostService.addSession({ session: AgentSession.uri(provider, 'saved'), provider, startTime: 0, modifiedTime: 0 });
 			}
-			instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: session.scheme, title: 'Saved', turns: [], workspace: { kind: 'none' } }));
+			instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: session.scheme, identity: 'saved-read', availability: { kind: 'available' }, title: 'Saved', turns: [], workspace: { kind: 'none' } }));
 			instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
 				override inspect<T>(key: string) {
 					const value = super.inspect<T>(key);
@@ -14076,7 +14077,7 @@ suite('AgentHostChatContribution', () => {
 				const services = createTestServices(disposables);
 				const { instantiationService, agentHostService } = services;
 				agentHostService.addSession({ session: AgentSession.uri('claude', 'saved'), provider: 'claude', startTime: 0, modifiedTime: 0 });
-				instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', title: 'Saved', turns: [], workspace: { kind: 'none' } }));
+				instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', identity: 'saved-read', availability: { kind: 'available' }, title: 'Saved', turns: [], workspace: { kind: 'none' } }));
 				const configurationService = new class extends TestConfigurationService {
 					override inspect<T>(key: string) {
 						const value = super.inspect<T>(key);

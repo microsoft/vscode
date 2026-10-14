@@ -14,14 +14,16 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentProvider } from '../../common/agent.js';
 import { savedChatToDto } from '../../common/agentHostSavedChat.js';
 import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
-import { AgentHostSavedChatService, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
+import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { replayThreadToTurns } from '../../node/codex/codexReplayMapper.js';
+import type { Thread } from '../../node/codex/protocol/generated/v2/Thread.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { readPersistedWorktreeMetadata } from '../../node/shared/worktreeIsolation.js';
@@ -43,7 +45,7 @@ suite('AgentHostSavedChatService', () => {
 		};
 	}
 
-	async function fixture(provider: AgentProvider = 'claude', normalized = true) {
+	async function fixture(provider: AgentProvider = 'claude', normalized = true, withPeer = true) {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
 		const sessionDatabase = disposables.add(await SessionDatabase.open(':memory:'));
 		const peerDatabase = disposables.add(await SessionDatabase.open(':memory:'));
@@ -52,7 +54,7 @@ suite('AgentHostSavedChatService', () => {
 		if (normalized) {
 			assert.strictEqual((await database.registerChatCatalogV2(session.toString(), {
 				defaultChat: { chat: defaultChat.toString(), order: 0, storageResource: session.toString(), providerData: 'opaque-default-backing', metadata: { summary: 'Saved default' } },
-				peers: [{ chat: peerChat.toString(), order: 1, storageResource: peerChat.toString(), providerData: 'opaque-peer-backing', metadata: { summary: 'Saved peer' } }],
+				peers: withPeer ? [{ chat: peerChat.toString(), order: 1, storageResource: peerChat.toString(), providerData: 'opaque-peer-backing', metadata: { summary: 'Saved peer' } }] : [],
 				privateDescendants: [],
 			})).status, 'applied');
 		}
@@ -85,13 +87,14 @@ suite('AgentHostSavedChatService', () => {
 			const draft = { text: 'Continue with this draft', origin: { kind: MessageKind.User } };
 			await sessionDatabase.setChatDraft(defaultChat, draft);
 			const saved = await createService().readSavedChat(session);
+			assert.match(saved.identity, /^[a-f0-9]{64}$/);
 			assert.deepStrictEqual({
 				saved: savedChatToDto(saved), backing: {
 					session: calls[0].session.toString(), chat: calls[0].chat.toString(), storage: calls[0].storageResource.toString(),
 					providerData: calls[0].providerData, origin: calls[0].origin, workingDirectories: calls[0].workingDirectories.map(directory => directory.toString()),
 				}
 			}, {
-				saved: { session: session.toString(), chat: defaultChat.toString(), provider, title: 'Saved default', turns: [turn('native', 'Saved question')], draft, workspace: { kind: 'folder', workingDirectories: [folder.toString()] } },
+				saved: { session: session.toString(), chat: defaultChat.toString(), provider, identity: saved.identity, availability: { kind: 'available' }, title: 'Saved default', turns: [turn('native', 'Saved question')], draft, workspace: { kind: 'folder', workingDirectories: [folder.toString()] } },
 				backing: { session: session.toString(), chat: defaultChat.toString(), storage: session.toString(), providerData: 'opaque-default-backing', origin: undefined, workingDirectories: [folder.toString()] },
 			});
 			assert.deepStrictEqual(savedChatToDto(await createService().readSavedChat(session)), savedChatToDto(saved));
@@ -142,6 +145,43 @@ suite('AgentHostSavedChatService', () => {
 		});
 	});
 
+	test('keeps the saved fingerprint stable across real Codex replay IDs while retaining response and tool content', async () => {
+		const { readers, createService } = await fixture('codex');
+		const native: Thread = {
+			id: 'native', sessionId: 'native', environments: null, extra: null, forkedFromId: null, parentThreadId: null,
+			preview: 'Saved question', ephemeral: false, section: null, sectionEnteredAt: null, projectId: null,
+			historyMode: 'legacy', modelProvider: 'openai', model: null, reasoningEffort: null,
+			createdAt: 1, updatedAt: 2, recencyAt: null, status: { type: 'notLoaded' }, path: null,
+			cwd: '/workspace', cliVersion: '0.160.0', originator: 'vscode_agent_host', source: 'vscode',
+			canAcceptDirectInput: null, threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, daybreakEnabled: null,
+			turns: [{
+				id: 'native-turn', status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
+				items: [
+					{ type: 'userMessage', id: 'prompt', clientId: null, content: [{ type: 'text', text: 'Saved question', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'answer', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+					{ type: 'webSearch', id: 'search', query: 'VS Code', action: null, results: null },
+					{ type: 'imageGeneration', id: 'image', status: 'completed', revisedPrompt: 'Draw a square', result: 'aW1hZ2U=', failure: null },
+					{ type: 'fileChange', id: 'patch', changes: [], status: 'completed' },
+					{ type: 'contextCompaction', id: 'compaction' },
+				],
+			}],
+		};
+		readers.set('codex', { read: async () => replayThreadToTurns(native) });
+		const first = await createService().readSavedChat(session);
+		const second = await createService().readSavedChat(session);
+		assert.notDeepStrictEqual(first.turns, second.turns);
+		assert.strictEqual(first.identity, second.identity);
+		const search = native.turns[0].items.find(item => item.type === 'webSearch');
+		assert.ok(search?.type === 'webSearch');
+		search.query = 'A different search';
+		const changedTool = await createService().readSavedChat(session);
+		assert.notStrictEqual(changedTool.identity, first.identity);
+		const answer = native.turns[0].items.find(item => item.type === 'agentMessage');
+		assert.ok(answer?.type === 'agentMessage');
+		answer.text = 'A different saved answer';
+		assert.notStrictEqual((await createService().readSavedChat(session)).identity, changedTool.identity);
+	});
+
 	test('supplies the exact saved spawning backing for a tool-origin chat', async () => {
 		const { database, calls, createService } = await fixture();
 		const child = URI.parse('ahp-chat:/saved-subagent');
@@ -185,8 +225,8 @@ suite('AgentHostSavedChatService', () => {
 		await database.replaceSessionChatCatalog(session.toString(), [{ chat: peerChat.toString(), order: 0, providerData: 'opaque-peer-backing' }], undefined);
 		await peerDatabase.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, '');
 		const saved = await createService().readSavedChat(session, peerChat);
-		assert.deepStrictEqual({ turns: saved.turns, workspace: saved.workspace, readerDirectories: calls[0].workingDirectories }, {
-			turns: [turn('native', 'Peer question')], workspace: { kind: 'folder', workingDirectories: [folder] }, readerDirectories: [folder],
+		assert.deepStrictEqual({ turns: saved.turns, workspace: savedChatToDto(saved).workspace, readerDirectories: calls[0].workingDirectories.map(directory => directory.toString()) }, {
+			turns: [turn('native', 'Peer question')], workspace: { kind: 'folder', workingDirectories: [folder.toString()] }, readerDirectories: [folder.toString()],
 		});
 	});
 
@@ -336,5 +376,178 @@ suite('AgentHostSavedChatService', () => {
 		});
 		readers.set('claude', { read: async () => [turn('inherited', 'Source context'), turn('own', 'Side question')] });
 		assert.deepStrictEqual((await createService().readSavedChat(session, peerChat)).turns, [turn('own', 'Side question')]);
+	});
+
+	suite('completed continuations', () => {
+		const destination = URI.parse('ahp-session:/copilot-copy');
+
+		async function continuationFixture(withPeer = true) {
+			const result = await fixture('claude', true, withPeer);
+			const registerDestination = async (resource = destination, provider = 'copilotcli') => {
+				await result.database.registerSessionV2(resource.toString(), { provider, startTime: 2, source: 'explicit' }, { checkTombstone: false });
+				const encoded = encodeAgentHostCatalogPayload({
+					modifiedTime: 2, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [{ uri: buildDefaultChatUri(resource), kind: 'default', order: 0 }],
+				});
+				assert.ok(encoded.ok);
+				await result.database.upsertSessionV2({ session: resource.toString(), sessionGeneration: resource.toString(), sourceRevision: 1, payloadVersion: 2, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true }, undefined);
+			};
+			await registerDestination();
+			const archived: AgentHostSavedChatArchiveTarget[] = [];
+			const archive = async (target: AgentHostSavedChatArchiveTarget, validate: () => Promise<void>) => {
+				await validate();
+				archived.push(target);
+				if (target.kind === 'session') {
+					await result.sessionDatabase.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+				} else {
+					const current = await result.database.readChatV2(session.toString(), target.chat.toString());
+					assert.ok(current.chat);
+					await result.database.updateChatV2Metadata(target.chat.toString(), current.chat, { archived: true });
+				}
+				return true;
+			};
+			return { ...result, registerDestination, archived, archive };
+		}
+
+		test('persists a completed receipt across service recreation while retaining an uncopied public peer', async () => {
+			const { createService, archive, archived } = await continuationFixture();
+			const saved = await createService().readSavedChat(session);
+			const request = { session, chat: saved.chat, identity: saved.identity, destination };
+			const first = await createService().completeSavedChatContinuation(request, archive);
+			const repeated = await createService().completeSavedChatContinuation(request, archive);
+			assert.deepStrictEqual({ first, repeated, availability: savedChatToDto(await createService().readSavedChat(session)).availability, peer: (await createService().readSavedChat(session, peerChat)).availability, archived }, {
+				first: { archived: false }, repeated: { archived: false }, availability: { kind: 'continued', destination: destination.toString() }, peer: { kind: 'available' }, archived: [],
+			});
+		});
+
+		test('archives an independent copied peer and then the aggregate when every public chat is covered', async () => {
+			const { createService, archive, archived } = await continuationFixture();
+			const peer = await createService().readSavedChat(session, peerChat);
+			const first = await createService().completeSavedChatContinuation({ session, chat: peer.chat, identity: peer.identity, destination }, archive);
+			const before = await createService().readSavedChat(session);
+			const second = await createService().completeSavedChatContinuation({ session, chat: before.chat, identity: before.identity, destination }, archive);
+			assert.deepStrictEqual({ first, second, before: before.availability, archived: archived.map(target => target.kind === 'chat' ? { kind: target.kind, chat: target.chat.toString() } : target) }, {
+				first: { archived: true }, second: { archived: true }, before: { kind: 'available' }, archived: [{ kind: 'chat', chat: peerChat.toString() }, { kind: 'session' }],
+			});
+		});
+
+		test('keeps private tool descendants readable through an archived original without claiming they were copied', async () => {
+			const { database, createService, archive } = await continuationFixture(false);
+			const child = URI.parse('ahp-chat:/uncopied-private-child');
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.ok(snapshot.header);
+			await database.insertPrivateChatV2(session.toString(), {
+				chat: child.toString(), parentChat: defaultChat.toString(), providerData: 'private-backing', metadata: { interactivity: ChatInteractivity.Hidden },
+				origin: JSON.stringify({ kind: ChatOriginKind.Tool, chat: defaultChat.toString(), toolCallId: 'original-tool' }),
+			}, snapshot.header.revision);
+			const saved = await createService().readSavedChat(session);
+			const completed = await createService().completeSavedChatContinuation({ session, chat: saved.chat, identity: saved.identity, destination }, archive);
+			const reopened = await createService().readSavedChat(session, child);
+			assert.deepStrictEqual({ completed, availability: reopened.availability, origin: reopened.origin, turns: reopened.turns }, {
+				completed: { archived: true }, availability: { kind: 'archived' }, origin: { kind: ChatOriginKind.Tool, chat: defaultChat.toString(), toolCallId: 'original-tool' }, turns: [turn('native', 'Saved question')],
+			});
+		});
+
+		test('retains an uncopied public side chat', async () => {
+			const { database, createService, archive, archived } = await continuationFixture();
+			const peer = await database.readChatV2(session.toString(), peerChat.toString());
+			assert.ok(peer.chat);
+			await database.updateChatV2Metadata(peerChat.toString(), peer.chat, { origin: JSON.stringify({ kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' }) });
+			const saved = await createService().readSavedChat(session);
+			const completed = await createService().completeSavedChatContinuation({ session, chat: saved.chat, identity: saved.identity, destination }, archive);
+			assert.deepStrictEqual({ completed, archived, side: (await createService().readSavedChat(session, peerChat)).availability }, { completed: { archived: false }, archived: [], side: { kind: 'available' } });
+		});
+
+		test('rejects a conflicting completed destination and stale backing identity', async () => {
+			const { database, createService, archive, registerDestination, archived } = await continuationFixture();
+			const other = URI.parse('ahp-session:/other-copy');
+			await registerDestination(other);
+			const saved = await createService().readSavedChat(session);
+			const request = { session, chat: saved.chat, identity: saved.identity, destination };
+			await createService().completeSavedChatContinuation(request, archive);
+			await assert.rejects(createService().completeSavedChatContinuation({ ...request, destination: other }, archive), /already continued/i);
+			const current = await database.readChatV2(session.toString(), saved.chat.toString());
+			assert.ok(current.chat);
+			await database.updateChatV2Metadata(saved.chat.toString(), current.chat, { providerData: 'replacement-backing' });
+			await assert.rejects(createService().completeSavedChatContinuation(request, archive), /identity changed/i);
+			assert.deepStrictEqual(archived, []);
+		});
+
+		test('rejects a non-Copilot destination before recording completion', async () => {
+			const { createService, archive, registerDestination } = await continuationFixture(false);
+			const other = URI.parse('ahp-session:/claude-copy');
+			await registerDestination(other, 'claude');
+			const saved = await createService().readSavedChat(session);
+			await assert.rejects(createService().completeSavedChatContinuation({ session, chat: saved.chat, identity: saved.identity, destination: other }, archive), /Copilot destination/);
+			assert.deepStrictEqual((await createService().readSavedChat(session)).availability, { kind: 'available' });
+		});
+
+		for (const withPeer of [false, true]) {
+			for (const removed of ['tombstoned', 'missing'] as const) {
+				test(`recovers a ${removed} completed destination while its source is ${withPeer ? 'retained for a peer' : 'archived'}`, async () => {
+					const { database, createService, archive, registerDestination } = await continuationFixture(withPeer);
+					const saved = await createService().readSavedChat(session);
+					const request = { session, chat: saved.chat, identity: saved.identity, destination };
+					await createService().completeSavedChatContinuation(request, archive);
+					if (removed === 'tombstoned') {
+						await database.markSessionTombstoned(destination.toString());
+					} else {
+						await database.unregisterSessionV2(destination.toString());
+					}
+					const reopened = await createService().readSavedChat(session);
+					assert.deepStrictEqual({ availability: reopened.availability, identity: reopened.identity, turns: reopened.turns }, {
+						availability: { kind: withPeer ? 'available' : 'archived' }, identity: saved.identity, turns: [turn('native', 'Saved question')],
+					});
+					const replacement = URI.parse('ahp-session:/replacement-copy');
+					await registerDestination(replacement);
+					const completed = await createService().completeSavedChatContinuation({ ...request, destination: replacement }, archive);
+					assert.deepStrictEqual({ completed, availability: savedChatToDto(await createService().readSavedChat(session)).availability }, {
+						completed: { archived: !withPeer }, availability: { kind: 'continued', destination: replacement.toString() },
+					});
+				});
+			}
+		}
+
+		test('atomically chooses one replacement for a deleted completed destination', async () => {
+			const { database, createService, archive, registerDestination } = await continuationFixture(false);
+			const saved = await createService().readSavedChat(session);
+			const request = { session, chat: saved.chat, identity: saved.identity, destination };
+			await createService().completeSavedChatContinuation(request, archive);
+			await database.markSessionTombstoned(destination.toString());
+			const replacements = [URI.parse('ahp-session:/replacement-one'), URI.parse('ahp-session:/replacement-two')];
+			for (const replacement of replacements) {
+				await registerDestination(replacement);
+			}
+			const results = await Promise.allSettled(replacements.map(destination => createService().completeSavedChatContinuation({ ...request, destination }, archive)));
+			const winner = results.findIndex(result => result.status === 'fulfilled');
+			assert.deepStrictEqual(results.map(result => result.status).sort(), ['fulfilled', 'rejected']);
+			assert.deepStrictEqual(savedChatToDto(await createService().readSavedChat(session)).availability, { kind: 'continued', destination: replacements[winner].toString() });
+		});
+
+		test('keeps completion durable when archive fails and permits an archive-only retry', async () => {
+			const { createService, archive } = await continuationFixture(false);
+			const saved = await createService().readSavedChat(session);
+			const request = { session, chat: saved.chat, identity: saved.identity, destination };
+			await assert.rejects(createService().completeSavedChatContinuation(request, async () => { throw new Error('archive unavailable'); }), /archive unavailable/);
+			const availability = savedChatToDto(await createService().readSavedChat(session)).availability;
+			assert.deepStrictEqual({ availability, retry: await createService().completeSavedChatContinuation(request, archive) }, { availability: { kind: 'continued', destination: destination.toString() }, retry: { archived: true } });
+		});
+
+		test('allows a new continuation when an unarchived original has a genuinely new turn', async () => {
+			const { createService, readers, sessionDatabase, archive, registerDestination } = await continuationFixture(false);
+			const saved = await createService().readSavedChat(session);
+			const request = { session, chat: saved.chat, identity: saved.identity, destination };
+			await createService().completeSavedChatContinuation(request, archive);
+			await sessionDatabase.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, '');
+			readers.set('claude', { read: async () => [turn('native', 'Saved question'), turn('new-turn', 'New work after unarchiving')] });
+			const changed = await createService().readSavedChat(session);
+			await assert.rejects(createService().completeSavedChatContinuation(request, archive), /identity changed/i);
+			const replacement = URI.parse('ahp-session:/new-history-copy');
+			await registerDestination(replacement);
+			const completed = await createService().completeSavedChatContinuation({ session, chat: changed.chat, identity: changed.identity, destination: replacement }, archive);
+			assert.deepStrictEqual({ changed: changed.availability, newIdentity: changed.identity !== saved.identity, completed, availability: savedChatToDto(await createService().readSavedChat(session)).availability }, {
+				changed: { kind: 'available' }, newIdentity: true, completed: { archived: true }, availability: { kind: 'continued', destination: replacement.toString() },
+			});
+		});
 	});
 });

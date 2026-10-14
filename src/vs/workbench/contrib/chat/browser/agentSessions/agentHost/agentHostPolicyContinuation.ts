@@ -13,13 +13,17 @@ import { localize, localize2 } from '../../../../../../nls.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AgentHostSavedChatWorkspace } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSavedChatWorkspace, IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
+import { IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { supportsAgentHostSavedChatContinuation } from '../../../../../../platform/agentHost/common/meta/agentHostSavedChatMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ChatOriginKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -29,30 +33,30 @@ import { ChatAgentLocation, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID } from
 import { IChatModelInputState } from '../../../common/model/chatModel.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { readAgentHostSavedChat, savedChatDraftInput } from './agentHostPolicyUnavailableSession.js';
-import { importedTurnsFromChatModel } from './importLocalConversationToAgentSession.js';
 
 export const IAgentHostPolicyContinuationPresenter = createDecorator<IAgentHostPolicyContinuationPresenter>('agentHostPolicyContinuationPresenter');
 
 /** Opens a persisted Copilot conversation in the window's normal session surface. */
 export interface IAgentHostPolicyContinuationPresenter {
 	readonly _serviceBrand: undefined;
-	open(resource: URI, source: IChatWidget): Promise<void>;
+	open(resource: URI, source: IChatWidget, ensureSourceCurrent: () => void): Promise<void>;
 }
 
 export const IAgentHostPolicyContinuationService = createDecorator<IAgentHostPolicyContinuationService>('agentHostPolicyContinuationService');
 
 export interface IAgentHostPolicyContinuationService {
 	readonly _serviceBrand: undefined;
-	continueInCopilot(resource: URI): Promise<void>;
+	continueInCopilot(resource: URI, trigger?: 'manual' | 'automatic'): Promise<void>;
 }
 
 type Draft = Pick<IChatModelInputState, 'inputText' | 'attachments' | 'selections'>;
 type Continuation = {
 	readonly resource: URI;
 	readonly backendSession: URI;
+	readonly source: Pick<IAgentHostSavedChat, 'session' | 'chat' | 'identity'>;
 } & (
 		| { readonly state: 'created'; readonly turnCount: number; readonly draft: Draft }
-		| { readonly state: 'opened' }
+		| { readonly state: 'draftHandedOff' | 'completed' }
 	);
 
 function continuationFailedMessage(): string {
@@ -81,6 +85,8 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this._register(this._connection.onDidNotification(notification => {
@@ -94,65 +100,101 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 		}));
 	}
 
-	continueInCopilot(resource: URI): Promise<void> {
+	continueInCopilot(resource: URI, trigger: 'manual' | 'automatic' = 'manual'): Promise<void> {
 		const pending = this._pending.get(resource);
 		if (pending) {
 			return pending;
 		}
-		const operation = this._continueInCopilot(resource).finally(() => this._pending.delete(resource));
+		const operation = this._continueInCopilot(resource, trigger).finally(() => this._pending.delete(resource));
 		this._pending.set(resource, operation);
 		return operation;
 	}
 
-	private async _continueInCopilot(resource: URI): Promise<void> {
+	private async _continueInCopilot(resource: URI, trigger: 'manual' | 'automatic'): Promise<void> {
 		const source = this._widgets.getWidgetBySessionResource(resource);
 		const model = source?.viewModel?.model;
 		if (!source || !model || !isEqual(model.sessionResource, resource) || !model.isReadOnly.get() || model.requestInProgress.get()) {
 			throw new Error(continuationFailedMessage());
 		}
-		const ensureSourceVisible = () => {
-			if (!source.visible || source.viewModel?.model !== model) {
+		const automatic = trigger === 'automatic';
+		const provider = resource.scheme === SessionType.AgentHostClaude ? 'claude' : resource.scheme === SessionType.AgentHostCodex ? 'codex' : undefined;
+		const supportsCompletion = !!this._connection.completeSavedChatContinuation && supportsAgentHostSavedChatContinuation(this._connection.initializeResult.get());
+		const ensureSourceCurrent = () => {
+			if (!source.visible || source.viewModel?.model !== model || this._widgets.getWidgetBySessionResource(resource) !== source || model.requestInProgress.get()
+				|| (automatic && (!provider || !supportsCompletion || !requiresCopilotAgentHost(this._managedSettingsService, this._configurationService) || !isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService)))) {
 				throw new CancellationError();
 			}
 		};
-		ensureSourceVisible();
+		ensureSourceCurrent();
 		if (!await this._chatSessionsService.canResolveChatSession(SessionType.AgentHostCopilot)) {
 			throw new Error(localize('agentHost.policyContinuation.unavailable', "Copilot Agent Host is not available. Your original conversation is still available."));
 		}
+		ensureSourceCurrent();
+		const saved = await readAgentHostSavedChat(resource, this._connection, this._connections, CancellationToken.None);
+		ensureSourceCurrent();
+		if (automatic && (saved.availability?.kind !== 'available' || saved.origin?.kind === ChatOriginKind.Tool || !saved.turns.length || saved.workspace.kind === 'managed')) {
+			throw new CancellationError();
+		}
 		let destination = this._destinations.get(resource);
+		if (destination && (destination.source.identity !== saved.identity
+			|| (supportsCompletion && destination.state === 'completed' && saved.availability?.kind !== 'continued'))) {
+			this._destinations.delete(resource);
+			destination = undefined;
+		}
+		if (automatic && destination?.state === 'completed') {
+			throw new CancellationError();
+		}
+		if (saved.availability?.kind === 'continued') {
+			destination = {
+				state: 'completed',
+				resource: this._connections.registerSessionResource(saved.availability.destination, undefined, COPILOT_CLI_AGENT_PROVIDER_ID),
+				backendSession: saved.availability.destination,
+				source: { session: saved.session, chat: saved.chat, identity: saved.identity },
+			};
+			this._destinations.set(resource, destination);
+		}
 		if (!destination) {
-			const saved = await readAgentHostSavedChat(resource, this._connection, this._connections, CancellationToken.None);
-			ensureSourceVisible();
 			const input = source.getInputState() ?? model.inputModel.state.get();
-			const turns = importedTurnsFromChatModel(model);
+			const turns = saved.turns;
+			if (model.getRequests().length !== turns.length) {
+				throw new Error(localize('agentHost.policyContinuation.sourceHistoryMissing', "The original conversation hasn't finished loading. Try again after its history loads."));
+			}
 			const savedInput = savedChatDraftInput(saved);
 			const draft: Draft = input
 				? { inputText: input.inputText, attachments: input.attachments, selections: input.selections }
 				: { inputText: savedInput?.inputText ?? '', attachments: savedInput?.attachments ?? [], selections: savedInput?.selections ?? [] };
 			const workspace = await this._chooseWorkspace(saved.workspace);
+			ensureSourceCurrent();
 			if (!workspace) {
 				return;
 			}
 			for (const uri of workspace.workingDirectories ?? []) {
-				if (!(await this._workspaceTrustManagementService.getUriTrustInfo(uri)).trusted && !await this._workspaceTrustRequestService.requestResourcesTrust({
-					uri,
-					message: localize('agentHost.policyContinuation.trust', "Copilot will be able to read files, run commands, and make changes in this folder."),
-				})) {
-					return;
+				const trust = await this._workspaceTrustManagementService.getUriTrustInfo(uri);
+				ensureSourceCurrent();
+				if (!trust.trusted) {
+					if (automatic) {
+						throw new CancellationError();
+					}
+					if (!await this._workspaceTrustRequestService.requestResourcesTrust({
+						uri,
+						message: localize('agentHost.policyContinuation.trust', "Copilot will be able to read files, run commands, and make changes in this folder."),
+					})) {
+						return;
+					}
 				}
 			}
-			ensureSourceVisible();
+			ensureSourceCurrent();
 			const backend = await this._connection.createSession({
 				provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 				workingDirectories: workspace.workingDirectories,
 				config: { [SessionConfigKey.Isolation]: 'folder' },
-				importConversation: { turns },
+				importConversation: { turns, title: saved.title },
 			});
-			destination = { state: 'created', resource: this._connections.registerSessionResource(backend, undefined, COPILOT_CLI_AGENT_PROVIDER_ID), backendSession: backend, turnCount: turns.length, draft };
+			destination = { state: 'created', resource: this._connections.registerSessionResource(backend, undefined, COPILOT_CLI_AGENT_PROVIDER_ID), backendSession: backend, source: { session: saved.session, chat: saved.chat, identity: saved.identity }, turnCount: turns.length, draft };
 			this._destinations.set(resource, destination);
 			this._chatSessionsService.notifySessionMaterialized?.(destination.resource);
 		}
-		ensureSourceVisible();
+		ensureSourceCurrent();
 		const modelRef = await this._chatService.acquireOrLoadSession(destination.resource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentHostPolicyContinuation');
 		if (!modelRef) {
 			throw new Error(continuationFailedMessage());
@@ -161,10 +203,8 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 			if (destination.state === 'created' && modelRef.object.getRequests().length < destination.turnCount) {
 				throw new Error(localize('agentHost.policyContinuation.historyMissing', "Copilot hasn't loaded the copied conversation yet. Try again to open it. Your original conversation is still available."));
 			}
-			ensureSourceVisible();
-			await this._presenter.open(destination.resource, source);
-			const target = this._widgets.getWidgetBySessionResource(destination.resource);
-			if (target?.viewModel?.model !== modelRef.object || this._destinations.get(resource) !== destination) {
+			ensureSourceCurrent();
+			if (this._destinations.get(resource) !== destination) {
 				throw new Error(continuationFailedMessage());
 			}
 			if (destination.state === 'created') {
@@ -172,9 +212,21 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 				if (!currentInput?.inputText && !currentInput?.attachments.length && modelRef.object.getRequests().length === destination.turnCount) {
 					modelRef.object.inputModel.setState(destination.draft);
 				}
-				this._destinations.set(resource, { state: 'opened', resource: destination.resource, backendSession: destination.backendSession });
+				destination = { state: 'draftHandedOff', resource: destination.resource, backendSession: destination.backendSession, source: destination.source };
+				this._destinations.set(resource, destination);
+			}
+			await this._presenter.open(destination.resource, source, ensureSourceCurrent);
+			const target = this._widgets.getWidgetBySessionResource(destination.resource);
+			if (!target?.visible || target.viewModel?.model !== modelRef.object || !isEqual(target.viewModel.sessionResource, destination.resource) || this._destinations.get(resource) !== destination) {
+				throw new Error(continuationFailedMessage());
 			}
 			target.focusInput();
+			if (supportsCompletion && this._connection.completeSavedChatContinuation) {
+				await this._connection.completeSavedChatContinuation({ ...destination.source, destination: destination.backendSession });
+			}
+			if (this._destinations.get(resource) === destination) {
+				this._destinations.set(resource, { ...destination, state: 'completed' });
+			}
 		} finally {
 			modelRef.dispose();
 		}

@@ -26,6 +26,8 @@ suite('Policy unavailable Agent Host history', () => {
 		session: backend,
 		chat: URI.parse(buildDefaultChatUri(backend)),
 		provider: 'claude',
+		identity: 'saved-read',
+		availability: { kind: 'available' },
 		title: 'Saved conversation',
 		turns: [{ id: 'turn', message: { text: 'Saved question', origin: { kind: MessageKind.User } }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'reply', content: 'Saved answer' }], state: TurnState.Complete, usage: undefined }],
 		draft: { text: 'Unsent question', origin: { kind: MessageKind.User } },

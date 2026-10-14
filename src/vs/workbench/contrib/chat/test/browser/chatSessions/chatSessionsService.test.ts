@@ -429,7 +429,7 @@ suite('ChatSessionsService - policy history activation', () => {
 			override readonly onAgentHostExit = Event.None;
 			override async listSessions() { return [{ session: backend, provider, startTime: 1, modifiedTime: 1 }]; }
 			override async readSavedChat(): Promise<IAgentHostSavedChat> {
-				return { session: backend, chat: URI.parse(buildDefaultChatUri(backend)), provider, title: '', turns: [], workspace: { kind: 'none' } };
+				return { session: backend, chat: URI.parse(buildDefaultChatUri(backend)), provider, identity: 'saved-read', availability: { kind: 'available' }, title: '', turns: [], workspace: { kind: 'none' } };
 			}
 		}());
 		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {

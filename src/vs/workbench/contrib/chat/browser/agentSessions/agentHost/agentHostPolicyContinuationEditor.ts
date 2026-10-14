@@ -17,12 +17,15 @@ export class EditorAgentHostPolicyContinuationPresenter implements IAgentHostPol
 
 	constructor(@IInstantiationService private readonly _instantiationService: IInstantiationService) { }
 
-	async open(resource: URI, source: IChatWidget): Promise<void> {
+	async open(resource: URI, source: IChatWidget, ensureSourceCurrent: () => void): Promise<void> {
+		const sidebar = isIChatViewViewContext(source.viewContext);
 		const opened = await this._instantiationService.invokeFunction(openChatSession, {
 			type: SessionType.AgentHostCopilot,
 			displayName: localize('agentHost.policyContinuation.provider', "Copilot"),
-			position: isIChatViewViewContext(source.viewContext) ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+			position: sidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
 			sessionResource: resource,
+			replaceEditorForResource: sidebar ? undefined : source.viewModel?.sessionResource,
+			beforeOpen: ensureSourceCurrent,
 		});
 		if (!isEqual(opened, resource)) {
 			throw new Error(localize('agentHost.policyContinuation.openFailed', "Couldn't open the copied conversation in Copilot. Your original conversation is still available."));
