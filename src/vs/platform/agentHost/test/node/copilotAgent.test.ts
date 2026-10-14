@@ -15,7 +15,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -4803,7 +4803,9 @@ suite('CopilotAgent', () => {
 		const calls: string[] = [];
 		const session = {
 			isDisposed: false,
-			markConnectorConfigurationChanged() { calls.push('refresh'); },
+			hasPendingConnectorRefresh: false,
+			markConnectorConfigurationChanged() { this.hasPendingConnectorRefresh = true; },
+			async refreshConnectors() { calls.push('refresh'); this.hasPendingConnectorRefresh = false; },
 			dispose() { this.isDisposed = true; },
 		};
 		const gate = new DeferredPromise<void>();
@@ -4826,33 +4828,39 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('marks live sessions for Connector refresh and skips disposed sessions', async () => {
+	test('reconciles live Connector sessions and skips disposed sessions', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([]),
 			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
 		});
 		const session = AgentSession.uri('copilotcli', 'connector-reconciliation');
 		const calls: string[] = [];
+		let defaultPending = false;
+		let peerPending = false;
 		try {
 			setDefaultSessionStub(agent, AgentSession.id(session), {
 				isDisposed: false,
-				markConnectorConfigurationChanged() { calls.push('default'); },
+				get hasPendingConnectorRefresh() { return defaultPending; },
+				markConnectorConfigurationChanged(name?: string) { calls.push(`default:${name}`); defaultPending = true; },
+				async refreshConnectors() { calls.push('default:reconciled'); defaultPending = false; },
 				dispose() { },
-			});
+			} satisfies Pick<CopilotAgentSession, 'isDisposed' | 'hasPendingConnectorRefresh' | 'markConnectorConfigurationChanged' | 'refreshConnectors' | 'dispose'>);
 			setPeerChatStub(agent, URI.parse(buildChatUri(session, 'healthy')), {
 				isDisposed: false,
-				markConnectorConfigurationChanged() { calls.push('peer'); },
+				get hasPendingConnectorRefresh() { return peerPending; },
+				markConnectorConfigurationChanged(name?: string) { calls.push(`peer:${name}`); peerPending = true; },
+				async refreshConnectors() { calls.push('peer:reconciled'); peerPending = false; },
 				dispose() { },
-			}, 'connector-healthy');
+			} satisfies Pick<CopilotAgentSession, 'isDisposed' | 'hasPendingConnectorRefresh' | 'markConnectorConfigurationChanged' | 'refreshConnectors' | 'dispose'>, 'connector-healthy');
 			setPeerChatStub(agent, URI.parse(buildChatUri(session, 'disposed')), {
 				isDisposed: true,
 				markConnectorConfigurationChanged() { calls.push('disposed'); },
 				dispose() { },
 			}, 'connector-disposed');
 
-			await agent.refreshConnectorSessions();
+			await agent.refreshConnectorSessions('mail');
 
-			assert.deepStrictEqual(calls.sort(), ['default', 'peer']);
+			assert.deepStrictEqual(calls.sort(), ['default:mail', 'default:reconciled', 'peer:mail', 'peer:reconciled']);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -4869,6 +4877,7 @@ suite('CopilotAgent', () => {
 		let extensionLaunchAdmission: IDisposable | undefined;
 		const session = {
 			sessionId: 'initializing-connector-session',
+			hasPendingConnectorRefresh: false,
 			extensionLaunchDirectories: [],
 			setExtensionLaunchAdmission(admission: IDisposable) { extensionLaunchAdmission = admission; },
 			async initializeSession() {
@@ -4877,13 +4886,14 @@ suite('CopilotAgent', () => {
 				await initializeGate.p;
 				calls.push('initialized');
 			},
-			markConnectorConfigurationChanged() { calls.push('refresh'); },
+			markConnectorConfigurationChanged() { this.hasPendingConnectorRefresh = true; },
+			async refreshConnectors() { calls.push('refresh'); this.hasPendingConnectorRefresh = false; },
 			dispose() { extensionLaunchAdmission?.dispose(); },
-		} as unknown as CopilotAgentSession;
+		};
 		try {
 			const initialization = (agent as unknown as {
 				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
-			})._initializeAndRegisterSession(session, () => calls.push('register'));
+			})._initializeAndRegisterSession(session as unknown as CopilotAgentSession, () => calls.push('register'));
 			await initializeStarted.p;
 
 			await agent.refreshConnectorSessions();
@@ -4901,6 +4911,74 @@ suite('CopilotAgent', () => {
 		} finally {
 			initializeGate.complete();
 			session.dispose();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('defers Connector refresh through active turns and background subagents without blocking idle chats', async () => {
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+		});
+		const calls: string[] = [];
+		const busy = {
+			hasActiveTurn: true,
+			hasActiveSubagents: true,
+			hasPendingConnectorRefresh: false,
+			isDisposed: false,
+			markConnectorConfigurationChanged() { this.hasPendingConnectorRefresh = true; },
+			async refreshConnectors() { calls.push('busy'); this.hasPendingConnectorRefresh = false; },
+			dispose() { this.isDisposed = true; },
+		};
+		const idle = {
+			...busy, hasActiveTurn: false, hasActiveSubagents: false,
+			async refreshConnectors() { calls.push('idle'); this.hasPendingConnectorRefresh = false; },
+		};
+		try {
+			setDefaultSessionStub(agent, 'busy-connector', busy);
+			setDefaultSessionStub(agent, 'idle-connector', idle);
+			await agent.refreshConnectorSessions();
+			const duringTurn = [...calls];
+			busy.hasActiveTurn = false;
+			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
+			await timeout(0);
+			const duringSubagent = [...calls];
+			busy.hasActiveSubagents = false;
+			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
+			await timeout(0);
+			assert.deepStrictEqual({ duringTurn, duringSubagent, afterIdle: calls }, {
+				duringTurn: ['idle'], duringSubagent: ['idle'], afterIdle: ['idle', 'busy'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('coalesces Connector refreshes waiting in the same chat queue', async () => {
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+		});
+		const calls: string[] = [];
+		const session = {
+			isDisposed: false,
+			hasPendingConnectorRefresh: false,
+			markConnectorConfigurationChanged() { this.hasPendingConnectorRefresh = true; },
+			async refreshConnectors() { calls.push('refresh'); this.hasPendingConnectorRefresh = false; },
+			dispose() { this.isDisposed = true; },
+		};
+		const gate = new DeferredPromise<void>();
+		try {
+			setDefaultSessionStub(agent, 'coalesced-connector', session);
+			const queued = (agent as unknown as {
+				_queueChat<T>(sessionId: string, chatKey: string, operation: string, task: () => Promise<T>): Promise<T>;
+			})._queueChat('coalesced-connector', 'coalesced-connector', 'history', () => gate.p);
+			const refreshes = [agent.refreshConnectorSessions(), agent.refreshConnectorSessions(), agent.refreshConnectorSessions()];
+			gate.complete();
+			await Promise.all([queued, ...refreshes]);
+			assert.deepStrictEqual(calls, ['refresh']);
+		} finally {
+			gate.complete();
 			await disposeAgent(agent);
 		}
 	});
@@ -5392,6 +5470,7 @@ suite('CopilotAgent', () => {
 			chatUri: cancelledChat,
 			get hasActiveTurn() { return cancelledActive; },
 			abort: async () => { throw new Error('Connection is closed.'); },
+			cancelConnectorRefresh: () => { },
 			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; },
 			failActiveTurn: () => {
 				if (!cancelledActive) {
@@ -5576,6 +5655,7 @@ suite('CopilotAgent', () => {
 			chatUri: chat,
 			hasActiveTurn: true,
 			abort: async () => { throw new Error('Client not connected'); },
+			cancelConnectorRefresh: () => { },
 			discardActiveTurn: () => discardCount++,
 			dispose: () => { },
 		});
@@ -16992,6 +17072,7 @@ suite('CopilotAgent', () => {
 					topLevelMcpCustomizations: () => [],
 					startMcpServer: async (id: string) => { mcpCalls.push(`start:${id}`); },
 					stopMcpServer: async (id: string) => { mcpCalls.push(`stop:${id}`); },
+					cancelMcpServerAuthentication: () => { },
 					handleMcpRequest: async (serverName: string, method: string) => `${serverName}/${method}`,
 					dispose: () => { },
 				});
@@ -17743,6 +17824,7 @@ suite('CopilotAgent', () => {
 					rec.modelRestartRequests++;
 				},
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
+				cancelConnectorRefresh(): void { },
 				async abort(): Promise<void> {
 					rec.aborted++;
 					await abort?.();
@@ -19760,6 +19842,7 @@ suite('CopilotAgent', () => {
 				async setModel(id: string): Promise<void> { rec.modelCalls.push(id); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				async abort(): Promise<void> { rec.aborted++; },
+				cancelConnectorRefresh(): void { },
 				async getMessages(): Promise<readonly Turn[]> { return [{ id: `turn-${key}` } as unknown as Turn]; },
 				async hasRunningDetachedShells(): Promise<boolean> { return false; },
 				handleClientToolCallComplete(): void { },
@@ -20606,6 +20689,100 @@ suite('CopilotAgent', () => {
 				resetTurnState() { },
 			};
 		}
+
+		test('retries pending Connector reconciliation before sending without destroying or resuming the backing', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const current = {
+				...refreshSessionStub([]),
+				hasPendingConnectorRefresh: true,
+				connectorRefreshes: 0,
+				async refreshConnectors() { this.connectorRefreshes++; this.hasPendingConnectorRefresh = false; },
+			};
+			setDefaultSessionStub(agent, current.sessionId, current);
+			try {
+				await agent.chats.sendMessage(defaultChatUri(AgentSession.uri('copilotcli', current.sessionId)), 'hello', undefined);
+				assert.deepStrictEqual({
+					refreshes: current.connectorRefreshes, destroyed: current.destroyCalls, disposed: current.disposeCalls, sends: current.sendCalls,
+				}, { refreshes: 1, destroyed: 0, disposed: 0, sends: ['hello'] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('aborting a send releases a blocked Connector attempt and lets later chat work proceed', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const refreshStarted = new DeferredPromise<void>();
+			const releaseRefresh = new DeferredPromise<void>();
+			const current = {
+				...refreshSessionStub([]),
+				hasPendingConnectorRefresh: true,
+				cancelled: 0,
+				async refreshConnectors(token: CancellationToken) {
+					disposables.add(token.onCancellationRequested(() => this.cancelConnectorRefresh()));
+					refreshStarted.complete();
+					await releaseRefresh.p;
+				},
+				cancelConnectorRefresh() { this.cancelled++; releaseRefresh.complete(); },
+				async abort() { },
+			};
+			setDefaultSessionStub(agent, current.sessionId, current);
+			const chat = defaultChatUri(AgentSession.uri('copilotcli', current.sessionId));
+			try {
+				const send = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'blocked-turn');
+				await refreshStarted.p;
+				await agent.chats.abort(chat, AgentSession.uri('copilotcli', current.sessionId));
+				await send;
+				const later = await (agent as unknown as {
+					_queueChat<T>(sessionId: string, chatKey: string, operation: string, task: () => Promise<T>): Promise<T>;
+				})._queueChat(current.sessionId, current.sessionId, 'laterWork', async () => 'ran');
+				assert.deepStrictEqual({ later, cancelled: current.cancelled >= 1, sends: current.sendCalls, pending: current.hasPendingConnectorRefresh }, {
+					later: 'ran', cancelled: true, sends: [], pending: true,
+				});
+			} finally {
+				releaseRefresh.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Stop through the provider releases target authentication blocking a queued Connector refresh', async () => {
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+			});
+			const calls: string[] = [];
+			const authenticationCancelled = new DeferredPromise<void>();
+			const refreshStarted = new DeferredPromise<void>();
+			let pending = false;
+			const session = {
+				isDisposed: false,
+				hasActiveTurn: false,
+				hasActiveSubagents: false,
+				get hasPendingConnectorRefresh() { return pending; },
+				markConnectorConfigurationChanged() { pending = true; },
+				async refreshConnectors() {
+					calls.push('refresh:start');
+					refreshStarted.complete();
+					await authenticationCancelled.p;
+					pending = false;
+					calls.push('refresh:end');
+				},
+				cancelMcpServerAuthentication(id: string) { calls.push(`cancelAuth:${id}`); authenticationCancelled.complete(); },
+				async stopMcpServer(id: string) { calls.push(`stop:${id}`); },
+				dispose() { },
+			};
+			const sessionUri = AgentSession.uri('copilotcli', 'connector-stop-auth');
+			try {
+				setDefaultSessionStub(agent, AgentSession.id(sessionUri), session);
+				const refresh = agent.refreshConnectorSessions('mail');
+				await refreshStarted.p;
+				await agent.stopMcpServer(sessionUri, 'mail-id');
+				await refresh;
+				assert.deepStrictEqual(calls, ['refresh:start', 'cancelAuth:mail-id', 'refresh:end', 'stop:mail-id']);
+			} finally {
+				authenticationCancelled.complete();
+				await disposeAgent(agent);
+			}
+		});
 
 		test('waits for the previous SDK session to disconnect before resuming', async () => {
 			const client = new TestCopilotClient([]);
