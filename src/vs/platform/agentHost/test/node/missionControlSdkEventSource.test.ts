@@ -79,6 +79,12 @@ suite('MissionControlSdkEventSource', () => {
 		const writes: string[] = [];
 		const db = new class extends TestSessionDatabase {
 			override async getMetadata(key: string) { return metadata.get(key); }
+			override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
+				return Object.fromEntries(Object.keys(keys).map(key => [key, metadata.get(key)])) as { [K in keyof T]: string | undefined };
+			}
+			override async getMetadataByPrefix(prefix: string): Promise<Record<string, string>> {
+				return Object.fromEntries([...metadata].filter(([key]) => key.startsWith(prefix)));
+			}
 			override async setMetadata(key: string, value: string) {
 				if (key.includes('sdkSequence')) { writes.push(value); }
 				metadata.set(key, value);

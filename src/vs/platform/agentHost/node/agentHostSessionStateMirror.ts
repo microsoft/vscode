@@ -29,6 +29,11 @@ export interface ISessionStateValueKey {
 	readonly projected: boolean;
 }
 
+/** The directory the session's customizations are anchored at, set when the session is created or its workspace changes. */
+export const COPILOT_CUSTOMIZATION_DIRECTORY_KEY = 'copilot.customizationDirectory';
+/** JSON array of the customization directories a main-chat-only folder change keeps shared with the session's other chats. */
+export const COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY = 'copilot.sharedCustomizationDirectories';
+
 /** Session-level values held centrally and mirrored to the session's session.db under the same key. */
 export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: 'configValues', projected: false },
@@ -49,6 +54,11 @@ export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: 'copilot.worktree.symlinkPatterns', projected: false },
 	{ key: 'copilot.worktree.symlinkSourceRoot', projected: false },
 	{ key: 'copilot.worktree.creationFailure', projected: false },
+	{ key: COPILOT_CUSTOMIZATION_DIRECTORY_KEY, projected: false },
+	{ key: COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY, projected: false },
+	{ key: 'copilot.project.resolved', projected: false },
+	{ key: 'copilot.project.uri', projected: false },
+	{ key: 'copilot.project.displayName', projected: false },
 	{ key: SESSION_ARTIFACTS_KEY, projected: true },
 	{ key: META_SOURCE_CONTROL_STATE, projected: true },
 	{ key: META_PENDING_RECORDED_PULL_REQUESTS, projected: false },

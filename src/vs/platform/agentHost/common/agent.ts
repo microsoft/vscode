@@ -663,9 +663,34 @@ export interface IAgentCreateSessionConfig {
  * context it hands to a provider (create, materialize, send, and every other
  * addressed chat operation).
  */
+export interface IAgentChatSessionSettings {
+	/** Where the session's customizations are anchored; `undefined` when it has none. */
+	readonly customizationDirectory: URI | undefined;
+	/** Further directories whose customizations apply to the session. */
+	readonly additionalCustomizationDirectories: readonly URI[];
+	/** The project the session was resolved to, if any. */
+	readonly project: IAgentSessionProjectInfo | undefined;
+	/** Whether the session has no workspace. */
+	readonly workspaceless: boolean;
+	/** The first working directory of the session's default chat, if known. */
+	readonly defaultChatWorkingDirectory: URI | undefined;
+}
+
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	/**
+	 * The session-wide settings the host owns, so providers never read them back
+	 * out of the session's configuration storage. `undefined` only when the host
+	 * has no state for the session yet (creation, before the first import).
+	 */
+	readonly sessionSettings: IAgentChatSessionSettings | undefined;
+	/**
+	 * The directories the host launches this chat in when the provider's own
+	 * storage of the chat records none. `undefined` for tool chats, workspaceless
+	 * sessions and chats with no recorded launch directory.
+	 */
+	readonly launchWorkingDirectories: readonly URI[] | undefined;
 	/**
 	 * How subagent chats spawned from this chat are addressed, computed once by
 	 * the host from the owning session's recorded default chat so providers
@@ -718,7 +743,7 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  */
 export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const }
+		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: configurationResourceOrContext;
 	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
 		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);

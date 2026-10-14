@@ -526,7 +526,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			await database.object.setMetadata(CHAT_ISOLATION_QUARANTINED_KEY, 'true');
 			assertWorkspace();
 			const sessionDirectoriesBeforeProviderMove = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
-			const context = { configurationResource: session, resource: storage, subagentChatUriFormat: chatUriFormatOf(this._stateManager.getDefaultChat(session.toString())) };
+			const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: storage, subagentChatUriFormat: chatUriFormatOf(this._stateManager.getDefaultChat(session.toString())) };
 			if (pending.replaceSessionWorkspace) {
 				await provider.setChatWorkingDirectory!(chat, context, prepared.directory, { replaceSessionWorkspace: true });
 			} else {

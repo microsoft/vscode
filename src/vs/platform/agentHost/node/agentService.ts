@@ -6092,7 +6092,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _chatContext(session: URI, chat: URI, storageResource: string): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, storageResource);
+		return createAgentChatContext(this._stateManager, session, chat, storageResource, this._sessionStateStore.peek(session));
 	}
 
 	/** The recorded storage of a registered chat, or the creation-time rule for one not registered yet. */

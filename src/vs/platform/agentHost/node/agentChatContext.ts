@@ -5,8 +5,11 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
-import type { IAgentChatContext } from '../common/agent.js';
-import { type URI as ProtocolURI } from '../common/state/sessionState.js';
+import type { IAgentChatContext, IAgentChatSessionSettings } from '../common/agent.js';
+import type { ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
+import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { COPILOT_CUSTOMIZATION_DIRECTORY_KEY, COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY } from './agentHostSessionStateMirror.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
@@ -34,16 +37,54 @@ function toUri(resource: URI | ProtocolURI): URI {
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI): IAgentChatContext {
+function parseDirectories(raw: string | undefined): URI[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0).map(entry => URI.parse(entry)) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** The session-wide settings of the session's central state, `undefined` while that is not loaded. */
+export function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefined): IAgentChatSessionSettings | undefined {
+	if (!snapshot) {
+		return undefined;
+	}
+	const defaultEntry = [...snapshot.chats.values()].find(entry => entry.isDefault);
+	const defaultDirectories = defaultEntry?.launchWorkingDirectories?.map(entry => URI.parse(entry));
+	const shared = parseDirectories(snapshot.values.get(COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY));
+	const customizationDirectory = snapshot.values.get(COPILOT_CUSTOMIZATION_DIRECTORY_KEY);
+	const projectUri = snapshot.values.get('copilot.project.uri');
+	const projectName = snapshot.values.get('copilot.project.displayName');
+	const anchors = shared ?? defaultDirectories;
+	return {
+		customizationDirectory: shared?.[0] ?? defaultDirectories?.[0] ?? (customizationDirectory ? URI.parse(customizationDirectory) : undefined),
+		additionalCustomizationDirectories: anchors?.slice(1) ?? [],
+		project: projectUri && projectName !== undefined ? { uri: URI.parse(projectUri), displayName: projectName } : undefined,
+		workspaceless: snapshot.values.get(AH_META_WORKSPACELESS_DB_KEY) === 'true',
+		defaultChatWorkingDirectory: defaultDirectories?.[0] ?? (defaultEntry?.workingDirectories?.[0] !== undefined ? URI.parse(defaultEntry.workingDirectories[0]) : undefined),
+	};
+}
+
+export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
+	const sessionSettings = createAgentChatSessionSettings(sessionState);
+	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		configurationResource: sessionUri,
 		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
+		sessionSettings,
+		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 	};

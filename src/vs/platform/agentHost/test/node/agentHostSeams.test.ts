@@ -81,7 +81,7 @@ suite('Agent Host provider seams', () => {
 
 		test('stamps resource and origin for the session-backed default chat', () => {
 			manager.createSession(summary());
-			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()));
+			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), undefined);
 			assert.deepStrictEqual({
 				configurationResource: context.configurationResource.toString(),
 				resource: context.resource.toString(),
@@ -105,7 +105,7 @@ suite('Agent Host provider seams', () => {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
 			});
 
-			const context = createAgentChatContext(manager, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()));
+			const context = createAgentChatContext(manager, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()), undefined);
 			assert.deepStrictEqual({
 				resource: context.resource.toString(),
 				origin: context.origin,
@@ -132,7 +132,7 @@ suite('Agent Host provider seams', () => {
 				// Restored chats have no ChatState until they are resolved…
 				state: manager.getChatState(peerChat.toString()),
 				// …but their origin is authoritative from the moment they are registered.
-				origin: createAgentChatContext(manager, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString())).origin,
+				origin: createAgentChatContext(manager, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString()), undefined).origin,
 			}, {
 				state: undefined,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
@@ -162,12 +162,16 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSubagentChatParent only reports tool spawn edges', () => {
 			const fork: IAgentChatContext = {
+				sessionSettings: undefined,
+				launchWorkingDirectories: undefined,
 				resource: peerChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 				subagentChatUriFormat: 'shaped' as const,
 			};
 			const tool: IAgentChatContext = {
+				sessionSettings: undefined,
+				launchWorkingDirectories: undefined,
 				resource: subagentChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },

@@ -88,7 +88,6 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 2, removedBy: 'permanent', reason: 'fork source and adoption reads of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'fork source read of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgentSession.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'own-db diffBaseBranch for restricted telemetry (design §4.5)' },
-	{ file: 'missionControl/missionControlSdkEventSource.ts', key: 'missionControl.', count: 1, removedBy: 'C5', reason: 'provider execution cursor/marker keys move with the provider seam' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'META_DIFF_BASE_BRANCH', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },

@@ -303,7 +303,7 @@ suite('AgentHostSessionStateStore', () => {
 			blobsRendered: [undefined, undefined],
 			// Provider-owned keys of the default chat, membership, and the retained legacy GitHub key.
 			unowned: ['agentHost.changeset.session',
-				'copilot.customizationDirectory', 'copilot.model', 'copilot.project.displayName', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.sharedCustomizationDirectories',
+				'copilot.model',
 				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
 		});
 	});
