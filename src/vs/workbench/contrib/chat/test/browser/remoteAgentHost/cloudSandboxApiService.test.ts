@@ -518,7 +518,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	}
 
-	test('scheduled credential refresh uses REST reconnect and the current GitHub credential', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+	test('on-demand credential refresh uses REST reconnect and the current GitHub credential', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
 		const initialToken: ICloudSandboxClientToken = {
 			...clientToken('client-1'),
 			expires_at: new Date(Date.now() + 120_000).toISOString(),
@@ -546,10 +546,10 @@ suite('CloudSandboxApiService connection credentials', () => {
 			'cloudsandbox:env-1', request, 'client-1', creds, new CloudSandboxCredentialRefreshState(),
 			service, telemetry, new NullLogService(),
 		));
-		await timeout(59_999);
+		await timeout(120_001);
 		const requestsBeforeRefresh = requests.length;
 		githubCredential = 'current-github-credential';
-		await timeout(2);
+		await refresher.refreshConnectionCredentials();
 		refresher.dispose();
 		assert.deepStrictEqual({ requestsBeforeRefresh, requests, token: creds.token, stops }, {
 			requestsBeforeRefresh: 0,
