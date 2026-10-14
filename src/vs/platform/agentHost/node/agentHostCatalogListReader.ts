@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../base/common/async.js';
-import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
+import { type IAgentSessionMetadata } from '../common/agent.js';
+import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
-import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
-import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseSessionV2 } from './agentHostDatabase.js';
+import { SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
+import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionListCatalog } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
 export type AgentHostCatalogListResult = {
 	/** The central row, null when absent or rejected, or undefined when it was not read successfully. */
-	readonly catalog?: IAgentHostDatabaseSessionV2 | null;
+	readonly catalog?: IAgentHostDatabaseSessionListCatalog | null;
 } & (
 		/** The central row is authoritative for this session's listing. */
 		| { readonly eligible: true; readonly metadata: IAgentSessionMetadata; readonly data: AgentHostCatalogRevivedData }
@@ -50,7 +51,12 @@ export class AgentHostCatalogListReader {
 
 	async read(registered: IRegisteredSession): Promise<AgentHostCatalogListResult> {
 		try {
-			return this._read(registered, await this._catalogDatabase.getSessionV2(registered.session.toString()));
+			const session = registered.session.toString();
+			const [catalog, snapshot] = await Promise.all([
+				this._catalogDatabase.getSessionV2(session),
+				this._catalogDatabase.readCatalogSnapshot([session]),
+			]);
+			return this._read(registered, catalog, snapshot.find(entry => entry.session === session));
 		} catch (error) {
 			return readFailed(error);
 		}
@@ -62,7 +68,8 @@ export class AgentHostCatalogListReader {
 		}
 		try {
 			const sessions = registeredSessions.map(registered => registered.session.toString());
-			const catalogBySession = new Map((await this._catalogDatabase.listSessionsV2(sessions)).map(catalog => [catalog.session, catalog]));
+			const catalogs = await this._readListCatalogs(sessions);
+			const catalogBySession = new Map(catalogs.map(catalog => [catalog.session, catalog]));
 			return { results: registeredSessions.map(registered => this._read(registered, catalogBySession.get(registered.session.toString()))) };
 		} catch (error) {
 			const bulkReadError = toError(error);
@@ -80,7 +87,17 @@ export class AgentHostCatalogListReader {
 		}
 	}
 
-	private _read(registered: IRegisteredSession, catalog: Awaited<ReturnType<IAgentHostDatabase['getSessionV2']>>): AgentHostCatalogListResult {
+	private async _readListCatalogs(sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]> {
+		const limiter = new Limiter<readonly IAgentHostDatabaseSessionListCatalog[]>(4);
+		const batches: Promise<readonly IAgentHostDatabaseSessionListCatalog[]>[] = [];
+		for (let index = 0; index < sessions.length; index += AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			const batch = sessions.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+			batches.push(limiter.queue(() => this._catalogDatabase.readSessionListCatalogs(batch)));
+		}
+		return (await Promise.all(batches)).flat();
+	}
+
+	private _read(registered: IRegisteredSession, catalog: IAgentHostDatabaseSessionListCatalog | undefined, snapshot?: IAgentHostDatabaseCatalogSnapshotEntry): AgentHostCatalogListResult {
 		const session = registered.session.toString();
 		if (!catalog) {
 			return ineligible('no central row', null);
@@ -91,27 +108,40 @@ export class AgentHostCatalogListReader {
 		if (catalog.isChatBacking) {
 			return { eligible: false, chatBacking: true, catalog };
 		}
-		if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
+		if (catalog.provider !== registered.provider) {
 			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`, null);
 		}
 		const needsMigration = catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION;
-		if (needsMigration && catalog.payloadVersion !== 1) {
+		if (needsMigration && catalog.payloadVersion !== 1 && catalog.payloadVersion !== 2) {
 			return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`, catalog);
 		}
-		const decoded = decodeAgentHostCatalogPayload(catalog.payload, { forMigration: needsMigration });
+		if (catalog.chatCatalog?.header.sessionGeneration !== undefined && catalog.chatCatalog.header.sessionGeneration !== catalog.sessionGeneration) {
+			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
+		}
+		const decoded = decodeAgentHostCatalogPayloadData(catalog.payload, { forMigration: needsMigration });
 		if (!decoded.ok) {
 			return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`, catalog);
 		}
 		// A payload can only become chat-backing through a write that also
 		// updates the row marker, but an inconsistent row must still hide
 		// the session rather than surface a backing as a top-level entry.
-		if (decoded.value.data.isChatBacking) {
+		if (decoded.value.isChatBacking) {
 			return { eligible: false, chatBacking: true, catalog };
 		}
-		const revivedData = reviveAgentHostCatalogData(decoded.value.data);
+		if (snapshot?.authorityVersion === 2 && ((snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)
+			|| snapshot.identity.provider !== registered.provider)) {
+			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
+		}
+		const revivedData = reviveAgentHostCatalogData(catalog.chatCatalog ? {
+			...decoded.value,
+			chats: catalog.chatCatalog.chats,
+		} : snapshot?.authorityVersion === 2 ? {
+			...decoded.value,
+			chats: chatCatalogV2ToCatalogChats(snapshot),
+		} : decoded.value);
 		const data = {
 			...revivedData,
-			chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
+			chats: revivedData.chats.filter(chat => fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
 		};
 		const metadata = this._toSessionMetadata(registered, data);
 		if (needsMigration) {
@@ -125,8 +155,10 @@ export class AgentHostCatalogListReader {
 		status = withSessionStatusFlag(status, SessionStatus.IsArchived, data.isArchived);
 		// Payloads written by earlier versions record the session folder's GitHub state on its own.
 		const meta = withSessionExternal(withMigratedSessionGitHubState(data._meta, data.workingDirectories[0]?.toString()), registered.external);
+		const model = readCodexSessionModel({ _meta: meta });
 		return {
 			session: registered.session,
+			provider: registered.provider,
 			startTime: registered.startTime,
 			// The registry owns durable recency: a live advance can outrun the
 			// payload's own timestamp until the next reconciliation writes it back.
@@ -137,6 +169,7 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			...(model ? { model } : {}),
 			chats: data.chats.map(chat => ({
 				chat: chat.uri,
 				summary: chat.summary,
@@ -144,13 +177,15 @@ export class AgentHostCatalogListReader {
 				origin: fromCatalogChatOrigin(chat.origin),
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
+				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}
 }
 
-function ineligible(detail: string, catalog: IAgentHostDatabaseSessionV2 | null): AgentHostCatalogListResult {
+function ineligible(detail: string, catalog: IAgentHostDatabaseSessionListCatalog | null): AgentHostCatalogListResult {
 	return { eligible: false, chatBacking: false, detail, catalog };
 }
 

@@ -924,6 +924,38 @@ suite('AgentPlugin format detection', () => {
 		assert.ok(command && !command.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded, got: ${command}`);
 	}));
 
+	test('Copilot plugin hooks expose PLUGIN_ROOT', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/copilot-root-expansion');
+		await writeFile('/plugins/copilot-root-expansion/plugin.json', JSON.stringify({
+			name: 'copilot-root-expansion',
+			hooks: {
+				hooks: {
+					PostToolUse: [{
+						hooks: [{
+							type: 'command',
+							command: 'echo ${PLUGIN_ROOT}',
+						}],
+					}],
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		await waitForState(plugins[0].hooks, hooks => hooks.length > 0);
+
+		assert.deepStrictEqual(plugins[0].hooks.get()[0].hooks.map(hook => ({
+			command: hook.command,
+			env: hook.env,
+		})), [{
+			command: `echo ${uri.fsPath}`,
+			env: { PLUGIN_ROOT: uri.fsPath },
+		}]);
+	}));
+
 	test('manifest commands field pointing to a specific file', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/cmd-file');
 		await writeFile('/plugins/cmd-file/.plugin/plugin.json', JSON.stringify({

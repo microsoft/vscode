@@ -66,10 +66,9 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 			return value;
 		}
 	}
-	// `inspect` reports the default from the default-configuration model, which is
-	// built only from *visible* properties — a setting hidden with `included: false`
-	// has no entry there. Fall back to the declared default so hidden and visible
-	// settings mirror identically.
+	// Hidden experimental settings participate in the default-configuration model.
+	// Other settings hidden with `included: false` have no entry there, so fall
+	// back to their declared default.
 	return inspected.defaultValue ?? property?.default as T | undefined;
 }
 
@@ -183,8 +182,25 @@ export function resolveAgentHostConfigurationSyncPatch(configurationService: ICo
 		// nothing to mirror; leave the key absent so a previously stored host value
 		// is preserved rather than clobbered with `undefined`.
 		if (value !== undefined) {
-			patch[entry.sync.key] = value;
+			addAgentHostConfigurationSyncValue(patch, entry, value);
 		}
 	}
 	return patch;
+}
+
+/**
+ * Writes a mirrored `value` for `entry` into `patch`, including any
+ * {@link IAgentHostConfigurationSync.derivedKeys}. Returns the keys written.
+ */
+export function addAgentHostConfigurationSyncValue(patch: Record<string, unknown>, entry: IAgentHostConfigurationSyncEntry, value: unknown): string[] {
+	patch[entry.sync.key] = value;
+	const keys = [entry.sync.key];
+	for (const [key, derive] of Object.entries(entry.sync.derivedKeys ?? {})) {
+		const derived = derive(value);
+		if (derived !== undefined) {
+			patch[key] = derived;
+			keys.push(key);
+		}
+	}
+	return keys;
 }

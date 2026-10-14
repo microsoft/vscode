@@ -18,3 +18,31 @@ OpenSSL is needed for the key exchange we do when forwarding Basis tunnels. When
 # Debug
 
 1. You can use the Debug tasks already configured to run the launcher.
+
+## Agent host tunnels
+
+Use `code tunnel` to expose both remote editor access and agent hosts. `code agent --tunnel`
+and `code agent host --tunnel` are aliases for this command, not agent-host-only tunnels.
+Tunnel naming, existing-tunnel credentials, server data, and user data options are forwarded
+to the tunnel command. Local-only options such as `--host`, `--port`, connection tokens,
+`--replace`, `--new-instance`, `--foreground`, and `--idle-timeout` cannot be combined
+with `--tunnel`. Use `--accept-server-license-terms` to accept the server license without
+an interactive prompt.
+
+Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
+agent host supervisor.
+
+## Tunnel request correlation
+
+Management requests and relay WebSocket handshakes carry the
+`X-Tunnels-VSCode-Session-Id`, `X-Tunnels-VSCode-Client-Operation-Id`, and
+`X-Tunnels-VSCode-Client-Request-Id` headers. Each request has a fresh request ID.
+VS Code passes its telemetry session and operation IDs through
+`VSCODE_TUNNEL_SESSION_ID` and `VSCODE_TUNNEL_OPERATION_ID` when launching the CLI.
+These IDs are preserved verbatim; telemetry session IDs are not necessarily UUIDs.
+Standalone commands use a process-local session ID and a new operation ID for each
+management client. Correlation IDs are sent in service headers, not written to CLI logs.
+Local CLI status, login, and service-management invocations retain correlation IDs but
+do not emit host-operation telemetry.
+Attaching to an already-running tunnel does not replace that process's correlation IDs;
+its service requests retain the IDs of the original host process.

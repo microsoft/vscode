@@ -35,7 +35,7 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
+const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
@@ -72,6 +72,7 @@ interface IAutomationToolOutput {
 }
 
 interface IAutomationListToolOutput extends IAutomationToolOutput {
+	readonly supportsDeleteHistoryChoice?: boolean;
 	readonly availableOperations: readonly ('run' | 'update' | 'delete')[];
 }
 
@@ -148,7 +149,7 @@ export class ListAutomationsTool implements IToolImpl {
 
 		const providers: IAutomationProviderToolOutput[] = this.sessionsProvidersService.getProviders().flatMap(provider => {
 			const store = provider.automations;
-			if (!store) {
+			if (!store || store.enabled?.get() === false) {
 				return [];
 			}
 			const state = store.catalogueState.get();
@@ -268,6 +269,11 @@ export class RunAutomationTool implements IToolImpl {
 		if (dispatch.kind === 'notStarted') {
 			return automationNotStarted(automation, dispatch);
 		}
+		if (dispatch.kind === 'accepted') {
+			const result = automationToolResult(JSON.stringify({ status: 'accepted', automation: { id: automation.id, name: automation.name } }));
+			result.toolResultMessage = localize('automation.tool.run.accepted', "Requested automation {0}; the provider has not returned a run.", automation.name);
+			return result;
+		}
 
 		const result = automationToolResult(JSON.stringify({
 			status: 'started',
@@ -298,7 +304,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			icon: Codicon.trash,
 			displayName: localize('automation.tool.delete.displayName', "Delete Automation"),
 			userDescription: localize('automation.tool.delete.userDescription', "Delete a scheduled agent automation"),
-			modelDescription: 'Delete an automation by stable ID when the user wants to stop future runs and remove its definition. Run history and its sessions are permanently deleted by default; set deleteHistory to false to keep past runs in Automations. An automation with an active run cannot be deleted. Call listAutomations first to obtain the current ID and available operations. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
+			modelDescription: 'Delete an automation by stable ID when the user wants to stop future runs and remove its definition. Call listAutomations first to obtain the current ID and available operations. Only when supportsDeleteHistoryChoice is true, run history and its sessions are deleted by default and deleteHistory may be set to false to keep them in Automations. Otherwise omit deleteHistory and use the provider default deletion. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -312,7 +318,7 @@ export class DeleteAutomationTool implements IToolImpl {
 					},
 					deleteHistory: {
 						type: 'boolean',
-						description: 'Whether to permanently delete past runs and their sessions. Defaults to true; false keeps them in Automations.',
+						description: 'Only accepted when listAutomations reports supportsDeleteHistoryChoice: true. Defaults to true; false keeps past runs and their sessions in Automations.',
 					},
 				},
 				required: ['automationId'],
@@ -325,15 +331,17 @@ export class DeleteAutomationTool implements IToolImpl {
 			throw new AutomationToolInputError('Automations are disabled.');
 		}
 		const automation = resolveAutomationInput(this.automationService, context.parameters, 'deleteAutomation');
-		const options = resolveDeleteAutomationOptions(context.parameters);
+		const options = resolveDeleteAutomationOptions(context.parameters, this.automationService.supportsDeleteHistoryChoice?.(automation.id) === true);
 		return {
 			invocationMessage: localize('automation.tool.delete.invocationMessage', "Deleting automation {0}", automation.name),
 			pastTenseMessage: localize('automation.tool.delete.pastTenseMessage', "Deleted automation {0}", automation.name),
 			confirmationMessages: {
 				title: localize('automation.tool.delete.confirmationTitle', "Delete Automation?"),
-				message: new MarkdownString(options.deleteHistory
-					? localize('automation.tool.delete.confirmationMessage', "Delete **{0}** (`{1}`)? Its run history and sessions will be permanently deleted.", automation.name, automation.id)
-					: localize('automation.tool.delete.keepHistoryConfirmationMessage', "Delete **{0}** (`{1}`)? Future runs will stop. Past runs will remain in Automations.", automation.name, automation.id)),
+				message: new MarkdownString(options === undefined
+					? localize('automation.tool.delete.confirmationMessage', "Delete **{0}** (`{1}`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.", automation.name, automation.id)
+					: options.deleteHistory
+						? localize('automation.tool.delete.historyConfirmationMessage', "Delete **{0}** (`{1}`)? Its run history and sessions will be permanently deleted.", automation.name, automation.id)
+						: localize('automation.tool.delete.keepHistoryConfirmationMessage', "Delete **{0}** (`{1}`)? Future runs will stop. Past runs will remain in Automations.", automation.name, automation.id)),
 				customOptions: [
 					{ id: deleteAutomationConfirmationId, label: localize('automation.tool.delete.confirm', "Delete"), kind: ConfirmationOptionKind.Approve },
 					{ id: 'cancel', label: localize('automation.tool.delete.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
@@ -351,10 +359,10 @@ export class DeleteAutomationTool implements IToolImpl {
 		}
 
 		let automation: IAutomationDescriptor;
-		let options: IDeleteAutomationOptions;
+		let options: IDeleteAutomationOptions | undefined;
 		try {
 			automation = resolveAutomationInput(this.automationService, invocation.parameters, 'deleteAutomation');
-			options = resolveDeleteAutomationOptions(invocation.parameters);
+			options = resolveDeleteAutomationOptions(invocation.parameters, this.automationService.supportsDeleteHistoryChoice?.(automation.id) === true);
 		} catch (error) {
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
@@ -451,19 +459,19 @@ The change uses the current tool-approval policy. When approval is required, the
 							interval: {
 								type: 'string',
 								enum: [...automationIntervals],
-								description: 'manual, hourly, daily, or weekly.',
+								description: 'manual, hourly, daily, weekdays, or weekly. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud.',
 							},
 							scheduleHour: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 23,
-								description: 'Local hour, used for daily and weekly schedules.',
+								description: 'Local hour, used for daily, weekdays, and weekly schedules.',
 							},
 							scheduleMinute: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 59,
-								description: 'Local minute, used for daily and weekly schedules.',
+								description: 'Local minute, used for daily, weekdays, and weekly schedules.',
 							},
 							scheduleDay: {
 								type: 'integer',
@@ -1102,6 +1110,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 function toAutomationListToolOutput(automation: IAutomationDescriptor, automationService: IAutomationService): IAutomationListToolOutput {
 	return {
 		...toAutomationToolOutput(automation),
+		...(automationService.supportsDeleteHistoryChoice?.(automation.id) ? { supportsDeleteHistoryChoice: true } : {}),
 		availableOperations: [
 			...(automationService.canRunAutomation(automation.id) ? ['run'] as const : []),
 			...(automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
@@ -1204,9 +1213,15 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 	return automation;
 }
 
-function resolveDeleteAutomationOptions(rawInput: unknown): IDeleteAutomationOptions {
+function resolveDeleteAutomationOptions(rawInput: unknown, supportsHistoryChoice: boolean): IDeleteAutomationOptions | undefined {
 	if (!isRecord(rawInput)) {
 		throw new AutomationToolInputError('deleteAutomation input must be an object.');
+	}
+	if (!supportsHistoryChoice) {
+		if (Object.hasOwn(rawInput, 'deleteHistory')) {
+			throw new AutomationToolInputError('This automation provider does not support choosing whether to delete run history. Omit deleteHistory.');
+		}
+		return undefined;
 	}
 	return { deleteHistory: readOptionalBoolean(rawInput, 'deleteHistory') ?? true };
 }

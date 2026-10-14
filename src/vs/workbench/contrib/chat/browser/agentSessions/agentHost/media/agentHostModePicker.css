@@ -122,36 +122,6 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.agent-host-mode-permissions-trigger .agent-host-mode-picker-button {
-	display: flex;
-	align-items: center;
-	box-sizing: border-box;
-	height: var(--chat-input-control-height);
-	min-width: 0;
-	padding: 0 var(--vscode-spacing-size40);
-	color: inherit;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-}
-
-.agent-host-mode-permissions-trigger .agent-host-permissions-button {
-	position: relative;
-	margin-left: var(--vscode-spacing-size20);
-}
-
-.agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
-	position: absolute;
-	left: calc(-1 * var(--vscode-spacing-size20) / 2);
-	top: 50%;
-	width: var(--vscode-strokeThickness);
-	height: var(--vscode-spacing-size120);
-	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
-	content: "";
-	transform: translate(-50%, -50%);
-	z-index: 1;
-	pointer-events: none;
-}
-
 .action-label.agent-host-mode-permissions-trigger .agent-host-mode-picker-button > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
@@ -160,29 +130,13 @@
 	flex-shrink: 0;
 }
 
-.sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
-.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
 .sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
 .agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.agent-host-mode-permissions-trigger .agent-host-mode-picker-button:not([aria-disabled='true']):hover,
-.agent-host-mode-permissions-trigger .agent-host-mode-picker-button[aria-expanded='true'] {
-	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
-}
-
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label.agent-host-mode-permissions-trigger:hover:not(.disabled) {
 	outline: none;
-}
-
-.agent-host-mode-picker-button:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.agent-host-mode-permissions-trigger .agent-host-mode-picker-button:focus:not(:focus-visible) {
-	outline: 0;
 }
 
 .agent-host-permissions-button .agent-host-mode-permission-summary {

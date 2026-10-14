@@ -49,7 +49,7 @@ suite('Sessions - Session conversation groups', () => {
 		})), [
 			{ label: 'New', ariaLabel: 'State: New' },
 			{ label: 'In Progress', ariaLabel: 'State: In Progress' },
-			{ label: 'Input Needed', ariaLabel: 'State: Input Needed' },
+			{ label: 'Attention Needed', ariaLabel: 'State: Attention Needed' },
 			{ label: 'Completed', ariaLabel: 'State: Completed' },
 			{ label: 'Failed', ariaLabel: 'State: Failed' },
 		]);

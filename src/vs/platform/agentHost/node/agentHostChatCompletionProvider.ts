@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { ChatInteractivity, ChatOriginKind, MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 
@@ -124,8 +124,14 @@ export class AgentHostChatCompletionProvider implements IAgentHostCompletionItem
 		// addressed either by the session URI or by the default chat URI. Derive
 		// the owning session URI and its canonical default chat URI so the
 		// current chat is reliably excluded regardless of how it was addressed.
-		const sessionUri = isAhpChatChannel(params.channel) ? parseRequiredSessionUriFromChatUri(params.channel) : params.channel;
-		const defaultChatUri = session.defaultChat ?? buildDefaultChatUri(sessionUri);
+		const sessionUri = isAhpChatChannel(params.channel) ? this._stateManager.getChatOwner(params.channel) : params.channel;
+		if (sessionUri === undefined) {
+			return [];
+		}
+		const defaultChatUri = session.defaultChat ?? this._stateManager.getDefaultChat(sessionUri);
+		if (defaultChatUri === undefined) {
+			return [];
+		}
 		const currentChatId = this._canonicalChatId(params.channel, sessionUri, defaultChatUri);
 
 		const filter = sanitizeChatTitle(chatToken.typed).toLowerCase();
@@ -198,7 +204,7 @@ export class AgentHostChatCompletionProvider implements IAgentHostCompletionItem
 	private _canonicalChatId(uri: string, sessionUri: string, defaultChatUri: string): string {
 		const normalizedDefault = URI.parse(defaultChatUri).toString();
 		const normalized = URI.parse(uri).toString();
-		if (normalized === URI.parse(sessionUri).toString() || isDefaultChatUri(uri)) {
+		if (normalized === URI.parse(sessionUri).toString() || this._stateManager.isDefaultChat(sessionUri, uri)) {
 			return normalizedDefault;
 		}
 		return normalized;

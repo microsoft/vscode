@@ -8,10 +8,11 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline.js';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId, TimelineEditable, TimelineItemIdentifier } from './timeline.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditableData } from '../../../common/views.js';
 
 export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
@@ -27,6 +28,14 @@ export class TimelineService extends Disposable implements ITimelineService {
 
 	private readonly _onDidChangeUri = this._register(new Emitter<URI>());
 	readonly onDidChangeUri = this._onDidChangeUri.event;
+
+	private readonly _onDidChangeEditable = this._register(new Emitter<void>());
+	readonly onDidChangeEditable = this._onDidChangeEditable.event;
+
+	private _editable: TimelineEditable | undefined;
+	get editable(): TimelineEditable | undefined {
+		return this._editable;
+	}
 
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
@@ -134,6 +143,11 @@ export class TimelineService extends Disposable implements ITimelineService {
 	setUri(uri: URI) {
 		this.viewsService.openView(TimelinePaneId, true);
 		this._onDidChangeUri.fire(uri);
+	}
+
+	setEditable(item: TimelineItemIdentifier, data: IEditableData | null): void {
+		this._editable = data ? { item, data } : undefined;
+		this._onDidChangeEditable.fire();
 	}
 
 	private updateHasProviderContext() {

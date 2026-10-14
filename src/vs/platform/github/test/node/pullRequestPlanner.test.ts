@@ -9,7 +9,7 @@ import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { unionPullRequestInterests } from '../../common/pullRequestInterests.js';
 import { PullRequestRequestPlanner } from '../../common/pullRequestRequestPlanner.js';
 import { PullRequestScheduler } from '../../common/pullRequestScheduler.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
 suite('PullRequest planning', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,7 +71,7 @@ suite('PullRequest planning', () => {
 	});
 
 	test('uses one timer for ordered due-time work', () => {
-		const clock = new FakeGitHubScheduler({ now: 100 });
+		const clock = new FakeScheduler({ now: 100 });
 		const scheduler = disposables.add(new PullRequestScheduler(clock));
 		const calls: string[] = [];
 

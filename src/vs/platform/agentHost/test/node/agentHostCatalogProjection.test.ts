@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
@@ -16,6 +17,7 @@ import {
 	AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 	AgentHostCatalogData,
 	decodeAgentHostCatalogPayload,
+	decodeAgentHostCatalogPayloadData,
 	encodeAgentHostCatalogPayload,
 	hashAgentHostCatalogPayload,
 	reviveAgentHostCatalogData,
@@ -106,6 +108,15 @@ function encode(data: AgentHostCatalogData = createData()) {
 suite('AgentHostCatalogProjection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips creating-client identity through the validated catalog', () => {
+		const initiator = { name: 'github/cli', title: 'Copilot CLI', version: '1.0' };
+		const data = createData();
+		const encoded = encode({ ...data, _meta: withSessionInitiator(data._meta, initiator) });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+		assert.ok(decoded.ok);
+		assert.deepStrictEqual(readSessionInitiator(decoded.value.data), initiator);
+	});
+
 	test('round trips validated remote-session origin metadata', () => {
 		const origin = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
 		const data = createData();
@@ -155,7 +166,7 @@ suite('AgentHostCatalogProjection', () => {
 				ok: true,
 				value: { data: typedData, payload: encoded.payload },
 			},
-			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":2}',
+			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":3}',
 			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});
@@ -310,26 +321,28 @@ suite('AgentHostCatalogProjection', () => {
 		assert.deepStrictEqual(decoded.ok ? 'ok' : decoded.reason, 'outdated');
 	});
 
-	test('reads version 1 only for migration and still validates its data', () => {
-		const data = createData();
-		const payload = JSON.stringify({ payloadVersion: 1, data });
-		const current = decodeAgentHostCatalogPayload(payload);
-		const migrated = decodeAgentHostCatalogPayload(payload, { forMigration: true });
-		const invalid = decodeAgentHostCatalogPayload(JSON.stringify({ payloadVersion: 1, data: {} }), { forMigration: true });
-		const future = decodeAgentHostCatalogPayload(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, data }), { forMigration: true });
+	for (const payloadVersion of [1, 2]) {
+		test(`reads version ${payloadVersion} only for migration and still validates its data`, () => {
+			const data = createData();
+			const payload = JSON.stringify({ payloadVersion, data });
+			const current = decodeAgentHostCatalogPayload(payload);
+			const migrated = decodeAgentHostCatalogPayloadData(payload, { forMigration: true });
+			const invalid = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion, data: {} }), { forMigration: true });
+			const future = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, data }), { forMigration: true });
 
-		assert.deepStrictEqual({
-			current: current.ok ? 'ok' : current.reason,
-			migrated: migrated.ok ? migrated.value.data : migrated.reason,
-			invalid: invalid.ok ? 'ok' : invalid.reason,
-			future: future.ok ? 'ok' : future.reason,
-		}, {
-			current: 'outdated',
-			migrated: data,
-			invalid: 'invalid',
-			future: 'outdated',
+			assert.deepStrictEqual({
+				current: current.ok ? 'ok' : current.reason,
+				migrated: migrated.ok ? migrated.value : migrated.reason,
+				invalid: invalid.ok ? 'ok' : invalid.reason,
+				future: future.ok ? 'ok' : future.reason,
+			}, {
+				current: 'outdated',
+				migrated: data,
+				invalid: 'invalid',
+				future: 'outdated',
+			});
 		});
-	});
+	}
 
 	test('revives every serialized URI in one place', () => {
 		const data = createData();

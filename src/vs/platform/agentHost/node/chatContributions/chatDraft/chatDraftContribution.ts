@@ -9,7 +9,7 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IRestoredChat } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseChatUri } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../../common/state/sessionState.js';
 
 /**
  * Owns chat draft persistence in both directions. Restore runs eagerly at
@@ -36,7 +36,7 @@ export class ChatDraftContribution extends Disposable implements IAgentHostChatC
 	}
 
 	onDidApplyClientAction(observed: IAppliedClientAction): void {
-		if (observed.action.type !== ActionType.ChatDraftChanged || !isAhpChatChannel(observed.channel) || !parseChatUri(observed.channel)) {
+		if (observed.action.type !== ActionType.ChatDraftChanged || !isAhpChatChannel(observed.channel)) {
 			return;
 		}
 

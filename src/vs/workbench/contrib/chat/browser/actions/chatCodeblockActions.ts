@@ -33,8 +33,10 @@ import { reviewEdits } from './reviewEdits.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService/chatService.js';
-import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
-import { chatSessionResourceToId } from '../../common/model/chatUri.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -165,6 +167,8 @@ export function registerChatCodeBlockActions() {
 			const clipboardService = accessor.get(IClipboardService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
 			const chatService = accessor.get(IChatService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 			await clipboardService.writeText(context.code);
 
 			if (isResponseVM(context.element)) {
@@ -203,8 +207,9 @@ export function registerChatCodeBlockActions() {
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
 					sourceRequestId: requestId,
-					chatSessionId: chatSessionResourceToId(context.element.sessionResource),
+					...sessionTelemetry,
 					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}
@@ -235,6 +240,8 @@ export function registerChatCodeBlockActions() {
 
 		const chatService = accessor.get(IChatService);
 		const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
+		const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 		const element = context.element;
 		const reportCopy = () => {
 			if (!isResponseVM(element)) {
@@ -275,8 +282,9 @@ export function registerChatCodeBlockActions() {
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
 				sourceRequestId: requestId,
-				chatSessionId: chatSessionResourceToId(element.sessionResource),
+				...sessionTelemetry,
 				isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
+				provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource), chatSessionsService),
 			});
 		};
 
@@ -402,6 +410,8 @@ export function registerChatCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 
 			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 
@@ -439,8 +449,9 @@ export function registerChatCodeBlockActions() {
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
 					sourceRequestId: requestId,
-					chatSessionId: chatSessionResourceToId(context.element.sessionResource),
+					...sessionTelemetry,
 					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}

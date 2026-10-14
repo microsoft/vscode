@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { agentSandboxDiagnosticsMetaKey, readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotSandboxDiagnostics } from '../../node/copilot/copilotSandboxDiagnostics.js';
 
@@ -27,6 +27,7 @@ suite('CopilotSandboxDiagnostics', () => {
 			createdAt: '2026-09-25T00:00:00.000Z',
 			modifiedAt: '2026-09-25T00:00:00.000Z',
 			_meta: { unrelated: 'preserved' },
+			defaultChat: buildDefaultChatUri(session),
 		});
 		return manager;
 	}
@@ -50,7 +51,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		]);
 	});
 
-	test('only reports capabilities used by the configured sandbox', async () => {
+	test('reports network filtering without a proxy and gates network and denied paths on configuration', async () => {
 		const manager = createStateManager();
 		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
 			supported: true,
@@ -72,8 +73,31 @@ suite('CopilotSandboxDiagnostics', () => {
 			},
 		});
 		assert.deepStrictEqual([unused, readAgentSandboxDiagnostics(manager.getSessionSummary(session)!)], [
-			undefined,
+			['Proxy unsupported.'],
 			['Install slirp4netns.', 'Proxy unsupported.', 'Denied paths unsupported.'],
+		]);
+	});
+
+	test('reports unavailable network filtering and filesystem enumeration from host capabilities without user policy', async () => {
+		const manager = createStateManager();
+		const networkFilteringReason = 'This Windows host cannot run a sandbox proxy. See https://aka.ms/ghcp-sandbox-os-support';
+		const filesystemEnumerationReason = 'This Windows host cannot grant enumerate-only filesystem access. See https://aka.ms/ghcp-sandbox-os-support';
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: true,
+			capabilities: [
+				{ name: 'network', supported: true },
+				{ name: 'network_filtering', supported: false, reason: networkFilteringReason },
+				{ name: 'denied_paths', supported: true },
+				{ name: 'shell', supported: true },
+				{ name: 'filesystem_enumeration', supported: false, reason: filesystemEnumerationReason },
+			],
+		}), manager, new NullLogService()));
+
+		await diagnostics.update({ enabled: true });
+
+		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
+			networkFilteringReason,
+			filesystemEnumerationReason,
 		]);
 	});
 

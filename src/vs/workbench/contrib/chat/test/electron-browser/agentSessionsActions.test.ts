@@ -23,6 +23,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -32,6 +34,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { CommandService } from '../../../../services/commands/common/commandService.js';
 import { IExtensionService, NullExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
@@ -46,6 +49,17 @@ class TestCommandService extends mock<ICommandService>() {
 	}
 }
 
+class TestDecisionTelemetryService extends TestExperimentTriggerTelemetryService {
+	readonly decisions: object[] = [];
+
+	override publicLog2(eventName?: string, data?: object): void {
+		super.publicLog2(eventName, data);
+		if (eventName === 'chat.openInAgentsWindowDecision' && data) {
+			this.decisions.push(data);
+		}
+	}
+}
+
 suite('Agents window launch enablement', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const actions: Action2[] = [
@@ -57,8 +71,8 @@ suite('Agents window launch enablement', () => {
 	];
 	const explicitTargets: IOpenAgentsWindowOptions[] = [
 		{ folderUri: URI.file('/explicit') },
-		{ sessionResource: URI.parse('agent-host-copilot:/session') },
-		{ draft: { inputText: 'Keep this prompt', attachments: '[]' } },
+		{ reveal: URI.parse('agent-host-copilot:/session') },
+		{ reveal: 'new', draft: { inputText: 'Keep this prompt', attachments: '[]' } },
 	];
 	const scenarios = [
 		...actions.map(action => ({ name: action.desc.id, command: action.desc.id, args: [] })),
@@ -286,7 +300,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
 		const explicit = { folderUri: URI.file('/explicit') };
-		const existing = { sessionResource: URI.parse('agent-host-copilot:/session') };
+		const existing = { reveal: URI.parse('agent-host-copilot:/session') };
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, explicit));
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, existing));
 		assert.deepStrictEqual(calls, [
@@ -299,14 +313,16 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function run(sessionResource: URI | undefined, revealCurrentSession = true) {
+	async function runWithTelemetry(sessionResource: URI | undefined, revealCurrentSession = true) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const commandService = new TestCommandService();
+		const telemetryService = new TestDecisionTelemetryService();
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: revealCurrentSession,
 		});
 		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			lastFocusedWidget: sessionResource ? upcastPartial<IChatWidget>({
 				viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
@@ -315,7 +331,11 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 
 		const action = new OpenWorkspaceInAgentsWindowTitleBarAction();
 		await instantiationService.invokeFunction(accessor => action.run(accessor));
-		return commandService.calls;
+		return { calls: commandService.calls, decisions: telemetryService.decisions, triggers: telemetryService.triggers };
+	}
+
+	async function run(sessionResource: URI | undefined, revealCurrentSession = true) {
+		return (await runWithTelemetry(sessionResource, revealCurrentSession)).calls;
 	}
 
 	test('reveals a persisted local Agent Host session and otherwise opens a workspace draft', async () => {
@@ -352,6 +372,78 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 			noSession: [{
 				commandId: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
 				args: [{ source: AgentsWindowOpenSource.TitleBar }],
+			}],
+		});
+	});
+
+	test('logs each eligible title-bar decision before selecting its branch', async () => {
+		const localSession = URI.from({ scheme: 'agent-host-claude', path: '/session' });
+		const reveal = await runWithTelemetry(localSession);
+		const fallback = await runWithTelemetry(localSession, false);
+
+		assert.deepStrictEqual({
+			reveal: { decisions: reveal.decisions, triggers: reveal.triggers },
+			fallback: { decisions: fallback.decisions, triggers: fallback.triggers },
+		}, {
+			reveal: {
+				decisions: [{
+					branch: 'revealCurrentSession',
+					entryPoint: 'applicationTitleBar',
+					agentSessionId: 'fcbdc4c271c889825d8338d2d8f10b6e5e95c171',
+				}],
+				triggers: ['config.chat.experimental.openInAgentsWindow.revealCurrentSession'],
+			},
+			fallback: {
+				decisions: [{
+					branch: 'openWorkspaceFallback',
+					entryPoint: 'applicationTitleBar',
+					agentSessionId: 'fcbdc4c271c889825d8338d2d8f10b6e5e95c171',
+				}],
+				triggers: ['config.chat.experimental.openInAgentsWindow.revealCurrentSession'],
+			},
+		});
+	});
+
+	test('does not log a decision without an eligible persisted local Agent Host session', async () => {
+		const missing = await runWithTelemetry(undefined);
+		const untitled = await runWithTelemetry(URI.from({ scheme: 'agent-host-claude', path: '/untitled-session' }));
+		const remote = await runWithTelemetry(URI.from({ scheme: 'remote-host-claude', path: '/session' }));
+		const regular = await runWithTelemetry(URI.from({ scheme: 'vscode-chat-session', path: '/session' }));
+
+		assert.deepStrictEqual({
+			missing: { decisions: missing.decisions, triggers: missing.triggers },
+			untitled: { decisions: untitled.decisions, triggers: untitled.triggers },
+			remote: { decisions: remote.decisions, triggers: remote.triggers },
+			regular: { decisions: regular.decisions, triggers: regular.triggers },
+		}, {
+			missing: { decisions: [], triggers: [] },
+			untitled: { decisions: [], triggers: [] },
+			remote: { decisions: [], triggers: [] },
+			regular: { decisions: [], triggers: [] },
+		});
+	});
+
+	test('does not log a title-bar decision from the chat title action', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const commandService = new TestCommandService();
+		const telemetryService = new TestDecisionTelemetryService();
+		const sessionResource = URI.from({ scheme: 'agent-host-claude', path: '/session' });
+		const context = upcastPartial<IChatViewTitleActionContext>({ sessionResource });
+		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(ITelemetryService, telemetryService);
+
+		await instantiationService.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, context));
+
+		assert.deepStrictEqual({
+			decisions: telemetryService.decisions,
+			triggers: telemetryService.triggers,
+			calls: commandService.calls,
+		}, {
+			decisions: [],
+			triggers: [],
+			calls: [{
+				commandId: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+				args: [{ source: AgentsWindowOpenSource.ChatTitleBar, sessionResource }],
 			}],
 		});
 	});

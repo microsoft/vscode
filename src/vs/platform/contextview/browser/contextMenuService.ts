@@ -62,10 +62,10 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			onHide: (didCancel) => {
 				delegate.onHide?.(didCancel);
 
+				ModifierKeyEmitter.getInstance().resetKeyStatus();
 				this._onDidHideContextMenu.fire();
 			}
 		});
-		ModifierKeyEmitter.getInstance().resetKeyStatus();
 		this._onDidShowContextMenu.fire();
 	}
 }

@@ -87,9 +87,12 @@ import {
 	makeTextDelta,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	enabled: false,
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },
@@ -97,6 +100,7 @@ const noopOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	getCurrentTraceContext: () => undefined,
@@ -128,6 +132,7 @@ function createTestAuthenticationService(): IAgentHostAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
 	};
 }
@@ -694,7 +699,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { configurationResource: session, resource: session };
+	return { configurationResource: session, resource: session, subagentChatUriFormat: 'shaped' as const };
 }
 
 // #endregion
@@ -735,11 +740,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -876,11 +883,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -959,11 +968,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
