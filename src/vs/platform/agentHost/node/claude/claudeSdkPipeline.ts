@@ -18,6 +18,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
+import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
@@ -249,6 +250,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		readonly sessionId: string,
 		readonly chatChannelUri: URI,
 		ownerSession: URI,
+		subagentChatUriFormat: ChatUriFormat,
 		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
@@ -273,7 +275,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, chatChannelUri, ownerSession, resource, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, ownerSession, subagentChatUriFormat, resource, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*

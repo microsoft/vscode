@@ -18,7 +18,7 @@ import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
-import type { IAgent } from '../common/agent.js';
+import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -28,6 +28,9 @@ import { IAgentHostCustomizationEnablementService } from './agentHostCustomizati
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostSavedChatService, type IAgentHostSavedChatReader } from './agentHostSavedChatService.js';
+import { ClaudeSavedChatReader } from './claude/claudeSavedChatReader.js';
+import { CodexSavedChatReader } from './codex/codexSavedChatReader.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -107,6 +110,10 @@ export function createAgentServiceComposition(
 			disposables: owned,
 			authenticationService,
 			orchestratorDatabase,
+			savedChats: new AgentHostSavedChatService(new Map<AgentProvider, IAgentHostSavedChatReader>([
+				[CLAUDE_AGENT_PROVIDER_ID, instantiationService.createInstance(ClaudeSavedChatReader)],
+				[CODEX_AGENT_PROVIDER_ID, instantiationService.createInstance(CodexSavedChatReader)],
+			]), orchestratorDatabase, sessionDataService, logService),
 			peerChatStore,
 			debugLogsCollector,
 			sessionRegistry,

@@ -9,7 +9,17 @@ import { isEqual } from '../../../base/common/resources.js';
 import { Sequencer } from '../../../base/common/async.js';
 import { AgentSession } from '../common/agent.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from './agentHostDatabase.js';
-import { SessionStorageIdentity } from './sessionStorageIdentity.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
+import { SessionStorageIdentity, storedChatUri, type ChatStorageRole, type IChatStorageIdentityRecord } from './sessionStorageIdentity.js';
+
+const sessionStorageIdentityPrefix = 'sessionStorageIdentity:';
+const chatStorageIdentityPrefix = 'chatStorageIdentity:';
+
+function isChatStorageIdentityRecord(value: unknown): value is IChatStorageIdentityRecord {
+	return typeof value === 'object' && value !== null && 'runtime' in value && 'storage' in value
+		&& typeof value.runtime === 'string' && typeof value.storage === 'string';
+}
 
 /** A native-identity reader with an old-readable writer for newly allocated local sessions. */
 export class CompatibleAgentHostDatabase extends Disposable implements IAgentHostDatabase {
@@ -17,6 +27,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	readonly raw: AgentHostDatabase;
 	readonly identity: SessionStorageIdentity;
 	private readonly _allocations = new Sequencer();
+	private readonly _pendingChatRecords = new Set<Promise<void>>();
 
 	constructor(path: string, private readonly _writeCompatibility = true) {
 		super();
@@ -25,7 +36,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async initialize(): Promise<void> {
-		for (const entry of await this.raw.readStorageIdentityMetadata()) {
+		const [sessions, chats] = await Promise.all([
+			this.raw.readStorageIdentityMetadata(sessionStorageIdentityPrefix),
+			this.raw.readStorageIdentityValues(chatStorageIdentityPrefix),
+		]);
+		for (const entry of sessions) {
 			const value: unknown = JSON.parse(entry.value);
 			if (value === null || typeof value !== 'object' || Array.isArray(value)) {
 				throw new Error('Invalid persisted session storage identity');
@@ -35,11 +50,28 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 			const storage = fields.get('storage');
 			const provider = fields.get('provider');
 			if (typeof runtime !== 'string' || typeof storage !== 'string' || typeof provider !== 'string'
-				|| entry.key !== 'sessionStorageIdentity:' + runtime) {
+				|| entry.key !== sessionStorageIdentityPrefix + runtime) {
 				throw new Error('Invalid persisted session storage identity');
 			}
 			this.identity.add({ runtime, storage, provider });
 		}
+		const records: unknown = JSON.parse(chats);
+		if (!Array.isArray(records) || !records.every(isChatStorageIdentityRecord)) {
+			throw new Error('Invalid persisted chat storage identity');
+		}
+		this.identity.addPersistedChats(records);
+	}
+
+	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void {
+		const storageSession = this.identity.getSessionStorage(session);
+		if (storageSession === undefined || isShapedChatUri(chat) || this.identity.hasChat(chat)) {
+			return;
+		}
+		const record = { runtime: chat, storage: storedChatUri(storageSession, chat, role) };
+		this.identity.addChat(record);
+		const write = this.raw.setStorageIdentityMetadata(chatStorageIdentityPrefix + chat, JSON.stringify(record)).catch(onUnexpectedError);
+		this._pendingChatRecords.add(write);
+		write.finally(() => this._pendingChatRecords.delete(write));
 	}
 
 	async prepareSessionStorage(session: string, provider: string): Promise<void> {
@@ -69,7 +101,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 			throw new Error('Cannot allocate a native session over an existing legacy identity: ' + session);
 		}
 		const record = { runtime: session, storage, provider };
-		await this.raw.setStorageIdentityMetadata('sessionStorageIdentity:' + session, JSON.stringify(record));
+		await this.raw.setStorageIdentityMetadata(sessionStorageIdentityPrefix + session, JSON.stringify(record));
 		this.identity.add(record);
 	}
 
@@ -459,6 +491,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async close(...[]: Parameters<IAgentHostDatabase['close']>): ReturnType<IAgentHostDatabase['close']> {
+		await Promise.all(this._pendingChatRecords);
 		const result = await this.raw.close();
 		return this.identity.record(result, 'runtime');
 	}

@@ -31,7 +31,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { ChatInputQuestionKind, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ChatInputQuestionKind, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatInputRequestedAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
@@ -41,7 +41,7 @@ import {
 import { assertRecordedAhpSnapshot, waitForChatTurnComplete } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -135,7 +135,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			.map(notification => (getActionEnvelope(notification).action as ChatInputRequestedAction).request);
 
 		assertToolCallCompleteText(client, {
-			channel: buildDefaultChatUri(session),
+			channel: defaultChatChannel(session),
 			turnId,
 			toolNames: ['ask_user'],
 			expected: [/\bfruit:\s*Apple\b/, /\bcolor:\s*Blue\b/],
@@ -192,7 +192,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const clientId = 'copilot-error-restart';
 		const prompt = 'Reply exactly "unreachable".';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-error-seed', 'Reply exactly "READY".', 1);
 		if (!lease) {
@@ -253,7 +253,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 		({ client } = await lease.acquire(this.test!.title));
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-failed-resume';
 		client.dispatch({
 			channel: sessionUri,
@@ -388,7 +388,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 		({ client } = await lease.acquire(this.test!.title));
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-repeated-failed-turn-resume', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-repeated-failed-resume';
 
 		dispatchTurn(client, sessionUri, turnId, prompt, 1);
@@ -463,7 +463,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-host-shutdown-resume';
 
 		dispatchTurn(client, sessionUri, turnId, prompt, 1);
@@ -564,7 +564,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			},
 		});
 		const turnId = 'turn-client-tool-disconnect';
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		assert.ok(lease);
 		const observer = await lease.connectClient();
 		try {
@@ -637,7 +637,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				},
 			},
 		});
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-client-tool-result-confirmation';
 		dispatchTurn(client, sessionUri, turnId, 'Call get_magic_word exactly once, then reply with only its result.', 2);
 		const started = await client.waitForNotification(n =>
@@ -733,7 +733,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-steering-abort';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 
 		client.dispatch({
 			channel: sessionUri,
@@ -828,11 +828,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			}
 			const envelope = getActionEnvelope(n);
 			const action = envelope.action as ChatUsageAction;
-			return envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === 'turn-usage';
+			return envelope.channel === defaultChatChannel(sessionUri) && action.turnId === 'turn-usage';
 		}, 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
 		const usageAction = usageEnvelope.action as ChatUsageAction;
-		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
+		assert.strictEqual(usageEnvelope.channel, defaultChatChannel(sessionUri));
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
@@ -847,7 +847,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		await client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
-			&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
+			&& getActionEnvelope(n).channel === defaultChatChannel(sessionUri)
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-usage',
 			90_000);
 		const state = await fetchSessionWithChat(client, sessionUri);
@@ -879,7 +879,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 		assertToolCallCompleteText(client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-attachment',
 			toolNames: ['view'],
 			workspace: workingDirectory,
@@ -917,7 +917,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-read-shell-'));
 		tempDirs.push(workingDirectory);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-read-shell';
 		const command = `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`;
 		const prompt = [
@@ -996,7 +996,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		client.clearReceived();
 		const turnId = 'turn-cd-strip';
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		dispatchTurn(client, sessionUri, turnId,
 			`Run this exact shell command, do not modify it: cd ${expectedWorkingDirPath} && echo strip-me-please`,
 			1);

@@ -6,7 +6,8 @@
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { buildSubagentChatUri, isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
+import { isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type URI as ProtocolURI, type Turn } from '../common/state/sessionState.js';
+import { chatUriFormatOf, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { IAgentHostStateManager, type AgentHostStateManager, type IChatRegistration } from './agentHostStateManager.js';
@@ -149,6 +150,13 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	async resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {
 		const recorded = await this._findRecordedChatOwner(chat, () => this._getDefaultChatIndex());
 		if (recorded) {
+			// A recorded owner of a chat that is not loaded may still be a subagent whose spawn edge is needed to restore it.
+			if (recorded.spawnedBy === undefined && !this._stateManager.getChatState(chat)) {
+				const edge = this._findChatSpawnEdge(chat);
+				if (edge?.owner === recorded.owner) {
+					return edge;
+				}
+			}
 			return recorded;
 		}
 		const inFlight = [...this._restoresInFlight];
@@ -260,6 +268,14 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		return index;
 	}
 
+	private _rootConversationChat(chat: ProtocolURI): ProtocolURI {
+		let root = chat;
+		for (let parent = this._stateManager.getChatParent(root); parent !== undefined && parent !== root; parent = this._stateManager.getChatParent(root)) {
+			root = parent;
+		}
+		return root;
+	}
+
 	/**
 	 * Finds a chat spawned by a tool call of a loaded chat: the spawned chat is
 	 * owned by the spawning chat's owner, or is the default chat of the legacy
@@ -289,7 +305,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 								continue;
 							}
 							const spawnedBy = { chat: candidate, toolCallId, title: content.title || undefined };
-							if (content.resource === chat || buildSubagentChatUri(session, toolCallId) === chat) {
+							if (content.resource === chat || subagentChatUri(chatUriFormatOf(defaultChat), session, this._rootConversationChat(candidate), toolCallId) === chat) {
 								return { owner: session, spawnedBy };
 							}
 							if (!isAhpChatChannel(content.resource) && (this._stateManager.getDefaultChat(content.resource) ?? deriveLegacyDefaultChat(content.resource)) === chat) {

@@ -2238,7 +2238,7 @@ suite('AgentHostChatContributions', () => {
 		const agent = disposables.add(new MockAgent());
 		const child = buildSubagentChatUri(titles.session, 'child');
 		for (const chat of [titles.defaultChat, child]) {
-			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined, undefined, undefined, undefined, chat === child ? 'child' : undefined);
 			if (chat === titles.defaultChat) {
 				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
 			}
@@ -2980,6 +2980,7 @@ suite('AgentHostChatContributions', () => {
 		const usage = { inputTokens: 10, outputTokens: 5 };
 		const chat = buildDefaultChatUri(contributions.session);
 		const subagentChat = buildSubagentChatUri(contributions.session, 'tool-call');
+		contributions.stateManager.addChat(contributions.session, subagentChat, creationTimeChatStorageResource(contributions.session, subagentChat, chat), { origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' } });
 		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
 		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
 		await Promise.resolve();

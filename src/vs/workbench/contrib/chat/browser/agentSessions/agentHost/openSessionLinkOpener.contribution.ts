@@ -13,7 +13,7 @@ import { IObservable, observableValueOpts } from '../../../../../../base/common/
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, isDefaultChatLinkId, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -118,13 +118,25 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 	}
 
 	private async _open(resource: URI | string): Promise<boolean> {
-		const clientResource = await this._resolveClientSessionResource(resource, CancellationToken.None);
-		if (!clientResource) {
+		const linkedResource = await this._resolveClientSessionResource(resource, CancellationToken.None);
+		if (!linkedResource) {
 			return false;
 		}
+		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const widget = await this._chatWidgetService.openSession(clientResource, ChatViewPaneTarget, { revealIfOpened: true });
 		return !!widget;
+	}
+
+	/** A link to the session's default chat opens the session itself, which selects the default chat. */
+	private async _withoutDefaultChatFragment(clientResource: URI): Promise<URI> {
+		if (!clientResource.fragment) {
+			return clientResource;
+		}
+		const resolution = this._connectionsService.resolveSessionResource(clientResource.with({ fragment: '' }));
+		return resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, clientResource.fragment)
+			? clientResource.with({ fragment: '' })
+			: clientResource;
 	}
 
 	private async _resolveClientSessionResource(resource: URI | string, token: CancellationToken): Promise<URI | undefined> {

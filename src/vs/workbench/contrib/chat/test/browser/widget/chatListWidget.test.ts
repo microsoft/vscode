@@ -525,6 +525,57 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('updates the most recent response when the tail changes without changing response data IDs', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const addTurn = (text: string, attempt: number) => {
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, attempt);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`${text} response`) });
+			request.response?.complete();
+			return request;
+		};
+		const getMostRecentStates = () => Array.from(container.querySelectorAll<HTMLElement>('.interactive-response'))
+			.map(row => row.classList.contains('chat-most-recent-response'));
+
+		const firstRequest = addTurn('First request', 0);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const firstResponse = viewModel.getItems().filter(isResponseVM)[0];
+		const firstDataId = firstResponse.dataId;
+		const initialMostRecent = getMostRecentStates();
+
+		const secondRequest = addTurn('Second request', 1);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const afterAppendMostRecent = getMostRecentStates();
+		const dataIdAfterAppend = firstResponse.dataId;
+
+		model.removeRequest(secondRequest.id);
+		widget.refresh();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			initialMostRecent,
+			afterAppendMostRecent,
+			afterRemoveMostRecent: getMostRecentStates(),
+			firstDataId,
+			dataIdAfterAppend,
+			dataIdAfterRemove: firstResponse.dataId,
+			remainingRequestId: viewModel.getItems().filter(isRequestVM)[0].id,
+		}, {
+			initialMostRecent: [true],
+			afterAppendMostRecent: [false, true],
+			afterRemoveMostRecent: [true],
+			firstDataId,
+			dataIdAfterAppend: firstDataId,
+			dataIdAfterRemove: firstDataId,
+			remainingRequestId: firstRequest.id,
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);

@@ -244,7 +244,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
 	private readonly _retainSessionsOnDisconnect: boolean;
-	private readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
+	protected readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
@@ -1090,19 +1090,23 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private updateResourceLabelHomes(): void {
 		const homes = this.getResourceLabelHomes();
 		for (const session of this.getKnownSessions()) {
-			if (session.sessionType !== 'copilotcli') {
-				continue;
-			}
-			const label = this.getResourceLabelHomeLabel(session);
-			for (const artifact of session.artifacts?.get() ?? []) {
-				if (!artifact.uri) {
+			try {
+				if (session.sessionType !== 'copilotcli') {
 					continue;
 				}
-				const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
-				const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
-				if (match?.groups?.home) {
-					homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+				const label = this.getResourceLabelHomeLabel(session);
+				for (const artifact of session.artifacts?.get() ?? []) {
+					if (!artifact.uri) {
+						continue;
+					}
+					const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
+					const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
+					if (match?.groups?.home) {
+						homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+					}
 				}
+			} catch (error) {
+				this._logService.error(`[${this.id}] Failed to read artifact label homes for session '${session.sessionId}'.`, error);
 			}
 		}
 		this.updateResourceLabelHomeFormatters(homes, this._labelService);

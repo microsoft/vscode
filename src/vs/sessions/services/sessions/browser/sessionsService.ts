@@ -669,6 +669,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		let previousActiveChat: URI | undefined;
 		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
 		disposables.add(autorun(reader => {
+			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				previousActiveChat = undefined;
+				lastReadRequest = undefined;
+				return;
+			}
 			const chat = activeSession.activeChat.read(reader);
 			const mainChat = activeSession.mainChat.read(reader);
 			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);

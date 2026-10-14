@@ -21,6 +21,7 @@ import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/co
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -1651,6 +1652,17 @@ suite('DesktopLayoutController', () => {
 		return harness.activeGroupEditors.some(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined);
 	}
 
+	/**
+	 * Opens the managed Changes and Files tabs for the active session the way the
+	 * user's `+` menu does. A created session leaves an empty group empty, so tests
+	 * that need the managed tabs present seed them explicitly.
+	 */
+	async function openManagedTabs(): Promise<void> {
+		await new NewChangesTabAction().run(harness.instaService);
+		await new NewFileTabAction().run(harness.instaService);
+		await settle();
+	}
+
 	test('[managed tabs / session switch] keeps the Changes header active while the working set replaces its editor', async () => {
 		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
@@ -1658,6 +1670,7 @@ suite('DesktopLayoutController', () => {
 		const first = makeSession(URI.parse('session:first'));
 		harness.activeSessionObs.set(first, undefined);
 		await settle();
+		await openManagedTabs();
 		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
 		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
 		assert.ok(harness.activeEditorInput);
@@ -1688,6 +1701,7 @@ suite('DesktopLayoutController', () => {
 		const first = makeSession(URI.parse('session:first'));
 		harness.activeSessionObs.set(first, undefined);
 		await settle();
+		await openManagedTabs();
 		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
 		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
 		assert.ok(harness.activeEditorInput);
@@ -1715,13 +1729,14 @@ suite('DesktopLayoutController', () => {
 	});
 
 	for (const editorVisible of [false, true]) {
-		test(`[managed tabs / session switch] preserves the Changes header until workspace hydration restores defaults into an empty group with Editor visible=${editorVisible}`, async () => {
+		test(`[managed tabs / session switch] preserves the Changes header until workspace hydration and restores Changes into the empty group of a created session only when Details only (Editor visible=${editorVisible})`, async () => {
 			createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 			await settle();
 
 			const first = makeSession(URI.parse('session:first'));
 			harness.activeSessionObs.set(first, undefined);
 			await settle();
+			await openManagedTabs();
 			const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
 			harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
 			assert.ok(harness.activeEditorInput);
@@ -1756,9 +1771,11 @@ suite('DesktopLayoutController', () => {
 					!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
 			};
 
+			// A created session leaves an empty group to the Add Tab actions while the
+			// Editor is visible; Details only still ensures the managed tabs.
 			assert.deepStrictEqual({ beforeHydration, afterHydration }, {
 				beforeHydration: true,
-				afterHydration: { keepChangesHeader: false, editorVisible, detailsVisible: true, hasIncomingChangesTab: true },
+				afterHydration: { keepChangesHeader: false, editorVisible, detailsVisible: true, hasIncomingChangesTab: !editorVisible },
 			});
 		});
 	}
@@ -1770,6 +1787,7 @@ suite('DesktopLayoutController', () => {
 		const first = makeSession(URI.parse('session:first'));
 		harness.activeSessionObs.set(first, undefined);
 		await settle();
+		await openManagedTabs();
 		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
 		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
 		assert.ok(harness.activeEditorInput);
@@ -1780,8 +1798,35 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key), false);
 	});
 
-	test('[managed tabs] ensures the Changes and Files tabs for a created session under suppression', async () => {
+	test('[managed tabs] leaves the empty group of a created session to the Add Tab actions while the Editor is visible', async () => {
 		createDesktopController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			editorCount: harness.activeGroupEditors.length,
+			changesOpenRequests: harness.openChangesEditorCalls.length,
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key),
+			filesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key),
+		}, {
+			editorCount: 0,
+			changesOpenRequests: 0,
+			changesTabMissing: true,
+			filesTabMissing: true,
+		});
+	});
+
+	test('[managed tabs / details-only] ensures the Changes and Files tabs for a created session', async () => {
+		createDesktopController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: true },
+			},
+		});
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -1890,6 +1935,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(first, undefined);
 		await settle();
+		await openManagedTabs();
 		harness.activeSessionObs.set(second, undefined);
 		await settle();
 
@@ -1963,6 +2009,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		harness.activeSessionObs.set(undefined, undefined);
@@ -2131,6 +2178,7 @@ suite('DesktopLayoutController', () => {
 		});
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
+		await openManagedTabs();
 
 		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
 		const publishedWorkspaces: string[] = [];
@@ -2183,7 +2231,15 @@ suite('DesktopLayoutController', () => {
 	});
 
 	test('[managed tabs / dispose] a reconcile stalled mid-open opens no further editors once the controller is disposed', async () => {
-		const controller = createDesktopController({ activateAux: true });
+		// Details only, so the created session's reconcile ensures both managed tabs.
+		const controller = createDesktopController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: true },
+			},
+		});
 		await settle();
 
 		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
@@ -2201,7 +2257,7 @@ suite('DesktopLayoutController', () => {
 		// The created session's reconcile stalls awaiting the gated Changes open before the Files tab.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
 		await settle();
-		assert.strictEqual(hasFilesTab(), false, 'reconcile should be stalled before opening the Files tab');
+		assert.deepStrictEqual({ changesOpenRequests: harness.openChangesEditorCalls.length, hasFilesTab: hasFilesTab() }, { changesOpenRequests: 1, hasFilesTab: false }, 'reconcile should be stalled before opening the Files tab');
 
 		// Dispose while stalled: the generation bump on dispose must make the resumed reconcile bail before any later editor open.
 		controller.dispose();
@@ -2220,6 +2276,7 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
+			await openManagedTabs();
 
 			let replaceStarted = false;
 			let rejectReplace!: (error: Error) => void;
@@ -2253,6 +2310,7 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
+			await openManagedTabs();
 
 			let replaceStarted = false;
 			let rejectReplace!: (error: Error) => void;
@@ -2286,6 +2344,7 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
+			await openManagedTabs();
 
 			const failure = new Error('replace failed');
 			harness.onReplaceEditors = replacements => {
@@ -2365,6 +2424,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 
 		// Simulate lifecycle removal of Files while Changes remains.
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
@@ -2393,6 +2453,7 @@ suite('DesktopLayoutController', () => {
 		// A created session with its docked tabs.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Switch to a new (uncreated) session. Its empty working set closes the
@@ -2415,6 +2476,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Switch to a new (uncreated) session; the working-set apply empties the
@@ -2436,6 +2498,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.strictEqual(hasFilesTab(), true);
 
 		// A real file opens into a visible editor area. Production fires
@@ -2506,6 +2569,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.strictEqual(hasFilesTab(), true);
 
 		// A non-file editor (the integrated browser uses the browserView scheme) opens
@@ -2526,6 +2590,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 
 		// A real file opens between the managed tabs while the editor area is visible.
 		const fileResource = URI.file('/repo/a.ts');
@@ -2784,6 +2849,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		assert.ok(fileTab);
 
@@ -2797,12 +2863,13 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(hasFilesTab(), false, 'the closed Files tab stays closed');
 	});
 
-	test('[managed tabs / close] re-opens the default tabs for the new session after switching (empty group)', async () => {
+	test('[managed tabs / close] leaves the empty group for the Add Tab actions after switching to a created session (empty group)', async () => {
 		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		const index = harness.activeGroupEditors.indexOf(fileTab);
 		harness.activeGroupEditors.splice(index, 1);
@@ -2821,7 +2888,12 @@ suite('DesktopLayoutController', () => {
 		});
 		await settle();
 
-		assert.strictEqual(hasFilesTab(), true, 'the default tabs are opened for the new session');
+		// A created session does not get the default tabs; the empty group offers the Add Tab actions.
+		assert.deepStrictEqual({
+			editorCount: harness.activeGroupEditors.length,
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key),
+			filesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key),
+		}, { editorCount: 0, changesTabMissing: true, filesTabMissing: true });
 	});
 
 	test('[managed tabs / session switch] preserves a dismissed Files tab while replacing Changes in place', async () => {
@@ -2831,6 +2903,7 @@ suite('DesktopLayoutController', () => {
 		const session1 = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session1, undefined);
 		await settle();
+		await openManagedTabs();
 		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(filesTab), 1);
 		harness.onDidCloseEditor.fire({ editor: filesTab });
@@ -2855,16 +2928,21 @@ suite('DesktopLayoutController', () => {
 	});
 
 	test('[managed tabs / session switch] removes a dismissed Files tab restored by a previously visited session', async () => {
-		createDesktopController({ activateAux: true });
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
+		await openManagedTabs();
+		// Visible editors make leaving A save its working set, so returning to A restores it.
+		harness.visibleEditorsList = [{}];
 
 		const sessionB = makeSession(URI.parse('session:b'));
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
+		// B's empty working set clears the group; add B's managed tabs back via `+`.
+		await openManagedTabs();
 		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(filesTab), 1);
 		harness.onDidCloseEditor.fire({ editor: filesTab });
@@ -2883,21 +2961,26 @@ suite('DesktopLayoutController', () => {
 
 		const incomingChangesResource = harness.sessionChangesService.getChangesEditorResource(sessionA.resource);
 		assert.deepStrictEqual({
+			restoredWorkingSetA: harness.applyWorkingSetCalls.some(workingSet => workingSet !== 'empty' && workingSet.name === `session-working-set:${sessionA.resource.toString()}`),
 			hasIncomingChangesTab: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, incomingChangesResource)),
 			hasFilesTab: hasFilesTab(),
 		}, {
+			restoredWorkingSetA: true,
 			hasIncomingChangesTab: true,
 			hasFilesTab: false,
 		});
 	});
 
 	test('[managed tabs / session switch] keeps restored Files after a transiently empty group', async () => {
-		createDesktopController({ activateAux: true });
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
+		await openManagedTabs();
+		// Visible editors make leaving A save its working set, so returning to A restores it.
+		harness.visibleEditorsList = [{}];
 		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
 		await settle();
 
@@ -2914,7 +2997,13 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
 
-		assert.strictEqual(hasFilesTab(), true);
+		assert.deepStrictEqual({
+			restoredWorkingSetA: harness.applyWorkingSetCalls.some(workingSet => workingSet !== 'empty' && workingSet.name === `session-working-set:${sessionA.resource.toString()}`),
+			hasFilesTab: hasFilesTab(),
+		}, {
+			restoredWorkingSetA: true,
+			hasFilesTab: true,
+		});
 	});
 
 	test('[managed tabs / add-tab] a missing Changes tab flips DesktopChangesTabMissingContext', async () => {
@@ -2923,6 +3012,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key), false);
 
@@ -2945,6 +3035,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
+		await openManagedTabs();
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key), false);
 
@@ -2968,6 +3059,7 @@ suite('DesktopLayoutController', () => {
 		const session = URI.parse('session:1');
 		harness.activeSessionObs.set(makeSession(session), undefined);
 		await settle();
+		await openManagedTabs();
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 
 		// Simulate an internal lifecycle removal of the non-closeable Changes tab.
@@ -3000,6 +3092,7 @@ suite('DesktopLayoutController', () => {
 		const session = URI.parse('session:1');
 		harness.activeSessionObs.set(makeSession(session), undefined);
 		await settle();
+		await openManagedTabs();
 
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
@@ -3085,6 +3178,7 @@ suite('DesktopLayoutController', () => {
 		const session = URI.parse('session:1');
 		harness.activeSessionObs.set(makeSession(session), undefined);
 		await settle();
+		await openManagedTabs();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Simulate lifecycle cleanup removing both managed tabs and closing the side pane.
@@ -3119,13 +3213,52 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual({ hasManagedChangesTab, hasFilesTab: hasFilesTab() }, { hasManagedChangesTab: false, hasFilesTab: false });
 	});
 
-	test('[managed tabs / Issue 2] toggling the empty side pane open re-populates the default managed tabs', async () => {
+	test('[details / empty group] reopening the side pane with an empty editor group keeps the detail panel hidden', async () => {
 		createDesktopController({ activateAux: true });
 		await settle();
 
-		const session = URI.parse('session:1');
-		harness.activeSessionObs.set(makeSession(session), undefined);
+		harness.editorGroupsHaveContent = false;
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
 		await settle();
+		const layoutService = harness.instaService.get(IAgentWorkbenchLayoutService);
+		const state = () => ({
+			editorVisible: layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			detailVisible: layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+			editors: harness.activeGroupEditors.length,
+		});
+		const beforeClose = state();
+
+		// The side pane was last closed showing both the editor and the detail panel. Reopening
+		// restores both, revealing the editor before the detail panel, into the empty group.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		layoutService.toggleSidePane();
+		await settle();
+		layoutService.toggleSidePane();
+		await settle();
+		const afterReopen = state();
+
+		// Opening Changes from the empty group's Add Tab actions brings the detail panel back.
+		await openManagedTabs();
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, harness.sessionChangesService.getChangesEditorResource(session.resource)));
+		harness.onDidActiveEditorChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({ beforeClose, afterReopen, afterOpeningChanges: state() }, {
+			beforeClose: { editorVisible: true, detailVisible: false, editors: 0 },
+			afterReopen: { editorVisible: true, detailVisible: false, editors: 0 },
+			afterOpeningChanges: { editorVisible: true, detailVisible: true, editors: 2 },
+		});
+	});
+
+	test('[managed tabs / Issue 2] toggling the empty side pane open leaves the group empty for a created session', async () => {
+		createDesktopController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		await openManagedTabs();
 
 		// Simulate lifecycle cleanup removing both managed tabs and closing the side pane.
 		for (const tab of [...harness.activeGroupEditors]) {
@@ -3141,12 +3274,17 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: false });
 
 		// The user reopens the side pane via the toggle action while the editor
-		// group is empty: the default managed tabs must be re-populated.
+		// group is empty: a created session offers the Add Tab actions instead of
+		// re-populating the default managed tabs.
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
 		harness.onDidRevealSidePane.fire();
 		await settle();
 
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+		assert.deepStrictEqual({
+			editorCount: harness.activeGroupEditors.length,
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key),
+			filesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key),
+		}, { editorCount: 0, changesTabMissing: true, filesTabMissing: true });
 	});
 });

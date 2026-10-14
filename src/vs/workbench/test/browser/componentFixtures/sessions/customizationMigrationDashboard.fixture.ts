@@ -94,9 +94,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'zero'),
 	}),
+	MigrationsMarketplaceError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A marketplace-specific error card appears above otherwise usable migration groups with an error icon, localized guidance, and a Retry button.'],
+		render: ctx => renderDashboard(ctx, 860, 'marketplaceError'),
+	}),
 });
 
-function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'partial' | 'ignored' | 'zero'): void {
+function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'partial' | 'ignored' | 'zero' | 'marketplaceError'): void {
 	const { container, disposableStore, theme } = ctx;
 	container.style.width = `${width}px`;
 	const height = width < 500 ? 1000 : 740;
@@ -133,6 +139,15 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 				...scope,
 				categories: scope.categories.filter(category => category.id !== CustomizationMigrationCategoryId.PromptFiles),
 			} : scope),
+		};
+	} else if (state === 'marketplaceError') {
+		model = {
+			...model,
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
 		};
 	}
 	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, container, {

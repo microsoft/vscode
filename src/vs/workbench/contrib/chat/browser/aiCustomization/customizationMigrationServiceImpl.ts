@@ -94,7 +94,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			case CustomizationMigrationType.PluginMarketplaces: {
 				const marketplaceManagementProvider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.marketplaceManagementProvider;
 				return marketplaceManagementProvider
-					? this.computePluginMarketplaceMigration(marketplaceManagementProvider)
+					? this.computePluginMarketplaceMigration(sessionResource, marketplaceManagementProvider)
 					: { type, candidates: [] };
 			}
 		}
@@ -143,7 +143,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			};
 		}
 
-		const migration = await this.computePluginMarketplaceMigration(provider);
+		const migration = await this.computePluginMarketplaceMigration(sessionResource, provider);
 		if (migration.discoveryError) {
 			return {
 				migratedCount: 0,
@@ -171,7 +171,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				continue;
 			}
 			try {
-				await provider.add(candidate.source);
+				await provider.add(sessionResource, candidate.source);
 				copiedCount++;
 			} catch (error) {
 				failures.push({
@@ -302,13 +302,13 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			}));
 	}
 
-	private async computePluginMarketplaceMigration(provider: ICustomizationMarketplaceManagementProvider): Promise<PluginMarketplaceCustomizationMigration> {
+	private async computePluginMarketplaceMigration(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider): Promise<PluginMarketplaceCustomizationMigration> {
 		const configuredCandidates = this.getConfiguredPluginMarketplaceCandidates();
 		if (configuredCandidates.length === 0) {
 			return { type: CustomizationMigrationType.PluginMarketplaces, candidates: [] };
 		}
 		try {
-			const providerCanonicalIds = new Set((await provider.list()).flatMap(marketplace => {
+			const providerCanonicalIds = new Set((await provider.list(sessionResource)).flatMap(marketplace => {
 				const canonicalId = this.getProviderMarketplaceCanonicalId(marketplace.source);
 				return canonicalId ? [canonicalId] : [];
 			}));

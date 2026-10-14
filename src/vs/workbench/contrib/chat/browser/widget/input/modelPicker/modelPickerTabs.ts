@@ -17,6 +17,8 @@ import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from '
 
 /** The built-in provider's models. */
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
+/** The on-device models of the chat's local Agent Host, placed right after the built-in provider. */
+export const MODEL_PICKER_ON_DEVICE_DESTINATION = 'onDevice';
 /** Prefix for the destination each provider the user added gets. */
 const PROVIDER_DESTINATION_PREFIX = 'provider:';
 

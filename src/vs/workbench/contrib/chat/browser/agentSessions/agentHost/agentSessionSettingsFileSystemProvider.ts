@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { createFileSystemProviderError, FileChangeType, FileSystemProviderErrorCode, IWatchOptions } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { SessionConfigPropertySchema, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import {
 	AbstractAgentHostConfigFileSystemProvider,
 	AbstractAgentHostConfigSchemaRegistrar,
@@ -112,31 +117,95 @@ interface ISessionSettingsTarget {
  * releases exactly that reference - there is no provider-local cache or
  * refcount map. `stat`/`readFile`/`writeFile` hold their reference only for
  * the duration of the call; a `watch` holds its reference until the caller
- * disposes it. Multiple concurrent references to the same backend session
- * are deduped and refcounted by {@link IAgentHostService} itself.
+ * disposes it or policy disables the provider. Watches resume when policy
+ * permits the provider again. Multiple concurrent references to the same
+ * backend session are deduped and refcounted by {@link IAgentHostService} itself.
  */
 export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostConfigFileSystemProvider<ISessionSettingsContext, ISessionSettingsTarget> {
 
 	protected readonly _schemeLabel = AGENT_SESSION_SETTINGS_SCHEME;
 	protected readonly _traceTag = 'AgentSessionSettings';
 	protected readonly _locale = sessionSettingsLocale;
+	private readonly _unresolvedSessions = new ResourceSet();
 
 	constructor(
 		private readonly _schemaRegistrar: AgentSessionSettingsSchemaRegistrar,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super(logService);
+		this._register(this._connectionsService.onDidChangeSessionResolution(() => {
+			for (const backendSession of this._unresolvedSessions) {
+				if (this._getProvider({ backendSession }) !== undefined) {
+					this._unresolvedSessions.delete(backendSession);
+					this._onDidChangeFile.fire([{ type: FileChangeType.UPDATED, resource: agentSessionSettingsUri(backendSession) }]);
+				}
+			}
+		}));
 	}
 
 	protected _parseUri(resource: URI): ISessionSettingsContext | undefined {
 		return parseSessionSettingsUri(resource);
 	}
 
-	protected _resolveTarget(ctx: ISessionSettingsContext): ISessionSettingsTarget {
+	override watch(resource: URI, opts: IWatchOptions): IDisposable {
+		const ctx = this._parseUri(resource);
+		if (!ctx) {
+			return Disposable.None;
+		}
+		const store = new DisposableStore();
+		const watcher = store.add(new MutableDisposable());
+		let disabled = this._isUnavailableByPolicy(this._getProvider(ctx));
+		watcher.value = super.watch(resource, opts);
+		const update = () => {
+			const nextDisabled = this._isUnavailableByPolicy(this._getProvider(ctx));
+			if (nextDisabled === disabled) {
+				return;
+			}
+			disabled = nextDisabled;
+			watcher.value = super.watch(resource, opts);
+			this._onDidChangeFile.fire([{ type: FileChangeType.UPDATED, resource }]);
+		};
+		store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (affectsAgentHostProviderPreference(e, false)) {
+				update();
+			}
+		}));
+		store.add(this._connectionsService.onDidChangeSessionResolution(update));
+		return store;
+	}
+
+	protected _resolveTarget(ctx: ISessionSettingsContext): ISessionSettingsTarget | undefined {
+		const provider = this._getProvider(ctx);
+		if (this._isUnavailableByPolicy(provider)) {
+			if (provider === undefined) {
+				this._unresolvedSessions.add(ctx.backendSession);
+			}
+			return undefined;
+		}
+		this._unresolvedSessions.delete(ctx.backendSession);
 		const ref = this._agentHostService.getSubscription(StateComponents.Session, ctx.backendSession, SUBSCRIPTION_OWNER);
 		return { backendSession: ctx.backendSession, ref };
+	}
+
+	protected override _missingTargetError(ctx: ISessionSettingsContext): Error {
+		if (this._getProvider(ctx) === undefined) {
+			return createFileSystemProviderError(localize('chatAgentSessionSettings.pending', "Session settings are not available yet."), FileSystemProviderErrorCode.Unavailable);
+		}
+		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization's policy."), FileSystemProviderErrorCode.NoPermissions);
+	}
+
+	private _getProvider(ctx: ISessionSettingsContext): string | undefined {
+		const sessionResource = this._connectionsService.getSessionResource(ctx.backendSession);
+		return sessionResource ? getLocalAgentHostSessionProvider(sessionResource) : AgentSession.provider(ctx.backendSession);
+	}
+
+	private _isUnavailableByPolicy(provider: string | undefined): boolean {
+		return provider !== undefined
+			? isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService)
+			: ['claude', 'codex'].some(candidate => isLocalAgentHostProviderDisabledByPolicy(candidate, this._configurationService));
 	}
 
 	protected override _releaseTarget(target: ISessionSettingsTarget): void {

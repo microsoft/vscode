@@ -69,28 +69,15 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 		}
 
 		const existing = new Set(turns.map(turn => turn.id));
-		const restored: Turn[] = [...turns];
 		const knownTurnIds = this._context.memento(persistedFailedTurnIds, context.chat).get();
 		for (const record of records) {
 			knownTurnIds.add(record.turnId);
 			if (existing.has(record.turnId)) {
 				knownTurnIds.delete(record.turnId);
 				this._enqueueMutation(context.chat, record.turnId, () => this._delete(context.session, record.turnId));
-				continue;
 			}
-			const turn = parsePersistedTurn(record, this._logService, PersistedFailedTurnsContribution.id);
-			if (!turn) {
-				continue;
-			}
-			const anchorIndex = record.anchorTurnId === undefined ? -1 : restored.findIndex(candidate => candidate.id === record.anchorTurnId);
-			if (record.anchorTurnId !== undefined && anchorIndex === -1) {
-				this._logService.warn(`[PersistedFailedTurnsContribution] Skipping failed turn ${record.turnId} because its anchor is unavailable`);
-				continue;
-			}
-			restored.splice(anchorIndex + 1, 0, turn);
-			existing.add(turn.id);
 		}
-		return restored;
+		return applyPersistedFailedTurns(turns, records, this._logService);
 	}
 
 	private _enqueueMutation(chat: string, turnId: string, mutation: () => Promise<void>): void {
@@ -144,4 +131,27 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 			ref.dispose();
 		}
 	}
+}
+
+/** Restores failed turns without pruning persisted records or seeding live mementos. */
+export function applyPersistedFailedTurns(turns: readonly Turn[], records: readonly IPersistedTurnRecord[], logService: ILogService): readonly Turn[] {
+	const existing = new Set(turns.map(turn => turn.id));
+	const restored: Turn[] = [...turns];
+	for (const record of records) {
+		if (existing.has(record.turnId)) {
+			continue;
+		}
+		const turn = parsePersistedTurn(record, logService, PersistedFailedTurnsContribution.id);
+		if (!turn) {
+			continue;
+		}
+		const anchorIndex = record.anchorTurnId === undefined ? -1 : restored.findIndex(candidate => candidate.id === record.anchorTurnId);
+		if (record.anchorTurnId !== undefined && anchorIndex === -1) {
+			logService.warn(`[PersistedFailedTurnsContribution] Skipping failed turn ${record.turnId} because its anchor is unavailable`);
+			continue;
+		}
+		restored.splice(anchorIndex + 1, 0, turn);
+		existing.add(turn.id);
+	}
+	return restored;
 }
