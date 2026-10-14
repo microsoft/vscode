@@ -11,9 +11,10 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, IRemoteBranch, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -823,6 +824,186 @@ suite('WorktreeIsolation', () => {
 			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 			fetchTimeouts: [undefined],
 			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
+		});
+	});
+
+	test('fetches configured upstream for local HEAD when creating worktree', async () => {
+		const gitService = createGitService();
+		const operations: string[] = [];
+		const fetchBranches: IRemoteBranch[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			kind: GitRefType.Head,
+			name,
+			ref: `refs/heads/${name}`,
+			upstream: {
+				name: 'main',
+				remote: 'origin',
+				ref: 'refs/remotes/origin/main',
+			},
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+			fetchBranches.push(branch);
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+			fetchBranches,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:main'],
+			fetchBranches: [{
+				kind: GitRefType.RemoteHead,
+				name: 'main',
+				remote: 'origin',
+				ref: 'refs/remotes/origin/main',
+			}],
+		});
+	});
+
+	test('does not attempt fetch when local HEAD has no upstream', async () => {
+		const gitService = createGitService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			kind: GitRefType.Head,
+			name,
+			ref: `refs/heads/${name}`,
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'feature-local',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['add:feature-local'],
+		});
+	});
+
+	test('continues creating worktree and handles error when fetching local HEAD upstream fails', async () => {
+		const gitService = createGitService();
+		const logService = new TestLogService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			kind: GitRefType.Head,
+			name,
+			ref: `refs/heads/${name}`,
+			upstream: {
+				name: 'main',
+				remote: 'origin',
+				ref: 'refs/remotes/origin/main',
+			},
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+			throw new Error('connection refused');
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService, logService });
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+			warnings: logService.warnings,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:main'],
+			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' for branch 'main' before creating worktree: connection refused`],
+		});
+	});
+
+	test('continues creating worktree when fetching local HEAD upstream is cancelled', async () => {
+		const gitService = createGitService();
+		const logService = new TestLogService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			kind: GitRefType.Head,
+			name,
+			ref: `refs/heads/${name}`,
+			upstream: {
+				name: 'main',
+				remote: 'origin',
+				ref: 'refs/remotes/origin/main',
+			},
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+			throw new CancellationError();
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService, logService });
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+			warnings: logService.warnings,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:main'],
+			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' for branch 'main' before creating worktree: Canceled`],
 		});
 	});
 

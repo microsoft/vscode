@@ -1065,6 +1065,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				} catch (error) {
 					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to fetch remote '${branch.remote}' before creating worktree: ${errorMessage(error)}`);
 				}
+			} else if (branch?.kind === GitRefType.Head && branch.upstream) {
+				try {
+					await this._gitService.fetch(repositoryRoot, {
+						kind: GitRefType.RemoteHead,
+						name: branch.upstream.name,
+						remote: branch.upstream.remote,
+						ref: branch.upstream.ref,
+					});
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to fetch remote '${branch.upstream.remote}' for branch '${branch.name}' before creating worktree: ${errorMessage(error)}`);
+				}
 			}
 
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
