@@ -9988,6 +9988,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		class ControlledDiscoveryAgent extends TimedExternalAgent {
 			discoveryStarts = 0;
+			readonly discoveryStarted = new DeferredPromise<void>();
 
 			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [];
@@ -9996,6 +9997,7 @@ suite('AgentService (node dispatcher)', () => {
 			async startChatDiscovery(): Promise<void> {
 				this.discoveryStarts++;
 				this.fireDiscoveredChats([...this.catalog.values()].map(entry => discoveredChat(entry.session, true, entry.modifiedTime)));
+				this.discoveryStarted.complete();
 			}
 
 			async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
@@ -11047,9 +11049,9 @@ suite('AgentService (node dispatcher)', () => {
 			const external = agent.addSession('backfilled-legacy-discovery', Date.now());
 
 			registerTestAgentProvider(svc, agent);
-			for (let attempt = 0; attempt < 500 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			// Registration awaits real database I/O, which the faked clock does not drive: wait for it rather than for a number of ticks.
+			await agent.discoveryStarted.p;
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
 				discoveryStarts: agent.discoveryStarts,
@@ -32851,23 +32853,23 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('Agent Merge durable session monitoring', () => {
 
-		function createAgentMergeService(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): AgentService {
+		function createAgentMergeService(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase, sessionReleaseRetryMs?: number): AgentService {
 			const localService = disposables.add(createTestAgentService(
 				new NullLogService(), fileService, createSessionDataService(sessionDb),
 				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb, undefined, sessionReleaseRetryMs,
 			));
 			getConfigurationService(localService).updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 			return localService;
 		}
 
-		async function createEnabledSession(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): Promise<{ readonly localService: AgentService; readonly localAgent: MockAgent; readonly sessionResource: URI }> {
+		async function createEnabledSession(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase, sessionReleaseRetryMs?: number): Promise<{ readonly localService: AgentService; readonly localAgent: MockAgent; readonly sessionResource: URI }> {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			// Restore resolves a config only when the session has persisted
 			// values; without one a `SessionConfigChanged` would be a no-op.
 			await sessionDb.setMetadata('configValues', '{}');
-			const localService = createAgentMergeService(sessionDb, orchestratorDb);
+			const localService = createAgentMergeService(sessionDb, orchestratorDb, sessionReleaseRetryMs);
 			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
 			localAgent.sessionMessages = [
@@ -32883,29 +32885,31 @@ suite('AgentService (node dispatcher)', () => {
 			return { localService, localAgent, sessionResource };
 		}
 
-		test('an Agent-Merge-enabled session stays resident after its last subscriber drops and becomes MRU-eligible once disabled', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
-				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
-				const sessionStr = sessionResource.toString();
-				localService.addSubscriber(sessionResource, 'client-1');
+		test('an Agent-Merge-enabled session stays resident after its last subscriber drops and becomes MRU-eligible once disabled', async () => {
+			// Real time with a short release retry: the session state store does real database I/O, which a faked clock races past.
+			const releaseRetryMs = 1;
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb, releaseRetryMs);
+			const sessionStr = sessionResource.toString();
+			localService.addSubscriber(sessionResource, 'client-1');
 
-				localService.unsubscribe(sessionResource, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 60_000));
-				const residentWhileEnabled = getStateManager(localService).getSessionState(sessionStr) !== undefined;
+			localService.unsubscribe(sessionResource, 'client-1');
+			await timeout(releaseRetryMs * 20);
+			await getTestSessionStateStore(localService).whenIdle(sessionResource);
+			const residentWhileEnabled = getStateManager(localService).getSessionState(sessionStr) !== undefined;
 
-				getConfigurationService(localService).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
-				await new Promise(resolve => setTimeout(resolve, 60_000));
+			getConfigurationService(localService).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+			await timeout(releaseRetryMs * 20);
+			await getTestSessionStateStore(localService).whenIdle(sessionResource);
 
-				assert.deepStrictEqual({
-					residentWhileEnabled,
-					residentAfterDisable: getStateManager(localService).getSessionState(sessionStr) !== undefined,
-					indexedAfterDisable: await orchestratorDb.listAgentMergeEnabledSessions(),
-				}, {
-					residentWhileEnabled: true,
-					residentAfterDisable: true,
-					indexedAfterDisable: [],
-				});
+			assert.deepStrictEqual({
+				residentWhileEnabled,
+				residentAfterDisable: getStateManager(localService).getSessionState(sessionStr) !== undefined,
+				indexedAfterDisable: await orchestratorDb.listAgentMergeEnabledSessions(),
+			}, {
+				residentWhileEnabled: true,
+				residentAfterDisable: true,
+				indexedAfterDisable: [],
 			});
 		});
 

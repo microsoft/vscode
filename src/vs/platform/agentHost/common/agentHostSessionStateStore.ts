@@ -289,7 +289,10 @@ export interface IAgentHostSessionStateStore {
 	 * turns). Its own storage is deleted by the caller.
 	 */
 	deleteChat(session: URI, chat: URI): Promise<void>;
-	/** Writes pending mirrors of `session`, or of every session. */
+	/**
+	 * Writes pending mirrors of `session`. Without a session, first waits for every operation already queued (so no
+	 * write a caller started is still in flight), then writes every pending mirror: what shutdown waits for.
+	 */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */
 	beginDeletion(session: URI): { readonly whenDrained: Promise<void>; dispose(): void };

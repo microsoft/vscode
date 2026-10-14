@@ -269,6 +269,21 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('whenIdle without a session waits for writes still queued, then their mirrors, as shutdown needs', async () => {
+		const { session } = await oldBuildSession();
+		const writer = createStore();
+		// Fire-and-forget, as config persistence is, for a session the store has not loaded yet.
+		const write = writer.update(session, 'configValues', () => '{"branch":"release"}', SessionStateMirrorFlush.Coalesced);
+
+		await writer.whenIdle(undefined);
+
+		assert.deepStrictEqual({
+			central: (await createStore().readWithoutImport(session, ['configValues'])).get('configValues'),
+			mirror: (await sessionDb(session, ['configValues'])).configValues,
+		}, { central: '{"branch":"release"}', mirror: '{"branch":"release"}' });
+		await write;
+	});
+
 	test('a page prefetch stops answering for a session the store writes after it was read', async () => {
 		const { session } = await oldBuildSession();
 		const store = createStore();

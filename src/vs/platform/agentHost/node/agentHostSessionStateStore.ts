@@ -528,11 +528,24 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {
-		const records = session ? [this._records.get(session.toString())].filter(record => record !== undefined) : [...this._records.values()];
-		await Promise.all(records.map(record => {
-			record.scheduler.cancel();
-			return this._sequencer.queue(record.sequencerKey, () => this._flushLocked(record));
-		}));
+		if (session) {
+			const record = this._records.get(session.toString());
+			if (record) {
+				await this._flushRecord(record);
+			}
+			return;
+		}
+		// Every operation queued so far, for loaded and not yet loaded sessions alike, then every mirror; again
+		// while the drain queued more work, so nothing a caller started is still in flight when this resolves.
+		do {
+			await Promise.allSettled([...this._sequencer.keys()].map(key => this._sequencer.peek(key)));
+			await Promise.all([...this._records.values()].map(record => this._flushRecord(record)));
+		} while ([...this._sequencer.keys()].length > 0);
+	}
+
+	private _flushRecord(record: ISessionRecord): Promise<unknown> {
+		record.scheduler.cancel();
+		return this._sequencer.queue(record.sequencerKey, () => this._flushLocked(record));
 	}
 
 	beginDeletion(session: URI): { readonly whenDrained: Promise<void>; dispose(): void } {

@@ -117,7 +117,7 @@ suite('Session state compatibility fixtures', () => {
 			});
 		});
 	}
-	test('a normalized session keeps the keys an old build reads current, and never imports its edits', async () => {
+	test('a normalized session writes only main\'s keys to the databases old builds read, and never imports their edits', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 		await today.initialize();
@@ -148,16 +148,20 @@ suite('Session state compatibility fixtures', () => {
 		await peers.persistMetadata(session, session, { defaultChatIsRead: 'true' });
 
 		const sessionView = await read(sessionKey, ['peerChats', 'defaultChatIsRead', SESSION_CUSTOM_TITLE_KEY]);
+		const [catalog] = await today.readCatalogSnapshot([sessionKey]);
 		assert.deepStrictEqual({
 			peerChats: sessionView.peerChats,
 			defaultChatIsRead: sessionView.defaultChatIsRead,
 			defaultTitle: sessionView[SESSION_CUSTOM_TITLE_KEY],
+			catalogDefaultIsRead: catalog.chats.find(chat => chat.chat === defaultChat)?.isRead,
 			peerDb: await read(peerChat, peerKeys),
 		}, {
 			// A chats_v2 session never gets the `peerChats` mirror, as on main.
 			peerChats: undefined,
-			defaultChatIsRead: 'true',
-			defaultTitle: 'Default title',
+			// As on main, a normalized chat's read state and title live in its catalog: the peer store writes neither into the session database.
+			defaultChatIsRead: undefined,
+			defaultTitle: undefined,
+			catalogDefaultIsRead: true,
 			// A title change writes nothing into a chats_v2 peer's own db, whose working directories are written only when they change.
 			peerDb: {
 				[SESSION_CUSTOM_TITLE_KEY]: undefined,

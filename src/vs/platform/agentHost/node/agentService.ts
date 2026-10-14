@@ -1266,6 +1266,13 @@ export class AgentService extends Disposable implements IAgentService {
 			.catch(error => this._logService.warn(`[AgentService] Deferred work '${name}' failed`, error));
 	}
 
+	/** Test surface: settles once every discovered-chat registration queued so far, and any queued while waiting, has run. */
+	async whenDiscoveredChatsRegistered(): Promise<void> {
+		while (this._providerDiscoveryRegistrations.size > 0) {
+			await Promise.all(this._providerDiscoveryRegistrations.values());
+		}
+	}
+
 	/** Test surface: settles once all deferred work queued so far has run. */
 	async whenDeferredWorkSettled(): Promise<void> {
 		// The marker load runs outside the deferred-work chain, and listing reads
@@ -10918,6 +10925,12 @@ export class AgentService extends Disposable implements IAgentService {
 			} finally {
 				await this._replayPendingPassiveSessionMetadata();
 				await this._debugLogsCollector?.cleanup();
+				try {
+					// Session state writes are fire-and-forget for their callers: let every queued write and pending mirror land before the database closes.
+					await this._sessionStateStore.whenIdle(undefined);
+				} catch (error) {
+					this._logService.error(error, '[AgentService] Failed to flush session state before shutdown');
+				}
 				await this._orchestratorDatabase.close();
 				this._downloadProgressInterest.clear();
 			}
