@@ -1131,7 +1131,7 @@ suite('AutomationsCardsWidget', () => {
 		}
 	});
 
-	test('refresh icon tracks background definition and history refreshes without blocking cards', async () => {
+	test('refresh icon stays idle during background refresh until clicked without blocking cards', async () => {
 		const context = setup();
 		const { automationService, automationDialogService, widget, commandService } = context;
 		automationService.setCatalogueState('ready');
@@ -1159,7 +1159,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.historyState.set('error', undefined);
 		assert.deepStrictEqual({ idle, definitions, clickedDuringRefresh, history, failed: state(), edits: automationDialogService.showCalls, commands: commandService.calls }, {
 			idle: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
-			definitions: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'false' },
+			definitions: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
 			clickedDuringRefresh: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
 			history: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
 			failed: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
@@ -1225,11 +1225,11 @@ suite('AutomationsCardsWidget', () => {
 				automationService.historyState.set('ready', undefined);
 				const calls = background === 'catalogue' ? 0 : 1;
 				assert.deepStrictEqual({ before, requested, unfocused, completed, nextHistory }, {
-					before: { calls: 0, disabled: 'false', busy: String(background !== 'idle'), spinning: background !== 'idle', tabIndex: 0 },
+					before: { calls: 0, disabled: 'false', busy: 'false', spinning: false, tabIndex: 0 },
 					requested: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: 0 },
 					unfocused: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: -1 },
 					completed: { calls, disabled: 'false', busy: 'false', spinning: false, tabIndex: -1 },
-					nextHistory: { calls, disabled: 'false', busy: 'true', spinning: true, tabIndex: -1 },
+					nextHistory: { calls, disabled: 'false', busy: 'false', spinning: false, tabIndex: -1 },
 				});
 			});
 		}
@@ -1840,6 +1840,38 @@ suite('AutomationsCardsWidget', () => {
 			clock.restore();
 		}
 	});
+
+	for (const name of ['Review', 'Review all new changes across the repository before the next release']) {
+		test(`run spinner sits immediately after title text: ${name}`, async () => {
+			const { automationService, runner, widget } = setup();
+			automationService.setAutomations([automation({ name })]);
+			runner.whenDispatched = Promise.resolve({ kind: 'accepted' });
+			widget.layout(520, 600);
+			widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.width = '300px';
+			const title = widget.element.querySelector<HTMLElement>('.automations-card-name-text')!;
+			const row = title.parentElement!;
+			const icon = row.querySelector<HTMLElement>('.codicon-loading')!;
+			// Icon glyph rules are generated at runtime and absent in unit tests; emulate the 16px glyph.
+			icon.style.width = '16px';
+			const initialLeft = title.getBoundingClientRect().left;
+			widget.element.querySelector<HTMLElement>('.automations-card-run-button')!.click();
+			const titleBounds = title.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			const textRange = document.createRange();
+			textRange.selectNodeContents(title);
+			const visibleTextRight = Math.min(textRange.getBoundingClientRect().right, titleBounds.right);
+			const gap = parseFloat(getWindow(row).getComputedStyle(row).gap);
+			assert.deepStrictEqual({
+				titleStationary: titleBounds.left === initialLeft,
+				spinnerFollowsText: Math.abs(iconBounds.left - visibleTextRight - gap) < 1,
+				spinnerHasWidth: iconBounds.width > 0,
+				spinnerFitsRow: iconBounds.right <= row.getBoundingClientRect().right,
+				ellipsis: getWindow(title).getComputedStyle(title).textOverflow,
+				truncated: title.scrollWidth > title.clientWidth,
+			}, { titleStationary: true, spinnerFollowsText: true, spinnerHasWidth: true, spinnerFitsRow: true, ellipsis: 'ellipsis', truncated: name !== 'Review' });
+			await timeout(0);
+		});
+	}
 
 	test('pending feedback survives an unavailable catalogue while the card can still run', async () => {
 		const { automationService, runner, widget } = setup();

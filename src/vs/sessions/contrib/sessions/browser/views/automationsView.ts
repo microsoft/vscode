@@ -2331,7 +2331,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			}
 			const refreshing = derived(reader => automationService.isRefreshing?.read(reader)
 				|| automationService.catalogueState.read(reader) === 'loading');
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing, automationService.historyState);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing);
 		}));
 	}
 }
@@ -2422,7 +2422,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	private refreshRequested = false;
 	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly historyState?: IObservable<AutomationCatalogueState>) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
 		super(context, action, options);
 	}
 
@@ -2445,6 +2445,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 			}
 			if (this.refreshing) {
 				this.refreshRequested = true;
+				this.updateLabel();
 				this.updateEnabled();
 				if (this.refreshing.get()) {
 					return;
@@ -2468,7 +2469,6 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		const refreshing = this.refreshing;
 		if (refreshing) {
 			this._register(autorun(reader => {
-				this.historyState?.read(reader);
 				if (!refreshing.read(reader) && !this.actionRunning) {
 					this.refreshRequested = false;
 				}
@@ -2495,7 +2495,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
 		if (this.refreshing) {
-			const busy = this.refreshing.get() || this.historyState?.get() === 'loading' || this.refreshRequested;
+			const busy = this.refreshRequested;
 			this.button.element.setAttribute('aria-busy', String(busy));
 			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
 			return;
