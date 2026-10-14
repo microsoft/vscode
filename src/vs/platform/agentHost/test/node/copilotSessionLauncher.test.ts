@@ -22,7 +22,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers } from '../../common/autoModeTiers.js';
@@ -130,6 +130,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
+		getRootConfigValues: () => rootValues,
 		getSessionConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
@@ -1468,6 +1469,53 @@ suite('CopilotSessionLauncher local index', () => {
 			assert.deepStrictEqual(configs.map(config => config.enableSessionStore), [
 				localIndexEnabled !== false, localIndexEnabled !== false, false, false,
 			]);
+		});
+	}
+});
+
+suite('CopilotSessionLauncher ExP assignment context', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const assignmentContext of [undefined, '', 'vscode-flight-a:1;vscode-flight-b:2;']) {
+		test(`forwards the VS Code assignment context on create and resume (${JSON.stringify(assignmentContext)})`, async () => {
+			const configs: ResumeSessionConfig[] = [];
+			const session = {
+				sessionId: 'session-1',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
+				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
+				override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+				override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+			};
+			const launcher = createTestLauncher(undefined, { [CopilotCliVSCodeAssignmentContextKey]: assignmentContext });
+			const basePlan = {
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+
+			store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
+			store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
+
+			const expected = assignmentContext ? { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } : undefined;
+			assert.deepStrictEqual(configs.map(config => (config as { expAssignments?: unknown }).expAssignments), [expected, expected]);
 		});
 	}
 });

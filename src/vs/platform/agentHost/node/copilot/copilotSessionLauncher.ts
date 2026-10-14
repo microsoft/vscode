@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -19,7 +19,7 @@ import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelIn
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -122,6 +122,17 @@ export function toSessionConfigMcpServers(plan: Pick<CopilotSessionLaunchPlan, '
  */
 export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefined): SessionConfig['reasoningEffort'] {
 	return effort as SessionConfig['reasoningEffort'];
+}
+
+/**
+ * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
+ * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
+ */
+function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
+	if (typeof assignmentContext !== 'string' || !assignmentContext) {
+		return {};
+	}
+	return { expAssignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } };
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
@@ -1294,6 +1305,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			imageGeneration: { enabled: true },
 			featureFlags,
+			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
