@@ -269,6 +269,7 @@ class MockSessionStore implements ISessionsManagementService {
 	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markChatRead(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	markChatsRead(_session: ISession, _chats: readonly IChat[]): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markAllRead(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
