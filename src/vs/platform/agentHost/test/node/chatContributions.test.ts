@@ -2937,9 +2937,13 @@ suite('AgentHostChatContributions', () => {
 		await contributions.database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(Date.now()));
 
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
-		await timeout(25);
+		// The write is queued on the session state store when the action is dispatched: wait for it, not for time.
+		await contributions.sessionStateStore.whenIdle(undefined);
 
-		assert.strictEqual(await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY), '');
+		assert.deepStrictEqual({
+			central: (await contributions.sessionStateStore.readWithoutImport(URI.parse(contributions.session), [AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY])).get(AH_META_AUTO_ARCHIVED_AT_DB_KEY) ?? '',
+			mirror: await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY),
+		}, { central: '', mirror: '' });
 	});
 
 	test('synchronizes additional worktrees for manual, automatic, and unarchive actions', async () => {

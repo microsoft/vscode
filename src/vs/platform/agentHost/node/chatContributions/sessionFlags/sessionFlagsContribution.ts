@@ -12,7 +12,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS
 import { getPersistedSessionConfigValues } from '../../../common/sessionConfigKeys.js';
 import { readSessionSandboxState } from '../../../common/meta/agentSandboxStateMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { persistSessionMetadata } from '../../shared/persistSessionMetadata.js';
+import { persistSessionMetadata, persistSessionMetadataValuesInBackground } from '../../shared/persistSessionMetadata.js';
 
 const sandboxEnabledKey = createSessionMementoKey<boolean | undefined>('sandboxEnabled', () => undefined);
 
@@ -58,10 +58,10 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 			if (dispatched.action.type === ActionType.SessionIsReadChanged) {
 				persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, AH_META_IS_READ_DB_KEY, dispatched.action.isRead ? 'true' : '');
 			} else if (dispatched.action.type === ActionType.SessionIsArchivedChanged) {
-				persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, AH_META_IS_ARCHIVED_DB_KEY, dispatched.action.isArchived ? 'true' : '');
-				if (!dispatched.action.isArchived) {
-					persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, AH_META_AUTO_ARCHIVED_AT_DB_KEY, '');
-				}
+				// One write: an unarchive clears the automatic archive time together with the flag.
+				persistSessionMetadataValuesInBackground(this._sessionStateStore, this._logService, dispatched.channel, dispatched.action.isArchived
+					? { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }
+					: { [AH_META_IS_ARCHIVED_DB_KEY]: '', [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' });
 			}
 		}
 	}

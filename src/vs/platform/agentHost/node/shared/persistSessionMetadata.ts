@@ -56,6 +56,12 @@ export function persistSessionMetadata(stateStore: IAgentHostSessionStateStore, 
 	write.catch(err => logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err));
 }
 
+/** Persists several metadata values in one write without waiting for it; failures are logged. */
+export function persistSessionMetadataValuesInBackground(stateStore: IAgentHostSessionStateStore, logService: ILogService, session: string, values: Readonly<Record<string, string>>): void {
+	stateStore.writeMetadata(URI.parse(session), URI.parse(session), values, SessionStateMirrorFlush.Immediate)
+		.catch(err => logService.warn(`[AgentHost] Failed to persist session metadata '${Object.keys(values).join(', ')}'`, err));
+}
+
 /** Persists multiple metadata values before returning and propagates write failures. */
 export async function persistSessionMetadataValues(stateStore: IAgentHostSessionStateStore, session: string, values: Readonly<Record<string, string>>): Promise<void> {
 	await stateStore.writeMetadata(URI.parse(session), URI.parse(session), values, SessionStateMirrorFlush.Immediate);
