@@ -838,10 +838,6 @@ The change uses the current tool-approval policy. When approval is required, the
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
-		const scheduleTarget = target ?? existing?.target;
-		if (schedule?.timeZone === 'UTC' && !this.automationService.getProviderConfiguration?.(scheduleTarget?.providerId)) {
-			throw new AutomationToolInputError('"schedule.timeZone" must be omitted for local-time Agent Host schedules.');
-		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);
@@ -976,6 +972,9 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
 
 	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
+	if (interval === 'weekdays' && timeZone !== undefined) {
+		throw new AutomationToolInputError('Weekday schedules use local time and do not support "timeZone".');
+	}
 	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone ? { timeZone } : {}) };
 }
 
