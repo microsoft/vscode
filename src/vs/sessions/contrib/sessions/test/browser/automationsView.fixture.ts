@@ -37,6 +37,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -346,6 +347,9 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
+			reg.defineInstance(IHostService, new class extends mock<IHostService>() {
+				override readonly onDidChangeFocus = Event.None;
+			}());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());

@@ -1051,6 +1051,36 @@ suite('AutomationsCardsWidget', () => {
 		}
 	});
 
+	test('automatic refresh failures are logged without toasts while explicit refresh reports the error', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { widget, automationService, windowFocus, logService, refreshErrors, instantiationService } = setup();
+			const failure = new Error('Offline');
+			automationService.refreshFailure = failure;
+			await clock.tickAsync(0);
+			await clock.tickAsync(120_000);
+			windowFocus.fire(true);
+			await clock.tickAsync(0);
+			const automatic = { calls: automationService.refreshCalls, logged: logService.errors.length, toasts: [...refreshErrors] };
+			const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+			assert.deepStrictEqual({
+				automatic,
+				calls: automationService.refreshCalls,
+				logged: logService.errors.map(entry => entry.args[0]),
+				toasts: refreshErrors,
+			}, {
+				automatic: { calls: 4, logged: 4, toasts: [] },
+				calls: 5,
+				logged: [failure, failure, failure, failure, failure],
+				toasts: ['Could not refresh automations: Offline'],
+			});
+			widget.dispose();
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('refresh icon tracks background definition and history refreshes without blocking cards', async () => {
 		const context = setup();
 		const { automationService, automationDialogService, widget, commandService } = context;
@@ -1061,6 +1091,7 @@ suite('AutomationsCardsWidget', () => {
 			label: button.getAttribute('aria-label'),
 			text: button.textContent,
 			spinning: !!button.querySelector('.codicon-loading.codicon-modifier-spin'),
+			busy: button.getAttribute('aria-busy'),
 			disabled: button.getAttribute('aria-disabled'),
 		});
 		const idle = state();
@@ -1076,11 +1107,11 @@ suite('AutomationsCardsWidget', () => {
 		const history = state();
 		automationService.historyState.set('error', undefined);
 		assert.deepStrictEqual({ idle, definitions, clickedDuringRefresh, history, failed: state(), edits: automationDialogService.showCalls, commands: commandService.calls }, {
-			idle: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
-			definitions: { label: 'Refresh', text: '', spinning: true, disabled: 'false' },
-			clickedDuringRefresh: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
-			history: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
-			failed: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
+			idle: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
+			definitions: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'false' },
+			clickedDuringRefresh: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
+			history: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
+			failed: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
 			edits: 1,
 			commands: [],
 		});
@@ -1120,9 +1151,10 @@ suite('AutomationsCardsWidget', () => {
 			assert.deepStrictEqual({
 				disabled: button.getAttribute('aria-disabled'),
 				animation: getWindow(icon).getComputedStyle(icon).animationName,
+				busy: button.getAttribute('aria-busy'),
 				rotates: getWindow(icon).getComputedStyle(icon).transform !== initialTransform,
 				calls: execute.callCount,
-			}, { disabled: 'true', animation: 'codicon-spin', rotates: true, calls: 1 });
+			}, { disabled: 'true', animation: 'codicon-spin', busy: 'true', rotates: true, calls: 1 });
 			automationService.isRefreshing.set(true, undefined);
 			automationService.isRefreshing.set(false, undefined);
 			assert.strictEqual(button.getAttribute('aria-disabled'), 'true', 'keep waiting for the clicked request');
@@ -1132,8 +1164,9 @@ suite('AutomationsCardsWidget', () => {
 			assert.deepStrictEqual({
 				disabled: button.getAttribute('aria-disabled'),
 				animations: button.querySelector('.codicon-refresh')!.getAnimations().length,
+				busy: button.getAttribute('aria-busy'),
 				errors: refreshErrors,
-			}, { disabled: 'false', animations: 0, errors: fails ? ['Could not refresh automations: Offline'] : [] });
+			}, { disabled: 'false', animations: 0, busy: 'false', errors: fails ? ['Could not refresh automations: Offline'] : [] });
 		});
 	}
 

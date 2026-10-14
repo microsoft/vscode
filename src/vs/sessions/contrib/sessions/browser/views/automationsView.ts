@@ -208,7 +208,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService hostService: IHostService,
 	) {
 		super();
@@ -280,7 +279,7 @@ export class AutomationsCardsWidget extends Disposable {
 			void refresh();
 		}, 60_000));
 		let refreshing: Promise<void> | undefined;
-		const refresh = (): Promise<void> => refreshing ??= refreshAutomations(this.automationService, this.logService, this.notificationService).finally(() => {
+		const refresh = (): Promise<void> => refreshing ??= refreshAutomations(this.automationService, this.logService).finally(() => {
 			refreshing = undefined;
 			if (!this._store.isDisposed) {
 				refreshScheduler.schedule();
@@ -2481,20 +2480,22 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
 		if (this.refreshing) {
-			this.button.label = `$(${this.refreshing.get() || this.refreshRequested ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
+			const busy = this.refreshing.get() || this.refreshRequested;
+			this.button.element.setAttribute('aria-busy', String(busy));
+			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
 			return;
 		}
 		DOM.reset(this.button.element, this._action.label);
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService: INotificationService): Promise<void> {
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService): Promise<void> {
 	try {
 		await automationService.refresh?.();
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			logService.error('[Automations] Failed to refresh', error);
-			notificationService.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
+			notificationService?.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
 		}
 	}
 }
