@@ -17,7 +17,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { IMirrorReadPlan, isProjectedMirrorEntry, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -163,6 +163,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const unownedRemovals: string[] = [];
 			let failure: unknown;
 			for (const [key, value] of Object.entries(values)) {
+				const mapPatch = resource.toString() === record.key ? legacyMapWritePatch(record.model, key, value) : undefined;
+				if (mapPatch) {
+					patches.push(mapPatch);
+					continue;
+				}
 				const entry = legacyWriteEntry(record.model, record.key, resource.toString(), key);
 				if (entry) {
 					patches.push(patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault));

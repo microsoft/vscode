@@ -403,5 +403,18 @@ suite('AgentHostSessionStateStore', () => {
 				central: (await writer.load(session)).values.has(owned),
 			}, { stored: { [owned]: undefined, [unowned]: undefined }, central: false });
 		});
+
+		test('a whole folder map write sets its folders, removes the ones it dropped and mirrors the map', async () => {
+			const { session } = await oldBuildSession();
+			const writer = createStore();
+			const mapKey = 'agentHost.githubData';
+			await writer.writeMetadata(session, session, { [mapKey]: JSON.stringify({ 'file:///a': { owner: 'o', repo: 'a' }, 'file:///b': { owner: 'o', repo: 'b' } }) }, SessionStateMirrorFlush.Immediate);
+			await writer.writeMetadata(session, session, { [mapKey]: JSON.stringify({ 'file:///b': { owner: 'o', repo: 'b' } }) }, SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				central: [...(await writer.load(session)).folders].filter(([, folder]) => folder.github !== undefined).map(([key]) => key),
+				mirrored: JSON.parse((await sessionDb(session, [mapKey]))[mapKey] ?? 'null'),
+			}, { central: ['file:///b'], mirrored: { 'file:///b': { owner: 'o', repo: 'b' } } });
+		});
 	});
 });

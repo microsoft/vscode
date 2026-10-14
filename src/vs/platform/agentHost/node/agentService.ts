@@ -1861,19 +1861,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 * recorded before each folder had its own state, and removes the original
 	 * single-folder entry once it was migrated. Best effort: a failed write is retried on the next restore.
 	 */
-	private async _persistMigratedGitHubData(database: ISessionDatabase, meta: SessionSummaryMeta | undefined, session: string, sessionWorkingDirectory: string | undefined): Promise<void> {
+	private async _persistMigratedGitHubData(session: URI, meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): Promise<void> {
 		try {
 			const gitHubData = readSessionGitHubData(meta);
 			const migrated = sessionWorkingDirectory !== undefined && readSessionGitHubState(meta, sessionWorkingDirectory) !== undefined;
 			if (!migrated) {
 				return;
 			}
-			if (gitHubData.size > 0) {
-				await database.setMetadata(META_GITHUB_DATA_STATE, JSON.stringify(Object.fromEntries(gitHubData)));
-			}
-			await database.deleteMetadata([META_GITHUB_STATE]);
+			// The folder map is owned state; the single-folder key is not, and stays deleted so it cannot override a later map entry.
+			await this._sessionStateStore.writeMetadata(session, session, {
+				...(gitHubData.size > 0 ? { [META_GITHUB_DATA_STATE]: JSON.stringify(Object.fromEntries(gitHubData)) } : {}),
+				[META_GITHUB_STATE]: null,
+			}, SessionStateMirrorFlush.Immediate);
 		} catch (error) {
-			this._logService.warn(`[AgentService] Failed to migrate the GitHub state of ${session}: ${toErrorMessage(error)}`);
+			this._logService.warn(`[AgentService] Failed to migrate the GitHub state of ${session.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 
@@ -9637,7 +9638,7 @@ export class AgentService extends Disposable implements IAgentService {
 							this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 						});
 						if (gitMetadata[META_GITHUB_STATE]) {
-							await this._persistMigratedGitHubData(db.object, sessionMetadata, sessionStr, meta.workingDirectories?.[0]?.toString());
+							await this._persistMigratedGitHubData(session, sessionMetadata, meta.workingDirectories?.[0]?.toString());
 						}
 
 						if (gitMetadata[META_SOURCE_CONTROL_STATE]) {

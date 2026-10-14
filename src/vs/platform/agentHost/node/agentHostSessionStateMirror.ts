@@ -570,6 +570,34 @@ function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirr
 }
 
 /**
+ * The folder patches a write of a whole folder map key (`agentHost.gitData`,
+ * `agentHost.githubData`) to the session database makes: every folder of the map
+ * is set, and every central folder of its kind that the map no longer holds is removed.
+ * `undefined` when `key` is not a folder map key.
+ */
+export function legacyMapWritePatch(model: SessionStateModel, key: string, value: string | null): Partial<ISessionStatePatch> | undefined {
+	if (key !== META_GIT_DATA_STATE && key !== META_GITHUB_DATA_STATE) {
+		return undefined;
+	}
+	const kind = mapFolderKind(key);
+	const map = value === null ? {} : (() => {
+		try {
+			const parsed: unknown = JSON.parse(value);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+		} catch {
+			return {};
+		}
+	})();
+	const folders: ISessionStateFolderPatch[] = Object.entries(map).map(([folderKey, entry]) => ({ folderKey, kind, value: JSON.stringify(entry), storage: model.folder(kind, folderKey)?.storage ?? null }));
+	for (const [, folderKey] of mapEntries(model, kind)) {
+		if (!Object.prototype.hasOwnProperty.call(map, folderKey)) {
+			folders.push({ folderKey, kind, value: null, storage: model.folder(kind, folderKey)?.storage ?? null });
+		}
+	}
+	return { folders };
+}
+
+/**
  * The central entry that a write of `key` to the database opened by `resource`
  * changes, or `undefined` when the store does not own that key there.
  */

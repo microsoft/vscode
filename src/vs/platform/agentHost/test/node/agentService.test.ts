@@ -31647,30 +31647,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('_persistMigratedGitHubData deletes the legacy row only after migration', async () => {
-			const persist = service as unknown as {
-				_persistMigratedGitHubData: (database: ISessionDatabase, meta: SessionSummaryMeta | undefined, session: string, sessionWorkingDirectory: string | undefined) => Promise<void>;
-			};
+		test('_persistMigratedGitHubData writes the folder map through the store and deletes the legacy row only after migration', async () => {
 			const unmigrated = new TestSessionDatabase();
 			await unmigrated.setMetadata(META_GITHUB_STATE, JSON.stringify({ owner: 'octo', repo: 'missing-folder' }));
-
-			await persist._persistMigratedGitHubData(unmigrated, undefined, 'copilot:/unmigrated', undefined);
-
-			const migratedMeta = withSessionGitHubState(undefined, 'file:///workspace/repo', { owner: 'octo', repo: 'repo' });
 			const migrated = new TestSessionDatabase();
 			await migrated.setMetadata(META_GITHUB_STATE, JSON.stringify({ owner: 'octo', repo: 'repo' }));
-			await persist._persistMigratedGitHubData(migrated, migratedMeta, 'copilot:/migrated', 'file:///workspace/repo');
+			const migratedMeta = withSessionGitHubState(undefined, 'file:///workspace/repo', { owner: 'octo', repo: 'repo' });
+			const results: Record<string, unknown> = {};
+			for (const [name, database, meta, directory] of [['unmigrated', unmigrated, undefined, undefined], ['migrated', migrated, migratedMeta, 'file:///workspace/repo']] as const) {
+				const sessionDataService = createSessionDataService(database);
+				const persist = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService())) as unknown as {
+					_persistMigratedGitHubData: (session: URI, meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined) => Promise<void>;
+				};
+				const session = URI.parse(`copilot:/${name}`);
+				await persist._persistMigratedGitHubData(session, meta, directory);
+				results[name] = {
+					legacy: await database.getMetadata(META_GITHUB_STATE),
+					data: await database.getMetadata(META_GITHUB_DATA_STATE),
+					central: [...(await getTestSessionStateStore(persist as unknown as AgentService).load(session)).folders.keys()],
+				};
+			}
 
-			assert.deepStrictEqual({
-				unmigratedLegacy: await unmigrated.getMetadata(META_GITHUB_STATE),
-				unmigratedData: await unmigrated.getMetadata(META_GITHUB_DATA_STATE),
-				migratedLegacy: await migrated.getMetadata(META_GITHUB_STATE),
-				migratedData: await migrated.getMetadata(META_GITHUB_DATA_STATE),
-			}, {
-				unmigratedLegacy: JSON.stringify({ owner: 'octo', repo: 'missing-folder' }),
-				unmigratedData: undefined,
-				migratedLegacy: undefined,
-				migratedData: JSON.stringify(Object.fromEntries(readSessionGitHubData(migratedMeta))),
+			assert.deepStrictEqual(results, {
+				unmigrated: { legacy: JSON.stringify({ owner: 'octo', repo: 'missing-folder' }), data: undefined, central: [] },
+				migrated: { legacy: undefined, data: JSON.stringify(Object.fromEntries(readSessionGitHubData(migratedMeta))), central: [getWorkingDirectoryKey('file:///workspace/repo')] },
 			});
 		});
 
