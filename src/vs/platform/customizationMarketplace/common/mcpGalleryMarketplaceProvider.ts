@@ -68,6 +68,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 	const lightIcon = safeWebUri(server.icon?.light);
 	const darkIcon = safeWebUri(server.icon?.dark);
 	const publisherUrl = safeWebUri(server.publisherUrl);
+	const cardUrl = getMcpGalleryServerCardUrl(server, manifest);
 	const icon: CustomizationMarketplaceIcon | undefined = lightIcon && darkIcon
 		? { light: lightIcon, dark: darkIcon }
 		: lightIcon ?? darkIcon;
@@ -87,7 +88,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		version: server.version,
 		stars: server.starsCount,
 		priority: registry === 'custom' ? 1 : 0,
-		installation: { kind: 'mcpGallery', name: server.name, registry, registryUrl, cardUrl: getMcpGalleryServerCardUrl(server, manifest) },
+		installation: { kind: 'mcpGallery', name: server.name, registry, registryUrl, ...(cardUrl ? { cardUrl } : {}) },
 	};
 }
 

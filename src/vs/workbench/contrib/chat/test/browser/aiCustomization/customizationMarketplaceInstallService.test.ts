@@ -693,7 +693,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
-	test('preserves independently owned gallery and connector state with an active provider', async () => {
+	test('routes gallery ownership to the provider while preserving connector state', async () => {
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
 			getInstallations() { return Promise.resolve([]); }
@@ -711,7 +711,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const gallery = fixture.service.getInstallState(galleryMcpResource());
 		const connector = fixture.service.getInstallState(connectorResource());
 
-		assert.deepStrictEqual([gallery.kind, connector.kind], ['installed', 'installed']);
+		assert.deepStrictEqual([gallery.kind, connector.kind], ['unavailable', 'installed']);
 	});
 
 	test('validates SDK-featured plugin marketplace trust before invoking the provider', async () => {
@@ -859,7 +859,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		listener.dispose();
 
 		assert.deepStrictEqual({ providerState, localState, changes }, {
-			providerState: { kind: 'unavailable', message: 'This MCP Gallery entry does not provide the server card URL required for Copilot installation.' },
+			providerState: { kind: 'available' },
 			localState: { kind: 'installed', target: { kind: 'mcp', id: 'mcp:io.example/demo:1.0.0' } },
 			changes: 1,
 		});
