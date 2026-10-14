@@ -178,12 +178,12 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	async prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<readonly IWorktreeRemovalRequest[]> {
 		const requests: IWorktreeRemovalRequest[] = [];
 		// Under the lock, a worktree still being created is complete before it is read.
-		const worktree = await this._worktree.runExclusive(AgentSession.id(session), () => this._worktree.readSessionWorktreeForRemoval(session));
+		const worktree = await this._worktree.runExclusive(AgentSession.id(session), () => this._worktree.readSessionWorktreeForRemoval(session, { includeUnpersisted: true }));
 		if (worktree) {
 			requests.push(this._request('session', session.toString(), session, worktree, mode));
 		}
 		for (const handle of detachedWorktreeHandles) {
-			const detached = await this._worktree.runExclusive(handle, () => this._worktree.readDetachedWorktreeForRemoval(handle));
+			const detached = await this._worktree.runExclusive(handle, () => this._worktree.readDetachedWorktreeForRemoval(handle, { includeUnpersisted: true }));
 			if (detached) {
 				requests.push(this._request('detached', handle, session, detached, mode));
 			}

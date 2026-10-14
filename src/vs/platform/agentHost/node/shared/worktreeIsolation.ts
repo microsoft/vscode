@@ -98,10 +98,15 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	runExclusive<T>(key: string, task: () => Promise<T>): Promise<T>;
 	/** Forgets a deleted session's pending creation and creation failure; its folder is removed by the clean-up service. */
 	forgetSession(sessionId: string): void;
-	/** The worktree recorded for a session, read without Git or importing the session. */
-	readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined>;
-	/** The worktree recorded for a detached handle, read without Git. */
-	readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined>;
+	/**
+	 * The worktree recorded for a session, read without Git or importing the
+	 * session. `includeUnpersisted` also returns a worktree this process created
+	 * whose metadata never persisted, which only a deletion may remove:
+	 * unarchive could not recreate it.
+	 */
+	readSessionWorktreeForRemoval(sessionUri: URI, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined>;
+	/** The worktree recorded for a detached handle, read without Git; see {@link readSessionWorktreeForRemoval}. */
+	readDetachedWorktreeForRemoval(handle: string, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined>;
 	/**
 	 * Removes a recorded worktree folder as `mode` asks, keeping its branch.
 	 * The caller holds {@link runExclusive} for `key`. Throws when Git fails, so
@@ -185,6 +190,10 @@ const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+export interface IReadWorktreeForRemovalOptions {
+	readonly includeUnpersisted?: boolean;
 }
 
 /** A worktree as recorded for its owner, enough to remove it without opening the owner's database. */
@@ -1525,16 +1534,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		this.clearPending(sessionId);
 	}
 
-	async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
+	async readSessionWorktreeForRemoval(sessionUri: URI, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
 		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY]);
 		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT))
-			?? this._knownWorktree(AgentSession.id(sessionUri));
+			?? (options?.includeUnpersisted ? this._knownWorktree(AgentSession.id(sessionUri)) : undefined);
 	}
 
-	async readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined> {
+	async readDetachedWorktreeForRemoval(handle: string, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
 		const metadata = await readPersistedWorktreeMetadata(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), detachedWorktreeRecordUri(handle), this._logService);
 		return (metadata && recordedWorktree(metadata.branchName, metadata.worktreePath?.toString(), metadata.repositoryRoot?.toString()))
-			?? this._knownWorktree(handle);
+			?? (options?.includeUnpersisted ? this._knownWorktree(handle) : undefined);
 	}
 
 	/** A worktree this process created or failed to remove, for when its metadata was never persisted. */
@@ -1963,8 +1972,8 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async recreateWorktreeOnUnarchive(_sessionUri: URI, _sessionId: string): Promise<void> { }
 	runExclusive<T>(_key: string, task: () => Promise<T>): Promise<T> { return task(); }
 	forgetSession(_sessionId: string): void { }
-	async readSessionWorktreeForRemoval(_sessionUri: URI): Promise<IRecordedWorktree | undefined> { return undefined; }
-	async readDetachedWorktreeForRemoval(_handle: string): Promise<IRecordedWorktree | undefined> { return undefined; }
+	async readSessionWorktreeForRemoval(_sessionUri: URI, _options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> { return undefined; }
+	async readDetachedWorktreeForRemoval(_handle: string, _options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> { return undefined; }
 	async removeRecordedWorktree(_key: string, _worktree: IRecordedWorktree, _mode: WorktreeRemovalMode): Promise<void> { }
 	async readWorktreeMetadata(_sessionUri: URI): Promise<IWorktreeMetadata | undefined> { return undefined; }
 	async adoptExistingWorktreeMetadata(_sessionUri: URI, _workingDirectory: URI): Promise<boolean> { return false; }

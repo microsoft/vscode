@@ -341,7 +341,7 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(existsSync(worktree.fsPath), false);
 	});
 
-	test('a session whose worktree metadata never persisted still has its worktree removed', async () => {
+	test('a session whose worktree metadata never persisted has its worktree removed on deletion but kept on archive', async () => {
 		const sessionDataService = createSessionDataService(db);
 		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
 		// Reads see nothing persisted, as when the metadata write failed.
@@ -362,9 +362,19 @@ suite('WorktreeIsolation', () => {
 		});
 		assert.ok(worktree);
 
-		const recorded = await isolation.readSessionWorktreeForRemoval(sessionUri);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		const archived = await cleanup.prepareSessionDeletion(sessionUri, [], 'delete');
 
-		assert.deepStrictEqual(recorded && { worktree: recorded.worktree.toString(), repositoryRoot: recorded.repositoryRoot.toString(), branchName: recorded.branchName }, { worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branchName });
+		assert.deepStrictEqual({
+			// Unarchive could not recreate it, so an archive leaves it alone.
+			archiveRequests: (await database.listPendingWorktreeRemovals()).length,
+			deletion: archived.map(request => ({ worktree: request.worktreePath, repositoryRoot: request.repositoryRoot, branch: request.branch })),
+		}, {
+			archiveRequests: 0,
+			deletion: [{ worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: branchName }],
+		});
 	});
 
 	for (const interruption of ['registration', 'claim'] as const) {
