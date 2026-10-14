@@ -78,7 +78,7 @@ suite('CustomizationMigrationDashboard', () => {
 							actionLabel: 'Migrate',
 							destinationLabel: '~/.copilot/settings.json',
 							items: [
-								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'chat.plugins.marketplaces: microsoft/vscode-team-kit' },
+								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
 							],
 						},
 					],
@@ -164,7 +164,7 @@ suite('CustomizationMigrationDashboard', () => {
 			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'Plugin Marketplaces (User)', 'User Data (User)', 'Custom location settings (Workspace)'],
 			counts: ['1', '2', '1', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'vscode-team-kit', 'Planner', 'Review', 'Team rules'],
-			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', 'chat.plugins.marketplaces: microsoft/vscode-team-kit', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
+			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', 'Configured in VS Code settings', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
 			changes: [
 				'The gallery property will be removed.',
 			],

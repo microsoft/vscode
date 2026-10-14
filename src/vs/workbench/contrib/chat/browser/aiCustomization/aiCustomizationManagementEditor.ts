@@ -2466,7 +2466,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (sourceUri) {
 				sourceLabel = this.labelService.getUriLabel(sourceUri, { relative: true });
 			} else if (isPluginMarketplaceCustomizationMigrationCandidate(candidate)) {
-				sourceLabel = localize('pluginMarketplaceMigrationSource', "{0}: {1}", ChatConfiguration.PluginMarketplaces, candidate.source);
+				sourceLabel = localize('pluginMarketplaceMigrationSource', "Configured in VS Code settings");
 			} else {
 				throw new Error(`Unsupported migration candidate: ${candidate.type}`);
 			}
