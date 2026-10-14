@@ -99,7 +99,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.historyRefresh = undefined;
 			const account = defaultAccountService.currentDefaultAccount;
 			let store: GitHubCloudAutomationStore | undefined;
-			if (this.enabled.read(reader) && account && !account.enterprise) {
+			const enabled = this.enabled.read(reader);
+			this.logService.trace('[CloudAutomations] Store availability', {
+				providerId: this.providerId,
+				enabled,
+				hasDefaultAccount: !!account,
+				enterprise: account?.enterprise,
+			});
+			if (enabled && account && !account.enterprise) {
 				store = reader.store.add(instantiationService.createInstance(GitHubCloudAutomationStore, resolveRepositoryUri));
 			}
 			transaction(tx => {
@@ -115,7 +122,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 					await this.refresh();
 				})().catch(error => {
 					if (!isCancellationError(error)) {
-						this.logService.warn('[CloudAutomations] Initial refresh failed', error);
+						this.logService.warn(`[CloudAutomations] Initial refresh failed (catalogueState=${this.catalogueState.read(undefined)}, historyState=${this.historyState.read(undefined)})`, error);
 					}
 				});
 			}
@@ -164,14 +171,17 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	async refresh(): Promise<void> {
 		const store = this.requireStore();
+		this.logService.trace('[CloudAutomations] Definition refresh started');
 		try {
 			await store.refresh();
 			if (this.store.get() === store) {
 				this.refreshError.set(undefined, undefined);
+				this.logService.trace('[CloudAutomations] Definition refresh completed', { definitionCount: store.entries.get().length });
 			}
 		} catch (error) {
 			if (this.store.get() === store && !isCancellationError(error)) {
 				this.refreshError.set(error instanceof Error ? error.message : localize('cloudAutomations.refreshFailed', "Cloud automations could not be refreshed."), undefined);
+				this.logService.trace('[CloudAutomations] Definition refresh failed', error);
 			}
 			throw error;
 		}
@@ -186,14 +196,17 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const store = this.requireStore();
 		this.historyScheduler.cancel();
 		this.historyState.set('loading', undefined);
+		this.logService.trace('[CloudAutomations] History refresh started');
 		this.historyRefresh = (async () => {
 			try {
 				await store.refreshHistory();
 				this.assertCurrentStore(store);
 				this.historyState.set('ready', undefined);
+				this.logService.trace('[CloudAutomations] History refresh completed', { runCount: store.history.get().length });
 			} catch (error) {
 				if (this.store.get() === store && !isCancellationError(error)) {
 					this.historyState.set('error', undefined);
+					this.logService.trace('[CloudAutomations] History refresh failed', error);
 				}
 				throw error;
 			} finally {
