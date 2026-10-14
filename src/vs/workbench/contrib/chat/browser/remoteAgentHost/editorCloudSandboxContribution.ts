@@ -21,6 +21,7 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -38,9 +39,12 @@ import { GitRemote, IGitRepository, IGitService } from '../../../git/common/gitS
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { CloudSandboxModels } from './cloudSandboxModels.js';
+import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from './cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
@@ -53,6 +57,8 @@ export const CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP = 'repository';
 export const CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID = 'workbench.action.chat.cloudSandbox.searchRepository';
 /** The Copilot Chat extension's repository search, shared with the Agents window on desktop. */
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
+/** Pre-selected while no repository is known; a slash-free id so it can never be mistaken for a pick. */
+const SELECT_REPOSITORY_PLACEHOLDER_ID = 'select-repository';
 const REPOSITORY_NWO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
 /** The repository a folder tracks: its `origin` when that is on GitHub, otherwise its first GitHub remote. */
@@ -78,11 +84,17 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** The repository each workspace root tracks, in workspace order; `undefined` until every root has resolved. */
 	private readonly _workspaceRepositoryChoices: IObservable<readonly string[] | undefined>;
 	private readonly _repositoryOptionGroups: IObservable<readonly IChatSessionProviderOptionGroup[]>;
+	/** Mode and approvals vocabulary for drafts, until a provisioned host supplies its own schema. */
+	private readonly _draftConfig: IObservable<ResolveSessionConfigResult>;
+	/** Repository, mode and approvals pickers offered on a draft. */
+	private readonly _draftOptionGroups: IObservable<readonly IChatSessionProviderOptionGroup[]>;
+	/** Models offered on a draft, from the shared cloud catalog; alive while the creation type is registered. */
+	private readonly _draftModels = this._register(new MutableDisposable<CloudSandboxModels>());
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService apiService: ICloudSandboxApiService,
-		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
+		@IRemoteAgentHostService private readonly _remoteService: IRemoteAgentHostService,
 		@IRemoteAgentHostConnectionCustomizationService connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -100,7 +112,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IAgentHostService localAgentHostService: IAgentHostService,
 		@IProgressService private readonly _progressService: IProgressService,
 	) {
-		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
+		super(cloudSandboxService, apiService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
 		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
 		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
@@ -176,21 +188,43 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				icon: Codicon.repo,
 				default: index === 0,
 			}));
+			if (items.length > 0) {
+				return [{
+					id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
+					name: localize('cloudSandbox.repositoryGroup', "Repository"),
+					description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
+					icon: Codicon.repo,
+					items,
+				}];
+			}
+			// The picker only renders once the draft holds a value, so the placeholder is pre-selected
+			// without being offered as a choice; the dropdown then holds just the search command.
 			return [{
 				id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 				name: localize('cloudSandbox.repositoryGroup', "Repository"),
-				description: items.length > 0
-					? localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox")
-					: localize('cloudSandbox.selectRepository', "Select Repository"),
+				description: localize('cloudSandbox.selectRepositoryDescription', "Search for a GitHub repository to clone into the sandbox"),
 				icon: Codicon.repo,
+				selected: {
+					id: SELECT_REPOSITORY_PLACEHOLDER_ID,
+					name: localize('cloudSandbox.selectRepository', "Select Repository"),
+					icon: Codicon.repo,
+				},
 				items,
-				commands: choices.length === 0
-					? [{ command: CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, title: localize('cloudSandbox.searchRepositories', "Search Repositories...") }]
-					: undefined,
+				commands: [{ command: CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, title: localize('cloudSandbox.searchRepositories', "Search Repositories...") }],
 			}];
 		});
+		const draftConfigChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration,
+			e => e.affectsConfiguration(ChatConfiguration.DefaultConfiguration) || e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)));
+		this._draftConfig = derived(this, reader => {
+			draftConfigChanged.read(reader);
+			return createCloudSandboxSessionConfig(configurationService);
+		});
+		this._draftOptionGroups = derived(this, reader => [
+			...this._repositoryOptionGroups.read(reader),
+			...createCloudSandboxDraftOptionGroups(this._draftConfig.read(reader)),
+		]);
 		this._register(autorun(reader => {
-			const groups = this._repositoryOptionGroups.read(reader);
+			const groups = this._draftOptionGroups.read(reader);
 			if (this._discoveryRegistration.value) {
 				this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, groups);
 			}
@@ -231,7 +265,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				canDelegate: false,
 				requiresCopilotSignIn: true,
 				supportsDelegation: false,
+				requiresCustomModels: true,
+				supportsAutoModel: true,
 			}));
+			// Drafts pick from the shared cloud catalog under this type's own identifiers; the
+			// environment they bind to accepts those identifiers as aliases of its own.
+			const draftModels = this._draftModels.value = this._instantiationService.createInstance(CloudSandboxModels, CLOUD_SANDBOX_SESSION_TYPE, CLOUD_SANDBOX_SESSION_TYPE, undefined);
+			store.add(toDisposable(() => this._draftModels.clear()));
 			// New sessions are drafted under this type and rebound to the provisioned environment's
 			// type on first send, so only the untitled draft ever needs content from here.
 			store.add(this._editorChatSessionsService.registerChatSessionContentProvider(CLOUD_SANDBOX_SESSION_TYPE, {
@@ -239,6 +279,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
+					draftModels.load();
 					return { sessionResource, onWillDispose: Event.None, history: [], dispose: () => { } };
 				},
 			}));
@@ -246,7 +287,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_SESSION_TYPE, this));
 			store.add(CommandsRegistry.registerCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, (accessor, sessionResource?: URI) =>
 				this._searchRepository(accessor.get(ICommandService), accessor.get(INotificationService), sessionResource)));
-			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._repositoryOptionGroups.get());
+			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
 			void this._discoverAndSeed();
@@ -324,7 +365,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	async getNewChatSessionInputState(): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
-		return this._repositoryOptionGroups.get();
+		this._draftModels.value?.load();
+		return this._draftOptionGroups.get();
 	}
 
 	/**
@@ -339,6 +381,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const repoNwo = this._requestedRepository(request);
+		const draftConfig = readCloudSandboxDraftConfig(request.initialSessionOptions, this._draftConfig.get());
 		const cts = new CancellationTokenSource(token);
 		const store = new DisposableStore();
 		store.add(cts);
@@ -358,6 +401,14 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					store.add(this.trackSessionCreationProgress(provisioned.environmentId, repoNwo, stepProgress));
 				}
 				await this._whenSessionTypeResolvable(provider, address, cts.token);
+				if (Object.keys(draftConfig).length > 0) {
+					const connection = this._remoteService.getConnection(address);
+					if (!connection) {
+						throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
+					}
+					// Confirmed by the host before the first turn, so a draft pick is never silently replaced.
+					provider.setProvisionalSessionConfig(sessionId, await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token));
+				}
 				return {
 					resource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }),
 					label: request.prompt.trim() || name,

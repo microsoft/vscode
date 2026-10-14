@@ -71,7 +71,7 @@ import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/cha
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { createCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
+import { createCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */

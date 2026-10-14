@@ -42,7 +42,7 @@ import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxSessionHandler } from './cloudSandboxSessionHandler.js';
@@ -121,6 +121,8 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	seedProvisionalSession?(metadata: IAgentSessionMetadata): void;
 	/** Reveal a session seeded by {@link seedProvisionalSession} whose first turn did not dispatch. */
 	publishWithheldSession?(rawId: string): void;
+	/** Configuration recorded for a provisioned session whose draft had no backend to hold it. */
+	getProvisionalSessionConfig?(sessionResource: URI): Record<string, unknown> | undefined;
 }
 
 /** A sandbox environment this window provisioned and connected to. */
@@ -215,6 +217,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				return {
 					...customization,
 					registerChatSessionContentProvider: (sessionType, provider) => this._registerLiveSessionProvider(sessionType, provider),
+					resolveInitialSessionConfig: sessionResource => this._providerInstances.get(address)?.getProvisionalSessionConfig?.(sessionResource),
+					// Sessions drafted under the creation type carry its model identifiers into the environment.
+					modelIdentifierAliases: [SessionType.CloudSandbox],
 				};
 			},
 		));

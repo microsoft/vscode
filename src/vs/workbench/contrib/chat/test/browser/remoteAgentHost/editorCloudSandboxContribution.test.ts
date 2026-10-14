@@ -8,14 +8,15 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { AgentSession, IAgentConnection, IAgentHostService, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentHostService, IAgentResolveSessionConfigParams, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -60,6 +61,9 @@ import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SEARCH_REPOSITORY_
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
+import { ICloudSandboxModelCatalogService } from '../../../browser/remoteAgentHost/cloudSandboxModels.js';
+import { createCloudSandboxSessionConfig } from '../../../browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
@@ -199,7 +203,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
 	}());
-	const calls = { discovered: 0, created: 0, createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
+	const calls = { discovered: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -211,6 +215,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
 		disposeSessionError: undefined as Error | undefined,
+		/** Values the host insists on regardless of the proposed draft config. */
+		hostConfigOverrides: {} as Record<string, unknown>,
 		hostSessions: [{
 			session: backendSession, summary: discovered.name,
 			startTime: Date.parse(discovered.updatedAt!), modifiedTime: Date.parse(discovered.updatedAt!),
@@ -227,6 +233,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly initializeResult = constObservable(undefined);
 		override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 		override async listSessions(): Promise<IAgentSessionMetadata[]> { return state.hostSessions; }
+		override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+			calls.resolvedConfigs.push(params.config ?? {});
+			const config = createCloudSandboxSessionConfig(configuration);
+			return { schema: config.schema, values: { ...config.values, ...params.config, ...state.hostConfigOverrides } };
+		}
 		override async disposeSession(session: URI): Promise<void> {
 			calls.disposedSessions.push(session.toString());
 			if (state.disposeSessionError) {
@@ -353,6 +364,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(IRemoteAgentHostService, options?.remoteAgentHostService ?? new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = connectionsChanged.event;
+		override readonly configuredEntries = [];
 		override get connections() {
 			return state.connected ? [upcastPartial<IRemoteAgentHostConnectionInfo>({
 				address, name: discovered.name, clientId: connection.clientId, status: RemoteAgentHostConnectionStatus.connected,
@@ -365,7 +377,27 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.connected = false;
 		}
 	}());
-	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
+	const customizations = new RemoteAgentHostConnectionCustomizationService();
+	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, customizations);
+	const catalogLoads: boolean[] = [];
+	instantiationService.stub(ICloudSandboxModelCatalogService, new class extends mock<ICloudSandboxModelCatalogService>() {
+		override readonly onDidChange = Event.None;
+		override readonly catalog = undefined;
+		override load(retry?: boolean): void { catalogLoads.push(retry === true); }
+	}());
+	const languageModelVendors: string[] = [];
+	instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+		override readonly onDidChangeLanguageModels = Event.None;
+		override deltaLanguageModelChatProviderDescriptors(added: readonly { vendor: string }[], removed: readonly { vendor: string }[]): void {
+			for (const descriptor of added) {
+				languageModelVendors.push(descriptor.vendor);
+			}
+			for (const descriptor of removed) {
+				languageModelVendors.splice(languageModelVendors.indexOf(descriptor.vendor), 1);
+			}
+		}
+		override registerLanguageModelProvider(): IDisposable { return Disposable.None; }
+	}());
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 		override readonly onAgentHostStart = Event.None;
@@ -434,17 +466,25 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
-		/** The repository picker as `id*` for defaults, or `[]` when the draft asks no question. */
-		repositoryOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).map(group => ({
+		/** Every draft picker as `id*` for defaults. */
+		draftOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).map(group => ({
 			id: group.id,
 			items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`),
+			selected: group.selected?.id,
+			commands: group.commands?.map(command => command.command),
+		})),
+		/** The repository picker alone, or `[]` when the draft asks no repository question. */
+		repositoryOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).filter(group => group.id === CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP).map(group => ({
+			id: group.id,
+			items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`),
+			selected: group.selected?.id,
 			commands: group.commands?.map(command => command.command),
 		})),
 		executeCommand: (id: string, ...args: unknown[]) => {
@@ -820,6 +860,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.repositoryOptions(), [{
 			id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 			items: ['fork/project*', 'other/project'],
+			selected: undefined,
 			commands: undefined,
 		}]);
 	});
@@ -839,12 +880,12 @@ suite('Editor cloud sandbox discovery', () => {
 			await h.refresh();
 			const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
 			assert.ok(controller?.newChatSessionItem);
-			await controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None);
+			await controller.newChatSessionItem({ prompt: 'Fix the build', initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, h.repositoryOptions()[0].selected!]]) }, CancellationToken.None);
 			assert.deepStrictEqual({
 				repositoryOptions: h.repositoryOptions(),
 				createRequests: h.calls.createRequests.map(request => request.repoNwo),
 			}, {
-				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
+				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], selected: 'select-repository', commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
 				createRequests: [undefined],
 			});
 		});
@@ -887,6 +928,96 @@ suite('Editor cloud sandbox discovery', () => {
 			options: h.sessionOptions.size,
 			errors: h.errorNotifications.map(message => message instanceof Error ? message.message : message),
 		}, { options: 0, errors: ['search unavailable'] });
+	});
+
+	test('a draft offers mode and approvals from the shared cloud vocabulary and models from the cloud catalog', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const draft = store.add(await h.contentProviders.get(CLOUD_SANDBOX_SESSION_TYPE)!.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CancellationToken.None));
+		assert.deepStrictEqual({
+			options: h.draftOptions().map(group => ({ id: group.id, items: group.items })),
+			modelsVendor: h.languageModelVendors,
+			catalogLoads: h.catalogLoads.length,
+			requiresCustomModels: h.contributions.get(CLOUD_SANDBOX_SESSION_TYPE)?.requiresCustomModels,
+			draftHistory: draft.history,
+		}, {
+			options: [
+				{ id: 'mode', items: ['interactive*', 'plan', 'autopilot'] },
+				{ id: 'approvalMode', items: ['manual', 'assisted*', 'allow-all'] },
+			],
+			modelsVendor: [CLOUD_SANDBOX_SESSION_TYPE],
+			catalogLoads: 1,
+			requiresCustomModels: true,
+			draftHistory: [],
+		});
+	});
+
+	test('disabling the feature withdraws the draft models vendor', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		assert.deepStrictEqual(h.languageModelVendors, []);
+	});
+
+	test('draft mode and approval picks are confirmed by the host and handed to the environment', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map<string, string | IChatSessionProviderOptionItem>([['mode', 'plan'], ['approvalMode', { id: 'allow-all', name: 'Allow all' }], ['unrelated', 'ignored']]),
+		}, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		const customization = h.customizations.get(address);
+		assert.deepStrictEqual({
+			resolved: h.calls.resolvedConfigs,
+			initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
+			aliases: customization?.modelIdentifierAliases,
+		}, {
+			resolved: [{ mode: 'plan', approvalMode: 'allow-all' }],
+			initialConfig: { mode: 'plan', approvalMode: 'allow-all' },
+			aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+		});
+		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
+		assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);
+	});
+
+	test('a draft pick the host would change fails creation instead of running with another value', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.hostConfigOverrides = { approvalMode: 'manual' };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map([['approvalMode', 'allow-all']]),
+		}, CancellationToken.None), /could not apply the selected approvalMode/);
+		assert.strictEqual(h.customizations.get(address)?.resolveInitialSessionConfig?.(URI.from({ scheme: sessionType, path: `/${created.sessionId}` })), undefined);
+	});
+
+	test('a draft without config picks does not consult the host', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None);
+		assert.deepStrictEqual(h.calls.resolvedConfigs, []);
 	});
 
 	test('the creation type only serves untitled drafts', async () => {

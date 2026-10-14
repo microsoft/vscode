@@ -428,11 +428,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
+		const customization = this._connectionCustomizations.get(address);
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
-			requiresWorkspaceTrust: this._connectionCustomizations.get(address)?.requiresWorkspaceTrust,
+			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
+			requiresWorkspaceTrust: customization?.requiresWorkspaceTrust,
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -449,10 +450,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				}
 			} : undefined,
 			isNewSession,
+			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
+			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
-		agentStore.add(this._connectionCustomizations.get(address)?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
+		agentStore.add(customization?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
 			?? this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider.

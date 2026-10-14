@@ -49,6 +49,8 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _archiveSequencer = new Sequencer();
 	/** Repository requested for sessions this window provisioned, keyed by raw session id. */
 	private readonly _provisionalRepositories = new Map<string, string | undefined>();
+	/** Configuration chosen on the draft of a session this window provisioned, keyed by raw session id. */
+	private readonly _provisionalSessionConfigs = new Map<string, Record<string, unknown>>();
 
 	constructor(
 		address: string,
@@ -161,6 +163,18 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	publishWithheldSession(rawId: string): void {
 		// The editor lists provisioned sessions immediately; only forget the creation intent.
 		this._provisionalRepositories.delete(rawId);
+		this._provisionalSessionConfigs.delete(rawId);
+	}
+
+	/** Record the draft's configuration for a session seeded by {@link seedProvisionalSession}. */
+	setProvisionalSessionConfig(rawId: string, config: Record<string, unknown>): void {
+		if (Object.keys(config).length > 0) {
+			this._provisionalSessionConfigs.set(rawId, config);
+		}
+	}
+
+	getProvisionalSessionConfig(resource: URI): Record<string, unknown> | undefined {
+		return this.isNewSession(resource) ? this._provisionalSessionConfigs.get(AgentSession.id(resource)) : undefined;
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -168,7 +182,9 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	notifySessionMaterialized(resource: URI): void {
-		this._provisionalRepositories.delete(AgentSession.id(resource));
+		const rawId = AgentSession.id(resource);
+		this._provisionalRepositories.delete(rawId);
+		this._provisionalSessionConfigs.delete(rawId);
 		this._controller.notifySessionMaterialized(resource);
 	}
 

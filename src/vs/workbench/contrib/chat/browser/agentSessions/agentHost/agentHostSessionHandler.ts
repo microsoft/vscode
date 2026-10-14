@@ -1002,6 +1002,16 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly prepareSession?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
+	/**
+	 * Configuration a new session is created with, e.g. choices made on a draft that had no
+	 * backend to hold them. Overrides the window defaults; the request's own config still wins.
+	 */
+	readonly resolveInitialSessionConfig?: (sessionResource: URI) => Record<string, unknown> | undefined;
+	/**
+	 * Further vendors whose model identifiers address this session type's models, such as the
+	 * type a session was drafted under before it was bound to this one.
+	 */
+	readonly modelIdentifierAliases?: readonly string[];
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
@@ -2020,6 +2030,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
+					...this._config.resolveInitialSessionConfig?.(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
 				await this._createAndSubscribe(
@@ -2059,10 +2070,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// time, so we don't need to merge them here. Picker selections
 				// already live in `existingState.config?.values` and don't need to
 				// be re-dispatched.
-				if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+				const eagerConfig = { ...this._config.resolveInitialSessionConfig?.(request.sessionResource), ...request.agentHostSessionConfig };
+				if (Object.keys(eagerConfig).length > 0) {
 					this._dispatchAction(resolvedSession, {
 						type: ActionType.SessionConfigChanged,
-						config: request.agentHostSessionConfig,
+						config: eagerConfig,
 					});
 				}
 			}
@@ -6441,9 +6453,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!languageModelIdentifier) {
 			return undefined;
 		}
-		const prefix = this._config.sessionType + ':';
-		if (languageModelIdentifier.startsWith(prefix)) {
-			return languageModelIdentifier.substring(prefix.length);
+		for (const vendor of [this._config.sessionType, ...this._config.modelIdentifierAliases ?? []]) {
+			const prefix = vendor + ':';
+			if (languageModelIdentifier.startsWith(prefix)) {
+				return languageModelIdentifier.substring(prefix.length);
+			}
 		}
 		if (languageModelIdentifier.includes('/')) {
 			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
