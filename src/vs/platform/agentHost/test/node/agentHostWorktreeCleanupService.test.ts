@@ -300,4 +300,28 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 		assert.deepStrictEqual((await preparing).map(request => `${request.kind}:${request.mode}:${request.branch}`), ['session:delete:agents/creating']);
 	});
+
+	test('archiving the session that kept a worktree in use removes it without waiting for the periodic re-check', async () => {
+		const { database, worktree, cleanup } = create({ debounceMs: 1, periodicMs: 60 * 60 * 1000 });
+		await useWorktree(database, OTHER_SESSION, recorded('archived'));
+		cleanup.start();
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+		await cleanup.runPass();
+		const whileInUse = [...worktree.calls];
+
+		const state = await database.readSessionState(OTHER_SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+		// The other session has no worktree of its own, yet its archive triggers a pass.
+		await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
+		for (let attempt = 0; attempt < 200 && worktree.calls.length < 2; attempt++) {
+			await timeout(5);
+		}
+
+		assert.deepStrictEqual({ whileInUse, calls: worktree.calls, pending: await pending(database) }, {
+			whileInUse: ['reconcileUnclaimed'],
+			calls: ['reconcileUnclaimed', `remove:${sessionId}:commit:agents/archived`],
+			pending: [],
+		});
+	});
 });

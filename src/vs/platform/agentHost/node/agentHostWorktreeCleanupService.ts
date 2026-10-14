@@ -48,7 +48,7 @@ export interface IAgentHostWorktreeCleanupService {
 	 * session's tombstone. Reads no Git.
 	 */
 	prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<readonly IWorktreeRemovalRequest[]>;
-	/** Schedules a debounced pass after removal requests were recorded. */
+	/** Schedules a debounced pass, after removal requests were recorded or a session that may keep a worktree in use was archived or deleted. */
 	schedule(): void;
 	/** Starts clean-up once startup settled: reconciles unclaimed detached worktrees, then runs a pass. */
 	start(): void;
@@ -104,16 +104,14 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	async requestSessionWorktreeRemoval(session: URI, mode: Extract<WorktreeRemovalMode, 'commit' | 'synced'>): Promise<void> {
-		const recorded = await this._worktree.runExclusive(AgentSession.id(session), async () => {
+		await this._worktree.runExclusive(AgentSession.id(session), async () => {
 			const worktree = await this._worktree.readSessionWorktreeForRemoval(session);
 			if (worktree) {
 				await this._database.upsertPendingWorktreeRemoval(this._request('session', session.toString(), session, worktree, mode));
 			}
-			return !!worktree;
 		});
-		if (recorded) {
-			this.schedule();
-		}
+		// Even without a worktree of its own, the session may have kept another session's worktree in use.
+		this.schedule();
 	}
 
 	async restoreSessionWorktree(session: URI): Promise<void> {

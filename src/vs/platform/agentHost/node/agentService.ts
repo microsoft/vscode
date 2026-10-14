@@ -7308,9 +7308,8 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._orchestratorDatabase.upsertPendingWorktreeRemoval(removal);
 				}
 			}
-			if (worktreeRemovals.length > 0) {
-				this._worktreeCleanup.schedule();
-			}
+			// Also when the session records no removal: it may have kept another session's worktree in use.
+			this._worktreeCleanup.schedule();
 			if (!isIdleProvisional) {
 				this._invalidateSessionList();
 			}
