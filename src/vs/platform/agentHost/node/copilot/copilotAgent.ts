@@ -5073,38 +5073,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		try {
-			const [markers, existingBaseBranch] = await Promise.all([
-				this._sessionStateStore.readWithoutImport(session, [AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY]),
+			const [existingMarker, existingBaseBranch, existingLastTurn] = await Promise.all([
+				ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY),
 				ref.object.getMetadata(META_DIFF_BASE_BRANCH),
+				ref.object.getMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY),
 			]);
-			const existingMarker = markers.get(AH_META_EHCLI_ADOPTED_DB_KEY);
-			const existingLastTurn = markers.get(AH_META_EHCLI_LAST_TURN_DB_KEY);
 			if (existingMarker !== undefined && existingBaseBranch !== undefined && existingLastTurn !== undefined) {
 				return;
 			}
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
 				return;
 			}
-			const backfill: Record<string, string> = {};
+			const work: Promise<void>[] = [];
 			if (existingMarker === undefined) {
-				backfill[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
+				work.push(ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
 			}
 			if (existingBaseBranch === undefined) {
 				const recordedBase = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties?.baseBranchName;
 				if (recordedBase) {
-					backfill[META_DIFF_BASE_BRANCH] = recordedBase;
+					work.push(this._sessionStateStore.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: recordedBase }, SessionStateMirrorFlush.Immediate));
 				}
 			}
 			if (existingLastTurn === undefined) {
 				const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
 				if (lastMigratedTurnId) {
-					backfill[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
+					work.push(ref.object.setMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY, lastMigratedTurnId));
 				}
 			}
-			if (Object.keys(backfill).length === 0) {
+			if (work.length === 0) {
 				return;
 			}
-			await this._sessionStateStore.writeMetadata(session, session, backfill, SessionStateMirrorFlush.Immediate);
+			await Promise.all(work);
 			this._logService.info(`[Copilot] Backfilled durable metadata for ${sessionId} (marker=${existingMarker === undefined} baseBranch=${existingBaseBranch === undefined} lastTurn=${existingLastTurn === undefined}), migrated before it was recorded`);
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to backfill durable metadata for ${sessionId}`, err);
@@ -7444,16 +7443,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (archived) {
 			metadata[AH_META_IS_ARCHIVED_DB_KEY] = 'true';
 		}
+		// Adoption markers are the adopted chat's own data, written to its database as older builds do.
+		const adoption: Record<string, string> = {};
 		// Outlives the transient `ehcliAdoptable` summary marker so the session
 		// keeps being listed like the legacy session it was migrated from.
 		if (ehcliAdopted) {
-			metadata[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
+			adoption[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
 		}
 		// The migration boundary: the last turn that existed at adoption. Lets the
 		// chat editor substitute the session-wide changeset only for that turn (a
 		// migrated turn has no per-turn checkpoint) and never a post-adoption one.
 		if (lastMigratedTurnId) {
-			metadata[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
+			adoption[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
+		}
+		if (Object.keys(adoption).length > 0) {
+			const ref = this._sessionDataService.openDatabase(session);
+			try {
+				await ref.object.setMetadataValues(adoption);
+			} finally {
+				ref.dispose();
+			}
 		}
 		if (workingDirectory) {
 			metadata[CopilotAgent._META_CWD] = workingDirectory.toString();

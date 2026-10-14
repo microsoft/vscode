@@ -521,16 +521,6 @@ const chatsV2SchemaSql = `CREATE TABLE IF NOT EXISTS chats_v2 (
 	tombstoned INTEGER NOT NULL DEFAULT 0 CHECK (tombstoned IN (0, 1))
 )`;
 
-/** Adds the columns that profiles migrated before they existed lack; the schema itself creates them for new ones. */
-async function addSessionChatStateColumns(database: Database): Promise<void> {
-	const columns = await all(database, 'PRAGMA table_info(session_chat_state)', []);
-	for (const [name, definition] of [['ehcli_adopted', 'INTEGER CHECK (ehcli_adopted IS NULL OR ehcli_adopted IN (0, 1))'], ['ehcli_last_turn', 'TEXT']]) {
-		if (!columns.some(column => column.name === name)) {
-			await exec(database, `ALTER TABLE session_chat_state ADD COLUMN ${name} ${definition}`);
-		}
-	}
-}
-
 async function migrateChatV2Schema(database: Database): Promise<void> {
 	const columns = await all(database, 'PRAGMA table_info(session_chat_catalogs)', []);
 	for (const [name, definition] of chatV2HeaderColumns) {
@@ -3382,7 +3372,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SESSION_STATE_MIGRATION_VERSION) {
 								// Idempotent: repairs profiles shared with pre-release builds that skipped the tables.
 								await exec(database, SESSION_STATE_SCHEMA_SQL);
-								await addSessionChatStateColumns(database);
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

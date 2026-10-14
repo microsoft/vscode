@@ -36,10 +36,6 @@ export interface ISessionStateChatEntry {
 	readonly launchWorkingDirectories: readonly string[] | undefined;
 	/** JSON of the chat's changes summary. */
 	readonly changes: string | undefined;
-	/** Whether the chat is the conversation adopted from the extension-host Copilot CLI; central only, never mirrored. */
-	readonly ehcliAdopted: boolean | undefined;
-	/** The last turn that existed when the chat was adopted; central only, never mirrored. */
-	readonly ehcliLastMigratedTurn: string | undefined;
 }
 
 export interface ISessionStateFolderEntry {

@@ -8,6 +8,8 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY } from '../../common/state/sessionState.js';
+import { getSessionStateValueKey } from '../../node/agentHostSessionStateMirror.js';
 
 /**
  * Grep guard v1 for invariants I1/I6: production code under `node/` must not read or write a
@@ -22,7 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 const OWNED_IDENTIFIERS: readonly string[] = [
 	'AH_META_IS_ARCHIVED_DB_KEY', 'AH_META_IS_READ_DB_KEY', 'AH_META_DEFAULT_CHAT_IS_READ_DB_KEY', 'AH_META_AUTO_ARCHIVED_AT_DB_KEY',
 	'AH_META_WORKSPACELESS_DB_KEY', 'AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY', 'AH_META_CREATED_BY_SESSION_DB_KEY',
-	'AH_META_EHCLI_ADOPTED_DB_KEY', 'AH_META_EHCLI_LAST_TURN_DB_KEY', 'AH_META_IS_DONE_DB_KEY', 'AH_META_DEV_CONTAINER_WORKTREE_DB_KEY',
+	'AH_META_IS_DONE_DB_KEY', 'AH_META_DEV_CONTAINER_WORKTREE_DB_KEY',
 	'SESSION_WORKING_DIRECTORIES_KEY', 'SESSION_ARTIFACTS_KEY', 'SESSION_CUSTOM_TITLE_KEY', 'SESSION_CUSTOM_TITLE_SOURCE_KEY',
 	'customChatTitleMetadataKey', 'customChatTitleSourceMetadataKey',
 	'META_SOURCE_CONTROL_STATE', 'META_PENDING_RECORDED_PULL_REQUESTS', 'META_CHANGES_SUMMARY',
@@ -58,6 +60,15 @@ interface IAllowance {
 	readonly removedBy: string;
 	readonly reason: string;
 }
+
+/**
+ * Chat data: each chat's own keys, read and written in the chat's own database (the session
+ * database for the default chat) as older builds do. Never owned by the session state store.
+ */
+const CHAT_DATA_KEYS: readonly { readonly identifier: string; readonly key: string }[] = [
+	{ identifier: 'AH_META_EHCLI_ADOPTED_DB_KEY', key: AH_META_EHCLI_ADOPTED_DB_KEY },
+	{ identifier: 'AH_META_EHCLI_LAST_TURN_DB_KEY', key: AH_META_EHCLI_LAST_TURN_DB_KEY },
+];
 
 const TITLES = 'title strategy/seed reads and writes still go to the db that older builds read';
 
@@ -182,6 +193,13 @@ suite('Agent Host session state ownership guard', () => {
 			['copilot.worktree.', 1],
 			['customChatTitleMetadataKey', 1],
 		]);
+	});
+
+	test('chat data keys are not owned by the session state store', () => {
+		assert.deepStrictEqual(
+			CHAT_DATA_KEYS.filter(({ identifier, key }) => OWNED_IDENTIFIERS.includes(identifier) || OWNED_LITERALS.some(literal => key.startsWith(literal)) || getSessionStateValueKey(key) !== undefined),
+			[],
+		);
 	});
 
 	test('every allowance names a removing step or is permanent with a reason', () => {
