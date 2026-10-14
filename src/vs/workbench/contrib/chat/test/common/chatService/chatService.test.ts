@@ -7,7 +7,7 @@ import assert from 'assert';
 import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
-import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -3793,15 +3793,15 @@ suite('ChatService', () => {
 		}
 
 		/**
-		 * Counts how often history replay waits for the host to become idle, using the real clock.
+		 * Counts how often history replay yields to a new task, using the real clock.
 		 */
 		function trackHistoryReplayYields(service: ChatService): { readonly count: () => number; readonly reset: () => void } {
 			let count = 0;
 			service.setRemoteHistoryScheduler({
 				...defaultRemoteChatHistoryScheduler,
-				runWhenIdle: (callback, timeout) => {
+				runInNewTask: callback => {
 					count++;
-					return defaultRemoteChatHistoryScheduler.runWhenIdle(callback, timeout);
+					return defaultRemoteChatHistoryScheduler.runInNewTask(callback);
 				},
 			});
 			return {
@@ -3812,7 +3812,7 @@ suite('ChatService', () => {
 
 		/**
 		 * Creates a history replay scheduler whose clock only advances by `advance`, so
-		 * replay slices end at deterministic points. `onIdle` runs before each idle slice starts.
+		 * replay slices end at deterministic points. `onIdle` runs before each new task starts.
 		 */
 		function createManualHistoryReplayClock(onIdle?: () => void): { readonly scheduler: IRemoteChatHistoryScheduler; readonly advance: (ms: number) => void; readonly yields: () => number } {
 			let now = 0;
@@ -3820,14 +3820,13 @@ suite('ChatService', () => {
 			return {
 				scheduler: {
 					now: () => now,
-					runWhenIdle: callback => {
+					runInNewTask: callback => {
 						yields++;
 						return disposableTimeout(() => {
 							onIdle?.();
-							callback({ didTimeout: false, timeRemaining: () => 50 });
+							callback();
 						});
 					},
-					runInNewTask: callback => disposableTimeout(callback),
 				},
 				advance: ms => now += ms,
 				yields: () => yields,
@@ -3911,14 +3910,66 @@ suite('ChatService', () => {
 			assert.ok(ref);
 			testDisposables.add(ref);
 
-			// Each request takes 1ms to restore and a slice lasts 40ms.
+			// Each request takes 1ms to restore and a slice lasts 25ms.
 			assert.deepStrictEqual({
 				requests: ref.object.getRequests().length,
 				yields: clock.yields(),
 			}, {
 				requests: 160,
-				yields: 4,
+				yields: 7, // six slice yields and the new task before publishing
 			});
+		});
+
+		test('replay progresses in fixed slices when the host never becomes idle', async () => {
+			const clock = createManualHistoryReplayClock();
+			const taskStarts: number[] = [];
+			const scheduler: IRemoteChatHistoryScheduler = {
+				now: clock.scheduler.now,
+				runInNewTask: callback => clock.scheduler.runInNewTask(() => {
+					taskStarts.push(clock.scheduler.now());
+					callback();
+				}),
+			};
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(163, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const sliceLengths = taskStarts.slice(1).map((start, index) => start - taskStarts[index]);
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().length,
+				tasks: taskStarts.length,
+				slicesWithinBudget: sliceLengths.every(length => length <= 26),
+			}, {
+				requests: 163,
+				tasks: 7,
+				slicesWithinBudget: true,
+			});
+		});
+
+		test('small history replay completes without waiting for a new task before the publish yield', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(5, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 5, yields: 1 });
+		});
+
+		test('replay is not blocked by idle work that never runs', async () => {
+			testDisposables.add(installFakeRunWhenIdle(() => toDisposable(() => { })));
+			const { resource } = setupRemoteProvider({ history: createSlowHistory(100) });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.strictEqual(ref.object.getRequests().length, 100);
 		});
 
 		test('a turn added to the session history during replay is applied after the restored turns', async () => {
@@ -4429,8 +4480,9 @@ suite('ChatService', () => {
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
 			const service = createChatService();
 			let removedDuringRefresh = false;
+			let published = false;
 			const clock = createManualHistoryReplayClock(() => {
-				if (!removedDuringRefresh) {
+				if (published && !removedDuringRefresh) {
 					removedDuringRefresh = true;
 					void service.removeRequest(resource, 'last');
 				}
@@ -4439,6 +4491,7 @@ suite('ChatService', () => {
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
+			published = true;
 
 			// Each inserted turn takes 1ms, so the refresh waits for a slice before it reaches the changed last turn.
 			changes.fire([
