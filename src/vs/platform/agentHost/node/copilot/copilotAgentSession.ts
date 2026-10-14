@@ -1070,7 +1070,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
-	/** Retained with the subagent identity across root turns and child idle/resume, until session teardown. */
+	/** Captured once, including undefined, and retained across root turns and child idle/resume until session teardown. */
 	private readonly _telemetryContextBySubagentToolCallId = new Map<string, IAgentTelemetryContext | undefined>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
@@ -1769,6 +1769,13 @@ export class CopilotAgentSession extends Disposable {
 			modelCallId,
 			parentToolCallId,
 		});
+	}
+
+	private _spawningSubagentTelemetryContext(parentToolCallId: string | undefined): IAgentTelemetryContext | undefined {
+		if (parentToolCallId && !this._fusionPhaseLabels.has(parentToolCallId)) {
+			return this._telemetryContextBySubagentToolCallId.get(parentToolCallId);
+		}
+		return this._currentTurn.value?.telemetryContext;
 	}
 
 	private _emitModelCallFinished(event: ICopilotModelCallFinishedEvent): void {
@@ -7913,10 +7920,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!this._telemetryContextBySubagentToolCallId.has(e.data.toolCallId)) {
-				const parentContext = tracked?.parentToolCallId
-					? this._telemetryContextBySubagentToolCallId.get(tracked.parentToolCallId)
-					: this._currentTurn.value?.telemetryContext;
-				this._telemetryContextBySubagentToolCallId.set(e.data.toolCallId, parentContext);
+				this._telemetryContextBySubagentToolCallId.set(e.data.toolCallId, this._spawningSubagentTelemetryContext(tracked?.parentToolCallId));
 			}
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
