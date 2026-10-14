@@ -2889,7 +2889,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = createService();
 			const agent = disposables.add(new CanvasAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ provider: 'copilot' });
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const chat = buildDefaultChatUri(session);
 			getStateManager(svc).dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted, turnId: 'canvas-turn', startedAt: new Date().toISOString(),
