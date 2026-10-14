@@ -108,7 +108,10 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('scales with changes to the regular line height', () => {
-		const { editor } = createEditor('a\n\n ', { shrinkEmptyLines: 0.3 });
+		const { editor } = createEditor('a\n\n ', {
+			shrinkEmptyLines: 0.3,
+			useLineHeightFromSettings: true,
+		});
 
 		editor.updateOptions({ lineHeight: 30 });
 

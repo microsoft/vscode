@@ -788,7 +788,7 @@ export interface IEditorOptions {
 	 */
 	lineHeight?: number;
 	/**
-	 * Line height multiplier for whitespace-only lines, between 0 and 1, 0 non inclusive. The value 0 disables shrinking.
+	 * Line height multiplier for whitespace-only lines, between 0 and 1 inclusive. The value 0 disables shrinking.
 	 */
 	shrinkEmptyLines?: number;
 	/**
@@ -2138,7 +2138,7 @@ class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption
 class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, number> {
 
 	constructor() {
-		super(EditorOption.effectiveShrinkEmptyLines, 1);
+		super(EditorOption.effectiveShrinkEmptyLines, 0);
 	}
 
 	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): number {
@@ -6779,7 +6779,7 @@ export const EditorOptions = {
 	)),
 	shrinkEmptyLines: register(new EditorFloatOption(
 		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
-		1, x => EditorFloatOption.clamp(x, 0, 1),
+		0, x => EditorFloatOption.clamp(x, 0, 1),
 		{
 			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height of whitespace-only lines as a multiplier of the regular editor line height, between 0 and 1. A value of 0 disables shrinking, and 1 uses the regular line height. Requires `#editor.allowVariableLineHeights#` to be enabled.")
 		},

@@ -3943,7 +3943,7 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number;
 		/**
-		 * Line height multiplier for whitespace-only lines, between 0 and 1, 0 non inclusive. The value 0 disables shrinking.
+		 * Line height multiplier for whitespace-only lines, between 0 and 1 inclusive. The value 0 disables shrinking.
 		 */
 		shrinkEmptyLines?: number;
 		/**
