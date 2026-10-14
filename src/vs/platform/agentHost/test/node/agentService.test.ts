@@ -49,7 +49,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -8963,6 +8963,159 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+
+		suite('delete by recorded storage', () => {
+			function recordingDataService(): { readonly service: ISessionDataService; readonly perSession: ReturnType<typeof createPerSessionDataService>; readonly deleted: string[] } {
+				const perSession = createPerSessionDataService();
+				const deleted: string[] = [];
+				return { service: { ...perSession.service, deleteSessionData: async resource => { deleted.push(resource.toString()); } }, perSession, deleted };
+			}
+
+			class SpawningAgent extends MockAgent {
+				private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
+				override readonly onDidSpawnChat = this._onDidSpawnChat.event;
+
+				fireSpawn(e: IAgentSpawnChatEvent): void {
+					this._onDidSpawnChat.fire(e);
+				}
+
+				override dispose(): void {
+					this._onDidSpawnChat.dispose();
+					super.dispose();
+				}
+			}
+
+			test('a session delete releases and deletes its private chats, deletes each chat\'s recorded storage and keeps storage another live session records', async () => {
+				const owner = AgentSession.uri('copilot', 'recorded-storage-owner');
+				const other = AgentSession.uri('copilot', 'recorded-storage-other');
+				const defaultChat = buildDefaultChatUri(owner);
+				const peer = buildChatUri(owner, 'peer');
+				const movedPeer = buildChatUri(owner, 'moved');
+				const privateChat = buildSubagentChatUri(owner.toString(), 'tc-private');
+				const privateStorage = AgentSession.uri('copilot', 'private-storage').toString();
+				const sharedStorage = AgentSession.uri('copilot', 'shared-storage').toString();
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				for (const session of [owner, other]) {
+					await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				}
+				await database.registerChatCatalogV2(owner.toString(), {
+					defaultChat: { chat: defaultChat, order: 0 },
+					peers: [{ chat: peer, order: 1 }, { chat: movedPeer, order: 2, storageResource: sharedStorage }],
+					privateDescendants: [{ chat: privateChat, parentChat: defaultChat, storageResource: privateStorage, providerData: 'private-backing' }],
+				});
+				await database.registerChatCatalogV2(other.toString(), {
+					defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
+					peers: [],
+					privateDescendants: [{ chat: buildSubagentChatUri(other.toString(), 'tc-other'), parentChat: buildDefaultChatUri(other), storageResource: sharedStorage }],
+				});
+				const agent = disposables.add(new MockAgent('copilot'));
+				// The provider knows both sessions, so neither is excluded from the catalog.
+				await createAgentSession(agent, { session: owner });
+				await createAgentSession(agent, { session: other });
+				const { service, deleted } = recordingDataService();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				registerTestAgentProvider(svc, agent);
+				// Central rows the delete must remove.
+				await getTestSessionStateStore(svc).load(owner);
+
+				await svc.disposeSession(owner);
+
+				assert.deepStrictEqual({
+					disposed: agent.chatContexts.filter(entry => entry.boundary === 'disposeChat').map(entry => entry.chat.toString()),
+					deleted,
+					centralState: await database.readSessionState(owner.toString()),
+					garbage: await database.listSessionStateGarbage(10),
+				}, {
+					disposed: [peer, movedPeer, privateChat, defaultChat],
+					// The moved peer's recorded storage is still recorded by the other session; the database its URI addresses is not.
+					deleted: [peer, movedPeer, privateStorage, privateChat, defaultChat, owner.toString()],
+					centralState: undefined,
+					garbage: [],
+				});
+			});
+
+			test('a legacy-catalog session records its spawned chats\' storage centrally and its delete removes it', async () => {
+				const owner = AgentSession.uri('copilot', 'legacy-private-owner');
+				const agent = disposables.add(new SpawningAgent('copilot'));
+				await createAgentSession(agent, { session: owner });
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				const { service, deleted } = recordingDataService();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				registerTestAgentProvider(svc, agent);
+				await svc.restoreSession(owner);
+				const defaultChat = URI.parse(buildDefaultChatUri(owner));
+				const spawned = URI.parse(buildChatUri(owner, 'spawned'));
+				agent.fireSpawn({ session: owner, chat: spawned, parent: { chat: defaultChat, toolCallId: 'tc-spawned' }, title: 'Worker' });
+				await getTestSessionStateStore(svc).whenIdle(undefined);
+				await timeout(0);
+				const [catalog] = await database.readCatalogSnapshot([owner.toString()]);
+				const recorded = (await database.readSessionState(owner.toString()))?.chats.find(chat => chat.chat === spawned.toString())?.storageResource;
+				// Forget the live chats: the delete finds the spawned chat through its recorded storage only.
+				getStateManager(svc).removeChat(owner.toString(), spawned.toString());
+
+				await svc.disposeSession(owner);
+
+				assert.deepStrictEqual({ authority: catalog?.authorityVersion, recorded, deleted }, {
+					authority: 1,
+					recorded: spawned.toString(),
+					deleted: [spawned.toString(), defaultChat.toString(), owner.toString()],
+				});
+			});
+
+			test('deleting a peer in its own folder removes its central rows, its row copies in the session database and its storage', async () => {
+				const { service, perSession, deleted } = recordingDataService();
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				class ChatAgent extends MockAgent {
+					override getDescriptor() {
+						const base = super.getDescriptor();
+						return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+					}
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+				}
+				registerTestAgentProvider(svc, disposables.add(new ChatAgent('copilot')));
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/workspace/app'), URI.file('/workspace/peer-folder')] });
+				const peer = URI.parse(buildChatUri(session, 'own-folder'));
+				await svc.createChat(session, peer, { workingDirectories: [URI.file('/workspace/peer-folder')] });
+				const store = getTestSessionStateStore(svc);
+				await store.write(session, sessionStatePatch({ chats: [{ chat: peer.toString(), isDefault: false, fields: { title: 'Peer' } }] }), SessionStateMirrorFlush.Immediate);
+				await store.chatRows.setDraft(session, peer, { text: 'draft', origin: { kind: MessageKind.User } });
+				await store.chatRows.insertPersistedTurn(session, { kind: 'local', turnId: 'peer-turn', chatUri: peer.toString(), anchorTurnId: undefined, payload: '{}' });
+				const database = getTestAgentHostDatabase(svc);
+				const sessionDb = perSession.database(session);
+				const before = {
+					central: (await database.readSessionState(session.toString()))?.chats.some(chat => chat.chat === peer.toString()),
+					mirror: await database.readChatRowMirror(session.toString(), peer.toString(), 'draft') !== undefined,
+					sessionDraft: (await sessionDb.getChatDraft(peer))?.text,
+					sessionTurns: (await sessionDb.getPersistedTurnsForChat(peer.toString())).map(turn => turn.turnId),
+				};
+
+				await svc.disposeChat(session, peer);
+
+				assert.deepStrictEqual({
+					before,
+					after: {
+						central: (await database.readSessionState(session.toString()))?.chats.some(chat => chat.chat === peer.toString()),
+						mirror: await database.readChatRowMirror(session.toString(), peer.toString(), 'draft') !== undefined,
+						sessionDraft: (await sessionDb.getChatDraft(peer))?.text,
+						sessionTurns: (await sessionDb.getPersistedTurnsForChat(peer.toString())).map(turn => turn.turnId),
+					},
+					deleted,
+				}, {
+					before: { central: true, mirror: true, sessionDraft: 'draft', sessionTurns: ['peer-turn'] },
+					after: { central: false, mirror: false, sessionDraft: undefined, sessionTurns: [] },
+					deleted: [peer.toString()],
+				});
+			});
+		});
 
 		test('dispatches to the correct provider and cleans up tracking', async () => {
 			registerTestAgentProvider(service, copilotAgent);

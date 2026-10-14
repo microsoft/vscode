@@ -243,6 +243,12 @@ export interface IAgentHostSessionStateStore {
 	readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>>;
 	/** Imports session values a provider wrote to session.db itself; differing mirror values win. */
 	refreshFromMirror(session: URI, keys: readonly string[]): Promise<void>;
+	/**
+	 * Forgets a non-default chat that is being deleted: removes its central rows
+	 * and its row copies in the session database (drafts, local and failed
+	 * turns). Its own storage is deleted by the caller.
+	 */
+	deleteChat(session: URI, chat: URI): Promise<void>;
 	/** Writes pending mirrors of `session`, or of every session. */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */

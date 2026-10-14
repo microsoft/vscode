@@ -382,6 +382,54 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
+	async deleteChat(session: URI, chat: URI): Promise<void> {
+		const sequencerKey = this._enter(session);
+		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
+		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
+			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
+			const chatKey = chat.toString();
+			if (this._deleting.has(record.key)) {
+				throw new SessionStateDeletedError(record.key);
+			}
+			if (record.model.chats.get(chatKey)?.isDefault) {
+				throw new Error(`Cannot delete the default chat of ${record.key}`);
+			}
+			// The chat's pending mirror writes (such as its cleared title) reach session.db before its entries go.
+			record.scheduler.cancel();
+			await this._flushLocked(record);
+			const sessionDb = await this._sessionDataService.tryOpenDatabase(session);
+			if (sessionDb) {
+				try {
+					await sessionDb.object.setChatDraft(chat, undefined);
+					await sessionDb.object.deletePersistedTurns((await sessionDb.object.getPersistedTurnsForChat(chatKey)).map(turn => turn.turnId));
+				} finally {
+					sessionDb.dispose();
+				}
+			}
+			let result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision);
+			if (result.status === 'conflict') {
+				const state = await this._database.readSessionState(record.key);
+				if (state) {
+					record.model = new SessionStateModel(state, record.model.authority);
+				}
+				result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision);
+			}
+			if (result.status !== 'applied') {
+				throw new Error(`Cannot delete the chat state of ${chatKey}: ${result.status}`);
+			}
+			record.model.removeChat(chatKey, result.revision);
+			record.snapshot = undefined;
+			for (const id of [...record.dirty, ...record.base.keys()]) {
+				const entry = parseMirrorEntryId(id);
+				if (entry.kind === 'chat' && entry.chat === chatKey) {
+					record.dirty.delete(id);
+					record.base.delete(id);
+				}
+			}
+			await this._flushLocked(record);
+		}));
+	}
+
 	async whenIdle(session: URI | undefined): Promise<void> {
 		const records = session ? [this._records.get(session.toString())].filter(record => record !== undefined) : [...this._records.values()];
 		await Promise.all(records.map(record => {

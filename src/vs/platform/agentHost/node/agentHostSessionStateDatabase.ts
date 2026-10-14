@@ -221,6 +221,8 @@ export interface IAgentHostSessionStateDatabase {
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined>;
 	/** Stores the merge base of a chat's mirrored rows; `undefined` removes it. */
 	writeChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind, base: string | undefined): Promise<AgentHostSessionStateUpdateResult>;
+	/** Deletes a non-default chat's central rows (its chat state and row mirror bases) when the session's revision still is `expectedRevision`, bumping it. */
+	deleteSessionChatState(session: string, chat: string, expectedRevision: number): Promise<AgentHostSessionStateWriteResult>;
 	/**
 	 * Counts the live references to `storage` other than from `excludingSession`:
 	 * recorded chat storage of registered, non-tombstoned sessions and registered
@@ -541,6 +543,27 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 
 	markSessionStateRowsMoved(session: string, progress: string): Promise<AgentHostSessionStateUpdateResult> {
 		return this._updateImported(session, 'mark rows moved', connection => this._setMarker(connection, rowsMovedPrefix + session, progress));
+	}
+
+	deleteSessionChatState(session: string, chat: string, expectedRevision: number): Promise<AgentHostSessionStateWriteResult> {
+		validateRevision(expectedRevision, 'Expected session state revision');
+		return this._host.write(`Failed to delete the chat state of ${chat}`, async connection => {
+			const header = await this._header(connection, session);
+			if (header.status !== 'imported') {
+				return { status: header.status };
+			}
+			if (header.row.revision !== expectedRevision) {
+				return { status: 'conflict' };
+			}
+			if (await connection.get('SELECT 1 AS present FROM session_chat_state WHERE session_uri = ? AND chat_uri = ? AND is_default = 1', [session, chat])) {
+				throw new Error(`Cannot delete the default chat state of ${session}`);
+			}
+			const revision = nextRevision(expectedRevision);
+			await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [revision, session]);
+			await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [session, chat]);
+			await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [session, chat]);
+			return { status: 'applied', revision };
+		});
 	}
 
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined> {

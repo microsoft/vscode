@@ -686,10 +686,15 @@ export function createZeroDiffComputeService(): IDiffComputeService {
 	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
+/** Each chat's directory is apart from its session's and its sibling chats', as the chat id in a chat URI's authority keeps it in the real service. */
+function testSessionDataDir(session: URI): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.authority ? `/${session.authority}` : ''}${session.path}` });
+}
+
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
 	return {
 		_serviceBrand: undefined,
-		getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
+		getSessionDataDir: testSessionDataDir,
 		getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
 		openDatabase: () => createReference(database),
 		tryOpenDatabase: async () => createReference(database),
@@ -703,7 +708,7 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 export function createNullSessionDataService(): ISessionDataService {
 	return {
 		_serviceBrand: undefined,
-		getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
+		getSessionDataDir: testSessionDataDir,
 		getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
 		openDatabase: () => { throw new Error('not implemented'); },
 		tryOpenDatabase: async () => undefined,

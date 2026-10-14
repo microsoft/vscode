@@ -181,6 +181,12 @@ export class SessionStateModel {
 		}
 	}
 
+	/** Removes a chat whose central rows were deleted at `revision`. */
+	removeChat(chat: string, revision: number): void {
+		this.revision = revision;
+		this.chats.delete(chat);
+	}
+
 	/** Central revision of an entry; `0` when it has no central row. */
 	entryRevision(entry: SessionStateMirrorEntry): number {
 		switch (entry.kind) {

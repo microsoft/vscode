@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
-import { extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import { extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath, dirname as resourcesDirname, getComparisonKey } from '../../../base/common/resources.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -5991,6 +5991,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._catalogSyncSuppressedSessions.add(sessionKey);
 				let membershipRemoved = false;
 				let ancillaryCleanupSucceeded = false;
+				// Read before the chat leaves the catalog, which removes its recorded storage.
+				const storage = await this._peerChatStorageForDeletion(session, chat);
 				try {
 					await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
 					if (provider) {
@@ -6000,7 +6002,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._peerChatStore.remove(session, chat);
 					membershipRemoved = true;
 					await this._clearChatDraft(session, chat);
-					await this._sessionDataService.deleteSessionData(chat);
+					await this._deletePeerChatData(session, chat, storage);
 					const state = this._stateManager.getSessionState(sessionKey);
 					if (state) {
 						await this._persistOrderedListVisibleSessionState(
@@ -6023,7 +6025,7 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._markCatalogPayloadDirty(sessionKey);
 						this._catalogReconciliationService.schedule();
 						if (!ancillaryCleanupSucceeded) {
-							this._schedulePeerChatCleanupRepair(session, chat);
+							this._schedulePeerChatCleanupRepair(session, chat, storage);
 						}
 					}
 					this._catalogSyncSuppressedSessions.delete(sessionKey);
@@ -6035,14 +6037,33 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private _schedulePeerChatCleanupRepair(session: URI, chat: URI): void {
+	/** A peer chat's recorded storage and that of the session's other chats, which its deletion keeps. */
+	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<{ readonly chat: string; readonly others: readonly string[] }> {
+		const sessionKey = session.toString();
+		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+		const defaultChat = this._resolveDefaultChat(session, catalog, undefined);
+		const { storage } = await this._readChatsForDeletion(session, catalog, defaultChat, this._stateManager.getSessionState(sessionKey)?.chats.map(entry => entry.resource) ?? []);
+		const chatKey = chat.toString();
+		return {
+			chat: storage.get(chatKey) ?? this._chatStorageResource(session, chat),
+			others: [...storage].filter(([other]) => other !== chatKey).map(([, resource]) => resource),
+		};
+	}
+
+	/** Deletes a peer chat's central rows, its row copies in the session database and its storage. */
+	private async _deletePeerChatData(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): Promise<void> {
+		await this._sessionStateStore.deleteChat(session, chat);
+		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }], storage.others);
+	}
+
+	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): void {
 		const chatKey = chat.toString();
 		this._peerChatCleanupRepairs.set(chatKey, disposableTimeout(() => {
 			this._peerChatCleanupRepairs.deleteAndDispose(chatKey);
 			void (async () => {
 				try {
 					await this._clearChatDraft(session, chat);
-					await this._sessionDataService.deleteSessionData(chat);
+					await this._deletePeerChatData(session, chat, storage);
 					const state = this._stateManager.getSessionState(session.toString());
 					if (state) {
 						await this._persistOrderedListVisibleSessionState(
@@ -6219,20 +6240,107 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * Records the storage of a legacy-catalog session's private (spawned or
+	 * tool) chat in its central chat state, so deleting the session finds it.
+	 * A normalized catalog records its private chats itself. Never throws.
+	 */
+	private async _recordLegacyPrivateChatStorage(session: URI, chat: URI): Promise<void> {
+		try {
+			const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+			if (catalog?.authorityVersion !== 1) {
+				return;
+			}
+			await this._sessionStateStore.write(session, sessionStatePatch({
+				chats: [{ chat: chat.toString(), isDefault: false, fields: { storage: this._chatStorageResource(session, chat) } }],
+			}), SessionStateMirrorFlush.Coalesced);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to record the storage of private chat ${chat.toString()}: ${toErrorMessage(error)}`);
+		}
+	}
+
+	/**
+	 * Every chat of a session being deleted with its recorded storage, read
+	 * without importing the session's central state: live registrations, the
+	 * normalized catalog (private chats included), the central chat state of a
+	 * legacy-catalog session (which records its private and tool chats), else
+	 * the creation-time rule. Private chats come with their provider data.
+	 */
+	private async _readChatsForDeletion(session: URI, catalog: IAgentHostDatabaseCatalogSnapshotEntry | undefined, defaultChat: string, knownChats: readonly string[]): Promise<{ readonly storage: ReadonlyMap<string, string>; readonly privateChats: readonly IPersistedPeerChat[] }> {
+		const sessionKey = session.toString();
+		const normalizedStorage = recordedChatStorage(catalog, this._logService);
+		const centralStorage = new Map<string, string | undefined>();
+		const loaded = this._sessionStateStore.peek(session);
+		if (loaded) {
+			for (const [chat, entry] of loaded.chats) {
+				centralStorage.set(chat, entry.storage);
+			}
+		} else {
+			for (const chat of (await this._orchestratorDatabase.readSessionState(sessionKey))?.chats ?? []) {
+				centralStorage.set(chat.chat, chat.storageResource);
+			}
+		}
+		const privateChats: IPersistedPeerChat[] = [];
+		if (catalog?.authorityVersion === 2) {
+			for (const row of catalog.chats) {
+				if (row.order === undefined && row.chat !== defaultChat) {
+					const providerData = (await this._orchestratorDatabase.getChatV2ProviderDetail(row.chat))?.providerData;
+					privateChats.push({ uri: row.chat, ...(providerData !== undefined ? { providerData } : {}) });
+				}
+			}
+		}
+		const storage = new Map<string, string>();
+		for (const chat of new Set([defaultChat, ...knownChats, ...normalizedStorage.keys(), ...centralStorage.keys(), ...privateChats.map(entry => entry.uri)])) {
+			storage.set(chat, chat === defaultChat
+				? this._defaultChatStorageResource(session, URI.parse(chat))
+				: this._chatOwnership.getChatStorageResource(chat) ?? normalizedStorage.get(chat) ?? centralStorage.get(chat) ?? creationTimeChatStorageResource(sessionKey, chat, defaultChat));
+		}
+		return { storage, privateChats };
+	}
+
+	/**
+	 * Deletes the data of deleted chats: each chat's recorded storage and the
+	 * database older builds' mirrors address by its URI, never the session's own
+	 * directory nor one in `keep`, and only when no other live session or chat
+	 * still records it.
+	 */
+	private async _deleteChatStorage(session: URI, chats: readonly { readonly chat: URI; readonly storage: string }[], keep: readonly string[] = []): Promise<void> {
+		const directoryKey = (resource: URI) => getComparisonKey(this._sessionDataService.getSessionDataDir(resource));
+		const visited = new Set([directoryKey(session), ...keep.map(resource => directoryKey(URI.parse(resource)))]);
+		for (const { chat, storage } of chats) {
+			for (const candidate of [URI.parse(storage), chat]) {
+				const key = directoryKey(candidate);
+				if (visited.has(key)) {
+					continue;
+				}
+				visited.add(key);
+				const references = await this._orchestratorDatabase.countStorageReferences(candidate.toString(), session.toString());
+				if (references > 0) {
+					this._logService.info(`[AgentService] Keeping the data of ${candidate.toString()} for chat ${chat.toString()}: ${references} other reference(s) record it`);
+					continue;
+				}
+				await this._sessionDataService.deleteSessionData(candidate);
+			}
+		}
+	}
+
+	/**
 	 * Destructively tears a session down: dispose peer chats first and the
 	 * default chat last, and still visit every chat if one rejects.
 	 */
-	private async _disposeSession(provider: IAgent, session: URI, persistedPeers: readonly IPersistedPeerChat[] | undefined, defaultChat: string): Promise<readonly URI[]> {
+	private async _disposeSession(provider: IAgent, session: URI, persistedPeers: readonly IPersistedPeerChat[] | undefined, defaultChat: string, privateChats: readonly IPersistedPeerChat[] = []): Promise<readonly URI[]> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		const state = this._stateManager.getSessionState(session.toString());
 		const catalog = persistedPeers ?? (!state ? await provider.listLegacyChatBackings?.(session) : undefined);
+		// A private chat has a backing to release when it is live or recorded provider data.
+		const privateBackings = privateChats.filter(chat => chat.providerData !== undefined || this._stateManager.getChatState(chat.uri));
 		const chats = this._orderSessionChatsForTeardown(session, [
 			...(state?.chats.map(chat => chat.resource) ?? []),
 			...(catalog?.map(chat => chat.uri.toString()) ?? []),
+			...privateBackings.map(chat => chat.uri),
 		], defaultChat);
 		const storageOf = (chat: URI) => chat.toString() === defaultChat ? this._defaultChatStorageResource(session, chat) : this._chatStorageResource(session, chat);
 		for (const chat of chats) {
-			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat));
+			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat)) ?? privateBackings.find(entry => entry.uri === chat.toString());
 			if (!this._stateManager.getChatState(chat.toString()) && (chat.toString() === defaultChat || persisted)) {
 				const providerData = chat.toString() === defaultChat ? await this._readDefaultChatProviderData(session) : persisted?.providerData;
 				await provider.materializeChat(chat, this._chatContext(session, chat, storageOf(chat)), providerData);
@@ -7021,6 +7129,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const defaultChat = this._resolveDefaultChat(session, chatCatalog, undefined);
 			const persistedPeerChats = await this._peerChatStore.tryRead(session);
+			// Captured before tombstoning, which removes the session's central rows.
+			const recordedChats = await this._readChatsForDeletion(session, chatCatalog, defaultChat, [
+				...sessionChats.map(chat => chat.resource),
+				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
+			]);
 			const configuredWorkingDirectories = [
 				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
 				...sessionChats.flatMap(chat => this._configurationService.getEffectiveWorkingDirectories(chat.resource) ?? []),
@@ -7062,10 +7175,7 @@ export class AgentService extends Disposable implements IAgentService {
 			traceStage('drainPeerChatWrites');
 			await this._peerChatStore.beginSessionDeletion(session);
 			peerChatDeletionBegun = true;
-			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
-				...sessionChats.map(chat => chat.resource),
-				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
-			], defaultChat);
+			let chatsToDelete = this._orderSessionChatsForTeardown(session, [...recordedChats.storage.keys()], defaultChat);
 			// Providers may read host-owned session metadata (including workspaceless) during disposal.
 			traceStage('drainCatalogStateWrites');
 			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
@@ -7073,7 +7183,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
 				traceStage('disposeProviderChats');
-				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats, defaultChat)];
+				const disposed = await this._disposeSession(provider, session, persistedPeerChats, defaultChat, recordedChats.privateChats);
+				chatsToDelete = this._orderSessionChatsForTeardown(session, [...disposed.map(chat => chat.toString()), ...recordedChats.storage.keys()], defaultChat);
 			}
 			traceStage('drainSessionState');
 			const stateDeletion = this._sessionStateStore.beginDeletion(session);
@@ -7098,9 +7209,10 @@ export class AgentService extends Disposable implements IAgentService {
 			traceStage('drainSessionData');
 			await this._whenSessionDataIdle(session);
 			traceStage('deleteChatData');
-			for (const chat of chatsToDelete) {
-				await this._sessionDataService.deleteSessionData(chat);
-			}
+			await this._deleteChatStorage(session, chatsToDelete.map(chat => ({
+				chat,
+				storage: recordedChats.storage.get(chat.toString()) ?? creationTimeChatStorageResource(sessionKey, chat.toString(), defaultChat),
+			})));
 			// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 			// performed by the provider above. No-op when the directory does not exist.
 			//
@@ -10340,6 +10452,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._resolvePendingSubagentChat(e.chat.toString());
 		const summary = this._stateManager.getSessionState(e.session.toString())?.chats.find(chat => chat.resource === e.chat.toString());
+		void this._recordLegacyPrivateChatStorage(e.session, e.chat);
 		void this._peerChatStore.persistPrivateChat(e.session, {
 			chat: e.chat.toString(),
 			parentChat: e.parent?.chat.toString(),
@@ -11143,6 +11256,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (transientOnly) {
 				this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
+				await this._recordLegacyPrivateChatStorage(parentSession, URI.parse(child.chatUri));
 			} else {
 				await this._peerChatStore.persistPrivateChat(parentSession, {
 					chat: child.chatUri,
