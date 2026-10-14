@@ -164,7 +164,7 @@ export class TimelineService extends Disposable implements ITimelineService {
 
 		this.updateHasProviderContext();
 
-		this._onDidChangeProviders.fire({ removed: [id] });
+		this.fireProviderRemoved(id);
 	}
 
 	registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProvider): IDisposable {
@@ -211,7 +211,16 @@ export class TimelineService extends Disposable implements ITimelineService {
 
 		this.updateHasProviderContext();
 
-		this._onDidChangeProviders.fire({ removed: [id] });
+		this.fireProviderRemoved(id);
+	}
+
+	private fireProviderRemoved(id: string): void {
+		// A file and a workspace timeline provider can share an id, so when one of them remains, its source is reloaded
+		if (this.providers.has(id) || this.workspaceProviders.has(id)) {
+			this._onDidChangeProviders.fire({ removed: [id], added: [id] });
+		} else {
+			this._onDidChangeProviders.fire({ removed: [id] });
+		}
 	}
 
 	async setUri(uri: URI | undefined): Promise<void> {

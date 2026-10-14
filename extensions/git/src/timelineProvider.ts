@@ -16,7 +16,7 @@ import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemH
 import type { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 import { toGitUri } from './uri';
-import type { Commit } from './git';
+import { GitError, type Commit } from './git';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -75,6 +75,43 @@ function getCommitDate(commit: Commit, dateType: 'committed' | 'authored' | unde
 
 function getCommitTimestamp(commit: Commit, dateType: 'committed' | 'authored' | undefined): number {
 	return getCommitDate(commit, dateType)?.getTime() ?? 0;
+}
+
+/**
+ * Selects a page of the workspace timeline from the logs of the repositories, newest first. Each log starts after the
+ * commits that earlier pages took from that repository, and has at least 1 more commit than the limit if there are more.
+ *
+ * Commits are only taken from the start of each log, so the number taken is where its next page starts, even when a
+ * log is not ordered by timestamp, e.g. when using the authored date.
+ *
+ * @returns The commits of the page, and for each repository with more commits, how many commits its next page skips.
+ */
+export function getWorkspaceTimelinePage<T>(logs: readonly { readonly root: string; readonly commits: readonly T[]; readonly skip: number }[], limit: number, getTimestamp: (commit: T, log: number) => number): { page: { log: number; commit: T }[]; nextSkip: Record<string, number> | undefined } {
+	const page: { log: number; commit: T }[] = [];
+	const positions = logs.map(() => 0);
+	while (page.length < limit) {
+		let next: number | undefined;
+		for (let log = 0; log < logs.length; log++) {
+			if (positions[log] < logs[log].commits.length && (next === undefined || getTimestamp(logs[log].commits[positions[log]], log) > getTimestamp(logs[next].commits[positions[next]], next))) {
+				next = log;
+			}
+		}
+
+		if (next === undefined) {
+			break;
+		}
+
+		page.push({ log: next, commit: logs[next].commits[positions[next]++] });
+	}
+
+	const nextSkip: Record<string, number> = {};
+	logs.forEach(({ root, commits, skip }, log) => {
+		if (commits.length > positions[log]) {
+			nextSkip[root] = skip + positions[log];
+		}
+	});
+
+	return { page, nextSkip: Object.keys(nextSkip).length > 0 ? nextSkip : undefined };
 }
 
 export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineProvider {
@@ -150,6 +187,7 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 				hash: options.cursor,
 				// Following renames only works for files
 				follow: !isFolder,
+				filePaths: !isFolder,
 				shortStats: true,
 				// sortByAuthorDate: true
 			},
@@ -192,7 +230,8 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 			item.iconPath = new ThemeIcon('git-commit');
 			item.description = description;
 			item.tooltip = tooltip;
-			item.resourceUri = toGitUri(uri, c.hash);
+			// The file can have had another name at this commit when following renames
+			item.resourceUri = c.filePath ? toGitUri(Uri.file(path.join(repo.root, c.filePath)), c.hash) : undefined;
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -269,40 +308,40 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 		await ensureEmojis();
 
 		// Ask each repository for 1 more than the limit so we can determine if there are more commits
-		const logs = await Promise.all(repositories.map(async repo => {
-			const commits = await repo.log({ maxEntries: limit + 1, skip: skipByRoot?.[repo.root], shortStats: true, silent: true }, token);
-			const dateType = workspace.getConfiguration('git', Uri.file(repo.root)).get<'committed' | 'authored'>('timeline.date');
-			return { repo, commits, dateType };
-		}));
+		const logs = await Promise.all(repositories.map(async repo => ({
+			repo,
+			root: repo.root,
+			skip: skipByRoot?.[repo.root] ?? 0,
+			commits: await this.logRepository(repo, limit + 1, skipByRoot?.[repo.root], token),
+			dateType: workspace.getConfiguration('git', Uri.file(repo.root)).get<'committed' | 'authored'>('timeline.date')
+		})));
 
-		const entries = logs.flatMap(log => log.commits.map(commit => ({ log, commit, timestamp: getCommitTimestamp(commit, log.dateType) })));
-		entries.sort((a, b) => b.timestamp - a.timestamp);
-		const page = entries.slice(0, limit);
+		const { page, nextSkip } = getWorkspaceTimelinePage(logs, limit, (commit, log) => getCommitTimestamp(commit, logs[log].dateType));
 
+		// Only resolve the details of repositories with commits in this page
 		const showRepository = this.model.repositories.length > 1;
-		const detailsByRepository = new Map(await Promise.all(logs.map(async ({ repo }) => {
-			const commits = page.filter(entry => entry.log.repo === repo).map(entry => entry.commit);
-			return [repo, {
+		const detailsByLog = new Map(await Promise.all([...new Set(page.map(entry => entry.log))].map(async log => {
+			const { repo } = logs[log];
+			const commits = page.filter(entry => entry.log === log).map(entry => entry.commit);
+			return [log, {
 				getDetails: await this.getCommitDetails(repo, commits, Uri.file(repo.root), showRepository),
 				emptyTree: await repo.getEmptyTree()
 			}] as const;
 		})));
 
 		const items: GitTimelineItem[] = [];
-		const returned = new Map<Repository, number>();
 		const hashes = new Set<string>();
 		for (const { log, commit } of page) {
-			returned.set(log.repo, (returned.get(log.repo) ?? 0) + 1);
-
 			// The same commit can be in multiple repositories, e.g. worktrees
 			if (hashes.has(commit.hash)) {
 				continue;
 			}
 			hashes.add(commit.hash);
 
-			const { getDetails, emptyTree } = detailsByRepository.get(log.repo)!;
+			const { repo } = logs[log];
+			const { getDetails, emptyTree } = detailsByLog.get(log)!;
 			const details = await getDetails(commit);
-			const item = new GitTimelineItem(commit.hash, commit.parents[0] ?? emptyTree, details.message, details.timestamp, commit.hash, 'git:workspace:commit', Uri.file(log.repo.root));
+			const item = new GitTimelineItem(commit.hash, commit.parents[0] ?? emptyTree, details.message, details.timestamp, commit.hash, 'git:workspace:commit', Uri.file(repo.root));
 			item.iconPath = new ThemeIcon('git-commit');
 			item.description = details.description;
 			item.tooltip = details.tooltip;
@@ -310,18 +349,23 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 			items.push(item);
 		}
 
-		const nextSkipByRoot: Record<string, number> = {};
-		for (const { repo, commits } of logs) {
-			const count = returned.get(repo) ?? 0;
-			if (commits.length > count) {
-				nextSkipByRoot[repo.root] = (skipByRoot?.[repo.root] ?? 0) + count;
-			}
-		}
-
 		return {
 			items,
-			cursor: Object.keys(nextSkipByRoot).length > 0 ? JSON.stringify(nextSkipByRoot) : undefined
+			cursor: nextSkip ? JSON.stringify(nextSkip) : undefined
 		};
+	}
+
+	private async logRepository(repo: Repository, maxEntries: number, skip: number | undefined, token: CancellationToken): Promise<Commit[]> {
+		try {
+			return await repo.log({ maxEntries, skip, shortStats: true, silent: true }, token);
+		} catch (err) {
+			// A repository without commits has no history
+			if (err instanceof GitError && /does not have any commits yet/.test(err.stderr ?? '')) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	/**

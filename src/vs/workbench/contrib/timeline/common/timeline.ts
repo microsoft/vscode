@@ -167,6 +167,10 @@ export interface TimelineProviderDescriptor extends WorkspaceTimelineProviderDes
 	scheme: string | readonly string[];
 }
 
+/**
+ * Signals that timeline sources were added or removed. A source in both `removed` and `added` remains with a
+ * different set of providers, e.g. when only its workspace timeline provider was removed, and is reloaded.
+ */
 export interface TimelineProvidersChangeEvent {
 	readonly added?: string[];
 	readonly removed?: string[];

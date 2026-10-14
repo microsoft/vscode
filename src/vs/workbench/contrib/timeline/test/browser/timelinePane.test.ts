@@ -12,7 +12,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
-import { TimelineActionRunner, TimelinePane } from '../../browser/timelinePane.js';
+import { TimelineActionRunner, TimelinePane, TimelinePaneCommands } from '../../browser/timelinePane.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { ITimelineService, Timeline, TimelineEditable, TimelineItem, TimelineRequest, TimelineTriggerKind } from '../../common/timeline.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -25,6 +29,7 @@ interface TestTimelinePane {
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
 	onEditableChanged: TimelinePane['onEditableChanged'];
 	onTimelineChanged: TimelinePane['onTimelineChanged'];
+	onSelectionChanged: TimelinePane['onSelectionChanged'];
 	loadMore: TimelinePane['loadMore'];
 	refresh: TimelinePane['refresh'];
 	pendingRequests: TimelinePane['pendingRequests'];
@@ -42,12 +47,14 @@ suite('TimelinePane', () => {
 		const requests: TimelineRequest[] = [];
 		const treeCalls: string[] = [];
 		let editable: TimelineEditable | undefined;
+		let selection: TimelineItem[] = [];
 		let children: Parameters<TimelinePane['tree']['setChildren']>[1] = [];
 		const pane: TestTimelinePane = Object.assign(Object.create(TimelinePane.prototype), {
 			uri,
 			pendingRequests: new Map(),
 			timelinesBySource: new Map(),
 			excludedSources: new Set(),
+			multiSelection: [],
 			_maxItemCount: 20,
 			_visibleItemCount: 0,
 			_pendingRefresh: false,
@@ -72,6 +79,9 @@ suite('TimelinePane', () => {
 				override hasElement(): boolean {
 					return true;
 				}
+				override getSelection() {
+					return selection;
+				}
 				override domFocus(): void {
 					treeCalls.push('domFocus');
 				}
@@ -90,6 +100,7 @@ suite('TimelinePane', () => {
 		return {
 			pane, results, requests, treeCalls,
 			setEditable: (value: TimelineEditable | undefined) => { editable = value; },
+			setSelection: (value: TimelineItem[]) => { selection = value; },
 			getLoadMore: () => {
 				const element = [...children ?? []].find(child => child.element.handle === 'vscode-command:loadMore')!.element;
 				return element as Parameters<TimelinePane['loadMore']>[0];
@@ -224,6 +235,64 @@ suite('TimelinePane', () => {
 		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor, request.options.limit, request.options.triggerKind]), [
 			['B', undefined, 20, TimelineTriggerKind.Automatic],
 			['B', undefined, 20, TimelineTriggerKind.Automatic],
+		]);
+	});
+
+	test('reloads a source whose providers changed', async () => {
+		const { pane, results, requests } = createPane();
+		await addPageableProvider(pane, results);
+		results.set('B', new DeferredPromise<Timeline | undefined>().p);
+
+		pane.onProvidersChanged({ removed: ['B'], added: ['B'] });
+
+		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor]), [['B', undefined], ['B', undefined]]);
+	});
+
+	test('re-renders the inline actions of items entering or leaving a multi-selection', async () => {
+		const { pane, results, treeCalls, setSelection } = createPane();
+		await addPageableProvider(pane, results);
+		const [first, second, third] = ['B|1', 'B|2', 'B|3'].map((handle): TimelineItem => ({ source: 'B', handle, label: handle, timestamp: 1 }));
+		const record = (selection: TimelineItem[]) => {
+			treeCalls.length = 0;
+			setSelection(selection);
+			pane.onSelectionChanged();
+			return [...treeCalls];
+		};
+
+		assert.deepStrictEqual({
+			single: record([first]),
+			multiple: record([first, second]),
+			extended: record([first, second, third]),
+			single2: record([third]),
+		}, {
+			single: [],
+			multiple: ['rerender B|1', 'rerender B|2'],
+			extended: ['rerender B|1', 'rerender B|2', 'rerender B|3'],
+			single2: ['rerender B|1', 'rerender B|2', 'rerender B|3'],
+		});
+	});
+
+	test('inline and context menus of an item get the same selection context', () => {
+		const overlays: Record<string, unknown>[] = [];
+		const commands = store.add(new TimelinePaneCommands(
+			upcastPartial<TimelinePane>({ id: 'timeline' }),
+			upcastPartial<ITimelineService>({ onDidChangeProviders: Event.None, getSources: () => [] }),
+			upcastPartial<IStorageService>({ get: () => '[]' }),
+			upcastPartial<IContextKeyService>({ createOverlay: overlay => { overlays.push(Object.fromEntries(overlay)); return upcastPartial<IContextKeyService>({}); } }),
+			upcastPartial<IMenuService>({ getMenuActions: () => [] }),
+		));
+		const item = (handle: string, resourceUri?: URI): TimelineItem => ({ source: 'B', handle, label: handle, timestamp: 1, contextValue: 'commit', resourceUri });
+		const selection = [item('B|1', uri), item('B|2', uri)];
+
+		commands.getItemActions(selection[0], selection);
+		commands.getItemContextActions(selection[0], selection);
+		commands.getItemActions(item('B|3'), undefined);
+
+		const multiSelected = { view: 'timeline', timelineItem: 'commit', listMultiSelection: true, listDoubleSelection: true, timelineCanCompareSelection: true };
+		assert.deepStrictEqual(overlays, [
+			multiSelected,
+			multiSelected,
+			{ view: 'timeline', timelineItem: 'commit', listMultiSelection: false, listDoubleSelection: false, timelineCanCompareSelection: false },
 		]);
 	});
 

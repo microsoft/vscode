@@ -536,6 +536,34 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
+	/**
+	 * The items whose inline actions were last rendered for a multi-selection.
+	 */
+	private multiSelection: readonly TimelineItem[] = [];
+
+	private onSelectionChanged() {
+		if (!this.ensureValidItems()) {
+			this.multiSelection = [];
+			return;
+		}
+
+		// Inline actions depend on whether their item is part of a multi-selection
+		const selection = this.tree.getSelection().filter(isTimelineItem);
+		const multiSelection = selection.length > 1 ? selection : [];
+		const changed = new Set([...this.multiSelection, ...multiSelection]);
+		this.multiSelection = multiSelection;
+
+		for (const item of changed) {
+			if (this.tree.hasElement(item) && !this.isEdited(item)) {
+				this.tree.rerender(item);
+			}
+		}
+	}
+
+	private isEdited(item: TimelineItem): boolean {
+		return this.editedItem?.source === item.source && this.editedItem.handle === item.handle;
+	}
+
 	private rerenderItem(identifier: TimelineItemIdentifier | undefined) {
 		if (!identifier) {
 			return;
@@ -1064,7 +1092,7 @@ export class TimelinePane extends ViewPane {
 		TimelineViewFocusedContext.bindTo(this.tree.contextKeyService);
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
-		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
+		this._register(this.tree.onDidChangeSelection(() => this.onSelectionChanged()));
 		this._register(this.tree.onDidOpen(e => {
 			if (!e.browserEvent || !this.ensureValidItems()) {
 				return;
@@ -1395,7 +1423,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 
 		template.actionBar.context = { uri: this.uri, item } satisfies TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner(this.getSelection);
-		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
+		template.actionBar.push(this.commands.getItemActions(item, isTimelineItem(item) ? getMultiSelection(item, this.getSelection()) : undefined), { icon: true, label: false });
 
 		const editable = this.timelineService.editable;
 		const editableData = isTimelineItem(item) && editable?.item.source === item.source && editable.item.handle === item.handle ? editable.data : undefined;
@@ -1427,7 +1455,7 @@ const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, locali
 const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
 
-class TimelinePaneCommands extends Disposable {
+export class TimelinePaneCommands extends Disposable {
 	private readonly sourceDisposables: DisposableStore;
 
 	constructor(
@@ -1528,20 +1556,30 @@ class TimelinePaneCommands extends Disposable {
 		this.updateTimelineSourceFilters();
 	}
 
-	getItemActions(element: TreeElement): IAction[] {
-		return this.getActions(MenuId.TimelineItemContext, [['timelineItem', element.contextValue]]).primary;
+	/**
+	 * @param selection The selected timeline items when `element` is part of a multi-selection.
+	 */
+	getItemActions(element: TreeElement, selection: readonly TimelineItem[] | undefined): IAction[] {
+		return this.getActions(MenuId.TimelineItemContext, this.getItemContext(element, selection)).primary;
 	}
 
 	/**
 	 * @param selection The selected timeline items when `element` is part of a multi-selection.
 	 */
 	getItemContextActions(element: TreeElement, selection: readonly TimelineItem[] | undefined): IAction[] {
-		return this.getActions(MenuId.TimelineItemContext, [
+		return this.getActions(MenuId.TimelineItemContext, this.getItemContext(element, selection)).secondary;
+	}
+
+	/**
+	 * The list selection context keys of the tree do not apply to items outside the selection, so they are set per item.
+	 */
+	private getItemContext(element: TreeElement, selection: readonly TimelineItem[] | undefined): [string, unknown][] {
+		return [
 			['timelineItem', element.contextValue],
 			[WorkbenchListMultiSelection.key, selection !== undefined],
 			[WorkbenchListDoubleSelection.key, selection?.length === 2],
 			[TimelineCanCompareSelectionContext.key, selection?.length === 2 && selection.every(item => item.resourceUri !== undefined)],
-		]).secondary;
+		];
 	}
 
 	private getActions(menuId: MenuId, context: [string, unknown][]): { primary: IAction[]; secondary: IAction[] } {

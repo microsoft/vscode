@@ -11,11 +11,11 @@ import { Timeline, TimelineItem, TimelineOptions, TimelineTriggerKind } from '..
 import { IDisposable, toDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
-import { ThemeIcon, MarkdownString as MarkdownStringType, TimelineItem as TimelineItemType, TimelineTriggerKind as TimelineTriggerKindType } from './extHostTypes.js';
+import { ThemeColor, ThemeIcon, MarkdownString as MarkdownStringType, TimelineItem as TimelineItemType, TimelineTriggerKind as TimelineTriggerKindType } from './extHostTypes.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { isString } from '../../../base/common/types.js';
+import { hasKey, isString } from '../../../base/common/types.js';
 import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
@@ -246,14 +246,40 @@ export class ExtHostTimeline implements IExtHostTimeline {
 			return item;
 		}
 
-		const copy: vscode.TimelineItem = new TimelineItemType(item.label, item.timestamp);
-		copy.id = item.id;
-		copy.iconPath = item.iconPath;
-		copy.description = item.description;
-		copy.tooltip = item.tooltip;
-		copy.resourceUri = item.resourceUri;
-		copy.contextValue = item.contextValue;
-		copy.accessibilityInformation = item.accessibilityInformation;
-		return Object.freeze(copy);
+		return toReadonlyCopy(item);
 	}
+}
+
+/**
+ * Copies the public properties of a timeline item, except its command, without sharing mutable values with it.
+ */
+function toReadonlyCopy(item: vscode.TimelineItem): vscode.TimelineItem {
+	const copy: vscode.TimelineItem = new TimelineItemType(item.label, item.timestamp);
+	copy.id = item.id;
+	copy.iconPath = copyIconPath(item.iconPath);
+	copy.description = item.description;
+	copy.tooltip = MarkdownStringType.isMarkdownString(item.tooltip) ? copyMarkdownString(item.tooltip) : item.tooltip;
+	copy.resourceUri = item.resourceUri;
+	copy.contextValue = item.contextValue;
+	copy.accessibilityInformation = item.accessibilityInformation && Object.freeze({ ...item.accessibilityInformation });
+	return Object.freeze(copy);
+}
+
+function copyIconPath(iconPath: vscode.TimelineItem['iconPath']): vscode.TimelineItem['iconPath'] {
+	if (iconPath instanceof ThemeIcon) {
+		return Object.freeze(new ThemeIcon(iconPath.id, iconPath.color && Object.freeze(new ThemeColor(iconPath.color.id))));
+	}
+	if (iconPath && hasKey(iconPath, { light: true, dark: true })) {
+		return Object.freeze({ light: iconPath.light, dark: iconPath.dark });
+	}
+	return iconPath;
+}
+
+function copyMarkdownString(markdown: vscode.MarkdownString): vscode.MarkdownString {
+	const copy = new MarkdownStringType(markdown.value, markdown.supportThemeIcons);
+	copy.isTrusted = typeof markdown.isTrusted === 'object' ? Object.freeze({ ...markdown.isTrusted, enabledCommands: Object.freeze([...markdown.isTrusted.enabledCommands]) }) : markdown.isTrusted;
+	copy.supportHtml = markdown.supportHtml;
+	copy.supportAlertSyntax = markdown.supportAlertSyntax;
+	copy.baseUri = markdown.baseUri;
+	return copy;
 }

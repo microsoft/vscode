@@ -15,7 +15,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform
 import { CommandsConverter, ExtHostCommands, ArgumentProcessor } from '../../common/extHostCommands.js';
 import { MainThreadTimelineShape } from '../../common/extHost.protocol.js';
 import { ExtHostTimeline } from '../../common/extHostTimeline.js';
-import { TimelineItem, TimelineTriggerKind as ApiTimelineTriggerKind } from '../../common/extHostTypes.js';
+import { MarkdownString, ThemeColor, ThemeIcon, TimelineItem, TimelineTriggerKind as ApiTimelineTriggerKind } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { TimelineOptions, TimelineTriggerKind } from '../../../contrib/timeline/common/timeline.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
@@ -154,6 +154,43 @@ suite('ExtHostTimeline', function () {
 			copies: ['first item', 'second item'],
 			withoutProposal: undefined,
 			selectionWithoutProposal: undefined,
+		});
+		registration.dispose();
+	});
+
+	test('changing a copy for another extension does not change the original item', async function () {
+		const { timeline, processArgument } = createTimeline();
+		const owner = createExtension('test.owner');
+		const item: vscode.TimelineItem = new TimelineItem('item', 1);
+		item.tooltip = new MarkdownString('tooltip');
+		item.tooltip.isTrusted = { enabledCommands: ['test.command'] };
+		item.accessibilityInformation = { label: 'label' };
+		item.iconPath = new ThemeIcon('git-commit', new ThemeColor('color'));
+		const registration = store.add(timeline.registerTimelineProvider('file', { id: 'test-timeline', label: 'Test Timeline', provideTimeline: () => ({ items: [item] }) }, owner.identifier, converter));
+		const result = await timeline.$getTimeline('test-timeline', uri, options, CancellationToken.None);
+
+		const copy = processArgument(toContext(result!.items[0].handle, 'test-timeline', uri), createExtension('test.other')) as vscode.TimelineItem;
+		const tryChange = (change: () => void) => { try { change(); } catch { /* frozen */ } };
+		tryChange(() => (copy.tooltip as vscode.MarkdownString).appendMarkdown(' changed'));
+		tryChange(() => ((copy.tooltip as vscode.MarkdownString).isTrusted as { enabledCommands: string[] }).enabledCommands.push('other.command'));
+		tryChange(() => (copy.accessibilityInformation as { label: string }).label = 'changed');
+		tryChange(() => ((copy.iconPath as ThemeIcon).color as ThemeColor).id = 'changed');
+
+		const tooltip = item.tooltip as vscode.MarkdownString;
+		assert.deepStrictEqual({
+			tooltip: tooltip.value,
+			isTrusted: tooltip.isTrusted,
+			accessibilityInformation: item.accessibilityInformation,
+			color: (item.iconPath as ThemeIcon).color?.id,
+			copiedTooltip: (copy.tooltip as vscode.MarkdownString).value,
+			ownerIsFrozen: Object.isFrozen(item) || Object.isFrozen(item.accessibilityInformation) || Object.isFrozen(item.iconPath),
+		}, {
+			tooltip: 'tooltip',
+			isTrusted: { enabledCommands: ['test.command'] },
+			accessibilityInformation: { label: 'label' },
+			color: 'color',
+			copiedTooltip: 'tooltip changed',
+			ownerIsFrozen: false,
 		});
 		registration.dispose();
 	});
