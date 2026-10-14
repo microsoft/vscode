@@ -33,7 +33,7 @@ const OWNED_IDENTIFIERS: readonly string[] = [
 
 const OWNED_LITERALS: readonly string[] = [
 	'configValues', 'customizationEnablement', 'agentHost.additionalWorktrees', 'agentHost.chatWorkingDirectories',
-	'agentHost.diffBaseBranch', 'agentHost.workspaceless', 'copilot.worktree.', 'missionControl.', 'peerChats',
+	'agentHost.diffBaseBranch', 'agentHost.workspaceless', 'copilot.worktree.', 'peerChats',
 ];
 
 /** Modules that implement the store, its mirror or the database layer and may touch owned keys freely. */

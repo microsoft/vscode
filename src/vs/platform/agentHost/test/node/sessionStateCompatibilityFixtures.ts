@@ -380,6 +380,7 @@ export const OLD_BUILD_SESSION_KEYS: readonly string[] = [
 	'copilot.worktree.branchName', 'copilot.worktree.path', 'copilot.worktree.repositoryRoot', 'copilot.worktree.symlinkPatterns',
 	'copilot.worktree.symlinkSourceRoot', 'copilot.worktree.creationFailure',
 	'sessionArtifacts', 'agentHost.sourceControl', 'agentHost.pendingRecordedPullRequests', 'vscode.scheduleCursors',
+	'missionControl.sdkSequence.fixture-environment', 'missionControl.sdkJournalCursor.fixture-environment',
 	'copilot.customizationDirectory', 'copilot.sharedCustomizationDirectories', 'copilot.project.uri', 'copilot.project.displayName', 'copilot.project.resolved',
 	'copilot.workingDirectory', 'copilot.workingDirectories', 'copilot.model', 'copilot.agent', 'copilot.chats',
 	'agentHost.git', 'agentHost.github', 'agentHost.gitData', 'agentHost.githubData', 'agentHost.diffBaseBranch',
@@ -398,8 +399,6 @@ function oldBuildDerivedSessionKeys(fixture: ILegacySessionFixture): string[] {
 	return [
 		...fixture.chats.flatMap(chat => [`customChatTitle:${chat.uri}`, `customChatTitleSource:${chat.uri}`, `agentHost.changes:${chat.uri}`]),
 		...otherFolderScopes(fixture).map(scope => `agentHost.changeset.branch.${getWorkingDirectoryScopeId(scope)}`),
-		`missionControl.sdkSequence.${fixture.missionControlEnvironment}`,
-		`missionControl.sdkJournalCursor.${fixture.missionControlEnvironment}`,
 	];
 }
 

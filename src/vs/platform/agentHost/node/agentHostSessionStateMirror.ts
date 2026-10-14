@@ -70,16 +70,11 @@ export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: SESSION_META_FOLDER_PICKER_KEY, projected: true },
 ];
 
-/** Families of session-level values whose keys start with a prefix. */
-export const SESSION_STATE_VALUE_KEY_PREFIXES: readonly ISessionStateValueKey[] = [
-	{ key: 'missionControl.', projected: false },
-];
-
 const exactValueKeys = new Map(SESSION_STATE_VALUE_KEYS.map(entry => [entry.key, entry]));
 
 /** The registry entry of a session-level value key, if it is one. */
 export function getSessionStateValueKey(key: string): ISessionStateValueKey | undefined {
-	return exactValueKeys.get(key) ?? SESSION_STATE_VALUE_KEY_PREFIXES.find(prefix => key.startsWith(prefix.key));
+	return exactValueKeys.get(key);
 }
 
 /** Read only at import: older builds' archive flag, read as `isArchived ?? isDone`. */
@@ -399,9 +394,6 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	const sessionPlan = plan(session);
 	for (const entry of SESSION_STATE_VALUE_KEYS) {
 		sessionPlan.keys.add(entry.key);
-	}
-	for (const prefix of SESSION_STATE_VALUE_KEY_PREFIXES) {
-		sessionPlan.prefixes.add(prefix.key);
 	}
 	for (const key of [LEGACY_IS_DONE_KEY, META_GIT_STATE, META_GIT_DATA_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, BASE_BRANCH_MIRROR_KEY]) {
 		sessionPlan.keys.add(key);

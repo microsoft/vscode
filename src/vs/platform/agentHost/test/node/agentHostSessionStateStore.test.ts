@@ -84,7 +84,6 @@ suite('AgentHostSessionStateStore', () => {
 			imports: imports.callCount,
 			authority: snapshot.authority,
 			configValues: snapshot.values.get('configValues'),
-			missionControl: snapshot.values.get(`missionControl.sdkSequence.${fixture.missionControlEnvironment}`),
 			folders: [...snapshot.folders.keys()].sort(),
 			chats: fixture.chats.map(({ uri }) => snapshot.chats.get(uri)).map(entry => entry && [entry.isDefault, entry.storage, entry.title, entry.isRead, entry.workingDirectories, entry.changes]),
 			blobs: (await database.readSessionState(fixture.session))?.branchChangesets,
@@ -94,7 +93,6 @@ suite('AgentHostSessionStateStore', () => {
 			imports: 1,
 			authority: 1,
 			configValues: legacySessionMetadata(fixture).configValues,
-			missionControl: '42',
 			folders: ['', getWorkingDirectoryScopeId(otherFolder.workingDirectories), 'file:///workspace/app'].sort(),
 			chats: [
 				// The default chat's changes are the session's aggregate value, not a per-chat key.
@@ -332,7 +330,9 @@ suite('AgentHostSessionStateStore', () => {
 			// Provider-owned keys of the default chat, membership, and the retained legacy GitHub key.
 			unowned: ['agentHost.changeset.session', ...blobKeys,
 				'copilot.model',
-				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
+				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors',
+				// Default-chat data in its own db (Mission Control cursors), never store-owned.
+				`missionControl.sdkSequence.${fixture.missionControlEnvironment}`, `missionControl.sdkJournalCursor.${fixture.missionControlEnvironment}`].sort(),
 		});
 	});
 

@@ -9,7 +9,8 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from '../agentChatContext.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -62,6 +63,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		private readonly _isEnabled: () => boolean,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
@@ -182,28 +184,30 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!this._isEnabled() || this._store.isDisposed) {
 			return;
 		}
-		const session = URI.parse(source.session);
-		const key = `missionControl.sdkSequence.${this._environmentId}`;
-		const cursorKey = `missionControl.sdkJournalCursor.${this._environmentId}`;
-		await this._sessionStateStore.load(session);
-		const stored = this._sessionStateStore.legacyMetadata(session, [key, cursorKey]).values;
-		if (source.limit === undefined) {
-			source.journalCursor = stored[cursorKey];
+		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		try {
+			const key = `missionControl.sdkSequence.${this._environmentId}`;
+			const stored = await database.object.getMetadata(key);
+			if (source.limit === undefined) {
+				source.journalCursor = await database.object.getMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`);
+			}
+			const first = source.limit ?? (stored === undefined ? 0 : Number(stored));
+			const limit = first + reservationSize;
+			if (!Number.isSafeInteger(first) || first < 0 || !Number.isSafeInteger(limit)) {
+				throw new Error('Invalid persisted Mission Control SDK sequence');
+			}
+			if (!this._isEnabled() || this._store.isDisposed) {
+				return;
+			}
+			await database.object.setMetadata(key, String(limit));
+			if (this._store.isDisposed || !this._isEnabled()) {
+				return;
+			}
+			this._mirror.reserveSdkSequences(source.session, first, limit);
+			source.limit = limit;
+		} finally {
+			database.dispose();
 		}
-		const first = source.limit ?? (stored[key] === undefined ? 0 : Number(stored[key]));
-		const limit = first + reservationSize;
-		if (!Number.isSafeInteger(first) || first < 0 || !Number.isSafeInteger(limit)) {
-			throw new Error('Invalid persisted Mission Control SDK sequence');
-		}
-		if (!this._isEnabled() || this._store.isDisposed) {
-			return;
-		}
-		await this._sessionStateStore.writeMetadata(session, session, { [key]: String(limit) }, SessionStateMirrorFlush.Immediate);
-		if (this._store.isDisposed || !this._isEnabled()) {
-			return;
-		}
-		this._mirror.reserveSdkSequences(source.session, first, limit);
-		source.limit = limit;
 	}
 
 	private async _publish(source: SourceSession, event: IAgentChatSessionEvent, replay = false): Promise<boolean> {
@@ -235,11 +239,15 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!cursor) {
 			return;
 		}
-		const session = URI.parse(source.session);
-		await this._sessionStateStore.writeMetadata(session, session, { [`missionControl.sdkJournalCursor.${this._environmentId}`]: cursor }, SessionStateMirrorFlush.Immediate);
-		source.journalCursor = cursor;
-		if (source.pendingCursor === cursor) {
-			source.pendingCursor = undefined;
+		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		try {
+			await database.object.setMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`, cursor);
+			source.journalCursor = cursor;
+			if (source.pendingCursor === cursor) {
+				source.pendingCursor = undefined;
+			}
+		} finally {
+			database.dispose();
 		}
 	}
 
