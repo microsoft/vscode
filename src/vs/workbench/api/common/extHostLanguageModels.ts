@@ -12,13 +12,16 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { isEqualOrParent } from '../../../base/common/resources.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
+import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, LanguageModelProviderIcon } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -186,6 +189,25 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return group ? `${vendor}/${group}/${modelId}` : `${vendor}/${modelId}`;
 	}
 
+	/**
+	 * A model's icon as the workbench shows it. Images have to be files inside the extension, so
+	 * that showing a model can never make the workbench fetch from anywhere else.
+	 */
+	private _toModelIcon(iconPath: vscode.IconPath, extension: IExtensionDescription): LanguageModelProviderIcon | undefined {
+		const icon = typeConvert.IconPath.from(iconPath);
+		if (!icon || ThemeIcon.isThemeIcon(icon)) {
+			return icon;
+		}
+		const images = hasKey(icon, { light: true, dark: true }) ? icon : { light: icon, dark: icon };
+		const light = URI.revive(images.light);
+		const dark = URI.revive(images.dark);
+		if (!isEqualOrParent(light, extension.extensionLocation) || !isEqualOrParent(dark, extension.extensionLocation)) {
+			this._logService.warn(`[LanguageModels](${extension.identifier.value}) Ignoring a model icon outside the extension. Model icons must be theme icons or files inside the extension.`);
+			return undefined;
+		}
+		return { light, dark };
+	}
+
 	private getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
 		const firstSlash = modelIdentifier.indexOf('/');
 		return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
@@ -261,6 +283,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					isDefaultForLocation,
 					isUserSelectable: m.isUserSelectable,
 					statusIcon: m.statusIcon,
+					icon: m.iconPath && isProposedApiEnabled(data.extension, 'chatProvider') ? this._toModelIcon(m.iconPath, data.extension) : undefined,
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					warningText: m.warningText,

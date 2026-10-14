@@ -8,6 +8,8 @@ import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { SerializedError } from '../../../../base/common/errors.js';
+import { ThemeIcon as BaseThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -15,7 +17,7 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { MainThreadLanguageModelsShape } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
-import { LanguageModelChatApiType, LanguageModelError } from '../../common/extHostTypes.js';
+import { LanguageModelChatApiType, LanguageModelError, ThemeIcon } from '../../common/extHostTypes.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
@@ -79,6 +81,52 @@ suite('ExtHostLanguageModels reasoning capabilities', () => {
 			await assert.rejects(host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None), /languageModelCapabilities/);
 		});
 	}
+});
+
+suite('ExtHostLanguageModels model icons', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const extensionLocation = URI.file('/extensions/publisher.provider');
+	const inside = (path: string) => URI.joinPath(extensionLocation, path);
+	const iconPaths: Record<string, vscode.IconPath> = {
+		themeIcon: new ThemeIcon('chat-model-provider-claude'),
+		image: inside('media/icon.svg'),
+		lightAndDark: { light: inside('media/light.svg'), dark: inside('media/dark.svg') },
+		otherFolder: URI.file('/extensions/other.provider/icon.svg'),
+		remote: URI.parse('https://example.com/icon.svg'),
+		escapingDark: { light: inside('media/light.svg'), dark: inside('../../icon.svg') },
+	};
+
+	async function provideIcons(enableProposal: boolean) {
+		const proxy: Partial<MainThreadLanguageModelsShape> = { $registerLanguageModelProvider: () => { }, $unregisterProvider: () => { } };
+		const host = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		const extension = { ...nullExtensionDescription, extensionLocation, enabledApiProposals: enableProposal ? ['chatProvider'] as const : [] };
+		store.add(host.registerLanguageModelChatProvider(extension, 'test', {
+			provideLanguageModelChatInformation: async () => Object.entries(iconPaths).map(([id, iconPath]) => ({ id, name: id, family: id, version: '1', maxInputTokens: 1000, maxOutputTokens: 1000, capabilities: {}, iconPath })),
+			provideLanguageModelChatResponse: async () => { throw new Error('Unexpected model request'); },
+			provideTokenCount: async () => 0,
+		}));
+		const models = await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		return Object.fromEntries(models.map(({ metadata }) => [metadata.id, !metadata.icon || BaseThemeIcon.isThemeIcon(metadata.icon)
+			? metadata.icon?.id
+			: { light: metadata.icon.light.path, dark: metadata.icon.dark.path }]));
+	}
+
+	test('keeps theme icons and images inside the extension, and nothing else', async () => {
+		const path = (relative: string) => inside(relative).path;
+		assert.deepStrictEqual({ enabled: await provideIcons(true), disabled: await provideIcons(false) }, {
+			enabled: {
+				themeIcon: 'chat-model-provider-claude',
+				image: { light: path('media/icon.svg'), dark: path('media/icon.svg') },
+				lightAndDark: { light: path('media/light.svg'), dark: path('media/dark.svg') },
+				otherFolder: undefined,
+				remote: undefined,
+				escapingDark: undefined,
+			},
+			// `iconPath` is part of the chatProvider proposal.
+			disabled: Object.fromEntries(Object.keys(iconPaths).map(id => [id, undefined])),
+		});
+	});
 });
 
 suite('ExtHostLanguageModels request model resolution', () => {

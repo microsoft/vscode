@@ -7,6 +7,8 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,7 +20,7 @@ import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { TestExtensionService, TestProductService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
-import { ExtHostLanguageModelsShape } from '../../common/extHost.protocol.js';
+import { ExtHostLanguageModelsShape, ILanguageModelChatMetadataAndIdentifierDto } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadLanguageModels', function () {
@@ -192,6 +194,55 @@ suite('MainThreadLanguageModels', function () {
 			{ identifier: 'explicit-false', isBYOK: false },
 			{ identifier: 'builtin-default', isBYOK: copilotExtensionId ? false : true },
 			{ identifier: 'external-default', isBYOK: true }
+		]);
+	});
+
+	test('revives image model icons that arrive from the extension host as plain data', async () => {
+		const store = disposables.add(new DisposableStore());
+		let provider: ILanguageModelChatProvider | undefined;
+		const model = (id: string, icon: ILanguageModelChatMetadataAndIdentifierDto['metadata']['icon']): ILanguageModelChatMetadataAndIdentifierDto => ({
+			identifier: id,
+			metadata: { extension: new ExtensionIdentifier('custom.provider'), name: id, id, vendor: 'test-vendor', version: '1', family: 'test-family', maxInputTokens: 1, maxOutputTokens: 1, isDefaultForLocation: {}, icon },
+		});
+		// What the RPC layer delivers: URIs serialized to their components.
+		const asData = (uri: URI): UriComponents => JSON.parse(JSON.stringify(uri));
+		const light = URI.file('/extensions/custom.provider/light.svg');
+		const dark = URI.file('/extensions/custom.provider/dark.svg');
+		const proxy: Partial<ExtHostLanguageModelsShape> = {
+			$provideLanguageModelChatInfo: async () => [
+				model('image', { light: asData(light), dark: asData(dark) }),
+				model('theme-icon', { id: 'chat-model-provider-claude' }),
+				model('none', undefined),
+			],
+		};
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = store.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return []; }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				provider = value;
+				return Disposable.None;
+			}
+		};
+
+		const mainThread = store.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol(proxy),
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		mainThread.$registerLanguageModelProvider('test-vendor');
+
+		const infos = await provider!.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(({ metadata: { icon } }) => !icon || ThemeIcon.isThemeIcon(icon)
+			? icon
+			: { revived: icon.light instanceof URI && icon.dark instanceof URI, light: icon.light.toString(), dark: icon.dark.toString() }), [
+			{ revived: true, light: light.toString(), dark: dark.toString() },
+			{ id: 'chat-model-provider-claude' },
+			undefined,
 		]);
 	});
 

@@ -79,6 +79,25 @@ declare module 'vscode' {
 		readonly statusIcon?: ThemeIcon;
 
 		/**
+		 * An icon that identifies the model, e.g. the logo of the company that makes it. It is shown
+		 * wherever the model is named, such as the chat model picker.
+		 *
+		 * When unset, the icon declared for the provider in the `languageModelChatProviders`
+		 * contribution is used, and failing that a generic icon. A {@link statusIcon} takes
+		 * precedence while it is set.
+		 *
+		 * Prefer a {@link ThemeIcon}, which follows the user's color and product icon themes. An
+		 * extension can contribute its own glyphs through the `icons` contribution point, and
+		 * reuse the icons the chat model picker shows for well-known providers, such as
+		 * `new ThemeIcon('chat-model-provider-claude')`.
+		 *
+		 * Images must be files inside the extension, e.g. `Uri.joinPath(context.extensionUri,
+		 * 'media', 'icon.svg')`; any other {@link Uri} is ignored. They are drawn at the size of a
+		 * small icon and should be static, small SVG or PNG files.
+		 */
+		readonly iconPath?: IconPath;
+
+		/**
 		 * An optional JSON schema describing the configuration options for this model.
 		 * When set, users can specify per-model configuration in their language models
 		 * configuration file. The configured values are merged into the request options

@@ -48,7 +48,7 @@ import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
-import { getCompactModelPickerIcon } from './modelProviderIcons.js';
+import { getCompactModelPickerIcon, renderLanguageModelIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
@@ -841,13 +841,13 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const modelIcon = workflow ? Codicon.layers : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
-				? getCompactModelPickerIcon(shownModel)
+				? getCompactModelPickerIcon(shownModel, this._languageModelsService)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
 		if (modelIcon && !noModelsAvailable) {
-			nameChildren.push(renderIcon(modelIcon));
+			nameChildren.push(renderLanguageModelIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
 		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.

@@ -11,6 +11,7 @@ import { CancellationError, SerializedError, transformErrorFromSerialization } f
 import { Emitter, Event } from '../../../base/common/event.js';
 import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
@@ -18,14 +19,19 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService, LanguageModelProviderIcon } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageModelsShape, ILanguageModelChatMetadataAndIdentifierDto, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError, serializeLanguageModelError } from '../common/extHostTypes.js';
+
+/** Image icons arrive from the extension host as plain data, without their URI methods. */
+function reviveModelIcon(icon: ILanguageModelChatMetadataAndIdentifierDto['metadata']['icon']): LanguageModelProviderIcon | undefined {
+	return !icon || ThemeIcon.isThemeIcon(icon) ? icon : { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
+}
 
 class RequestCancellationTokenSource extends Disposable {
 
@@ -103,7 +109,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				provideLanguageModelChatInfo: async (options, token) => {
 					const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
 					const copilotExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
-					return modelsAndIdentifiers.map(m => {
+					return modelsAndIdentifiers.map((model): ILanguageModelChatMetadataAndIdentifier => {
+						const m = { ...model, metadata: { ...model.metadata, icon: reviveModelIcon(model.metadata.icon) } };
 						if (m.metadata.auth) {
 							disposables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
 						}

@@ -8,6 +8,7 @@ import { ModelSupportedEndpoint } from '../../../../platform/endpoint/common/end
 import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
 import { createFakeResponse } from '../../../../platform/test/node/fetcher';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { ThemeIcon } from '../../../../vscodeTypes';
 import { BYOKModelCapabilities } from '../../common/byokProvider';
 import { OpenRouterEndpoint, OpenRouterLMProvider } from '../openRouterProvider';
 
@@ -101,6 +102,28 @@ describe('OpenRouterLMProvider model discovery', () => {
 			'',
 			`https://openrouter.ai/api/v1/${path}`,
 		);
+	});
+
+	it('gives each model the icon of the company that makes it, when the picker has one', async () => {
+		const ids = ['anthropic/claude-fable-5.1', '~google/gemini-flash-latest', 'openai/gpt-chat-latest', 'x-ai/grok-4.5', 'moonshotai/kimi-k3', 'microsoft/mai-ds-r1', 'amazon/nova-micro-v1', 'example/anthropic/claude-fable-latest'];
+		const fetch = vi.fn<IFetcherService['fetch']>().mockImplementation(async () => createFakeResponse(200, {
+			data: ids.map(id => ({ id, name: id, supported_parameters: ['tools'], context_length: 200000, top_provider: { context_length: 200000 } })),
+		}));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation({ silent: false }, CancellationToken.None);
+
+		// Other makers, and IDs that merely mention one, fall back to OpenRouter's own icon.
+		expect(Object.fromEntries(models.map(model => [model.id, model.iconPath instanceof ThemeIcon ? model.iconPath.id : model.iconPath]))).toEqual({
+			'anthropic/claude-fable-5.1': 'chat-model-provider-claude',
+			'~google/gemini-flash-latest': 'chat-model-provider-gemini',
+			'openai/gpt-chat-latest': 'chat-model-provider-openai',
+			'x-ai/grok-4.5': 'chat-model-provider-xai',
+			'moonshotai/kimi-k3': 'chat-model-provider-kimi',
+			'microsoft/mai-ds-r1': 'chat-model-provider-microsoft',
+			'amazon/nova-micro-v1': undefined,
+			'example/anthropic/claude-fable-latest': undefined,
+		});
 	});
 });
 
