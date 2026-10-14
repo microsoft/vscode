@@ -6779,7 +6779,7 @@ export const EditorOptions = {
 	)),
 	shrinkEmptyLines: register(new EditorFloatOption(
 		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
-		0, x => EditorFloatOption.clamp(x, 0, 1),
+		1, x => EditorFloatOption.clamp(x, 0, 1),
 		{
 			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height of whitespace-only lines as a multiplier of the regular editor line height, between 0 and 1. A value of 0 disables shrinking, and 1 uses the regular line height. Requires `#editor.allowVariableLineHeights#` to be enabled.")
 		},

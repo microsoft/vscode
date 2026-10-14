@@ -47,7 +47,7 @@ suite('Shrink Empty Lines', () => {
 		return result;
 	}
 
-	test('is disabled by default', () => {
+	test('uses regular line height by default', () => {
 		const { editor } = createEditor('a\n\n ');
 
 		assert.deepStrictEqual(getLineHeights(editor), [19, 19, 19]);
@@ -79,10 +79,10 @@ suite('Shrink Empty Lines', () => {
 			invalidValues: [undefined, null, NaN, 'invalid'].map(value => option.validate(value)),
 		}, {
 			type: 'number',
-			default: 0,
+			default: 1,
 			minimum: 0,
 			maximum: 1,
-			invalidValues: [0, 0, 0, 0],
+			invalidValues: [1, 1, 1, 1],
 		});
 	});
 
