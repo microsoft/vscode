@@ -6,7 +6,6 @@
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
 import { lstat, mkdir, readFile, realpath, rename, rmdir, stat, unlink, writeFile } from 'fs/promises';
-import { devNull } from 'os';
 import { Sequencer, ThrottledDelayer } from '../../../../base/common/async.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -460,8 +459,9 @@ export class MissionControlProjects extends Disposable {
 			USERPROFILE: home,
 			XDG_CONFIG_HOME: home,
 			GIT_CONFIG_NOSYSTEM: '1',
-			GIT_CONFIG_SYSTEM: devNull,
-			GIT_CONFIG_GLOBAL: devNull,
+			// Git treats /dev/null as an empty config on every supported platform.
+			GIT_CONFIG_SYSTEM: '/dev/null',
+			GIT_CONFIG_GLOBAL: '/dev/null',
 			GIT_CONFIG_COUNT: '1',
 			GIT_CONFIG_KEY_0: 'credential.helper',
 			GIT_CONFIG_VALUE_0: '',

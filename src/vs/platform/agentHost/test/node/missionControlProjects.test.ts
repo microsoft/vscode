@@ -7,7 +7,6 @@ import assert from 'assert';
 import { execFile } from 'child_process';
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'fs/promises';
 import { promisify } from 'util';
-import { devNull } from 'os';
 import sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -355,7 +354,7 @@ suite('Mission Control projects', () => {
 			calls: 1,
 			args: ['-C', env.HOME!, '-c', 'http.authMethod=basic', '-c', 'http.emptyAuth=false', 'clone', '--progress', '--', 'https://github.com/owner/private', initial.path],
 			isolatedHome: true,
-			configuration: ['1', devNull, devNull, '1', 'credential.helper', ''],
+			configuration: ['1', '/dev/null', '/dev/null', '1', 'credential.helper', ''],
 			transport: ['https:file', env.HOME, '0'],
 			prompts: ['0', '', ''],
 			removed: removed.map(() => undefined),
@@ -381,7 +380,7 @@ suite('Mission Control projects', () => {
 			calls: calls.map(call => ({ clone: call.clone, token: call.token, global: call.global })),
 			sameIsolatedHome: calls[0].home === calls[1].home,
 		}, {
-			calls: [{ clone: true, token: undefined, global: devNull }, { clone: false, token: undefined, global: devNull }],
+			calls: [{ clone: true, token: undefined, global: '/dev/null' }, { clone: false, token: undefined, global: '/dev/null' }],
 			sameIsolatedHome: true,
 		});
 	});
