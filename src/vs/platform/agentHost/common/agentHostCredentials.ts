@@ -36,6 +36,15 @@ export interface IAgentHostAuthenticationScope extends IAgentHostCredentialSourc
 	validate(params: AuthenticateParams): Promise<AuthenticateParams>;
 }
 
+const capturedSourceKeys = new WeakMap<IAgentHostCredentialSource, string>();
+const credentialIds = new WeakMap<IAgentHostScopedCredential, number>();
+let nextCredentialId = 0;
+
+/** A host-local deduplication key for captured grants, containing no tokens. */
+export function getCapturedCredentialSourceKey(source: IAgentHostCredentialSource): string | undefined {
+	return capturedSourceKeys.get(source);
+}
+
 export function normalizeAuthenticationScopes(scopes: readonly string[] | undefined): readonly string[] {
 	return scopes ? [...new Set(scopes)].sort() : [];
 }
@@ -74,7 +83,7 @@ export function captureCredentialSource(source: IAgentHostCredentialSource, reso
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The execution sponsor must authenticate', { resources: [resource] });
 		}
 	}
-	return {
+	const snapshot: IAgentHostCredentialSource = {
 		principal: source.principal,
 		getCredential: request => {
 			const credential = captured.get(request.resource);
@@ -85,4 +94,13 @@ export function captureCredentialSource(source: IAgentHostCredentialSource, reso
 			return credential;
 		},
 	};
+	capturedSourceKeys.set(snapshot, JSON.stringify([...captured].sort(([a], [b]) => a.localeCompare(b)).map(([resource, credential]) => {
+		let id = credentialIds.get(credential);
+		if (id === undefined) {
+			id = ++nextCredentialId;
+			credentialIds.set(credential, id);
+		}
+		return [resource, id, credential.revision, credential.expiresAt ?? null, normalizeAuthenticationScopes(credential.scopes)];
+	})));
+	return snapshot;
 }

@@ -15,7 +15,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { getCapturedCredentialSourceKey, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -398,19 +398,20 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		source?: IAgentHostCredentialSource,
 	): Promise<InvokeChangesetOperationResult> {
 		const operationLane = `${params.channel}\x00${params.operationId}`;
+		const executionSource = handler.captureCredentialSource?.(params, source) ?? source;
 		let sourceId = 0;
 		if (source) {
 			sourceId = this._credentialSourceIds.get(source) ?? ++this._nextCredentialSourceId;
 			this._credentialSourceIds.set(source, sourceId);
 		}
-		const operationKey = `${operationLane}\x00${sourceId}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
+		const captureKey = executionSource ? getCapturedCredentialSourceKey(executionSource) ?? '' : '';
+		const operationKey = `${operationLane}\x00${sourceId}\x00${captureKey}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
 		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
 		}
 
 		const runningOperation = this._operationLanes.get(operationLane);
-		const executionSource = handler.captureCredentialSource?.(params, source) ?? source;
 		const operationPromise = runningOperation
 			? runningOperation.then(
 				() => this._executeChangesetOperation(handler, params, executionSource),

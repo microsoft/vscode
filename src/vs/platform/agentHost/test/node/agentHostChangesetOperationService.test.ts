@@ -18,9 +18,10 @@ import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRe
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -866,6 +867,75 @@ suite('AgentHostChangesetOperationService', () => {
 		pending[1].complete({});
 		await second;
 		assert.deepStrictEqual(tokens, ['admitted-token', 'admitted-token']);
+	});
+
+	test('credential rotation separates identical operations while retries still join their admitted revision', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const resource = 'https://api.github.com/repos';
+		const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await scope.authenticate({ resource, token: 'broad', scopes: ['repo', 'extra'] }, [resource]);
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const tokens: (string | undefined)[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource, scopes_supported: ['repo'] }]) : undefined,
+			invoke: (_params, _token, source) => {
+				tokens.push(source?.getCredential({ resource })?.token);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, scope);
+		const firstRetry = service.invokeChangesetOperation(params, scope);
+		await scope.authenticate({ resource, token: 'narrow', scopes: ['repo'] }, [resource]);
+		const second = service.invokeChangesetOperation(params, scope);
+		const secondRetry = service.invokeChangesetOperation(params, scope);
+		const beforeCompletion = [...tokens];
+		pending[0].complete({ message: { markdown: 'first revision' } });
+		await first;
+		if (pending[1]) {
+			pending[1].complete({ message: { markdown: 'second revision' } });
+		}
+		assert.deepStrictEqual({
+			beforeCompletion,
+			tokens,
+			results: await Promise.all([first, firstRetry, second, secondRetry]),
+		}, {
+			beforeCompletion: ['broad'], tokens: ['broad', 'narrow'],
+			results: [
+				{ message: { markdown: 'first revision' } }, { message: { markdown: 'first revision' } },
+				{ message: { markdown: 'second revision' } }, { message: { markdown: 'second revision' } },
+			],
+		});
+	});
+
+	test('a disconnected sponsor cannot join an identical already-admitted operation', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const resource = 'https://api.github.com/repos';
+		const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await scope.authenticate({ resource, token: 'admitted' }, [resource]);
+		const pending = new DeferredPromise<InvokeChangesetOperationResult>();
+		let calls = 0;
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource }]) : undefined,
+			invoke: () => { calls++; return pending.p; },
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, scope);
+		scope.dispose();
+		pending.complete({});
+		await assert.rejects(service.invokeChangesetOperation(params, scope), { code: AhpErrorCodes.AuthRequired });
+		await first;
+		assert.strictEqual(calls, 1);
 	});
 
 	test('serializes in-flight invocations with different metadata', async () => {
