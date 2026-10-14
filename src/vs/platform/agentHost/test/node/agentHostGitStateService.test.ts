@@ -504,6 +504,8 @@ suite('AgentHostGitStateService', () => {
 			pullRequestBranchName: 'feature',
 		});
 		const afterPullRequest = readSessionSourceControlState(h.stateManager.getSessionState(SESSION)?._meta);
+		// The session.db copy is a coalesced mirror of the committed central value.
+		await h.whenStateStoreIdle();
 		const persistedAfterPullRequest = await h.db.getMetadata(META_SOURCE_CONTROL_STATE);
 
 		assert.deepStrictEqual({
