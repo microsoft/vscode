@@ -329,7 +329,7 @@ The complete-suite runner reuses Electron when its installed version matches the
 
 The complete-suite runner runs isolated workers for conformance, Claude, Codex, Copilot, Copilot runtime coverage, Copilot OTel, and managed-settings diagnostics. The two Copilot workers share an entrypoint but use complementary title filters: `runtime coverage ` cases run in the runtime worker, and all other cases, including enterprise permissions, run in the ordinary Copilot worker. Both workers are mandatory and inherit the selected profile; focused and inverted user selections intersect each partition. Coverage collection combines their counts and fails if either worker fails or is missing.
 
-`AGENT_HOST_E2E_JOBS` or `--jobs` can lower concurrency. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+`AGENT_HOST_E2E_JOBS` or `--jobs` can lower concurrency. The two long Copilot workers start first so smaller worker pools leave time for the required disk-backed lifecycle pass. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
 Windows workers invoke the filtered Electron Node test runner directly so composed regular-expression filters are not interpreted by the general integration batch parser. The remaining integration phase continues to use the general integration entrypoint.
 

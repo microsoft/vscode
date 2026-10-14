@@ -32,12 +32,14 @@ suite('Copilot E2E worker partitions', () => {
 
 	test('the two mandatory workers select disjoint and exhaustive cases without changing the entrypoint', () => {
 		assert.deepStrictEqual({
+			firstWorkers: runner.suites.slice(0, 2).map(worker => worker.id),
 			workers: workers.map(item => ({ id: item.id, file: item.file })),
 			selections: titles.map(title => workers.map(worker => {
 				const args = runner.suiteArguments([], worker);
 				return new RegExp(args[args.indexOf('--grep') + 1]).test(title);
 			})),
 		}, {
+			firstWorkers: ['copilot', 'copilot-runtime'],
 			workers: ['copilot', 'copilot-runtime'].map(id => ({
 				id, file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 			})),

@@ -57,6 +57,16 @@ interface IObservedSurface {
 
 const suites: readonly ISuite[] = [
 	{
+		id: 'copilot',
+		label: 'Copilot',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+	},
+	{
+		id: 'copilot-runtime',
+		label: 'Copilot runtime',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+	},
+	{
 		id: 'conformance',
 		label: 'Conformance',
 		file: 'src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts',
@@ -70,16 +80,6 @@ const suites: readonly ISuite[] = [
 		id: 'codex',
 		label: 'Codex',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts',
-	},
-	{
-		id: 'copilot',
-		label: 'Copilot',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
-	},
-	{
-		id: 'copilot-runtime',
-		label: 'Copilot runtime',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 	},
 	{
 		id: 'copilot-otel',
