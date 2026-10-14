@@ -7920,6 +7920,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!this._telemetryContextBySubagentToolCallId.has(e.data.toolCallId)) {
+				// Taskless subagents have no tracked tool and inherit the current root's guarded context.
 				this._telemetryContextBySubagentToolCallId.set(e.data.toolCallId, this._spawningSubagentTelemetryContext(tracked?.parentToolCallId));
 			}
 			if (e.agentId) {
