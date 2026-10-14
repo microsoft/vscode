@@ -386,7 +386,7 @@ suite('TabbedModelPicker', () => {
 			},
 			search: {
 				ariaLabel: 'Search Models',
-				htmlTitle: null,
+				htmlTitle: 'Search Models',
 			},
 		});
 		element(popup, '[aria-label="Compare Models"]').click();

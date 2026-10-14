@@ -3101,6 +3101,8 @@ interface ISessionsListDndDelegate {
 	isSessionPinned(session: ISession): boolean;
 	/** Whether the dragged sessions may be reordered relative to the given target. */
 	canDropOn(dragged: ISession[], target: ISession): boolean;
+	/** Whether a group or workspace header participates in top-level reordering. */
+	isHeaderReorderable(element: ISessionGroupItem | ISessionSection): boolean;
 	/** Apply the reorder, placing the dragged sessions before/after the target. */
 	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
 	/** The id of the group the session belongs to, or `undefined`. */
@@ -3153,12 +3155,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	getDragURI(element: SessionListItem): string | null {
 		if (isSessionGroupItem(element)) {
-			return `sessionGroup:${element.group.id}`;
+			return this.delegate.isHeaderReorderable(element) ? `sessionGroup:${element.group.id}` : null;
 		}
 		if (isSessionSection(element)) {
 			// Only workspace sections are reorderable; Pinned, Done and the date
 			// sections stay fixed and are therefore not draggable.
-			return element.id.startsWith('workspace:') ? `sessionWorkspace:${element.id}` : null;
+			return element.id.startsWith('workspace:') && this.delegate.isHeaderReorderable(element) ? `sessionWorkspace:${element.id}` : null;
 		}
 		if (isSessionShowMore(element)) {
 			return null;
@@ -3473,11 +3475,11 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 		const elements = data.elements as SessionListItem[];
 		const groupItem = elements.find(isSessionGroupItem);
-		if (groupItem) {
+		if (groupItem && this.delegate.isHeaderReorderable(groupItem)) {
 			return { id: `group:${groupItem.group.id}`, isWorkspace: false };
 		}
 		const workspaceSection = elements.find((e): e is ISessionSection => isSessionSection(e) && e.id.startsWith('workspace:'));
-		if (workspaceSection) {
+		if (workspaceSection && this.delegate.isHeaderReorderable(workspaceSection)) {
 			return { id: workspaceSection.id, isWorkspace: true };
 		}
 		return undefined;
@@ -3486,10 +3488,10 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	/** The reorder identity of a top-level header element, or `undefined` when it is not reorderable. */
 	private headerRefOf(element: SessionListItem): string | undefined {
 		if (isSessionGroupItem(element)) {
-			return `group:${element.group.id}`;
+			return this.delegate.isHeaderReorderable(element) ? `group:${element.group.id}` : undefined;
 		}
 		if (isSessionSection(element) && element.id.startsWith('workspace:')) {
-			return element.id;
+			return this.delegate.isHeaderReorderable(element) ? element.id : undefined;
 		}
 		return undefined;
 	}
@@ -4060,6 +4062,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isReorderable: session => this.isReorderable(session),
 					isSessionPinned: session => this.isSessionPinned(session),
 					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
+					isHeaderReorderable: element => !isSessionGroupItem(element) || !element.comparison || this.options.grouping() === SessionsGrouping.Date,
 					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
 					getGroupIdOfSession: session => this._sessionGroupsService.getGroupOfSession(session.sessionId),
 					getUngroupedSectionIdOfSession: session => this.getUngroupedSectionIdOfSession(session),
@@ -4597,14 +4600,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 					comparisonGroupsByWorkspaceLabel.set(workspaceLabel, workspaceGroups);
 				}
 				workspaceGroups.push(groupItem);
-				if (!sections.some(section => section.id === `workspace:${workspaceLabel}`)) {
-					sections.push({
+				let workspaceSection = sections.find(section => section.id === `workspace:${workspaceLabel}`);
+				if (!workspaceSection) {
+					workspaceSection = {
 						id: `workspace:${workspaceLabel}`,
 						collapseStateId: `workspace:${comparison.workspace.toString()}`,
 						label: workspaceLabel,
 						sessions: [],
-					});
+					};
+					sections.push(workspaceSection);
 				}
+				const existingSessionIds = new Set(workspaceSection.sessions.map(session => session.sessionId));
+				workspaceSection.sessions.push(...groupItem.sessions.filter(session => !existingSessionIds.has(session.sessionId)));
 			}
 		}
 
@@ -4792,11 +4799,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const renderWorkspaceSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
-			const renderedSection = renderSection(section);
 			const comparisonGroups = comparisonGroupsByWorkspaceLabel.get(section.label);
+			const comparisonSessionIds = new Set(comparisonGroups?.flatMap(group => group.sessions.map(session => session.sessionId)));
+			const renderedSection = renderSection(comparisonGroups
+				? { ...section, sessions: section.sessions.filter(session => !comparisonSessionIds.has(session.sessionId)) }
+				: section);
 			return comparisonGroups
 				? {
 					...renderedSection,
+					element: section,
 					children: [
 						...comparisonGroups.map(renderGroup),
 						...(renderedSection.children ?? []),
@@ -4864,7 +4875,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// default above workspaces; workspaces default to their alphabetical
 			// order. Pinned stays first, Done last, and hidden ("+N more")
 			// workspaces are appended below the ordered block.
-			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+			const workspaceSections = sections
+				.filter(s => s.id.startsWith('workspace:'))
+				.sort((a, b) => compareWorkspaceLabels(a.label, b.label));
 			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
 			const primaryWorkspaceIds = workspaceSections
 				.filter(s => !moreFolderSectionIds.has(s.id))
@@ -6576,6 +6589,17 @@ function sessionWorkspaceLabel(session: ISession): string {
 	return session.workspace.get()?.label || localize('unknown', "Unknown");
 }
 
+function compareWorkspaceLabels(a: string, b: string): number {
+	const unknownWorkspaceLabel = localize('unknown', "Unknown");
+	if (a === unknownWorkspaceLabel) {
+		return b === unknownWorkspaceLabel ? 0 : 1;
+	}
+	if (b === unknownWorkspaceLabel) {
+		return -1;
+	}
+	return a.localeCompare(b);
+}
+
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
@@ -6591,7 +6615,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const unknownWorkspaceLabel = localize('unknown', "Unknown");
 	const order = [...groups.keys()]
 		.filter(k => k !== unknownWorkspaceLabel)
-		.sort((a, b) => a.localeCompare(b));
+		.sort(compareWorkspaceLabels);
 
 	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,

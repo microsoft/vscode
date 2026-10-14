@@ -238,20 +238,23 @@ suite('TabbedActionListWidget', () => {
 			tabs: [{ id: 'Models' }],
 			initialTab: 'Models',
 			tabBarActions: [
-				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', run: () => { } },
+				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', useManagedHover: true, run: () => { } },
 				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { } },
 			],
 			createActionList: () => ({ items: [] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
 		});
-		assert.deepStrictEqual(setupManagedHover.getCalls().map(call => ({
-			action: call.args[1].dataset.id,
-			content: call.args[2],
-			nativeTitle: call.args[1].getAttribute('title'),
-		})), [
-			{ action: 'workflow', content: 'Compare Models', nativeTitle: null },
-			{ action: 'search', content: 'Search Models', nativeTitle: null },
-		]);
+		assert.deepStrictEqual({
+			managedHovers: setupManagedHover.getCalls().map(call => ({
+				action: call.args[1].dataset.id,
+				content: call.args[2],
+				nativeTitle: call.args[1].getAttribute('title'),
+			})),
+			searchTitle: document.querySelector<HTMLElement>('[data-id="search"]')?.title,
+		}, {
+			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
+			searchTitle: 'Search Models',
+		});
 	});
 
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {

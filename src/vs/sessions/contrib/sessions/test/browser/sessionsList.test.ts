@@ -3250,7 +3250,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -3324,6 +3324,9 @@ suite('Sessions - SessionsList', () => {
 						? [attempt1.session]
 						: [];
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
+			if (includeOrdinaryWorkspace) {
+				sessions.push(createTestSession('Ordinary', { resourceId: 'ordinary', workspaceLabel: 'Zebra' }).session);
+			}
 			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
 			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
 				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
@@ -3388,6 +3391,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				hierarchy: {
 					workspaceLevel: workspace.closest('.monaco-list-row')?.getAttribute('aria-level'),
+					workspaceAriaLabel: workspace.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					comparisonLevel: parent.closest('.monaco-list-row')?.getAttribute('aria-level'),
 					attemptLevels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-level')),
 				},
@@ -3437,6 +3441,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				hierarchy: {
 					workspaceLevel: '1',
+					workspaceAriaLabel: 'Workspace, 4',
 					comparisonLevel: '2',
 					attemptLevels: ['3', '3'],
 				},
@@ -3498,6 +3503,81 @@ suite('Sessions - SessionsList', () => {
 				title: 'Improve the picker',
 				summary: 'Comparison · 2 attempts',
 				connectors: 0,
+			});
+		});
+
+		test('sorts comparison-only workspaces with ordinary workspace sections', () => {
+			const ordinary = createTestSession('Ordinary', { resourceId: 'ordinary', workspaceLabel: 'Zebra' }).session;
+			const attempt = createTestSession('Attempt', { resourceId: 'apple-attempt', workspaceLabel: 'Apple' }).session;
+			const comparison: ISessionComparison = {
+				id: 'apple-comparison',
+				groupId: group.id,
+				title: 'Apple comparison',
+				createdAt: 1,
+				workspace: URI.parse('file:///apple'),
+				prompt: 'Implement',
+				participants: [{
+					id: 'attempt',
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: attempt.resource,
+				}],
+			};
+			const harness = createListHarness(disposables, [ordinary, attempt], {
+				groups: [group],
+				memberships: new Map([[attempt.sessionId, group.id]]),
+				comparisons: [comparison],
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			assert.deepStrictEqual(
+				[...container.querySelectorAll<HTMLElement>('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				['Apple', 'Zebra'],
+			);
+		});
+
+		test('only allows top-level comparison headers to be dragged', () => {
+			const workspace = renderComparison(undefined, 'all', new Set(), true);
+			const workspaceSection = [...workspace.container.querySelectorAll<HTMLElement>('.session-section')]
+				.find(section => section.querySelector('.session-section-label')?.textContent === 'Zebra');
+			const comparisonRow = workspace.container.querySelector('.session-comparison-group')?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(workspaceSection && comparisonRow);
+			const dataTransfer = new DataTransfer();
+			workspaceSection.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			const comparisonDragOver = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
+			comparisonRow.dispatchEvent(comparisonDragOver);
+			comparisonRow.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			workspaceSection.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+
+			const dateHarness = createListHarness(disposables, workspace.harness.managementService.sessions, {
+				groups: [group],
+				memberships: new Map(workspace.harness.managementService.sessions
+					.filter(session => session.title.get() !== 'Ordinary')
+					.map(session => [session.sessionId, group.id])),
+				comparisons: [...workspace.harness.instantiationService.get(ISessionComparisonService).comparisons.get()],
+			});
+			const dateContainer = dateHarness.createContainer();
+			const dateList = dateHarness.store.add(dateHarness.instantiationService.createInstance(SessionsList, dateContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			dateList.layout(300, 400);
+
+			assert.deepStrictEqual({
+				workspace: comparisonRow.draggable,
+				workspaceSectionReorders: workspace.harness.sectionReorders,
+				date: dateContainer.querySelector('.session-comparison-group')?.closest<HTMLElement>('.monaco-list-row')?.draggable,
+			}, {
+				workspace: false,
+				workspaceSectionReorders: [],
+				date: true,
 			});
 		});
 

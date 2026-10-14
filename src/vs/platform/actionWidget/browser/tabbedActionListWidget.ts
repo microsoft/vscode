@@ -113,6 +113,8 @@ export interface ITabBarAction {
 	readonly tooltip: string;
 	/** When true, the button is pushed to the far end of the tab bar. */
 	readonly alignEnd?: boolean;
+	/** When true, use the workbench hover instead of the button's native title. */
+	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
 	run(): void;
@@ -372,7 +374,11 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
 					button.ariaLabel = tabAction.tooltip;
-					renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					if (tabAction.useManagedHover) {
+						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					} else {
+						button.title = tabAction.tooltip;
+					}
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.
 					if (tabAction.checked !== undefined) {
