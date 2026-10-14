@@ -364,6 +364,20 @@ suite('TabbedModelPicker', () => {
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
 		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
+		const workflowAction = element(popup, '[data-id="workflow"]');
+		const workflowLabel = element(workflowAction, '.tabbed-action-list-tabbar-action-label');
+		workflowAction.classList.add('hovered');
+		assert.deepStrictEqual({
+			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			workflowLabel: workflowLabel.textContent,
+			workflowLabelDisplay: dom.getWindow(workflowLabel).getComputedStyle(workflowLabel).display,
+			workflowPressed: workflowAction.getAttribute('aria-pressed'),
+		}, {
+			actions: ['workflow', 'search'],
+			workflowLabel: 'Compare Models',
+			workflowLabelDisplay: 'block',
+			workflowPressed: 'false',
+		});
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);

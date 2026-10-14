@@ -111,6 +111,8 @@ export interface ITabBarAction {
 	readonly tooltip: string;
 	/** When true, the button is pushed to the far end of the tab bar. */
 	readonly alignEnd?: boolean;
+	/** When true, the tooltip text is also revealed beside the icon on hover or keyboard focus. */
+	readonly showLabelOnHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
 	run(): void;
@@ -366,6 +368,7 @@ export class TabbedActionListWidget extends Disposable {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
 					button.classList.toggle('align-end', !!tabAction.alignEnd);
+					button.classList.toggle('show-label-on-hover', !!tabAction.showLabelOnHover);
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
 					button.title = tabAction.tooltip;
@@ -376,6 +379,10 @@ export class TabbedActionListWidget extends Disposable {
 						button.setAttribute('aria-pressed', String(tabAction.checked));
 					}
 					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
+					if (tabAction.showLabelOnHover) {
+						const label = dom.append(button, dom.$('span.tabbed-action-list-tabbar-action-label', undefined, tabAction.tooltip));
+						label.setAttribute('aria-hidden', 'true');
+					}
 					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
 						dom.EventHelper.stop(e, true);
 						tabAction.run();
