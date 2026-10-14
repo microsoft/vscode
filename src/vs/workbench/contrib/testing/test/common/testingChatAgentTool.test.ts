@@ -61,23 +61,27 @@ suite('Workbench - RunTestTool', () => {
 		return tool.invoke(upcastPartial<IToolInvocation>({ parameters }), noopCountTokens, noopProgress, token);
 	}
 
-	function useCollection(extension: TestTestCollection) {
+	function useCollection(extension: TestTestCollection, additional: readonly TestTestCollection[] = []) {
+		const extensions = [extension, ...additional];
 		const diffs = ds.add(new Emitter<TestsDiff>());
 		const apply = (diff: TestsDiff) => {
 			collection.apply(diff);
 			diffs.fire(diff);
 		};
 		const collection = new MainThreadTestCollection(uriIdentity, async (id, levels) => {
-			const expansion = extension.expand(id, levels);
-			apply(extension.collectDiff());
+			const provider = extensions.find(extension => extension.root.id === TestId.fromString(id).controllerId)!;
+			const expansion = provider.expand(id, levels);
+			apply(provider.collectDiff());
 			await expansion;
-			apply(extension.collectDiff());
+			apply(provider.collectDiff());
 		});
-		ds.add(extension.onDidGenerateDiff(apply));
-		apply(extension.collectDiff());
+		for (const extension of extensions) {
+			ds.add(extension.onDidGenerateDiff(apply));
+			apply(extension.collectDiff());
+		}
 		testService.collection = collection;
 		testService.onDidProcessDiff = diffs.event;
-		testService.getTestControllers = () => [upcastPartial<IMainThreadTestController>({ id: 'ctrlId' })];
+		testService.getTestControllers = () => extensions.map(extension => upcastPartial<IMainThreadTestController>({ id: extension.root.id }));
 		fileService.stat = async uri => upcastPartial<IFileStatWithPartialMetadata>({ resource: uri });
 		return { collection, diffs, flush: () => apply(extension.collectDiff()) };
 	}
@@ -337,6 +341,29 @@ suite('Workbench - RunTestTool', () => {
 			}, { error: true, elapsed: 5_000, pending: true, passing: false, listeners: false, runCount: 0 });
 		}));
 
+		for (const stalledFirst of [false, true]) {
+			test(`preserves ready workspace controller selection (${stalledFirst ? 'stalled' : 'healthy'} controller first)`, () => runWithFakedTimers({}, async () => {
+				const healthy = ds.add(new TestTestCollection('healthy'));
+				healthy.resolveHandler = () => {
+					healthy.root.children.add(new TestTestItem(new TestId(['healthy', 'a']), 'test a', URI.file('/workspace/a.ts')));
+				};
+				const stalled = ds.add(new TestTestCollection('stalled'));
+				stalled.resolveHandler = () => new Promise<void>(() => { });
+				const { diffs } = useCollection(stalledFirst ? stalled : healthy, [stalledFirst ? healthy : stalled]);
+				const requests = useCompletedRun();
+				const start = Date.now();
+				const result = await invoke({});
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					requests: requests.map(request => request.tests.map(test => test.item.extId)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					pending: resultText(result).includes('discovery is pending for controller stalled'),
+					partial: !!result.toolResultError,
+					listeners: diffs.hasListeners(),
+				}, { elapsed: 5_000, requests: [['healthy']], passed: true, pending: true, partial: true, listeners: false });
+			}));
+		}
+
 		test('includes workspace discovery failure evidence without starting a run', async () => {
 			const extension = ds.add(new TestTestCollection());
 			extension.resolveHandler = () => {
@@ -404,6 +431,28 @@ suite('Workbench - RunTestTool', () => {
 				pending: resultText(result).includes('discovery: pending'),
 			}, { elapsed: 5_000, checkError: true, missing: false, pending: true });
 		}));
+
+		for (const stalledFirst of [false, true]) {
+			test(`runs a known healthy file despite a stalled stat (${stalledFirst ? 'stalled' : 'healthy'} path first)`, () => runWithFakedTimers({}, async () => {
+				const { diffs } = useFile();
+				fileService.stat = uri => uri.path.endsWith('/stalled.ts')
+					? new Promise<IFileStatWithPartialMetadata>(() => { })
+					: Promise.resolve(upcastPartial<IFileStatWithPartialMetadata>({ resource: uri }));
+				const requests = useCompletedRun();
+				const files = ['/workspace/a.ts', '/workspace/stalled.ts'];
+				const start = Date.now();
+				const result = await invoke({ files: stalledFirst ? files.reverse() : files });
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					checkError: resultText(result).includes('/workspace/stalled.ts: path check error:'),
+					missing: resultText(result).includes('/workspace/stalled.ts: path is missing'),
+					partial: !!result.toolResultError,
+					listeners: diffs.hasListeners(),
+				}, { elapsed: 5_000, requests: [['test a']], passed: true, checkError: true, missing: false, partial: true, listeners: false });
+			}));
+		}
 
 		test('initiates lazy URI-less root discovery without expanding unrelated files', async () => {
 			const extension = ds.add(new TestTestCollection());
@@ -644,6 +693,52 @@ suite('Workbench - RunTestTool', () => {
 			}, { fileMatched: true, nameMismatch: true, fileMismatch: false, error: true, runCount: 0 });
 		});
 
+		for (const files of [undefined, ['/workspace/a.ts']]) {
+			test(`reports each unmatched name while running known matches (${files ? 'file' : 'workspace'})`, async () => {
+				useFile();
+				const requests = useCompletedRun();
+				const result = await invoke({ files, testNames: [' TEST A ', ' Missing Test ', 'test a'] });
+				assert.deepStrictEqual({
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					missingName: resultText(result).includes('Requested test names with no discovered or executed match: missing test.'),
+					partial: !!result.toolResultError,
+				}, { requests: [['test a']], passed: true, missingName: true, partial: true });
+			});
+
+			test(`selected suites cover their discovered descendants (${files ? 'file' : 'workspace'})`, async () => {
+				const { item, flush } = useFile('/workspace/a.ts', 'suite a');
+				item.children.add(new TestTestItem(new TestId(['ctrlId', 'a', 'nested']), 'descendant test', URI.file('/workspace/a.ts')));
+				flush();
+				const requests = useCompletedRun();
+				const result = await invoke({ files, testNames: ['suite a', 'descendant'] });
+				assert.deepStrictEqual({
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					missingNames: resultText(result).includes('Requested test names with no discovered or executed match:'),
+					partial: !!result.toolResultError,
+				}, { requests: [['suite a']], passed: true, missingNames: false, partial: false });
+			});
+		}
+
+		test('uses completed descendant evidence for a selected suite without expanding it unnecessarily', async () => {
+			useFile('/workspace/a.ts', 'suite a');
+			const requested: string[][] = [];
+			testService.runTests = async request => {
+				requested.push(request.tests.map(test => test.item.label));
+				const completed = createResultWithTests([{ extId: new TestId(['ctrlId', 'a', 'nested']).toString(), label: 'descendant test', state: TestResultState.Passed }]);
+				completed.markComplete();
+				return completed;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'], testNames: ['suite a', 'descendant'] });
+			assert.deepStrictEqual({
+				requested,
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				missingNames: resultText(result).includes('Requested test names with no discovered or executed match:'),
+				partial: !!result.toolResultError,
+			}, { requested: [['suite a']], passed: true, missingNames: false, partial: false });
+		});
+
 		test('runs matched files and reports missing and undiscovered files in mixed requests', async () => {
 			useFile();
 			fileService.stat = async uri => {
@@ -759,16 +854,16 @@ suite('Workbench - RunTestTool', () => {
 			}, { error: true, lastProgress: { message: 'No tests were run.', progress: undefined }, passing: false });
 		}));
 
-		test('handles a completed empty result with no tasks', async () => {
+		test('handles a completed empty result with no tasks after the capture grace window', () => runWithFakedTimers({}, async () => {
 			useFile();
 			const completed = createLiveTestResult();
 			completed.markComplete();
 			testService.runTests = async () => completed;
 			const result = await invoke({ files: ['/workspace/a.ts'] });
 			assert.deepStrictEqual({ error: !!result.toolResultError, noTests: resultText(result).includes('executed no tests') }, { error: true, noTests: true });
-		});
+		}));
 
-		test('handles out-of-band completion without a task as an unvalidated empty run', async () => {
+		test('handles out-of-band completion without a task as an unvalidated empty run', () => runWithFakedTimers({}, async () => {
 			useFile();
 			const results = ds.add(new Emitter<ResultChangeEvent>());
 			resultService.onResultsChanged = results.event;
@@ -785,7 +880,48 @@ suite('Workbench - RunTestTool', () => {
 				configuredCommand: resultText(result).includes('repository\'s configured test command'),
 				listeners: results.hasListeners(),
 			}, { error: true, noTests: true, configuredCommand: true, listeners: false });
-		});
+		}));
+
+		for (const taskAfterStarted of [false, true]) {
+			test(`prefers delayed detached tasks over the completed initial empty result (task ${taskAfterStarted ? 'after' : 'before'} started event)`, () => runWithFakedTimers({}, async () => {
+				const { extension, item } = useFile();
+				const results = ds.add(new Emitter<ResultChangeEvent>());
+				resultService.onResultsChanged = results.event;
+				const initial = createLiveTestResult();
+				initial.markComplete();
+				const detached = createLiveTestResult();
+				const addTask = () => {
+					detached.addTask({ id: 't', name: 'detached task', ctrlId: 'ctrlId', running: true });
+					detached.addTestChainToRun('ctrlId', [extension.root.toTestItem(), item.toTestItem()]);
+					detached.updateState(item.toTestItem().extId, 't', TestResultState.Passed);
+				};
+				testService.runTests = async () => {
+					results.fire({ started: initial });
+					void (async () => {
+						await timeout(10);
+						if (!taskAfterStarted) {
+							addTask();
+						}
+						results.fire({ started: detached });
+						if (taskAfterStarted) {
+							await timeout(10);
+							addTask();
+						}
+						detached.markComplete();
+					})();
+					return initial;
+				};
+				const start = Date.now();
+				const result = await invoke({ files: ['/workspace/a.ts'] });
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					noTests: resultText(result).includes('executed no tests'),
+					error: !!result.toolResultError,
+					listeners: results.hasListeners(),
+				}, { elapsed: taskAfterStarted ? 20 : 10, passed: true, noTests: false, error: false, listeners: false });
+			}));
+		}
 
 		test('recommends the configured command when no live test run starts', () => runWithFakedTimers({}, async () => {
 			useFile();
@@ -798,7 +934,7 @@ suite('Workbench - RunTestTool', () => {
 			}, { error: true, noRun: true, configuredCommand: true });
 		}));
 
-		test('includes provider errors published during an empty run', async () => {
+		test('includes provider errors published during an empty run', () => runWithFakedTimers({}, async () => {
 			const { item, flush } = useFile();
 			const completed = createLiveTestResult();
 			completed.markComplete();
@@ -813,7 +949,7 @@ suite('Workbench - RunTestTool', () => {
 				evidence: resultText(result).includes('Cannot import generated output for this test'),
 				failedDiscovery: resultText(result).includes('discovery: failed'),
 			}, { error: true, evidence: true, failedDiscovery: true });
-		});
+		}));
 
 		test('preserves failed-test details for a normal completed run', async () => {
 			useFile();

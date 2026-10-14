@@ -169,8 +169,12 @@ export class RunTestTool implements IToolImpl {
 			return this._cancelledResult();
 		}
 
-		const diagnostics = this._formatDiscovery(discovery.files, discovery.errors);
 		const testCases = discovery.tests;
+		const requestedNames = [...new Set(params.testNames?.map(name => name.toLowerCase().trim()) ?? [])];
+		const diagnostics = [
+			this._formatDiscovery(discovery.files, discovery.errors),
+			this._formatUnmatchedNames(this._getUnmatchedNames(requestedNames, testCases)),
+		].filter(Boolean).join('\n');
 		if (!testCases.length) {
 			const hasWorkspaceTests = [...this._testService.collection.rootItems].some(root => root.children.size > 0);
 			const message = !params.files?.length && !hasWorkspaceTests
@@ -226,7 +230,11 @@ export class RunTestTool implements IToolImpl {
 		for (const file of discovery.files) {
 			this._updateDiscoveryEvidence(file);
 		}
-		const finalDiagnostics = this._formatDiscovery(discovery.files, discovery.errors);
+		const unmatchedNames = this._getUnmatchedNames(requestedNames, testCases, result);
+		const finalDiagnostics = [
+			this._formatDiscovery(discovery.files, discovery.errors),
+			this._formatUnmatchedNames(unmatchedNames),
+		].filter(Boolean).join('\n');
 		const executed = result.counts[TestResultState.Passed] + result.counts[TestResultState.Failed] + result.counts[TestResultState.Errored];
 		if (executed === 0) {
 			const message = localize('runTestTool.noTestsExecuted', "The test run executed no tests ({0} skipped). This is not a passing test result. The request has not been validated.", result.counts[TestResultState.Skipped]);
@@ -239,7 +247,7 @@ export class RunTestTool implements IToolImpl {
 		}
 
 		const summary = await buildTestRunSummary(result, mode, coverageFiles);
-		const incomplete = discovery.errors.length > 0 || discovery.files.some(file => file.existence !== TestFileExistence.Exists || !file.filtered.length || file.discovery === TestDiscoveryState.Pending || file.discovery === TestDiscoveryState.Failed);
+		const incomplete = unmatchedNames.length > 0 || discovery.errors.length > 0 || discovery.files.some(file => file.existence !== TestFileExistence.Exists || !file.filtered.length || file.discovery === TestDiscoveryState.Pending || file.discovery === TestDiscoveryState.Failed);
 		const partialMessage = incomplete ? localize('runTestTool.partial', "Only the matched tests were run. The full request has not been validated.") : undefined;
 		const content = [{ kind: 'text', value: [summary, finalDiagnostics, partialMessage, incomplete ? this._getUnvalidatedGuidance() : undefined].filter(Boolean).join('\n') } as const];
 
@@ -310,9 +318,24 @@ export class RunTestTool implements IToolImpl {
 
 		return new Promise<LiveTestResult | undefined>((resolve, reject) => {
 			let startedResult: LiveTestResult | undefined;
+			let fallbackResult: LiveTestResult | undefined;
+			const observed = new Set<LiveTestResult>();
 			const finish = (result: LiveTestResult | undefined) => {
 				store.dispose();
 				resolve(result);
+			};
+			const observe = (result: LiveTestResult) => {
+				if (result.tasks.length) {
+					finish(result);
+				} else if (!observed.has(result)) {
+					observed.add(result);
+					store.add(Event.once(result.onNewTask)(() => finish(result)));
+					if (result.completedAt !== undefined) {
+						fallbackResult ??= result;
+					} else {
+						store.add(Event.once(result.onComplete)(() => { fallbackResult ??= result; }));
+					}
+				}
 			};
 			store.add(token.onCancellationRequested(() => {
 				if (startedResult) {
@@ -323,12 +346,7 @@ export class RunTestTool implements IToolImpl {
 			store.add(this._testResultService.onResultsChanged(ev => {
 				if ('started' in ev) {
 					startedResult = ev.started;
-					if (ev.started.tasks.length || ev.started.completedAt !== undefined) {
-						finish(ev.started);
-					} else {
-						store.add(Event.once(ev.started.onNewTask)(() => finish(ev.started)));
-						store.add(Event.once(ev.started.onComplete)(() => finish(ev.started)));
-					}
+					observe(ev.started);
 				}
 			}));
 
@@ -338,14 +356,40 @@ export class RunTestTool implements IToolImpl {
 				preserveFocus: true,
 			}, token).then(result => {
 				if (!store.isDisposed) {
-					if (result instanceof LiveTestResult && (result.tasks.length || result.completedAt !== undefined)) {
-						finish(result);
-					} else {
-						store.add(disposableTimeout(() => finish(undefined), 5_000));
+					if (result instanceof LiveTestResult) {
+						observe(result);
+					}
+					if (!store.isDisposed) {
+						store.add(disposableTimeout(() => finish(fallbackResult), 5_000));
 					}
 				}
 			}, reject);
 		}).finally(() => store.dispose());
+	}
+
+	private _getUnmatchedNames(names: readonly string[], tests: readonly IncrementalTestCollectionItem[], result?: LiveTestResult): string[] {
+		if (!names.length) {
+			return [];
+		}
+		const selectedIds = new Set(tests.map(test => test.item.extId));
+		const matched = new Set<string>();
+		const items = [...this._testService.collection.all, ...(result?.tests ?? [])];
+		for (const test of items) {
+			if (![...TestId.fromString(test.item.extId).idsToRoot()].some(id => selectedIds.has(id.toString()))) {
+				continue;
+			}
+			const label = test.item.label.toLowerCase().trim();
+			for (const name of names) {
+				if (label.includes(name)) {
+					matched.add(name);
+				}
+			}
+		}
+		return names.filter(name => !matched.has(name));
+	}
+
+	private _formatUnmatchedNames(names: readonly string[]): string {
+		return names.length ? localize('runTestTool.unmatchedNames', "Requested test names with no discovered or executed match: {0}.", names.join(', ')) : '';
 	}
 
 	/** Filters the test files to individual test cases based on the provided parameters. */
@@ -408,7 +452,7 @@ export class RunTestTool implements IToolImpl {
 		const rootErrors = new Map<string, string>();
 		let tests: IncrementalTestCollectionItem[] = [];
 		try {
-			await Promise.all(files.map(async file => {
+			const checks = files.map(async file => {
 				if (!file.uri) {
 					file.checkError = localize('runTestTool.unresolvedPath', "A relative path cannot be resolved without a workspace folder.");
 					return;
@@ -424,14 +468,16 @@ export class RunTestTool implements IToolImpl {
 					file.checkError = isCancellationError(error)
 						? localize('runTestTool.pathCheckPending', "The path check did not finish before discovery stopped.")
 						: getErrorMessage(error);
+					if (isCancellationError(error)) {
+						file.discovery = TestDiscoveryState.Pending;
+					}
 				}
-			}));
+			});
 
-			// Resolve known files first so a pending controller cannot block already-discovered matches.
-			const ordered = [...files].sort((a, b) => Number(!!b.uri && [...this._testService.collection.getNodeByUrl(b.uri)].length > 0) - Number(!!a.uri && [...this._testService.collection.getNodeByUrl(a.uri)].length > 0));
-			for (const file of ordered) {
+			// Path checks and file selection must not block independently discovered matches.
+			await Promise.all([...checks, ...files.map(async file => {
 				if (!file.uri) {
-					continue;
+					return;
 				}
 				try {
 					if (discoveryToken.token.isCancellationRequested) {
@@ -475,14 +521,13 @@ export class RunTestTool implements IToolImpl {
 					}
 				}
 				this._updateDiscoveryEvidence(file);
-			}
+			})]);
 
 			if (files.length) {
 				tests = files.flatMap(file => file.filtered);
 			} else {
-				try {
-					const roots = [...this._testService.collection.rootItems];
-					for (const root of roots) {
+				await Promise.all([...this._testService.collection.rootItems].map(async root => {
+					try {
 						if (root.expand === TestItemExpandState.Expandable || root.expand === TestItemExpandState.BusyExpanding) {
 							await this._expandRoot(root, discoveryToken.token, rootErrors);
 						}
@@ -491,13 +536,15 @@ export class RunTestTool implements IToolImpl {
 						if (error) {
 							errors.push(typeof error === 'string' ? error : error.value);
 						}
+						if (root.children.size > 0) {
+							tests.push(...await this._getTestCasesToRun(params, [root], progress, discoveryToken.token));
+						}
+					} catch (error) {
+						errors.push(isCancellationError(error)
+							? localize('runTestTool.controllerDiscoveryPending', "VS Code test discovery is pending for controller {0}. The request has not been validated.", root.controllerId)
+							: getErrorMessage(error));
 					}
-					tests = await this._getTestCasesToRun(params, roots.filter(root => root.children.size > 0), progress, discoveryToken.token);
-				} catch (error) {
-					errors.push(isCancellationError(error)
-						? localize('runTestTool.discoveryPending', "VS Code test discovery is pending. The request has not been validated.")
-						: getErrorMessage(error));
-				}
+				}));
 			}
 		} finally {
 			discoveryToken.cancel();
