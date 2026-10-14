@@ -45,6 +45,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, Agent
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
+import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -4032,6 +4033,74 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('resourceRead', () => {
 
+		for (const encoding of [ContentEncoding.Utf8, ContentEncoding.Base64]) {
+			for (const { kind, mimeType, contentType } of [
+				{ kind: 'text', mimeType: 'text/markdown', contentType: 'text/markdown' },
+				{ kind: 'blob', mimeType: undefined, contentType: 'application/octet-stream' },
+			]) {
+				test(`reads stored MCP ${kind} resources as ${encoding} independently of the display path`, async () => {
+					const database = new TestSessionDatabase();
+					await database.createTurn('turn-1');
+					await database.storeToolResultResources('turn-1', 'tc-resource', [{
+						ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType,
+						content: VSBuffer.fromString('héllo').buffer,
+					}]);
+					const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const session = AgentSession.uri('copilot', 'resource-session');
+					const uri = URI.parse(buildToolResultResourceUri(session.toString(), 'tc-resource', 1, 'a\\b'));
+
+					assert.deepStrictEqual(await localService.resourceRead(uri.with({ path: '/../../ignored' }), encoding), {
+						data: encoding === ContentEncoding.Base64 ? 'aMOpbGxv' : 'héllo',
+						encoding,
+						contentType,
+					});
+				});
+			}
+		}
+
+		test('maps missing database resource content to NotFound', async () => {
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const uri = URI.parse(buildToolResultResourceUri(AgentSession.uri('copilot', 'missing').toString(), 'tc-resource', 0, 'resource'));
+			await assert.rejects(() => localService.resourceRead(uri), (error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+		});
+
+		for (const encoding of [ContentEncoding.Utf8, ContentEncoding.Base64]) {
+			for (const { kind, resource, contentType } of [
+				{ kind: 'text', resource: { uri: 'demo://resource/1', text: 'héllo', mimeType: 'text/markdown' }, contentType: 'text/markdown' },
+				{ kind: 'blob', resource: { uri: 'demo://resource/1', blob: 'aMOpbGxv' }, contentType: 'application/octet-stream' },
+			]) {
+				test(`reads MCP ${kind} resources as ${encoding} through the originating channel`, async () => {
+					const provider: IAgent = copilotAgent;
+					const calls: Array<{ chat: string; serverName: string; method: string; params: Record<string, unknown> | undefined }> = [];
+					provider.handleMcpRequest = async (chat, serverName, method, params) => {
+						calls.push({ chat: chat.toString(), serverName, method, params });
+						return { contents: [resource] };
+					};
+					registerTestAgentProvider(service, provider);
+					const session = AgentSession.uri('copilot', 'resource-session');
+					const chat = URI.parse(buildChatUri(session, 'peer-chat'));
+					const channel = buildMcpChannel(chat, 'everything', 'copilot');
+					const uri = URI.parse(buildMcpResourceUri(channel, resource.uri, 'Document'));
+					assert.deepStrictEqual({ result: await service.resourceRead(uri, encoding), calls }, {
+						result: {
+							data: encoding === ContentEncoding.Base64 ? 'aMOpbGxv' : 'héllo',
+							encoding,
+							contentType,
+						},
+						calls: [{ chat: chat.toString(), serverName: 'everything', method: 'resources/read', params: { uri: resource.uri } }],
+					});
+				});
+			}
+		}
+
+		test('maps empty MCP resources to NotFound', async () => {
+			const provider: IAgent = copilotAgent;
+			provider.handleMcpRequest = async () => ({ contents: [] });
+			registerTestAgentProvider(service, provider);
+			const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'resource-session')));
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/missing'));
+			await assert.rejects(() => service.resourceRead(uri), (error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+		});
 		test('returns binary resources as Base64 when requested', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });
 			await fileService.writeFile(uri, VSBuffer.wrap(Uint8Array.from([80, 75, 0, 1, 255])));
