@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, hasManagedPermissions, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, hasManagedPermissions, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -26,6 +26,7 @@ import { getComputedDefaultSessionType, getDefaultNewChatSessionType } from '../
 import { localChatSessionType, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { storeUserSelectedSessionType } from '../../../../contrib/chat/common/chatSessionTypePreference.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
+import { adaptManagedSettings } from '../../../accounts/browser/managedSettings.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo, whenAccountPolicySettled } from '../../common/accountPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
@@ -557,6 +558,55 @@ suite('AccountPolicyService', () => {
 	});
 
 	for (const channel of ['nativeMdm', 'server', 'file'] as const) {
+		test(`temporary Local permission from ${channel} affects only Local across updates and removal`, async () => {
+			const configuration = new TestConfigurationService();
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const native = disposables.add(new FakeNativeManagedSettingsService());
+			const file = disposables.add(new FakeFileManagedSettingsService());
+			const changed = disposables.add(new Emitter<IPolicyData | null>());
+			const provider = new class extends DefaultAccountProvider {
+				override readonly onDidChangePolicyData = changed.event;
+				override policyData: IPolicyData = {};
+			}(BASE_DEFAULT_ACCOUNT);
+			defaultAccountService.setDefaultAccountProvider(provider);
+			await defaultAccountService.refresh();
+			policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+			const definitions: Record<string, PolicyDefinition> = {
+				Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+				Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+				Presence: { type: 'boolean', value: managedSettingsDisabledValue },
+			};
+			await policyService.updatePolicyDefinitions(definitions);
+			const results = [];
+			const valuesToTest = [undefined, false, true, 'false', 0, null, {}, [], { future: true }, undefined];
+			for (const value of valuesToTest) {
+				const raw = { vscode: { temporaryAllowLocalHarness: value } };
+				const values = normalizeManagedSettings(raw);
+				if (channel === 'nativeMdm') {
+					native.setManagedSettings(values);
+				} else if (channel === 'file') {
+					file.setManagedSettings(values, raw);
+				} else {
+					provider.policyData = adaptManagedSettings(raw);
+					changed.fire(provider.policyData);
+				}
+				await policyService.updatePolicyDefinitions(definitions);
+				results.push({
+					required: requiresCopilotAgentHost(policyService, configuration),
+					permissions: hasManagedPermissions(policyService),
+					sandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
+					claude: policyService.getPolicyValue('Claude'),
+					codex: policyService.getPolicyValue('Codex'),
+					presence: policyService.getPolicyValue('Presence'),
+					source: policyService.getPolicyValueSource('Claude'),
+				});
+			}
+			assert.deepStrictEqual(results, valuesToTest.map(value => ({
+				required: value === false, permissions: false, sandbox: undefined,
+				claude: undefined, codex: undefined, presence: undefined, source: undefined,
+			})));
+		});
+
 		test(`temporary Local escape hatch projects from ${channel} and refreshes on false and removal`, async () => {
 			const key = COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY;
 			const configurationService = new TestConfigurationService();
@@ -657,6 +707,103 @@ suite('AccountPolicyService', () => {
 			]));
 		});
 	}
+
+	test('allowing Local preserves other governance and winning-source attribution', async () => {
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		const native = disposables.add(new FakeNativeManagedSettingsService());
+		const file = disposables.add(new FakeFileManagedSettingsService());
+		const changed = disposables.add(new Emitter<IPolicyData | null>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangePolicyData = changed.event;
+			override policyData: IPolicyData = {};
+		}(BASE_DEFAULT_ACCOUNT);
+		defaultAccountService.setDefaultAccountProvider(provider);
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+		const definitions: Record<string, PolicyDefinition> = {
+			Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+			Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+			Presence: { type: 'boolean', value: managedSettingsDisabledValue },
+		};
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const otherSettings: RawManagedSettingsData[] = [
+			{},
+			{ sandbox: { enabled: false } },
+			{ permissions: { allow: [] } },
+			{ vscode: { temporaryDefaultToLocalHarness: false } },
+			{ futureControl: {} },
+		];
+		const results = [];
+		for (const channel of ['nativeMdm', 'server', 'file'] as const) {
+			for (const other of otherSettings) {
+				const snapshots = [];
+				for (const includeInactiveControl of [false, true]) {
+					const values = { ...other, ...(includeInactiveControl ? { [key]: true } : {}) };
+					native.setManagedSettings(channel === 'nativeMdm' ? normalizeManagedSettings(values) : {});
+					file.setManagedSettings(channel === 'file' ? normalizeManagedSettings(values) : {}, channel === 'file' ? values : {});
+					provider.policyData = channel === 'server' ? adaptManagedSettings(values) : {};
+					changed.fire(provider.policyData);
+					await policyService.updatePolicyDefinitions(definitions);
+					snapshots.push({
+						required: requiresCopilotAgentHost(policyService, configuration),
+						claude: policyService.getPolicyValue('Claude'), codex: policyService.getPolicyValue('Codex'),
+						presence: policyService.getPolicyValue('Presence'),
+						source: policyService.getPolicyValueSource('Claude'),
+					});
+				}
+				results.push({ channel, other, before: snapshots[0], after: snapshots[1] });
+			}
+		}
+		assert.deepStrictEqual(results.map(({ channel, other, after }) => ({ channel, other, state: after })),
+			results.map(({ channel, other, before }) => ({ channel, other, state: before })));
+	});
+
+	test('temporary Local permission does not contribute governance at either effective value', async () => {
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		const native = disposables.add(new FakeNativeManagedSettingsService({ [key]: false }));
+		const file = disposables.add(new FakeFileManagedSettingsService({ [key]: true }, { vscode: { temporaryAllowLocalHarness: true } }));
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, adaptManagedSettings({ vscode: { temporaryAllowLocalHarness: true } })));
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+		const definitions: Record<string, PolicyDefinition> = {
+			Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+			Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+			Presence: { type: 'boolean', value: managedSettingsDisabledValue },
+		};
+		const results = [];
+		const nativeValues: ManagedSettingsData[] = [{ [key]: false }, {}, { [key]: false }];
+		for (const values of nativeValues) {
+			native.setManagedSettings(values);
+			await policyService.updatePolicyDefinitions(definitions);
+			results.push({
+				effective: policyService.getManagedSettingValue(key),
+				claude: policyService.getPolicyValue('Claude'), codex: policyService.getPolicyValue('Codex'),
+				presence: policyService.getPolicyValue('Presence'),
+				source: policyService.getPolicyValueSource('Claude'),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ effective: false, claude: undefined, codex: undefined, presence: undefined, source: undefined },
+			{ effective: true, claude: undefined, codex: undefined, presence: undefined, source: undefined },
+			{ effective: false, claude: undefined, codex: undefined, presence: undefined, source: undefined },
+		]);
+	});
+
+	test('Local-only permission preserves unrepresentable server governance', async () => {
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		const native = disposables.add(new FakeNativeManagedSettingsService({ [key]: false }));
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT,
+			adaptManagedSettings({ vscode: { temporaryAllowLocalHarness: true }, futureControl: {} })));
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native));
+		await policyService.updatePolicyDefinitions({ Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue } });
+		assert.deepStrictEqual({
+			effective: policyService.getManagedSettingValue(key),
+			claude: policyService.getPolicyValue('Claude'),
+			source: policyService.getPolicyValueSource('Claude'),
+		}, { effective: false, claude: false, source: PolicyValueSource.ServerManagedSettings });
+	});
 
 	test('managed settings: file-based settings apply when server and MDM are empty', async () => {
 		// Only the file channel provides a value — it should be used.

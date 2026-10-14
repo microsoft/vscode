@@ -7,6 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -23,6 +24,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultButtonStyles } from '../../theme/browser/defaultStyles.js';
@@ -111,6 +113,8 @@ export interface ITabBarAction {
 	readonly tooltip: string;
 	/** When true, the button is pushed to the far end of the tab bar. */
 	readonly alignEnd?: boolean;
+	/** When true, use the workbench hover instead of the button's native title. */
+	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
 	run(): void;
@@ -240,6 +244,7 @@ export class TabbedActionListWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -368,8 +373,12 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('align-end', !!tabAction.alignEnd);
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
-					button.title = tabAction.tooltip;
 					button.ariaLabel = tabAction.tooltip;
+					if (tabAction.useManagedHover) {
+						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					} else {
+						button.title = tabAction.tooltip;
+					}
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.
 					if (tabAction.checked !== undefined) {

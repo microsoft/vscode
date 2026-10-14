@@ -30,6 +30,7 @@ export function isLocalChatSessionSubjectToManagedPolicy(sessionResource: URI, l
 }
 
 export const CONTINUE_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueInCopilot';
+export const CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueAgentHostChatInCopilot';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
@@ -389,7 +390,7 @@ export function getComputedDefaultSessionType(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false
 ): string {
-	if (managedPolicyRequiresAgentHost && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
+	if (managedPolicyRequiresAgentHost) {
 		return SessionType.AgentHostCopilot;
 	}
 	if (isVirtualWorkspace(workspace)) {
@@ -426,7 +427,7 @@ export function isNewChatSessionTypeUsable(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false,
 ): boolean {
-	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
+	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
 	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
@@ -496,7 +497,7 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
-	if (managedPolicyRequiresAgentHost && !isTemporaryDefaultToLocalHarnessEnabled(configurationService) && (!options?.explicitOverride || options.explicitOverride === localChatSessionType)) {
+	if (managedPolicyRequiresAgentHost && (!options?.explicitOverride || options.explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
 	if (options?.explicitOverride) {
@@ -630,7 +631,7 @@ export function isVisibleEditorChatSessionType(
 	agentHostEnabled = true,
 	managedPolicyRequiresAgentHost = false
 ): boolean {
-	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
+	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
 	if (sessionType === localChatSessionType) {

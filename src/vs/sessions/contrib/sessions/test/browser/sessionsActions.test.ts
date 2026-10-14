@@ -336,19 +336,31 @@ suite('Sessions - Actions', () => {
 			...unsupported,
 			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
 		}];
-		const markedRead: string[] = [];
+		const markedRead: { session: string; chats: string[] }[] = [];
+		const pendingRead = new DeferredPromise<void>();
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override async markChatRead(_session: ISession, chat: IChat): Promise<void> {
-				markedRead.push(chat.resource.toString());
+			override markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+				markedRead.push({
+					session: session.sessionId,
+					chats: chats.map(chat => chat.resource.toString()),
+				});
+				return pendingRead.p;
 			}
 		});
 
-		await CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
+		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
 
-		assert.deepStrictEqual(markedRead, [
-			firstUnread.resource.toString(),
-			secondUnread.resource.toString(),
-		]);
+		assert.deepStrictEqual({
+			markedRead,
+			result,
+		}, {
+			markedRead: [
+				{ session: first.sessionId, chats: [firstUnread.resource.toString()] },
+				{ session: second.sessionId, chats: [secondUnread.resource.toString()] },
+			],
+			result: undefined,
+		});
+		pendingRead.complete();
 	});
 
 	test('the main session context menu opens its main chat to the side', async () => {

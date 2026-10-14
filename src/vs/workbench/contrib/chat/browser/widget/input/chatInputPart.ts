@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../../../base/browser/dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../../../../../base/browser/animationSync.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../../../base/browser/history.js';
 import { hasModifierKeys, StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -747,6 +748,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 	private _inputPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
+	private readonly _workingBorderAnimations = this._register(new MutableDisposable());
+	private readonly _workingBorderAnimationRestart = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 
 
@@ -3475,6 +3478,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
+		dom.append(inputContainer, dom.$('.chat-input-working-border', { 'aria-hidden': 'true' }));
+		dom.append(inputContainer, dom.$('.chat-input-working-border.chat-input-working-border-glow', { 'aria-hidden': 'true' }));
+		this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(inputContainer, {
+			pausedClass: 'chat-input-anim-paused',
+			subtree: true,
+			animationNames: new Set(['chat-input-working-border-spin']),
+		});
 		const editorContainer = elements.editorContainer;
 		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
@@ -5339,7 +5349,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.inputContainer.classList.contains('working')) {
 			const inputContainer = this.inputContainer;
 			inputContainer.classList.add('chat-input-anim-restart');
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(inputContainer), () => {
+			this._workingBorderAnimationRestart.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(inputContainer), () => {
+				this._workingBorderAnimationRestart.clear();
 				inputContainer.classList.remove('chat-input-anim-restart');
 			});
 		}

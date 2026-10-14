@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { AgentSession } from '../common/agent.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
@@ -21,6 +22,11 @@ import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
 import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
+
+/** Standard session URIs identify host containers, including when a native alias shares their storage. */
+export function isAgentHostChatBacking(session: URI, marked: boolean): boolean {
+	return marked && AgentSession.provider(session) !== undefined;
+}
 
 export interface ICatalogSourceState {
 	readonly modifiedTime: number;
@@ -267,7 +273,7 @@ export class AgentHostCatalogSourceResolver {
 			project: worktreeProject
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
-			isChatBacking: !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session),
+			isChatBacking: isAgentHostChatBacking(session, !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session)),
 			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,

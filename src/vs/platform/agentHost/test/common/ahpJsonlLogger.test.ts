@@ -291,6 +291,31 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('bounds pending log data and records dropped entries', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'bounded', connectionId: 'bounded', transport: 'websocket', maxPendingBytes: 1 },
+			fileService,
+			new NullLogService(),
+		));
+
+		logger.log({ jsonrpc: '2.0', id: 1, result: 'written' }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 2, result: 'dropped' }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 3, result: 'dropped' }, 's2c');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.map(entry => ({
+			id: entry.id,
+			droppedEntries: entry._ahpLog.droppedEntries,
+		})), [
+			{ id: 1, droppedEntries: undefined },
+			{ id: undefined, droppedEntries: 2 },
+		]);
+	});
+
 	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));

@@ -640,6 +640,7 @@ export interface IAgentCreateSessionConfig {
 	readonly importConversation?: {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
+		readonly title?: string;
 	};
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
@@ -1492,8 +1493,8 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
-	/** Refresh live sessions after account-backed Connector membership changes. */
-	refreshConnectorSessions?(): Promise<void>;
+	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
+	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
