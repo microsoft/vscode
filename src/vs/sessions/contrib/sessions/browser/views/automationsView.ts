@@ -713,7 +713,7 @@ class AutomationCardsSection extends Disposable {
 			const state = this.automationService.catalogueState.read(reader);
 			const historyState = this.automationService.historyState?.read(reader);
 			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id))
-				|| state === 'unavailable' || state === 'error' || historyState === 'error')) {
+				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
 				startingRuns.set(undefined, undefined);
 			}
 			this.updateCardRunState(entry, this.latestAutomations.get(automation.id) ?? automation);

@@ -1730,6 +1730,31 @@ suite('AutomationsCardsWidget', () => {
 		}
 	});
 
+	test('pending feedback survives an unavailable catalogue while the card can still run', async () => {
+		const { automationService, runner, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setCatalogueState('unavailable');
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		runner.whenDispatched = dispatched.p;
+		const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+		const readState = () => ({
+			prompt: card.querySelector('.automations-card-prompt')!.textContent,
+			spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+			disabled: card.querySelector('.automations-card-run-button')!.getAttribute('aria-disabled'),
+		});
+		card.querySelector<HTMLElement>('.automations-card-run-button')!.click();
+		const starting = readState();
+		await dispatched.complete({ kind: 'accepted' });
+		await timeout(0);
+		const accepted = readState();
+		automationService.setRuns([run({ sessionResource: undefined, status: 'pending' })]);
+		assert.deepStrictEqual({ starting, accepted, discovered: readState() }, {
+			starting: { prompt: 'Starting run...', spinner: true, disabled: 'true' },
+			accepted: { prompt: 'Starting run...', spinner: true, disabled: 'true' },
+			discovered: { prompt: automation().prompt, spinner: false, disabled: 'false' },
+		});
+	});
+
 	test('failed dispatch clears run feedback immediately', async () => {
 		const { automationService, runner, widget } = setup();
 		automationService.setAutomations([automation()]);
