@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -66,7 +66,7 @@ export interface IAgentHostSessionListDelta {
 }
 
 /**
- * Shared provider-agnostic cache of agent-host sessions. It owns the
+ * Shared cache keyed by advertised provider and exact backend session resource. It owns the
  * provider-wide listSessions refresh, workspace filtering, and root session
  * notifications. Per-provider list controllers project this state into chat
  * session items.
@@ -99,7 +99,13 @@ export class AgentHostSessionListStore extends Disposable {
 
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
-		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string } = {},
+		private readonly _options: {
+			readonly filterToWorkspace?: boolean;
+			readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
+			readonly connectionAuthority?: string;
+			/** Retain unlisted sessions whose existence is owned by another inventory. */
+			readonly retainSession?: (session: URI) => boolean;
+		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -125,12 +131,24 @@ export class AgentHostSessionListStore extends Disposable {
 		return [...this._entries.values()].filter(entry => entry.provider === provider);
 	}
 
+	getSession(provider: string, session: URI): IAgentHostSessionListEntry | undefined {
+		return this._entries.get(this._key(provider, session.toString()));
+	}
+
+	getSessionResource(session: URI): URI {
+		const resource = this._connectionsService.findSessionResource(session, this._options.connectionAuthority);
+		if (!resource) {
+			throw new Error(`Session resource is not registered: ${session.toString()}`);
+		}
+		return resource;
+	}
+
 	seedSessions(sessions: readonly IAgentSessionMetadata[]): void {
 		const addedOrUpdated: IAgentHostSessionListEntry[] = [];
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry && this._isSessionInWorkspace(entry)) {
-				const existing = this._entries.get(this._key(entry.provider, entry.rawId));
+				const existing = this._entries.get(this._key(entry.provider, entry.summary.resource));
 				if (existing && (!existing.fromDiscovery || Date.parse(entry.summary.modifiedAt) < Date.parse(existing.summary.modifiedAt))) {
 					continue;
 				}
@@ -140,7 +158,7 @@ export class AgentHostSessionListStore extends Disposable {
 					fromDiscovery: true,
 					statusKnown: false,
 				};
-				this._entries.set(this._key(seed.provider, seed.rawId), seed);
+				this._entries.set(this._key(seed.provider, seed.summary.resource), seed);
 				addedOrUpdated.push(seed);
 			}
 		}
@@ -151,18 +169,18 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	/** Record a session created locally before the backend has announced it. */
-	addPendingNewSession(provider: string, rawId: string): void {
-		this._pendingNewSessions.add(this._key(provider, rawId));
+	addPendingNewSession(provider: string, resource: URI): void {
+		this._pendingNewSessions.add(this._pendingKey(provider, resource));
 	}
 
 	/** Whether a session was created locally and the backend has not surfaced it yet. */
-	isPendingNewSession(provider: string, rawId: string): boolean {
-		return this._pendingNewSessions.has(this._key(provider, rawId));
+	isPendingNewSession(provider: string, resource: URI): boolean {
+		return this._pendingNewSessions.has(this._pendingKey(provider, resource));
 	}
 
 	/** Stop treating a locally-created session as pending without adding it to the visible list. */
-	clearPendingNewSession(provider: string, rawId: string): void {
-		this._pendingNewSessions.delete(this._key(provider, rawId));
+	clearPendingNewSession(provider: string, resource: URI): void {
+		this._pendingNewSessions.delete(this._pendingKey(provider, resource));
 	}
 
 	resetCache(): void {
@@ -171,39 +189,30 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _providerForSession(session: URI | string, provider?: string): string | undefined {
-		const resource = typeof session === 'string' ? session : session.toString();
-		provider ??= [...this._entries.values()].find(entry => entry.summary.resource === resource)?.provider;
+		const resource = typeof session === 'string' ? URI.parse(session) : session;
+		provider ??= [...this._entries.values()].find(entry => isEqual(URI.parse(entry.summary.resource), resource))?.provider;
 		const scheme = AgentSession.provider(session);
 		const alias = this._options.sessionSchemeAlias;
-		return provider ?? (alias && URI.parse(resource).scheme === alias.backend ? alias.ui : scheme);
+		return provider ?? (alias && resource.scheme === alias.backend ? alias.ui : scheme);
 	}
 
-	private _sessionUri(provider: string, rawId: string): URI {
-		const entry = this._entries.get(this._key(provider, rawId));
-		if (entry) {
-			return URI.parse(entry.summary.resource);
-		}
-		const alias = this._options.sessionSchemeAlias;
-		return AgentSession.uri(alias && provider === alias.ui ? alias.backend : provider, rawId);
-	}
-
-	async disposeSession(provider: string, rawId: string): Promise<void> {
-		await this._connection.disposeSession(this._sessionUri(provider, rawId));
+	async disposeSession(session: URI): Promise<void> {
+		await this._connection.disposeSession(session);
 	}
 
 	async disposeChat(chat: URI): Promise<void> {
 		await this._connection.disposeChat(chat);
 	}
 
-	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
-		this._setSessionFlag(provider, rawId, SessionStatus.IsArchived, archived, {
+	setSessionArchived(provider: string, session: URI, archived: boolean): void {
+		this._setSessionFlag(provider, session, SessionStatus.IsArchived, archived, {
 			type: ActionType.SessionIsArchivedChanged,
 			isArchived: archived,
 		});
 	}
 
-	setSessionRead(provider: string, rawId: string, isRead: boolean): void {
-		this._setSessionFlag(provider, rawId, SessionStatus.IsRead, isRead, {
+	setSessionRead(provider: string, session: URI, isRead: boolean): void {
+		this._setSessionFlag(provider, session, SessionStatus.IsRead, isRead, {
 			type: ActionType.SessionIsReadChanged,
 			isRead,
 		});
@@ -214,9 +223,8 @@ export class AgentHostSessionListStore extends Disposable {
 	 * action, so the host can fan the change out to other connected clients. An
 	 * uncached session still dispatches; the summary notification seeds the entry.
 	 */
-	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
-		const session = this._sessionUri(provider, rawId);
-		const key = this._key(provider, rawId);
+	private _setSessionFlag(provider: string, session: URI, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
+		const key = this._key(provider, session.toString());
 		const cached = this._entries.get(key);
 		let updated: IAgentHostSessionListEntry | undefined;
 		if (cached) {
@@ -237,20 +245,20 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 	}
 
-	removeSession(provider: string, rawId: string): void {
+	removeSession(provider: string, session: URI): void {
 		// Bump the generation unconditionally — even when the entry isn't present
 		// locally. A `root/sessionRemoved` (or an optimistic delete) can arrive
 		// while a `listSessions()` is in flight whose snapshot predates the
 		// removal; invalidating that snapshot here prevents `_doRefresh` from
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
-		this._removeSessionFromList(provider, rawId);
+		this._removeSessionFromList(provider, session);
 	}
 
-	private _removeSessionFromList(provider: string, rawId: string): void {
-		const key = this._key(provider, rawId);
+	private _removeSessionFromList(provider: string, session: URI): void {
+		const key = this._key(provider, session.toString());
 		// An announced or deleted session is no longer pending, even when no visible entry exists.
-		this._pendingNewSessions.delete(key);
+		this.clearPendingNewSession(provider, session);
 		const entry = this._entries.get(key);
 		if (!entry) {
 			return;
@@ -310,20 +318,27 @@ export class AgentHostSessionListStore extends Disposable {
 
 		this._entries.clear();
 		for (const entry of nextEntries) {
-			const key = this._key(entry.provider, entry.rawId);
+			const key = this._key(entry.provider, entry.summary.resource);
 			this._entries.set(key, entry);
 			// A locally-created session that now appears in the backend list is no
 			// longer pending.
-			this._pendingNewSessions.delete(key);
+			this.clearPendingNewSession(entry.provider, URI.parse(entry.summary.resource));
+		}
+		for (const entry of previousEntries) {
+			const key = this._key(entry.provider, entry.summary.resource);
+			if (!this._entries.has(key) && this._options.retainSession?.(URI.parse(entry.summary.resource)) && this._isSessionInWorkspace(entry)) {
+				this._entries.set(key, entry);
+				nextEntries.push(entry);
+			}
 		}
 		this._cacheValid = true;
 
 		// Fire the full current entry set (each controller projects only its own
 		// provider) plus any sessions that dropped out. Consumers apply this
 		// incrementally and re-sort, so a precise per-item diff is unnecessary.
-		const nextKeys = new Set(nextEntries.map(entry => this._key(entry.provider, entry.rawId)));
+		const nextKeys = new Set(nextEntries.map(entry => this._key(entry.provider, entry.summary.resource)));
 		const removed = previousEntries
-			.filter(entry => !nextKeys.has(this._key(entry.provider, entry.rawId)))
+			.filter(entry => !nextKeys.has(this._key(entry.provider, entry.summary.resource)))
 			.map(entry => this._toRemoval(entry));
 		if (nextEntries.length === 0 && removed.length === 0) {
 			return;
@@ -341,7 +356,7 @@ export class AgentHostSessionListStore extends Disposable {
 			if (!entry) {
 				return;
 			}
-			const key = this._key(entry.provider, entry.rawId);
+			const key = this._key(entry.provider, entry.summary.resource);
 			if (!this._isSessionInWorkspace(entry)) {
 				return;
 			}
@@ -349,21 +364,20 @@ export class AgentHostSessionListStore extends Disposable {
 			this._entries.set(key, entry);
 			// The backend has now announced this session, so it is no longer a
 			// locally-pending new session.
-			this._pendingNewSessions.delete(key);
+			this.clearPendingNewSession(entry.provider, URI.parse(entry.summary.resource));
 			this._onDidChangeSessions.fire({ addedOrUpdated: [entry] });
 		} else if (notification.type === 'root/sessionRemoved') {
 			const provider = this._providerForSession(notification.session);
 			if (!provider) {
 				return;
 			}
-			this.removeSession(provider, AgentSession.id(notification.session));
+			this.removeSession(provider, URI.parse(notification.session));
 		} else if (notification.type === 'root/sessionSummaryChanged') {
 			const provider = this._providerForSession(notification.session);
 			if (!provider) {
 				return;
 			}
-			const rawId = AgentSession.id(notification.session);
-			const key = this._key(provider, rawId);
+			const key = this._key(provider, notification.session);
 			const cached = this._entries.get(key);
 			if (!cached) {
 				return;
@@ -372,7 +386,7 @@ export class AgentHostSessionListStore extends Disposable {
 			const { activity, ...changes } = notification.changes;
 			const updated: IAgentHostSessionListEntry = {
 				provider,
-				rawId,
+				rawId: cached.rawId,
 				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
 				summary: {
 					...cached.summary,
@@ -382,7 +396,7 @@ export class AgentHostSessionListStore extends Disposable {
 			};
 			if (!this._isSessionInWorkspace(updated)) {
 				this._mutationGeneration++;
-				this._removeSessionFromList(provider, rawId);
+				this._removeSessionFromList(provider, URI.parse(notification.session));
 				return;
 			}
 
@@ -493,7 +507,7 @@ export class AgentHostSessionListStore extends Disposable {
 		for (const [key, entry] of this._entries) {
 			if (!this._isSessionInWorkspace(entry)) {
 				this._entries.delete(key);
-				this._pendingNewSessions.delete(key);
+				this.clearPendingNewSession(entry.provider, URI.parse(entry.summary.resource));
 				removed.push(this._toRemoval(entry));
 			}
 		}
@@ -539,7 +553,12 @@ export class AgentHostSessionListStore extends Disposable {
 		};
 	}
 
-	private _key(provider: string, rawId: string): string {
-		return `${provider}://${rawId}`;
+	private _key(provider: string, session: string): string {
+		return `${provider}://${getComparisonKey(URI.parse(session))}`;
+	}
+
+	private _pendingKey(provider: string, resource: URI): string {
+		// A new allocation's frontend identity stays stable across negotiated backend schemes.
+		return getComparisonKey(resource.with({ scheme: provider }));
 	}
 }
