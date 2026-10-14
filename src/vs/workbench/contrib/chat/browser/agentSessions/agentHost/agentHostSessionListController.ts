@@ -16,7 +16,8 @@ import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from 
 import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, getAgentHostSessionResource, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { getAgentHostSessionResource } from '../../../common/constants.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';

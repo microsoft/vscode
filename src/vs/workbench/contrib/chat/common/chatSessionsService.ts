@@ -21,7 +21,7 @@ import { IChatEditingSession } from './editing/chatEditingService.js';
 import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation } from './constants.js';
+import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
@@ -444,12 +444,6 @@ export function isAgentHostTarget(target: string): boolean {
 
 export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
-}
-
-/** Removes workbench chat selectors without rewriting the session's authority or other query fields. */
-export function getAgentHostSessionResource(resource: URI): URI {
-	const query = resource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
-	return resource.with({ query, fragment: '' });
 }
 
 /** Returns the registered agent implementation handling the session. */

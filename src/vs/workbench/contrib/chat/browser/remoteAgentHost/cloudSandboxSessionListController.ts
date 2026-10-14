@@ -25,7 +25,8 @@ import { INotification } from '../../../../../platform/agentHost/common/state/se
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
-import { getAgentHostSessionResource, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
+import { getAgentHostSessionResource } from '../../common/constants.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
 import { ICloudSandboxSessionList } from './cloudSandboxSessionContribution.js';
