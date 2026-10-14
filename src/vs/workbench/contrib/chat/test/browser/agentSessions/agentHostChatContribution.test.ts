@@ -4159,6 +4159,69 @@ suite('AgentHostChatContribution', () => {
 
 	suite('session list', () => {
 
+		for (const variant of ['authority', 'query', 'selector-shaped query'] as const) {
+			test(`keeps pending creation and read state separate for same-path ${variant} resources`, async () => {
+				const { instantiationService, agentHostService, chatService } = createTestServices(disposables);
+				const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+				const controller = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+				const draft = await controller.newChatSessionItem({ prompt: 'New conversation' }, CancellationToken.None);
+				assert.ok(draft);
+				const session = AgentSession.uri('copilot', AgentSession.id(draft.resource));
+				const other = session.with(variant === 'authority' ? { authority: 'other' } : { query: variant === 'query' ? 'revision=other' : `${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=host-identity` });
+				const otherResource = other.with({ scheme: 'agent-host-copilot' });
+				agentHostService.addSession({ session: other, provider: 'copilot', startTime: 0, modifiedTime: 0, status: SessionStatus.Idle });
+				await controller.refresh(CancellationToken.None);
+				const pendingAfterList = controller.isNewSession(draft.resource);
+				chatService.fireDidDisposeSession(otherResource);
+				const pendingAfterOtherClosed = controller.isNewSession(draft.resource);
+				agentHostService.fireNotification({
+					type: NotificationType.SessionAdded, channel: ROOT_STATE_URI,
+					summary: {
+						resource: session.toString(), provider: 'copilot', title: 'Created conversation', status: SessionStatus.Idle,
+						createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					},
+				});
+				controller.setChatSessionItemRead(otherResource, true);
+				assert.deepStrictEqual({
+					pendingAfterList, pendingAfterOtherClosed, pendingAfterCreated: controller.isNewSession(draft.resource),
+					read: controller.items.map(item => [item.resource.toString(), item.isRead]),
+					dispatched: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				}, {
+					pendingAfterList: true, pendingAfterOtherClosed: true, pendingAfterCreated: false,
+					read: [[otherResource.toString(), true], [draft.resource.toString(), false]],
+					dispatched: [{ channel: other.toString(), action: { type: ActionType.SessionIsReadChanged, isRead: true } }],
+				});
+			});
+		}
+
+		test('opens the default chat of a fragment-bearing backend session', async () => {
+			const { listController, sessionHandler, agentHostService } = createContribution(disposables);
+			const session = URI.parse('host-session:/opaque-session#revision');
+			const summary: SessionSummary = {
+				resource: session.toString(), provider: 'copilot', title: 'Opaque session', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const chatSummary = createDefaultChatSummary(summary, 'ahp-chat:/opaque/default');
+			const chat = createChatState(chatSummary);
+			chat.turns.push({
+				id: 'turn', message: { text: 'Default chat request', origin: { kind: MessageKind.User } },
+				responseParts: [], usage: undefined, state: TurnState.Complete,
+			});
+			agentHostService.sessionStates.set(session.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat.resource, chats: [chatSummary],
+			});
+			agentHostService.addSession({ session, provider: 'copilot', summary: summary.title, startTime: 0, modifiedTime: 0 });
+			agentHostService.chatStates.set(chat.resource, chat);
+			await listController.refresh(CancellationToken.None);
+			const item = listController.items[0];
+			const content = disposables.add(await sessionHandler.provideChatSessionContent(item.resource, CancellationToken.None));
+			await listController.deleteChatSessionItem(item.resource, CancellationToken.None);
+			assert.deepStrictEqual({
+				resource: item.resource.toString(), prompts: content.history.filter(item => item.type === 'request').map(item => item.prompt),
+				deleted: agentHostService.disposedSessions.map(session => session.toString()),
+			}, { resource: 'agent-host-copilot:/opaque-session', prompts: ['Default chat request'], deleted: [session.toString()] });
+		});
+
 		test('refresh populates items from agent host', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 

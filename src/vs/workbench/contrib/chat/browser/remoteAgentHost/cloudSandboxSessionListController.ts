@@ -13,7 +13,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
@@ -25,7 +25,7 @@ import { INotification } from '../../../../../platform/agentHost/common/state/se
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
-import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
+import { getAgentHostSessionResource, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
 import { ICloudSandboxSessionList } from './cloudSandboxSessionContribution.js';
@@ -84,18 +84,18 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			const discoveredRepositories = this._discoveredRepositories.read(reader);
 			const connected = !!this._connection.read(reader);
 			const archivedStates = this._archivedStates.read(reader);
-			const visibleSessions = repositories && new Set(this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).filter(entry => {
+			const visibleSessions = repositories && new ResourceSet(this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).filter(entry => {
 				const projectUri = entry.summary.project?.uri;
 				const project = projectUri ? getGitHubRepositoryFromRemoteUrl(projectUri) : undefined;
 				const repository = project
 					? `${project.owner}/${project.repo}`.toLowerCase()
 					: !projectUri || fromAgentHostUri(URI.parse(projectUri)).scheme === Schemas.file
-						? discoveredRepositories.get(entry.rawId)?.repository
+						? discoveredRepositories.get(getComparisonKey(URI.parse(entry.summary.resource)))?.repository
 						: undefined;
 				return repository !== undefined && repositories.has(repository);
-			}).map(entry => entry.rawId));
+			}).map(entry => this._sessionListStore.getSessionResource(URI.parse(entry.summary.resource))));
 			return this._controller.items
-				.filter(item => !visibleSessions || visibleSessions.has(AgentSession.id(item.resource)))
+				.filter(item => !visibleSessions || visibleSessions.has(item.resource))
 				.map(item => this._listItem(item, connected, archivedStates));
 		});
 		let previousResources = new ResourceSet();
@@ -127,7 +127,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	getSessionModifiedTime(rawId: string): number | undefined {
-		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === rawId);
+		const entry = this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
 		return entry ? Date.parse(entry.summary.modifiedAt) : undefined;
 	}
 
@@ -135,10 +135,10 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		transaction(tx => {
 			const repositories = new Map(this._discoveredRepositories.get());
 			for (const session of sessions) {
-				const rawId = AgentSession.id(session.session);
+				const key = getComparisonKey(session.session);
 				const project = session.project ? getGitHubRepositoryFromRemoteUrl(session.project.uri.toString()) : undefined;
-				if (session.modifiedTime >= (repositories.get(rawId)?.modifiedTime ?? 0)) {
-					repositories.set(rawId, { repository: project ? `${project.owner}/${project.repo}`.toLowerCase() : undefined, modifiedTime: session.modifiedTime });
+				if (session.modifiedTime >= (repositories.get(key)?.modifiedTime ?? 0)) {
+					repositories.set(key, { repository: project ? `${project.owner}/${project.repo}`.toLowerCase() : undefined, modifiedTime: session.modifiedTime });
 				}
 			}
 			// Host filesystem paths cannot replace discovery's repository identity for workspace matching.
@@ -167,7 +167,9 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	resolveWorkingDirectory(resource: URI): URI | undefined {
-		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === AgentSession.id(resource));
+		const entries = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER);
+		const findEntry = (parent: URI) => entries.find(entry => isEqual(this._sessionListStore.getSessionResource(URI.parse(entry.summary.resource)), parent));
+		const entry = findEntry(resource.with({ fragment: '' })) ?? findEntry(getAgentHostSessionResource(resource));
 		const directory = entry?.summary.workingDirectories?.[0];
 		const connection = this._connection.get();
 		return directory && connection
@@ -186,13 +188,13 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		if (resource.scheme !== this.sessionType) {
 			throw new Error(localize('cloudSandbox.deleteInvalidSession', "The session does not belong to this sandbox."));
 		}
-		if (resource.fragment || !await this._deleteSession(AgentSession.id(resource), token)) {
+		if (!this._isInventoryResource(resource) || !await this._deleteSession(AgentSession.id(resource), token)) {
 			await this._controller.deleteChatSessionItem(resource, token);
 		}
 	}
 
 	removeDeletedSession(rawId: string): void {
-		this._sessionListStore.removeSession(CLOUD_SANDBOX_AGENT_PROVIDER, rawId);
+		this._sessionListStore.removeSession(CLOUD_SANDBOX_AGENT_PROVIDER, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
 	}
 
 	setSessionArchived(rawId: string, archived: boolean): void {
@@ -213,7 +215,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
 			}
 			const rawId = AgentSession.id(resource);
-			if (await this._archiveSession(rawId, archived, CancellationToken.None)) {
+			if (this._isInventoryResource(resource) && await this._archiveSession(rawId, archived, CancellationToken.None)) {
 				if (this._store.isDisposed) {
 					throw new CancellationError();
 				}
@@ -234,8 +236,12 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			...item,
 			iconPath: Codicon.cloud,
 			...(!connected || item.isRead === undefined ? { archived: undefined, isRead: undefined } : {}),
-			...(archivedStates.has(AgentSession.id(item.resource)) ? { archived: archivedStates.get(AgentSession.id(item.resource)) } : {}),
+			...(this._isInventoryResource(item.resource) && archivedStates.has(AgentSession.id(item.resource)) ? { archived: archivedStates.get(AgentSession.id(item.resource)) } : {}),
 		};
+	}
+
+	private _isInventoryResource(resource: URI): boolean {
+		return isEqual(resource, URI.from({ scheme: this.sessionType, path: resource.path }));
 	}
 
 	private _requireConnection(): IAgentConnection {
