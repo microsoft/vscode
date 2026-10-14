@@ -149,8 +149,9 @@ export function parseManagedSettingsCompatibilityError(response: unknown): IMana
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
 	const managedSettings = normalizeManagedSettings(response as Record<string, unknown>, onWarn);
+	const unrepresentedGovernance = !hasRawManagedSettings(managedSettings) && hasRawManagedSettings(response);
 	return {
 		managedSettings,
-		...(Object.keys(managedSettings).length === 0 && hasRawManagedSettings(response) ? { managedSettingsActive: true } : {}),
+		...(unrepresentedGovernance ? { managedSettingsActive: true } : !hasRawManagedSettings(response) ? { managedSettingsActive: false } : {}),
 	};
 }

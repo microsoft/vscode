@@ -146,13 +146,13 @@ managedSettings: { [COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' } },
 
 ### Governance presence disables the third-party harnesses
 
-`IPolicyData.managedSettingsActive` is `true` when **any** channel supplies **any** managed setting — i.e. the user is governed at all, independent of which keys were set. It is set in `AccountPolicyService.getPolicyData` from `pickManagedSettings(...).activeSources`, and unlike `IPolicyData.managedSettings` it is **not** projected onto the keys VS Code declares, so it also reflects runtime-owned keys VS Code never reads.
+`IPolicyData.managedSettingsActive` is `true` when a channel contributes managed-settings governance. `AccountPolicyService.getPolicyData` derives it from effective managed settings and raw settings that normalization cannot represent, independently of which keys VS Code declares. Presence governs for existing settings. The Local-only `vscode.temporaryAllowLocalHarness` is excluded at every value: it controls Local, not other providers or presence-gated features. Channel resolution retains its value for precedence and diagnostics, but neither its normalized value nor its raw container contributes governance. Empty or Local-only server responses explicitly clear a previously cached raw-governance flag.
 
 The `Claude3PIntegration` and `Codex3PIntegration` policies both use `thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables chat preview features **or** when `managedSettingsActive` is `true`. Rationale: managed settings are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those harnesses available would hand a governed user an ungoverned path around every control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
 
 Invariants:
 
-- The rule keys off **presence**, not a value, so the policies deliberately declare **no** `managedSettings` keys — they must not be added to the native MDM watcher schema.
+- The policies consume the shared governance decision rather than inspecting values themselves, and deliberately declare **no** `managedSettings` keys. The Local-only exception is resolved centrally, not duplicated in each provider.
 - `AccountPolicyService.resolvePolicyValue` probes for this presence dependence (re-evaluating the callback with `managedSettingsActive: false`) so **Developer: Policy Diagnostics** attributes the value to the governing channel rather than to the account.
 - The `value` callback stays pure and deterministic — attribution evaluates it more than once.
 

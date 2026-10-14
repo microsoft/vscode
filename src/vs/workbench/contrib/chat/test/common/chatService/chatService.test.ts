@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../../../base/common/async.js';
@@ -274,8 +274,10 @@ suite('ChatService', () => {
 		['permissions.defaultMode', 'manual'],
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
-		test(`${policyKey} allows Local with the enterprise escape hatch and blocks it again on withdrawal`, async () => {
+		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		test(`${policyKey} ${allowsEscapeHatch ? 'allows' : 'blocks'} Local with the enterprise escape hatch and blocks it on withdrawal`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let optOut = true;
 			const getSettings = (): ManagedSettingsData => ({ [policyKey]: policyValue, [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: optOut });
@@ -287,8 +289,9 @@ suite('ChatService', () => {
 			const service = createChatService();
 			const model = startSessionModel(service).object;
 			const result = await service.sendRequest(model.sessionResource, 'Local escape hatch');
-			ChatSendResult.assertSent(result);
-			await result.data.responseCompletePromise;
+			if (ChatSendResult.isSent(result)) {
+				await result.data.responseCompletePromise;
+			}
 			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
 			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
 			const allowed = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
@@ -296,10 +299,10 @@ suite('ChatService', () => {
 			changes.fire();
 			const blocked = await service.sendRequest(restored.sessionResource, 'withdrawn escape hatch');
 			assert.deepStrictEqual({
-				allowed, blocked: blocked.kind,
+				result: result.kind, allowed, blocked: blocked.kind,
 				history: restored.getRequests().length,
 				inputBlocked: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
-			}, { allowed: [false, false], blocked: 'rejected', history: 1, inputBlocked: [true, true] });
+			}, { result: allowsEscapeHatch ? 'sent' : 'rejected', allowed: [!allowsEscapeHatch, !allowsEscapeHatch], blocked: 'rejected', history: allowsEscapeHatch ? 1 : 0, inputBlocked: [true, true] });
 		});
 
 		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
@@ -400,10 +403,11 @@ suite('ChatService', () => {
 				change: { keys: [TemporaryDefaultToLocalHarnessSettingId], overrides: [] },
 			});
 			const result = await service.sendRequest(model.sessionResource, 'policy escape hatch');
-			ChatSendResult.assertSent(result);
-			await result.data.responseCompletePromise;
-			assert.deepStrictEqual({ blocked, unblocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
-				blocked: true, unblocked: false, requests: 1,
+			if (ChatSendResult.isSent(result)) {
+				await result.data.responseCompletePromise;
+			}
+			assert.deepStrictEqual({ result: result.kind, blocked, inputBlocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
+				result: allowsEscapeHatch ? 'sent' : 'rejected', blocked: true, inputBlocked: !allowsEscapeHatch, requests: allowsEscapeHatch ? 1 : 0,
 			});
 		});
 
