@@ -6537,7 +6537,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
-	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
+	async getSessionWorktreeDiskUsage(sessionId: string, token = CancellationToken.None): Promise<number | undefined> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6554,7 +6554,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (worktrees.size === 0) {
 			return undefined;
 		}
-		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		const sizes: (number | undefined)[] = [];
+		for (const worktreeUri of worktrees.values()) {
+			sizes.push(await getWorktreeDiskUsage(connection, worktreeUri, token));
+		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
 		}
