@@ -617,6 +617,7 @@ describe('getUserPrompt', () => {
 		eagernessPrompt?: EagernessPrompt;
 		aggressivenessLevel?: AggressivenessLevel;
 		rejectedEditsMemory?: RejectedEditsMemoryMode;
+		noRejections?: boolean;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -645,7 +646,7 @@ describe('getUserPrompt', () => {
 				...(opts.includeLineNumbers !== undefined ? { includeLineNumbers: opts.includeLineNumbers } : {}),
 			},
 		};
-		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [{
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = opts.noRejections ? [] : [{
 			kind: 'rejectedEdit',
 			docId: documentId,
 			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
@@ -752,6 +753,24 @@ describe('getUserPrompt', () => {
 		expect(prompt).not.toContain('<|rejected/|>');
 		expect(prompt).not.toContain('previous suggestions the developer rejected');
 		expect(prompt).toContain('developer was working on a section of code');
+	});
+
+	test('applied-then-undone memory leaves the prompt unchanged when nothing was rejected', () => {
+		const withMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.AppliedThenUndone,
+			noRejections: true,
+		})).prompt;
+		const withoutMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			noRejections: true,
+		})).prompt;
+
+		expect(withMemory).toBe(withoutMemory);
 	});
 
 	test('applied-then-undone memory leaves the prompt unchanged when the cursor is away from the rejection', () => {
