@@ -1207,6 +1207,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		acquireMcpServerSupportScope: () => undefined,
 		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,
+		setSessionTools: () => { },
+		moveSessionTools: () => { },
+		clearSessionTools: () => { },
+		acquireSessionTools: () => ({ object: constObservable([]), dispose() { } }),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
