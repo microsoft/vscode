@@ -233,15 +233,17 @@ suite('platform/otel - outboundForwarder', () => {
 			const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
 			deepStrictEqual({
 				count: diagnostics.length,
-				hasOperation: diagnostics.some(message => message.includes('mkdir')),
-				hasCode: diagnostics.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
+				operation: diagnostics[0]?.match(/\bfile (\S+) failed\b/)?.[1],
+				hasCode: diagnostics.some(message => /(?:^|[ (])code=(?!unknown(?:[, )]|$))[^\s,()]+(?=[, )]|$)/.test(message)),
+				hasSyscall: diagnostics.some(message => /(?:^|[ (])syscall=/.test(message)),
 				exposesPath: diagnostics.some(message => message.includes(path)),
 				exposesSentinel: diagnostics.some(message => message.includes('synthetic-customer-user')),
 				exposesRawMessage: diagnostics.some(message => message.includes('not a directory')),
 			}, {
 				count: 1,
-				hasOperation: true,
+				operation: 'mkdir',
 				hasCode: true,
+				hasSyscall: false,
 				exposesPath: false,
 				exposesSentinel: false,
 				exposesRawMessage: false,
@@ -273,15 +275,17 @@ suite('platform/otel - outboundForwarder', () => {
 				const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
 				deepStrictEqual({
 					count: diagnostics.length,
-					hasOperation: diagnostics.some(message => message.includes('append')),
-					hasCode: diagnostics.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
+					operation: diagnostics[0]?.match(/\bfile (\S+) failed\b/)?.[1],
+					hasCode: diagnostics.some(message => /(?:^|[ (])code=(?!unknown(?:[, )]|$))[^\s,()]+(?=[, )]|$)/.test(message)),
+					hasSyscall: diagnostics.some(message => /(?:^|[ (])syscall=/.test(message)),
 					exposesPath: diagnostics.some(message => message.includes(options.filePath)),
 					exposesSentinel: diagnostics.some(message => message.includes('vscode-otel-forwarder-')),
 					exposesRawMessage: diagnostics.some(message => message.includes('no such file')),
 				}, {
 					count: 1,
-					hasOperation: true,
+					operation: 'append',
 					hasCode: true,
+					hasSyscall: false,
 					exposesPath: false,
 					exposesSentinel: false,
 					exposesRawMessage: false,

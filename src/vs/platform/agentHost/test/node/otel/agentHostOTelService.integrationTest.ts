@@ -10,6 +10,7 @@ import { tmpdir } from 'os';
 import { join, resolve } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
 import { TestInstantiationService } from '../../../../instantiation/test/common/instantiationServiceMock.js';
@@ -135,8 +136,8 @@ function restoreEnv(saved: ISavedEnv): void {
 	}
 }
 
-function makeEnvService(userDataPath: string): INativeEnvironmentService {
-	const env: Partial<INativeEnvironmentService> = { _serviceBrand: undefined, userDataPath };
+function makeEnvService(userDataPath: string, userHome = tmpdir()): INativeEnvironmentService {
+	const env: Partial<INativeEnvironmentService> = { _serviceBrand: undefined, userDataPath, userHome: URI.file(userHome) };
 	return env as INativeEnvironmentService;
 }
 
@@ -471,26 +472,75 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		strictEqual(cfg.dbSpanExporter, true);
 	});
 
-	test('managed file path expands either home-directory prefix using the writer home', () => {
-		const home = isWindows ? 'C:\\synthetic-writer-home' : '/synthetic-writer-home';
-		const homeEnv = isWindows ? { USERPROFILE: home } : { HOME: home };
-		for (const [prefix, path] of [['~/', '~/nested/otel.jsonl'], ['~\\', '~\\nested/otel.jsonl']] as const) {
-			const cfg = readAgentHostOTelEnv({
-				...homeEnv,
-				...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: path }),
-			});
-			deepStrictEqual({
-				enabled: cfg.enabled,
-				dbSpanExporter: cfg.dbSpanExporter,
-				exporterType: cfg.exporterType,
-				filePath: cfg.filePath,
-			}, {
-				enabled: true,
-				dbSpanExporter: false,
-				exporterType: 'file',
-				filePath: join(home, 'nested', 'otel.jsonl'),
-			}, `expected ${prefix} managed file path to use the writer home`);
-		}
+	test('managed file paths resolve relative to Copilot home while absolute and home-prefixed paths keep their bases', async () => {
+		const relativePath = join('synthetic', 'otel.jsonl');
+		const userHome = URI.file(join(tmpdir(), 'synthetic-user-home')).fsPath;
+		const customHome = join(tmpdir(), 'synthetic-copilot-home');
+		const writerHome = join(tmpdir(), 'synthetic-writer-home');
+		const absolutePath = join(tmpdir(), 'synthetic-absolute', 'otel.jsonl');
+		const managedEnv = (outfile: string, extra: NodeJS.ProcessEnv = {}) => ({
+			...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile }),
+			...extra,
+		});
+		const config = async (env: NodeJS.ProcessEnv) => {
+			const service = store.add(new AgentHostOTelService({ env }, new NullLogService(), makeEnvService(join(tmpdir(), 'synthetic-user-data'), userHome)));
+			return service.getSdkTelemetryConfig();
+		};
+
+		deepStrictEqual(await Promise.all([
+			config(managedEnv(relativePath, { COPILOT_HOME: customHome })),
+			config(managedEnv(relativePath)),
+			config(managedEnv(relativePath, { COPILOT_HOME: '' })),
+			config(managedEnv(absolutePath, { COPILOT_HOME: customHome })),
+			config(managedEnv('~/nested/otel.jsonl', {
+				COPILOT_HOME: customHome,
+				...(isWindows ? { USERPROFILE: writerHome } : { HOME: writerHome }),
+			})),
+			config(managedEnv('~\\nested/otel.jsonl', {
+				COPILOT_HOME: customHome,
+				...(isWindows ? { USERPROFILE: writerHome } : { HOME: writerHome }),
+			})),
+		]), [
+			{ exporterType: 'file', filePath: join(customHome, relativePath), otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+			{ exporterType: 'file', filePath: join(userHome, '.copilot', relativePath), otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+			{ exporterType: 'file', filePath: join(userHome, '.copilot', relativePath), otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+			{ exporterType: 'file', filePath: absolutePath, otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+			{ exporterType: 'file', filePath: join(writerHome, 'nested', 'otel.jsonl'), otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+			{ exporterType: 'file', filePath: join(writerHome, 'nested', 'otel.jsonl'), otlpEndpoint: '', sourceName: undefined, captureContent: undefined },
+		]);
+	});
+
+	test('managed relative file paths reject blank or non-absolute Copilot homes without using the process CWD', async () => {
+		const relativePath = join('synthetic', 'otel.jsonl');
+		const cwdPath = resolve(process.cwd(), relativePath);
+		const results = await Promise.all([
+			['blank', '   '],
+			['relative', 'relative/copilot-home'],
+			['dot-relative', '.'],
+		].map(async ([label, copilotHome]) => {
+			const logMessages: string[] = [];
+			const service = store.add(new AgentHostOTelService({
+				env: {
+					...buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: relativePath }),
+					COPILOT_HOME: copilotHome,
+				},
+			}, new class extends NullLogService {
+				override error(message: string): void { logMessages.push(message); }
+			}, makeEnvService(join(tmpdir(), 'synthetic-user-data'), join(tmpdir(), 'synthetic-user-home'))));
+			const config = await service.getSdkTelemetryConfig();
+			return {
+				label,
+				filePath: config?.filePath,
+				safeError: logMessages.length === 1 && logMessages[0].startsWith('[agentHost.otel] ignored managed file export path:'),
+				usedCwd: config?.filePath === cwdPath,
+			};
+		}));
+
+		deepStrictEqual(results, [
+			{ label: 'blank', filePath: '', safeError: true, usedCwd: false },
+			{ label: 'relative', filePath: '', safeError: true, usedCwd: false },
+			{ label: 'dot-relative', filePath: '', safeError: true, usedCwd: false },
+		]);
 	});
 
 	test('managed file path rejects invalid paths without disabling DB export', () => {
@@ -561,27 +611,11 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		deepStrictEqual(logMessages, ['[agentHost.otel] ignored managed file export path: path is empty']);
 	});
 
-	test('managed file path resolves a normal relative path from the current working directory', () => {
-		const relativePath = 'synthetic/otel.jsonl';
-		const cfg = readAgentHostOTelEnv(buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: relativePath }));
-		deepStrictEqual({
-			enabled: cfg.enabled,
-			dbSpanExporter: cfg.dbSpanExporter,
-			exporterType: cfg.exporterType,
-			filePath: cfg.filePath,
-		}, {
-			enabled: true,
-			dbSpanExporter: false,
-			exporterType: 'file',
-			filePath: resolve(process.cwd(), relativePath),
-		});
-	});
-
 	test('managed file path does not alter unmanaged paths or a managed disable', () => {
 		const unmanaged = readAgentHostOTelEnv({
 			COPILOT_OTEL_ENABLED: 'true',
 			COPILOT_OTEL_EXPORTER_TYPE: 'file',
-			COPILOT_OTEL_FILE_EXPORTER_PATH: '~/nested/otel.jsonl',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: 'synthetic/otel.jsonl',
 		});
 		const managedDisabled = readAgentHostOTelEnv(buildAgentHostOTelEnv({ dbSpanExporterEnabled: true }, {}, { enabled: false }));
 		deepStrictEqual({
@@ -593,7 +627,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			enabled: true,
 			dbSpanExporter: false,
 			exporterType: 'file',
-			filePath: '~/nested/otel.jsonl',
+			filePath: 'synthetic/otel.jsonl',
 		});
 		deepStrictEqual({
 			enabled: managedDisabled.enabled,
@@ -849,7 +883,6 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 							count: warnings.length,
 							hasOperation: warnings.some(message => message.includes('append')),
 							hasCode: warnings.some(message => /\bcode=E[A-Z0-9_]+\b/.test(message)),
-							hasSyscall: warnings.some(message => /\bsyscall=[a-z]+\b/.test(message)),
 							exposesOutputPath: warnings.some(message => message.includes(outputPath)),
 							exposesUniquePathComponent: warnings.some(message => message.includes(tmp)),
 							exposesRawMessage: warnings.some(message => message.includes('no such file')),
@@ -857,7 +890,6 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 							count: 1,
 							hasOperation: true,
 							hasCode: true,
-							hasSyscall: true,
 							exposesOutputPath: false,
 							exposesUniquePathComponent: false,
 							exposesRawMessage: false,

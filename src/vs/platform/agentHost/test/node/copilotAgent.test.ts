@@ -1522,6 +1522,7 @@ suite('CopilotAgent', () => {
 		}, new NullLogService(), {
 			_serviceBrand: undefined,
 			userDataPath,
+			userHome: URI.file(userDataPath),
 		} as INativeEnvironmentService);
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([]),

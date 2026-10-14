@@ -629,8 +629,13 @@ implementation detail, not a public setting or a variable users should set.
 Only managed paths receive the additional validation and expansion:
 
 - `~/...` is expanded from `HOME` on Unix and `USERPROFILE` on Windows;
-  `~\...` is also accepted. Normal platform path semantics apply, including
-  resolving relative paths from the host process working directory.
+  `~\...` is also accepted. Absolute paths are unchanged. For the native
+  Copilot runtime and VS Code Agent Host writer, a managed relative path is
+  resolved under Copilot home: a nonempty `COPILOT_HOME` is used verbatim and
+  must be absolute. An empty or unset `COPILOT_HOME` uses
+  `<user-home>/.copilot`. Normal platform `..` semantics apply; Copilot home is
+  an anchor, not a containment boundary. Personal or inherited relative paths
+  retain their existing base.
 - After a file path has been selected, an empty path, NUL, unsupported home
   prefix, environment-variable reference, directory path, filesystem root, or
   missing required home variable is logged and skipped. It does not fall back
@@ -648,8 +653,9 @@ Only managed paths receive the additional validation and expansion:
   exists. Native runtime file-export behavior is unchanged.
 
 The managed path is a shared field consumed by the native Copilot runtime and
-the host-owned writer on each executing host. Producer-specific JSONL formats
-remain unchanged.
+the VS Code Agent Host writer on each executing host. This relative-path rule
+is scoped to those consumers and does not claim client-wide or extension-host
+behavior. Producer-specific JSONL formats remain unchanged.
 
 > **Managed-routing parity and integration status.** The following describes
 > the intended routing only when the native Copilot runtime receives and

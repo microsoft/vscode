@@ -7,12 +7,13 @@ import { mkdir } from 'fs/promises';
 import { hostname, userInfo } from 'os';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { untildify } from '../../../../base/common/labels.js';
-import { dirname, join, parse, resolve } from '../../../../base/common/path.js';
+import { dirname, isAbsolute, join, parse, resolve } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { ILogService } from '../../../log/common/log.js';
 import { startLocalOtlpHttpReceiver, type ILocalOtlpHttpReceiver } from '../../../otel/node/otlp/localOtlpReceiver.js';
 import {
@@ -124,7 +125,7 @@ function parseResourceAttributes(raw: string | undefined, serviceName: string | 
 
 const identityAttributeKeys = new Set(['user.name', 'process.user.name', 'host.name']);
 
-function resolveManagedFilePath(filePath: string, env: NodeJS.ProcessEnv): { filePath: string | undefined; error?: string } {
+function resolveManagedFilePath(filePath: string, env: NodeJS.ProcessEnv, copilotHome: string | undefined): { filePath: string | undefined; error?: string } {
 	let candidate = filePath.startsWith('~\\') ? `~/${filePath.slice(2)}` : filePath;
 	if (!candidate.trim()) {
 		return { filePath: undefined, error: 'path is empty' };
@@ -141,12 +142,19 @@ function resolveManagedFilePath(filePath: string, env: NodeJS.ProcessEnv): { fil
 	if (candidate === '.' || candidate === '..' || /[\\/]$/.test(candidate) || /[\\/]\.{1,2}$/.test(candidate)) {
 		return { filePath: undefined, error: 'path names a directory' };
 	}
-	if (candidate.startsWith('~/')) {
+	const homePrefixed = candidate.startsWith('~/');
+	if (homePrefixed) {
 		const home = isWindows ? env.USERPROFILE : env.HOME;
 		if (!home?.trim()) {
 			return { filePath: undefined, error: `path requires ${isWindows ? 'USERPROFILE' : 'HOME'}` };
 		}
 		candidate = untildify(candidate, home);
+	}
+	if (!homePrefixed && !isAbsolute(candidate)) {
+		if (!copilotHome?.trim() || !isAbsolute(copilotHome)) {
+			return { filePath: undefined, error: 'relative path requires an absolute Copilot home' };
+		}
+		candidate = resolve(copilotHome, candidate);
 	}
 	const resolved = resolve(process.cwd(), candidate);
 	if (parse(resolved).root === resolved) {
@@ -155,12 +163,12 @@ function resolveManagedFilePath(filePath: string, env: NodeJS.ProcessEnv): { fil
 	return { filePath: resolved };
 }
 
-export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
+export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv, copilotHome?: string): ResolvedConfig {
 	const dbSpanExporter = isTruthy(env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED);
 	const otlpEndpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT ?? env.COPILOT_OTEL_ENDPOINT;
 	const rawFilePath = env.COPILOT_OTEL_FILE_EXPORTER_PATH;
 	const managedFilePath = isTruthy(env[AgentHostOTelEnvVars.FilePathIsManaged]);
-	const managedFilePathResult = managedFilePath ? resolveManagedFilePath(rawFilePath ?? '', env) : undefined;
+	const managedFilePathResult = managedFilePath ? resolveManagedFilePath(rawFilePath ?? '', env, copilotHome) : undefined;
 	const filePath = managedFilePathResult ? managedFilePathResult.filePath : rawFilePath;
 	const explicitlyEnabled = isTruthy(env.COPILOT_OTEL_ENABLED);
 	const enabled = explicitlyEnabled || dbSpanExporter || !!otlpEndpoint || !!rawFilePath;
@@ -327,7 +335,8 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	) {
 		super();
 		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
-		this._config = readAgentHostOTelEnv(this._options?.env ?? process.env);
+		const env = this._options?.env ?? process.env;
+		this._config = readAgentHostOTelEnv(env, getCopilotHomePath(environmentService.userHome.fsPath, env));
 		if (this._config.filePathError) {
 			this._logService.error(`[agentHost.otel] ignored managed file export path: ${this._config.filePathError}`);
 		}

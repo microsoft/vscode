@@ -6,6 +6,7 @@
 import type * as http from 'http';
 import type * as https from 'https';
 import { Queue } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { dirname } from '../../../../base/common/path.js';
 import { URL } from 'url';
@@ -245,45 +246,8 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 	}
 
 	private _logFailure(operation: 'mkdir' | 'append', error: unknown): void {
-		this._logService.warn(`[agentHost-otel] file ${operation} failed (${formatFileForwarderError(error)})`);
+		this._logService.warn(`[agentHost-otel] file ${operation} failed (code=${getErrorCode(error) ?? 'unknown'})`);
 	}
-}
-
-const nodeErrnoCodes = new Set([
-	'E2BIG', 'EACCES', 'EADDRINUSE', 'EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EAGAIN', 'EALREADY',
-	'EBADF', 'EBADMSG', 'EBUSY', 'ECANCELED', 'ECHILD', 'ECONNABORTED', 'ECONNREFUSED',
-	'ECONNRESET', 'EDEADLK', 'EDESTADDRREQ', 'EDOM', 'EDQUOT', 'EEXIST', 'EFAULT', 'EFBIG',
-	'EHOSTUNREACH', 'EIDRM', 'EILSEQ', 'EINPROGRESS', 'EINTR', 'EINVAL', 'EIO', 'EISCONN',
-	'EISDIR', 'ELOOP', 'EMFILE', 'EMLINK', 'EMSGSIZE', 'EMULTIHOP', 'ENAMETOOLONG', 'ENETDOWN',
-	'ENETRESET', 'ENETUNREACH', 'ENFILE', 'ENOBUFS', 'ENODATA', 'ENODEV', 'ENOENT', 'ENOEXEC',
-	'ENOLCK', 'ENOLINK', 'ENOMEM', 'ENOMSG', 'ENOPROTOOPT', 'ENOSPC', 'ENOSR', 'ENOSTR',
-	'ENOSYS', 'ENOTCONN', 'ENOTDIR', 'ENOTEMPTY', 'ENOTSOCK', 'ENOTSUP', 'ENOTTY', 'ENXIO',
-	'EOPNOTSUPP', 'EOVERFLOW', 'EPERM', 'EPIPE', 'EPROTO', 'EPROTONOSUPPORT', 'EPROTOTYPE',
-	'ERANGE', 'EROFS', 'ESPIPE', 'ESRCH', 'ESTALE', 'ETIME', 'ETIMEDOUT', 'ETXTBSY', 'EXDEV',
-]);
-
-const nodeFileSystemSyscalls = new Set(['mkdir', 'open', 'write']);
-
-function readOwnStringProperty(value: object, key: string): string | undefined {
-	const propertyValue: unknown = Object.getOwnPropertyDescriptor(value, key)?.value;
-	return typeof propertyValue === 'string' ? propertyValue : undefined;
-}
-
-function formatFileForwarderError(error: unknown): string {
-	if (!(error instanceof Error)) {
-		return 'category=unknown';
-	}
-
-	const details: string[] = [];
-	const code = readOwnStringProperty(error, 'code');
-	if (code !== undefined && nodeErrnoCodes.has(code)) {
-		details.push(`code=${code}`);
-	}
-	const syscall = readOwnStringProperty(error, 'syscall');
-	if (syscall !== undefined && nodeFileSystemSyscalls.has(syscall)) {
-		details.push(`syscall=${syscall}`);
-	}
-	return details.length > 0 ? details.join(', ') : 'category=unknown';
 }
 
 // ---------------------------------------------------------------------------
