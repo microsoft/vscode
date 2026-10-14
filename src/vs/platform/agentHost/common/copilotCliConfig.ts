@@ -151,7 +151,7 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 export interface ICopilotCliModelCapabilityOverride {
 	/** Family alias (e.g. `"claude-opus-4.8"`) for prompt and tool-capability routing. */
 	readonly family?: string;
-	/** Wins over the model picker's thinking level; unrecognized values are ignored. */
+	/** Wins over the model picker's effort level; unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
 	/** SDK tool allowlist (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
 	readonly availableTools?: readonly string[];
@@ -349,7 +349,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'string',
 					enum: [...reasoningEffortLevels],
 					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
-					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's thinking level. Unrecognized values are ignored."),
+					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's effort level. Unrecognized values are ignored."),
 				},
 				availableTools: {
 					type: 'array',

@@ -12590,7 +12590,7 @@ suite('AgentHostChatContribution', () => {
 						properties: {
 							thinkingLevel: {
 								type: 'string',
-								title: 'Thinking Level',
+								title: 'Effort Level',
 								default: 'medium',
 								enum: ['low', 'medium', 'high'],
 								enumLabels: ['Low', 'Medium', 'High'],
@@ -12604,7 +12604,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(models[0].metadata.configurationSchema?.properties?.thinkingLevel, {
 				type: 'string',
-				title: 'Thinking Level',
+				title: 'Effort Level',
 				description: undefined,
 				default: 'medium',
 				enum: ['low', 'medium', 'high'],
