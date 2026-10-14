@@ -197,12 +197,10 @@ function hostSessionSettings(session: URI): IAgentChatSessionSettings | undefine
 			return [];
 		}
 	};
-	const shared = m['copilot.sharedCustomizationDirectories'] ? parseDirs(m['copilot.sharedCustomizationDirectories']) : undefined;
 	const defaults = m['copilot.workingDirectories'] ? parseDirs(m['copilot.workingDirectories']) : m['copilot.workingDirectory'] ? [URI.parse(m['copilot.workingDirectory'])] : undefined;
-	const anchors = shared ?? defaults;
 	return {
-		customizationDirectory: shared?.[0] ?? defaults?.[0] ?? (m['copilot.customizationDirectory'] ? URI.parse(m['copilot.customizationDirectory']) : undefined),
-		additionalCustomizationDirectories: anchors?.slice(1) ?? [],
+		customizationDirectory: defaults?.[0] ?? (m['copilot.customizationDirectory'] ? URI.parse(m['copilot.customizationDirectory']) : undefined),
+		additionalCustomizationDirectories: defaults?.slice(1) ?? [],
 		project: undefined,
 		workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 		defaultChatWorkingDirectory: defaults?.[0],
@@ -6733,6 +6731,9 @@ suite('CopilotAgent', () => {
 				return {
 					agent, fileService, session, chats, resources, sdkSessions, client, worktreeIsolation, sessionDataService, previous, next, secondary, sessionDirectories, resumed, continuations, reanchors, metadata, activeClient,
 					sends: () => sends,
+					/** Marks the discovery runs made so far; {@link discoveriesSince} returns the folders of each later run. */
+					discoveryMark: () => client.skillDiscoveryRequests.length,
+					discoveriesSince: (mark: number) => client.skillDiscoveryRequests.slice(mark).map(request => request.projectPaths),
 					pluginDirectory: () => activeClient.pluginController.directory?.toString(),
 					restore: async () => {
 						await disposeAgent(agent);
@@ -7137,7 +7138,7 @@ suite('CopilotAgent', () => {
 				});
 			}
 
-			test('creating a peer first after a cold main-only move preserves persisted shared discovery roots', async () => {
+			test('creating a peer first after a cold main-only move anchors every chat to its own folders and shares a folder\'s discovery', async () => {
 				const fixture = await createFixture(true);
 				let restored: CopilotAgent | undefined;
 				try {
@@ -7154,22 +7155,24 @@ suite('CopilotAgent', () => {
 						createdDirectory = options.workingDirectory;
 						return sdk as unknown as CopilotSession;
 					};
+					const mark = fixture.discoveryMark();
 					await restored.chats.createChat(peer, exactChatContext(session, peer, peer), { workingDirectories: [next] });
-					const discoveryAfterCreate = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+					const discoveriesAfterCreate = fixture.discoveriesSince(mark);
 					await restored.chats.sendMessage(chats[1], 'Continue in the original workspace', [previous], undefined, undefined, undefined, exactChatContext(session, chats[1], resources[1]));
-					const discoveryAfterSibling = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+					const discoveriesAfterSibling = fixture.discoveriesSince(mark);
 					await restored.chats.sendMessage(chats[0], 'Continue in the main workspace', [next], undefined, undefined, undefined, exactChatContext(session, chats[0], resources[0]));
 					assert.deepStrictEqual({
 						createdDirectory,
-						discoveryAfterCreate,
-						discoveryAfterSibling,
-						discoveryAfterMain: client.skillDiscoveryRequests.at(-1)?.projectPaths,
+						discoveriesAfterCreate,
+						discoveriesAfterSibling,
+						discoveriesAfterMain: fixture.discoveriesSince(mark),
 						directories: [peer, chats[0], chats[1]].map(chat => getPeerChatStub(restored!, chat)?.workingDirectory?.toString()),
 					}, {
 						createdDirectory: next.fsPath,
-						discoveryAfterCreate: [previous.fsPath, secondary.fsPath],
-						discoveryAfterSibling: [previous.fsPath, secondary.fsPath],
-						discoveryAfterMain: [previous.fsPath, secondary.fsPath],
+						discoveriesAfterCreate: [[next.fsPath]],
+						discoveriesAfterSibling: [[next.fsPath], [previous.fsPath]],
+						// The main chat followed its move to `next`, whose discovery the peer already runs.
+						discoveriesAfterMain: [[next.fsPath], [previous.fsPath]],
 						directories: [next.toString(), next.toString(), previous.toString()],
 					});
 				} finally {
@@ -7523,14 +7526,15 @@ suite('CopilotAgent', () => {
 				['next send', false], ['release and reopen', false], ['cold restart', false],
 				['next send', true], ['release and reopen', true], ['cold restart', true],
 			] as const) {
-				test(`preserves an isolated peer workspace and shared discovery through ${resume} and sibling sends (multi-root: ${multiRoot})`, async () => {
+				test(`anchors an isolated peer's discovery to its own workspace through ${resume} and sibling sends (multi-root: ${multiRoot})`, async () => {
 					const fixture = await createFixture(multiRoot);
 					let agent = fixture.agent;
 					try {
-						const { session, chats, resources, previous, next, sessionDirectories, client } = fixture;
+						const { session, chats, resources, previous, next, sessionDirectories } = fixture;
 						const context = exactChatContext(session, chats[1], resources[1]);
 						const before = await fixture.metadata();
 						await agent.setChatWorkingDirectory(chats[1], context, next);
+						const peerMark = fixture.discoveryMark();
 						if (resume === 'cold restart') {
 							agent = await fixture.restore();
 						} else if (resume === 'release and reopen') {
@@ -7539,25 +7543,32 @@ suite('CopilotAgent', () => {
 						await agent.chats.getMessages(chats[1], context);
 						const reopenedDirectory = getPeerChatStub(agent, chats[1])?.workingDirectory?.toString();
 						await agent.chats.sendMessage(chats[1], 'Continue in the isolated workspace', [next], undefined, undefined, undefined, context);
-						const discoveryAfterPeerSend = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+						const discoveriesForPeer = fixture.discoveriesSince(peerMark);
+						const siblingMark = fixture.discoveryMark();
 						for (const index of [0, 2]) {
 							await agent.chats.sendMessage(chats[index], 'Continue in the original workspace', index === 0 ? sessionDirectories : [previous], undefined, undefined, undefined, exactChatContext(session, chats[index], resources[index]));
 						}
+						const discoveriesForSiblings = fixture.discoveriesSince(siblingMark);
+						const finalMark = fixture.discoveryMark();
 						await agent.chats.sendMessage(chats[1], 'Continue after the siblings', [next], undefined, undefined, undefined, context);
 						assert.deepStrictEqual({
 							reopenedDirectory,
 							directories: chats.map(chat => getPeerChatStub(agent, chat)?.workingDirectory?.toString()),
 							additionalDirectories: chats.map(chat => getPeerChatStub(agent, chat)?.appliedAdditionalDirectories.map(directory => directory.toString())),
-							discoveryAfterPeerSend,
-							discoveryAfterSiblingSends: client.skillDiscoveryRequests.at(-1)?.projectPaths,
+							discoveriesForPeer,
+							discoveriesForSiblings,
+							discoveriesAfterFinalPeerSend: fixture.discoveriesSince(finalMark),
 							metadata: await fixture.metadata(),
 							sends: fixture.sends(),
 						}, {
 							reopenedDirectory: next.toString(),
 							directories: [previous.toString(), next.toString(), previous.toString()],
 							additionalDirectories: [sessionDirectories.slice(1).map(directory => directory.toString()), [], []],
-							discoveryAfterPeerSend: sessionDirectories.map(directory => directory.fsPath),
-							discoveryAfterSiblingSends: sessionDirectories.map(directory => directory.fsPath),
+							// The peer discovers only its own workspace; its previous anchor is released with its previous runtime.
+							discoveriesForPeer: [[next.fsPath]],
+							// The main chat discovers its own folders; the cold peer shares that discovery only when they are the same set.
+							discoveriesForSiblings: multiRoot ? [sessionDirectories.map(directory => directory.fsPath), [previous.fsPath]] : [[previous.fsPath]],
+							discoveriesAfterFinalPeerSend: [],
 							metadata: [before[0], {
 								'copilot.workingDirectory': next.toString(),
 								'copilot.workingDirectories': JSON.stringify([next.toString()]),
@@ -7575,15 +7586,16 @@ suite('CopilotAgent', () => {
 			}
 
 			for (const resume of ['next send', 'release and reopen', 'cold restart', 'peer-first cold restart'] as const) {
-				test(`preserves the shared discovery anchor after a main-only workspace change through ${resume}`, async () => {
+				test(`the default chat's discovery follows its chat-only workspace change through ${resume}`, async () => {
 					const fixture = await createFixture();
 					let agent = fixture.agent;
 					try {
-						const { session, chats, resources, previous, next, client } = fixture;
+						const { session, chats, resources, previous, next } = fixture;
 						const context = exactChatContext(session, chats[0], resources[0]);
 						await agent.chats.getMessages(chats[0], context);
 						await agent.setChatWorkingDirectory(chats[0], context, next);
 						const resumeStart = fixture.resumed.length;
+						const mainMark = fixture.discoveryMark();
 						if (resume === 'cold restart' || resume === 'peer-first cold restart') {
 							agent = await fixture.restore();
 							if (resume === 'peer-first cold restart') {
@@ -7596,10 +7608,13 @@ suite('CopilotAgent', () => {
 							await agent.chats.getMessages(chats[0], context);
 						}
 						await agent.chats.sendMessage(chats[0], 'Continue in the new main workspace', [next], undefined, undefined, undefined, context);
-						const discoveryAfterMainSend = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+						const discoveriesThroughMainSend = fixture.discoveriesSince(mainMark);
+						const siblingMark = fixture.discoveryMark();
 						for (const index of [1, 2]) {
 							await agent.chats.sendMessage(chats[index], 'Continue in the original workspace', [previous], undefined, undefined, undefined, exactChatContext(session, chats[index], resources[index]));
 						}
+						const discoveriesForSiblings = fixture.discoveriesSince(siblingMark);
+						const finalMark = fixture.discoveryMark();
 						await agent.chats.sendMessage(chats[0], 'Continue after the siblings', [next], undefined, undefined, undefined, context);
 						const db = fixture.sessionDataService.openDatabase(session);
 						let sharedRoots: string | undefined;
@@ -7611,15 +7626,22 @@ suite('CopilotAgent', () => {
 						assert.deepStrictEqual({
 							directories: chats.map(chat => getPeerChatStub(agent, chat)?.workingDirectory?.toString()),
 							mainResumes: fixture.resumed.slice(resumeStart).filter(call => call.id === 'session-wide'),
-							discoveryAfterMainSend,
-							discoveryAfterSiblingSends: client.skillDiscoveryRequests.at(-1)?.projectPaths,
+							discoveriesThroughMainSend,
+							discoveriesForSiblings,
+							discoveriesAfterFinalMainSend: fixture.discoveriesSince(finalMark),
+							publishedAnchor: fixture.pluginDirectory(),
 							sharedRoots,
 							sends: fixture.sends(),
 						}, {
 							directories: [next.toString(), previous.toString(), previous.toString()],
 							mainResumes: [{ id: 'session-wide', directory: next.fsPath }],
-							discoveryAfterMainSend: [previous.fsPath],
-							discoveryAfterSiblingSends: [previous.fsPath],
+							// A peer reopened first discovers its own folder before the main chat discovers its new one.
+							discoveriesThroughMainSend: resume === 'peer-first cold restart' ? [[previous.fsPath], [next.fsPath]] : [[next.fsPath]],
+							// The peers share one discovery of their folder, which a live peer already holds unless the host restarted.
+							discoveriesForSiblings: resume === 'cold restart' ? [[previous.fsPath]] : [],
+							discoveriesAfterFinalMainSend: [],
+							publishedAnchor: next.toString(),
+							// Still written for older builds, which keep discovery at the previous folders.
 							sharedRoots: JSON.stringify([previous.toString()]),
 							sends: 4,
 						});
@@ -7632,7 +7654,7 @@ suite('CopilotAgent', () => {
 				});
 			}
 
-			test('retains shared roots on a main-only move and clears obsolete roots when replacing the workspace after removing peers', async () => {
+			test('writes shared roots for older builds on a main-only move that discovery follows, and clears them when replacing the workspace after removing peers', async () => {
 				const fixture = await createFixture(true);
 				let restored: CopilotAgent | undefined;
 				try {
@@ -7643,7 +7665,14 @@ suite('CopilotAgent', () => {
 					activeClient.pluginController.setAdditionalDirectories([secondary]);
 					await agent.setChatWorkingDirectory(chats[0], context, next);
 					await agent.chats.sendMessage(chats[0], 'Continue in the new main workspace', [next], undefined, undefined, undefined, context);
-					const sharedDiscovery = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+					const movedDiscovery = client.skillDiscoveryRequests.at(-1)?.projectPaths;
+					const movedDb = fixture.sessionDataService.openDatabase(session);
+					let movedSharedRoots: string | undefined;
+					try {
+						movedSharedRoots = await movedDb.object.getMetadata('copilot.sharedCustomizationDirectories');
+					} finally {
+						movedDb.dispose();
+					}
 					for (const index of [1, 2]) {
 						await agent.chats.disposeChat(chats[index], exactChatContext(session, chats[index], resources[index]));
 					}
@@ -7670,14 +7699,16 @@ suite('CopilotAgent', () => {
 					await restored.materializeChat(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' }));
 					await restored.chats.sendMessage(chats[0], 'Continue after reopening', [secondary], undefined, undefined, undefined, context);
 					assert.deepStrictEqual({
-						sharedDiscovery,
+						movedDiscovery,
+						movedSharedRoots,
 						replacementDiscovery,
 						reopenedDiscovery: client.skillDiscoveryRequests.at(-1)?.projectPaths,
 						sharedRoots,
 						directory: getPeerChatStub(restored, chats[0])?.workingDirectory?.toString(),
 						additionalDirectories,
 					}, {
-						sharedDiscovery: [previous.fsPath, secondary.fsPath],
+						movedDiscovery: [next.fsPath],
+						movedSharedRoots: JSON.stringify([previous.toString(), secondary.toString()]),
 						replacementDiscovery: [secondary.fsPath],
 						reopenedDiscovery: [secondary.fsPath],
 						sharedRoots: '',
@@ -14380,9 +14411,10 @@ suite('CopilotAgent', () => {
 				await agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
 				const pluginController = (agent as unknown as { _activeClients: { get(session: URI): { pluginController: { isSettled(): boolean; getCustomizationsSettled(): Promise<unknown> } } | undefined } })._activeClients.get(result.session)!.pluginController;
 				// The discovery's change event is what a watched workspace file change raises.
-				const discovery = (pluginController as unknown as { _sessionDiscovered: { value: { _discovery: { _onDidChange: Emitter<void> } } } })._sessionDiscovered.value._discovery;
-
 				await pluginController.getCustomizationsSettled();
+				// The published view shares the default chat's anchor set, so this is the discovery the turn waits for.
+				const discovery = (pluginController as unknown as { _published: { value: { object: { _discovered: { value: { _discovery: { _onDidChange: Emitter<void> } } } } } } })._published.value.object._discovered.value._discovery;
+
 				const beforeChange = pluginController.isSettled();
 				discovery._onDidChange.fire();
 				const whileRefreshing = pluginController.isSettled();
