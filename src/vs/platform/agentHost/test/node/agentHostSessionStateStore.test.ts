@@ -606,6 +606,54 @@ suite('AgentHostSessionStateStore', () => {
 			return { fixture, session, writer, opened, peer: peer.uri, next, folderKey: getWorkingDirectoryScopeId(peer.workingDirectories!) };
 		}
 
+		/** Adds a peer the legacy chat catalog records but central state does not (one created after the import), with its own database. */
+		async function addLatePeer(sessionKey: string, chat: string, workingDirectories: readonly string[] | undefined): Promise<void> {
+			const catalog = await database.getSessionChatCatalog(sessionKey);
+			const rows = (catalog?.chats ?? []).map(({ ownerSession: _ownerSession, ...row }) => row);
+			const result = await database.replaceSessionChatCatalog(sessionKey, [...rows, { chat, order: rows.length }], catalog?.revision);
+			assert.strictEqual(result.status, 'applied');
+			// Older builds keep a legacy peer's folders in its own database.
+			await oldBuildEdit(chat, { 'copilot.model': 'model', ...(workingDirectories ? { 'agentHost.chatWorkingDirectories': JSON.stringify(workingDirectories) } : {}) });
+		}
+
+		test('a peer only the chat catalog records becomes the source of a folder whose recorded chat is deleted, and gets its value right away', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			const peer = fixture.chats[2];
+			const folderKey = getWorkingDirectoryScopeId(peer.workingDirectories!);
+			await writer.writeMetadata(session, URI.parse(peer.uri), { [baseBranchKey]: 'peer-base' }, SessionStateMirrorFlush.Immediate);
+			const late = `${fixture.session}/late-peer`;
+			await addLatePeer(fixture.session, late, peer.workingDirectories);
+
+			await writer.deleteChat(session, URI.parse(peer.uri));
+			const row = (await database.readSessionState(fixture.session))?.folders.find(folder => folder.folderKey === folderKey && folder.kind === 'baseBranch');
+
+			assert.deepStrictEqual({
+				central: [row?.value, row?.storageResource],
+				lateDb: (await sessionDb(URI.parse(late), [baseBranchKey]))[baseBranchKey],
+			}, {
+				central: ['peer-base', late],
+				lateDb: 'peer-base',
+			});
+		});
+
+		test('a base branch recorded for a peer only the chat catalog records is mirrored into that peer\'s database', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			const peer = fixture.chats[2];
+			const folderKey = getWorkingDirectoryScopeId(peer.workingDirectories!);
+			const late = `${fixture.session}/late-peer`;
+			await addLatePeer(fixture.session, late, peer.workingDirectories);
+			await writer.load(session);
+
+			await writer.write(session, sessionStatePatch({ folders: [{ folderKey, kind: 'baseBranch', value: 'late-base', storage: late }] }), SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				lateDb: (await sessionDb(URI.parse(late), [baseBranchKey]))[baseBranchKey],
+				recordedPeerDb: (await sessionDb(URI.parse(peer.uri), [baseBranchKey]))[baseBranchKey],
+			}, { lateDb: 'late-base', recordedPeerDb: undefined });
+		});
+
 		test('deleting the chat a folder\'s base branch is mirrored into moves it to the folder\'s next chat and writes it there right away', async () => {
 			const { session, writer, opened, peer, next, folderKey } = await folderPeers();
 			opened.length = 0;

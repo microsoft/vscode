@@ -18,7 +18,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
@@ -432,14 +432,14 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			// Base branches older builds read from this chat's database move to the folder's next source chat (main's rule:
 			// peers in catalog order), or go with the last chat that used the folder.
-			const order = new Map((await this._database.getSessionChatCatalog(record.key))?.chats.map(entry => [entry.chat, entry.order ?? Number.MAX_SAFE_INTEGER]) ?? []);
+			const live = await this._liveChats(record);
 			const redirected: ISessionStateFolderPatch[] = [];
 			const removedFolders: { readonly kind: SessionStateFolderKind; readonly folderKey: string }[] = [];
 			for (const folder of record.model.folders.values()) {
 				if (folder.kind !== 'baseBranch' || folder.storage !== chatKey) {
 					continue;
 				}
-				const [source] = record.model.baseBranchSources(folder.folderKey, chatKey).sort((a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER));
+				const [source] = baseBranchSources(live, folder.folderKey, chatKey);
 				if (source === undefined) {
 					removedFolders.push({ kind: folder.kind, folderKey: folder.folderKey });
 				} else {
@@ -829,6 +829,32 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	 * Resolves to the first mirror write failure of this flush, which stays dirty and is retried.
 	 * A session being deleted is not mirrored, and a mirror flush never creates a chat's database.
 	 */
+	/**
+	 * The session's chats at write time, in main's source-chat order: the default chat, the chat catalog's
+	 * peers in catalog order (a peer created after the import is only there), then chats only central state records.
+	 */
+	private async _liveChats(record: ISessionRecord): Promise<ILiveChat[]> {
+		const central = record.model.liveChats();
+		const catalog = [...(await this._database.getSessionChatCatalog(record.key))?.chats ?? []].sort((a, b) => a.order - b.order);
+		const live: ILiveChat[] = central.filter(chat => chat.isDefault);
+		for (const row of catalog) {
+			const recorded = record.model.chats.get(row.chat);
+			if (!recorded?.isDefault && !live.some(chat => chat.chat === row.chat)) {
+				// A legacy catalog does not hold a peer's folders: older builds keep them in the peer's own database.
+				const workingDirectories = recorded ? recorded.workingDirectories
+					: row.workingDirectories ?? (record.model.authority === 1 ? await this._readPeerWorkingDirectories(row.chat) : undefined);
+				live.push({ chat: row.chat, isDefault: false, workingDirectories });
+			}
+		}
+		live.push(...central.filter(chat => !live.some(entry => entry.chat === chat.chat)));
+		return live;
+	}
+
+	private async _readPeerWorkingDirectories(chat: string): Promise<readonly string[] | undefined> {
+		const raw = (await this._readDatabase(URI.parse(chat), [CHAT_WORKING_DIRECTORIES_MIRROR_KEY]))[CHAT_WORKING_DIRECTORIES_MIRROR_KEY];
+		return raw ? parseDirectoryList(raw) : undefined;
+	}
+
 	private async _flushLocked(record: ISessionRecord): Promise<unknown> {
 		if (this._deleting.has(record.key)) {
 			return undefined;
@@ -836,18 +862,25 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		let failure: unknown;
 		if (record.dirty.size > 0) {
 			const entries = [...record.dirty].map(parseMirrorEntryId);
+			// Chat databases are written only for live chats. Chat entries target chats central state records; only a base
+			// branch recorded for a chat it does not record needs the catalog's peers (one created after the import).
+			const needsCatalog = entries.some(entry => {
+				const storage = entry.kind === 'folder' && entry.folderKind === 'baseBranch' ? record.model.folder('baseBranch', entry.folderKey)?.storage : undefined;
+				return storage !== undefined && storage !== record.key && !record.model.chats.has(storage);
+			});
+			const live = needsCatalog ? await this._liveChats(record) : record.model.liveChats();
 			for (const entry of entries) {
 				// A base branch no live chat's folder uses has no old-format home.
-				if (entry.kind === 'folder' && entry.folderKind === 'baseBranch' && record.model.baseBranchTarget(record.key, entry.folderKey) === undefined) {
+				if (entry.kind === 'folder' && entry.folderKind === 'baseBranch' && record.model.baseBranchTarget(record.key, entry.folderKey, live) === undefined) {
 					record.dirty.delete(mirrorEntryId(entry));
 				}
 			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
-			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault);
+			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, live);
 			for (const [resource, write] of writes) {
 				const reference = resource === record.key
 					? this._sessionDataService.openDatabase(record.session)
-					: record.model.chats.has(resource) ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
+					: live.some(chat => chat.chat === resource) ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
 				if (!reference) {
 					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.
 					for (const id of write.entries) {

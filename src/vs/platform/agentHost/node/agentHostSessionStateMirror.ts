@@ -146,6 +146,20 @@ function folderModelKey(kind: SessionStateFolderKind, folderKey: string): string
 	return `${kind}\n${folderKey}`;
 }
 
+/** A chat of a session at write time: a chat central state records, or a peer only its chat catalog records yet. */
+export interface ILiveChat {
+	readonly chat: string;
+	readonly isDefault: boolean;
+	readonly workingDirectories: readonly string[] | undefined;
+}
+
+/** The peers of `live` whose own folders are `folderKey`, in `live`'s order (main's source-chat rule when it is the catalog order). */
+export function baseBranchSources(live: readonly ILiveChat[], folderKey: string, excluding?: string): string[] {
+	return live
+		.filter(chat => chat.chat !== excluding && !chat.isDefault && chat.workingDirectories?.length && baseBranchFolderKey(chat) === folderKey)
+		.map(chat => chat.chat);
+}
+
 /** Indexed view of a session's central state, in runtime spelling. */
 export class SessionStateModel {
 	readonly values = new Map<string, { readonly value: string | undefined; readonly revision: number }>();
@@ -200,19 +214,17 @@ export class SessionStateModel {
 	 * the recorded chat while it is live, else the first live peer in that folder; `undefined`
 	 * when no live chat uses the folder. The session folder's is the session database.
 	 */
-	baseBranchTarget(session: string, folderKey: string): string | undefined {
+	baseBranchTarget(session: string, folderKey: string, live: readonly ILiveChat[] = this.liveChats()): string | undefined {
 		const storage = this.folder('baseBranch', folderKey)?.storage;
-		if (storage === undefined || storage === session || this.chats.has(storage)) {
+		if (storage === undefined || storage === session || live.some(chat => chat.chat === storage)) {
 			return storage ?? session;
 		}
-		return this.baseBranchSources(folderKey)[0];
+		return baseBranchSources(live, folderKey)[0];
 	}
 
-	/** Live peers whose own folders are `folderKey`, in recorded order. */
-	baseBranchSources(folderKey: string, excluding?: string): string[] {
-		return [...this.chats.values()]
-			.filter(chat => chat.chat !== excluding && !chat.isDefault && chat.workingDirectories?.length && baseBranchFolderKey(chat) === folderKey)
-			.map(chat => chat.chat);
+	/** The chats central state records, as live chats in recorded order. */
+	liveChats(): ILiveChat[] {
+		return [...this.chats.values()];
 	}
 
 	/** Central revision of an entry; `0` when it has no central row. */
@@ -274,15 +286,15 @@ type EntryLocation =
 	| { readonly kind: 'map'; readonly target: IMirrorTarget; readonly mapKey: MirrorMapKey; readonly entryKey: string };
 
 /** Where an entry lives in the old format. The first target is the one older builds read. */
-function entryLocation(session: string, model: SessionStateModel | undefined, entry: SessionStateMirrorEntry, isDefaultChat: (chat: string) => boolean): EntryLocation {
+function entryLocation(session: string, model: SessionStateModel | undefined, entry: SessionStateMirrorEntry, isDefaultChat: (chat: string) => boolean, live?: readonly ILiveChat[]): EntryLocation {
 	switch (entry.kind) {
 		case 'value': return { kind: 'key', targets: [{ resource: session, key: entry.key }] };
-		case 'folder': return folderLocation(session, model, entry.folderKind, entry.folderKey);
+		case 'folder': return folderLocation(session, model, entry.folderKind, entry.folderKey, live);
 		case 'chat': return { kind: 'key', targets: chatTargets(session, entry.chat, entry.field, isDefaultChat(entry.chat)) };
 	}
 }
 
-function folderLocation(session: string, model: SessionStateModel | undefined, kind: SessionStateFolderKind, folderKey: string): EntryLocation {
+function folderLocation(session: string, model: SessionStateModel | undefined, kind: SessionStateFolderKind, folderKey: string, live?: readonly ILiveChat[]): EntryLocation {
 	switch (kind) {
 		case 'git':
 			return folderKey === ''
@@ -291,7 +303,7 @@ function folderLocation(session: string, model: SessionStateModel | undefined, k
 		case 'github':
 			return { kind: 'map', target: { resource: session, key: META_GITHUB_DATA_STATE }, mapKey: META_GITHUB_DATA_STATE, entryKey: folderKey };
 		case 'baseBranch': {
-			const resource = model ? model.baseBranchTarget(session, folderKey) : session;
+			const resource = model ? model.baseBranchTarget(session, folderKey, live) : session;
 			// A folder no live chat uses has nowhere to be mirrored: never into a deleted chat's database.
 			return { kind: 'key', targets: resource === undefined ? [] : [{ resource, key: BASE_BRANCH_MIRROR_KEY }] };
 		}
@@ -704,7 +716,7 @@ export interface IMirrorWrite {
  * rewrites the whole map from central state, so every entry of that map
  * becomes current.
  */
-export function renderMirrorWrites(session: string, model: SessionStateModel, entries: readonly SessionStateMirrorEntry[], isDefaultChat: (chat: string) => boolean): Map<string, IMirrorWrite> {
+export function renderMirrorWrites(session: string, model: SessionStateModel, entries: readonly SessionStateMirrorEntry[], isDefaultChat: (chat: string) => boolean, live?: readonly ILiveChat[]): Map<string, IMirrorWrite> {
 	const writes = new Map<string, IMirrorWrite>();
 	const write = (resource: string) => {
 		let result = writes.get(resource);
@@ -717,7 +729,7 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 	const renderedMaps = new Set<MirrorMapKey>();
 	for (const entry of entries) {
 		const id = mirrorEntryId(entry);
-		const location = entryLocation(session, model, entry, isDefaultChat);
+		const location = entryLocation(session, model, entry, isDefaultChat, live);
 		if (location.kind === 'map') {
 			if (renderedMaps.has(location.mapKey)) {
 				continue;
