@@ -149,12 +149,13 @@ suite('Session state compatibility fixtures', () => {
 
 		const sessionView = await read(sessionKey, ['peerChats', 'defaultChatIsRead', SESSION_CUSTOM_TITLE_KEY]);
 		assert.deepStrictEqual({
-			peerChats: JSON.parse(sessionView.peerChats!).map((entry: { uri: string }) => entry.uri),
+			peerChats: sessionView.peerChats,
 			defaultChatIsRead: sessionView.defaultChatIsRead,
 			defaultTitle: sessionView[SESSION_CUSTOM_TITLE_KEY],
 			peerDb: await read(peerChat, peerKeys),
 		}, {
-			peerChats: [peerChat],
+			// A chats_v2 session never gets the `peerChats` mirror, as on main.
+			peerChats: undefined,
 			defaultChatIsRead: 'true',
 			defaultTitle: 'Default title',
 			peerDb: {

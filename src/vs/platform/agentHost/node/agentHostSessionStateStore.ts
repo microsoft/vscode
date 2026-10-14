@@ -373,7 +373,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const sequencerKey = this._enter(session);
 		await this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
-			const reads = await this._read(new Map<string, IMirrorReadPlan>([[record.key, { keys: new Set(keys), prefixes: new Set() }]]));
+			const reads = await this._read(new Map<string, IMirrorReadPlan>([[record.key, { keys: new Set(keys) }]]));
 			const changes: Record<string, string | null> = {};
 			for (const key of keys) {
 				const entry: SessionStateMirrorEntry = { kind: 'value', key };
@@ -756,9 +756,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			try {
 				const values: Record<string, string | undefined> = await reference.object.getMetadataObject(Object.fromEntries([...plan.keys].map(key => [key, true])));
-				for (const prefix of plan.prefixes) {
-					Object.assign(values, await reference.object.getMetadataByPrefix(prefix));
-				}
 				return [resource, values] as const;
 			} finally {
 				reference.dispose();

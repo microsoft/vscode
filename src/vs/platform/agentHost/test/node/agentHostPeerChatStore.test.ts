@@ -129,7 +129,6 @@ suite('AgentHostPeerChatStore', () => {
 		}, {
 			writes: 2,
 			legacyWrites: [
-				{ key: 'peerChats', value: '[]' },
 				{ key: customChatTitleMetadataKey(defaultChat), value: 'Renamed' },
 				{ key: customChatTitleSourceMetadataKey(defaultChat), value: 'user' },
 				{ key: getChatChangesSummaryMetadataKey(defaultChat), value: '{"files":0}' },
@@ -192,7 +191,6 @@ suite('AgentHostPeerChatStore', () => {
 			atLimit: exact,
 			cleared: { titleSource: 'user' },
 			legacyWrites: [
-				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: false }]) },
 				{ key: customChatTitleMetadataKey(defaultChat), value: `${prefix}…` },
 				{ key: SESSION_CUSTOM_TITLE_KEY, value: `${prefix}…` },
 				{ key: customChatTitleMetadataKey(first.toString()), value: `${prefix}…` },
@@ -275,7 +273,7 @@ suite('AgentHostPeerChatStore', () => {
 			chats: snapshot.chats.map(chat => chat.chat),
 			legacyWrites: local.setMetadataCalls,
 		}, {
-			attempts: 1, chats: [defaultChat], legacyWrites: [{ key: 'peerChats', value: '[]' }],
+			attempts: 1, chats: [defaultChat], legacyWrites: [],
 		});
 	});
 
@@ -313,9 +311,7 @@ suite('AgentHostPeerChatStore', () => {
 				{ chat: first.toString(), order: 1, read: undefined, archived: true },
 			],
 			legacyWrites: [
-				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: false }]) },
 				{ key: 'defaultChatIsRead', value: 'true' },
-				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: true }]) },
 			],
 			removed: undefined,
 		});

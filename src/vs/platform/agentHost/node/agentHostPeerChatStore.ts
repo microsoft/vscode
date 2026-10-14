@@ -256,8 +256,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	/**
-	 * Renders the normalized chats of a session in the format older builds read: the peer
-	 * membership, chat titles, the default chat's read state, changes summaries and working
+	 * Renders the normalized chats of a session in the format older builds read: chat titles, the default chat's read state, changes summaries and working
 	 * directories. Write-only: the normalized catalog stays the authority, so older builds'
 	 * edits of these keys are never imported. Provider, origin and inherited-turn keys are
 	 * written when a peer is created and are not rewritten here.
@@ -280,9 +279,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return;
 		}
 		const defaultChat = snapshot.header.defaultChatUri;
-		const sessionKeys: Record<string, string | null> = {
-			[PEER_CHATS_METADATA_KEY]: JSON.stringify(await this._normalizedEntries(snapshot)),
-		};
+		const sessionKeys: Record<string, string | null> = {};
 		const chatKeys = new Map<string, Record<string, string | null>>();
 		for (const row of snapshot.chats) {
 			const isDefault = row.chat === defaultChat;

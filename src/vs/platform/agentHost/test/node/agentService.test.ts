@@ -25250,7 +25250,6 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 
-			const legacyPeers = JSON.parse((await sessionData.database(session).getMetadata('peerChats')) ?? '[]') as { uri: string; origin?: { selection?: { text?: string } } }[];
 			const peerCatalog = await catalogDatabase.getSessionChatCatalog(session.toString());
 			const peerCatalogOrigin = JSON.parse(peerCatalog?.chats.find(chat => chat.chat === chatUri.toString())?.origin ?? '{}') as { selection?: { text?: string } };
 			const chatOrigin = JSON.parse((await sessionData.database(chatUri).getMetadata(CHAT_ORIGIN_METADATA_KEY)) ?? '{}') as { selection?: { text?: string } };
@@ -25259,13 +25258,11 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				liveSelectionMatches: liveOrigin?.kind === ChatOriginKind.SideChat && liveOrigin.selection?.text === selectionText,
-				legacySelectionMatches: legacyPeers.find(peer => peer.uri === chatUri.toString())?.origin?.selection?.text === selectionText,
 				peerCatalogSelectionMatches: peerCatalogOrigin.selection?.text === selectionText,
 				chatMetadataSelectionMatches: chatOrigin.selection?.text === selectionText,
 				centralOrigin: central?.chats.find(chat => chat.uri === chatUri.toString())?.origin,
 			}, {
 				liveSelectionMatches: true,
-				legacySelectionMatches: true,
 				peerCatalogSelectionMatches: true,
 				// The v2 peer's origin is now mirrored to its own chat db (same serialization as the legacy writer), so the old-format chat db carries it.
 				chatMetadataSelectionMatches: true,

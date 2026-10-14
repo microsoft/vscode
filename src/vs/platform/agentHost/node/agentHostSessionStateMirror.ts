@@ -370,7 +370,6 @@ export interface IObservedEntry {
 /** Reads of one database for an observation. */
 export interface IMirrorReadPlan {
 	readonly keys: Set<string>;
-	readonly prefixes: Set<string>;
 }
 
 /** What older builds hold for a session, by database and key. */
@@ -378,7 +377,7 @@ export type MirrorReads = ReadonlyMap<string, Readonly<Record<string, string | u
 
 /**
  * The reads that observe every entry older builds can have written for the
- * session: registered values and prefixes, folder maps, and the given
+ * session: registered values, folder maps, and the given
  * chats' keys (legacy-catalog sessions only) and base-branch databases.
  */
 export function planMirrorReads(session: string, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], baseBranchStorages: readonly string[]): Map<string, IMirrorReadPlan> {
@@ -386,7 +385,7 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	const plan = (resource: string) => {
 		let result = plans.get(resource);
 		if (!result) {
-			result = { keys: new Set(), prefixes: new Set() };
+			result = { keys: new Set() };
 			plans.set(resource, result);
 		}
 		return result;
