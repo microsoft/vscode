@@ -5406,7 +5406,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
 		// The default chat's own anchor set, which the published view follows;
 		// held until the chat's entry holds it so it is discovered only once.
-		const anchor = this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
+		const anchor = await this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
 		try {
@@ -5679,7 +5679,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The chat's own anchor set as a relaunch would apply it; held across a
 		// restart so the replacement reuses its discovery.
 		const anchor = activeClient
-			? this._acquireChatCustomizationAnchor(activeClient, entry.customizationDirectory ?? entry.workingDirectory, workingDirectories !== undefined ? workingDirectories.slice(1) : entry.appliedAdditionalDirectories)
+			? await this._acquireChatCustomizationAnchor(activeClient, entry.customizationDirectory ?? entry.workingDirectory, workingDirectories !== undefined ? workingDirectories.slice(1) : entry.appliedAdditionalDirectories)
 			: undefined;
 		try {
 			return await this._refreshSessionConfigurationWithAnchor(context, entry, workingDirectories, options, activeClient, anchor?.object);
@@ -6099,7 +6099,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
 			// Held until the chat's entry holds it so the set is discovered only once.
-			anchor = this._acquireChatCustomizationAnchor(activeClient, workingDirectory, undefined);
+			anchor = await this._acquireChatCustomizationAnchor(activeClient, workingDirectory, undefined);
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, session, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
@@ -6699,7 +6699,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
 			// The chat's own anchor set, held until its entry holds it so the set is discovered only once.
-			anchor = this._acquireChatCustomizationAnchor(activeClient, workingDirectory, additionalDirectories);
+			anchor = await this._acquireChatCustomizationAnchor(activeClient, workingDirectory, additionalDirectories);
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(configurationResource, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, context.resource, workingDirectory);
@@ -7248,7 +7248,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
-		const anchor = this._acquireChatCustomizationAnchor(activeClient, session.customizationDirectory ?? session.workingDirectory, session.appliedAdditionalDirectories);
+		const anchor = this._acquireLiveChatCustomizationAnchor(activeClient, session.customizationDirectory ?? session.workingDirectory, session.appliedAdditionalDirectories);
 		return new CopilotChatEntry(session, activeClient, anchor, this._onMcpNotification, () => this._handleCopilotSessionAuthRequired());
 	}
 
@@ -7258,11 +7258,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Never the session's folders: a peer working elsewhere discovers its own
 	 * folder's customizations.
 	 */
-	private _acquireChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[] | undefined): IReference<CustomizationAnchor> | undefined {
+	private async _acquireChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[] | undefined): Promise<IReference<CustomizationAnchor> | undefined> {
 		if (!directory) {
 			return undefined;
 		}
-		return activeClient.pluginController.acquireAnchor(directory, this._isMultiRootEnabled() ? additionalDirectories ?? [] : []);
+		const additional = this._isMultiRootEnabled() ? additionalDirectories ?? [] : [];
+		await activeClient.pluginController.resolveAnchorPaths([directory, ...additional]);
+		return activeClient.pluginController.acquireAnchor(directory, additional);
+	}
+
+	/** {@link _acquireChatCustomizationAnchor} for a chat's entry, whose launch already resolved the real paths. */
+	private _acquireLiveChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[]): IReference<CustomizationAnchor> | undefined {
+		return directory ? activeClient.pluginController.acquireAnchor(directory, this._isMultiRootEnabled() ? additionalDirectories : []) : undefined;
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {
@@ -7430,7 +7437,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const additionalDirectories = this._additionalCustomizationDirectories(launchWorkingDirectories);
 		activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
 		// The chat's own anchor set (the published view's), held until its entry holds it.
-		const anchor = this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
+		const anchor = await this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
 		try {
 			// Prefer chat-scoped membership when this SDK session is already bound to a chat.
 			const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString(), anchor?.object, storedMetadata.agent?.uri);
@@ -8295,11 +8302,6 @@ interface ITopLevelMcpServers {
 	readonly owners?: ReadonlyMap<string, string>;
 }
 
-/** The key of an ordered customization anchor set: the primary directory followed by its additional roots. */
-function customizationAnchorKey(directory: URI, additionalDirectories: readonly URI[]): string {
-	return [directory, ...additionalDirectories].map(d => d.toString()).join('\n');
-}
-
 /**
  * On-disk customization discovery (workspace and user-home conventions, and
  * workspace MCP configuration) for one ordered anchor set. The chats of a
@@ -8311,10 +8313,9 @@ class CustomizationAnchor extends Disposable {
 	private readonly _discovered = this._register(new MutableDisposable<SessionDiscoveredEntry>());
 	private readonly _mcpDiscovery = this._register(new MutableDisposable<SessionMcpDiscovery>());
 
-	/** See {@link customizationAnchorKey}. */
-	readonly key: string;
-
 	constructor(
+		/** Identifies the ordered anchor set, see {@link SessionPluginController.acquireAnchor}. */
+		readonly key: string,
 		readonly directory: URI,
 		readonly additionalDirectories: readonly URI[],
 		/** The roots discovered as workspace folders; empty for a workspace-less scratch directory. */
@@ -8326,7 +8327,6 @@ class CustomizationAnchor extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
-		this.key = customizationAnchorKey(directory, additionalDirectories);
 	}
 
 	/** `undefined` once disposed (with the last chat using it, or the session), so a late read discovers nothing. */
@@ -8379,6 +8379,9 @@ class SessionPluginController extends Disposable {
 	/** Per-client customization state; published customizations are the stable first-wins union of these entries. */
 	private readonly _clients = new Map<string, IClientCustomizationState>();
 
+	/** Symlink-resolved paths of anchor directories, by their spelling; filled by {@link resolveAnchorPaths}. */
+	private readonly _realPaths = new Map<string, string>();
+
 	/** Live anchor sets of this session, refcounted by the chats (and the published view) that use them. */
 	private readonly _anchors = new Map<string, { readonly anchor: CustomizationAnchor; refs: number }>();
 	/** The published view's reference to its anchor set, acquired lazily from {@link _directory} and {@link _additionalDirectories}. */
@@ -8417,11 +8420,11 @@ class SessionPluginController extends Disposable {
 	 * it is disposed when its last reference is released, or with this controller.
 	 */
 	public acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<CustomizationAnchor> {
-		const key = customizationAnchorKey(directory, additionalDirectories);
+		const key = this._anchorKey(directory, additionalDirectories);
 		let entry = this._anchors.get(key);
 		if (!entry) {
 			const workspaceDirectories = isEqual(directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session))) ? [] : [directory, ...additionalDirectories];
-			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), () => this._onDidChangeAnchor(anchor));
+			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), () => this._onDidChangeAnchor(anchor));
 			entry = { anchor, refs: 0 };
 			if (this._store.isDisposed) {
 				// A late acquisition after session finalize owns its anchor outright.
@@ -8447,16 +8450,45 @@ class SessionPluginController extends Disposable {
 		};
 	}
 
-	/** The anchor sets currently alive for this session, as `[primary, ...additional]` keys. */
+	/**
+	 * Resolves the real paths of `directories` so that {@link acquireAnchor}
+	 * keys a folder reached through different spellings (a symlink such as
+	 * `/tmp` and `/private/tmp`, or a different case where paths ignore case)
+	 * as one anchor set. Only the key is affected: an anchor set discovers the
+	 * directories it was first acquired with. A folder whose real path is not
+	 * yet resolved, or cannot be, is keyed by its own spelling.
+	 */
+	public async resolveAnchorPaths(directories: readonly URI[]): Promise<void> {
+		await Promise.all(directories.map(async directory => {
+			if (directory.scheme !== Schemas.file || this._realPaths.has(directory.fsPath)) {
+				return;
+			}
+			try {
+				this._realPaths.set(directory.fsPath, await fs.realpath(directory.fsPath));
+			} catch {
+				// A missing folder keeps its own spelling.
+			}
+		}));
+	}
+
+	/** The key of an ordered anchor set: the comparison keys of its directories' real paths. */
+	private _anchorKey(directory: URI, additionalDirectories: readonly URI[]): string {
+		return [directory, ...additionalDirectories].map(candidate => {
+			const realPath = candidate.scheme === Schemas.file ? this._realPaths.get(candidate.fsPath) : undefined;
+			return extUriBiasedIgnorePathCase.getComparisonKey(realPath !== undefined ? URI.file(realPath) : candidate);
+		}).join('\n');
+	}
+
+	/** The anchor sets currently alive for this session, each as the `[primary, ...additional]` directories it discovers. */
 	public liveAnchorKeys(): readonly string[] {
-		return [...this._anchors.keys()];
+		return [...this._anchors.values()].map(({ anchor }) => [anchor.directory, ...anchor.additionalDirectories].map(directory => directory.toString()).join('\n'));
 	}
 
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {
 		// Only the published view's anchor set feeds session state; a chat on
 		// another set picks up its changes from its next snapshot. Compared by
 		// key: the published view may not have re-read its set since it moved.
-		if (this._directory && anchor.key === customizationAnchorKey(this._directory, this._additionalDirectories)) {
+		if (this._published.value?.object === anchor || (this._directory && anchor.key === this._anchorKey(this._directory, this._additionalDirectories))) {
 			this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
@@ -8612,6 +8644,9 @@ class SessionPluginController extends Disposable {
 	 */
 	public async getCustomizationsSettled(): Promise<readonly Customization[]> {
 		await this._enablementReady;
+		if (this._directory) {
+			await this.resolveAnchorPaths([this._directory, ...this._additionalDirectories]);
+		}
 		const anchor = this._publishedAnchor();
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),

@@ -2245,7 +2245,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('per-chat customization anchors', () => {
-		interface IAnchorInternalsAnchor { readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
+		interface IAnchorInternalsAnchor { readonly directory: URI; readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
 		interface IAnchorInternalsController {
 			liveAnchorKeys(): readonly string[];
 			acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<IAnchorInternalsAnchor>;
@@ -2264,7 +2264,7 @@ suite('CopilotAgent', () => {
 				return { ...discovered, agents: [...discovered.agents, { ...discovered.agents[0], id: `${discovered.agents[0].id}-extra`, name: `${basename(folder.fsPath)}-extra-agent`, displayName: `${basename(folder.fsPath)}-extra-agent` }] };
 			};
 			const controller = (agent as unknown as AnchorInternals)._activeClients.get(session)!.pluginController;
-			controller._anchors.get(folder.toString())!.anchor._discovered.value!._discovery._onDidChange.fire();
+			[...controller._anchors.values()].find(({ anchor }) => isEqual(anchor.directory, folder))!.anchor._discovered.value!._discovery._onDidChange.fire();
 		}
 		function collectPublishedAgents(agent: CopilotAgent, session: URI): (readonly string[])[] {
 			const published: (readonly string[])[] = [];
@@ -2546,6 +2546,34 @@ suite('CopilotAgent', () => {
 				} finally {
 					anchor.dispose();
 				}
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('chats reaching the same folder through different spellings share one discovery of it', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { f1, f2 } = fixture;
+				// The same folder through a symlink, as `/tmp` and `/private/tmp` on macOS.
+				const alias = URI.file(join(dirname(f2.fsPath), 'f2-alias'));
+				await fs.symlink(f2.fsPath, alias.fsPath, 'dir');
+				const viaFolder = await fixture.createPeer('via-folder', f2);
+				const viaAlias = await fixture.createPeer('via-alias', alias);
+				assert.deepStrictEqual({
+					viaFolder: fixture.applied(viaFolder).agents,
+					viaAlias: fixture.applied(viaAlias).agents,
+					launchedIn: getPeerChatStub(fixture.agent, viaAlias)?.workingDirectory?.fsPath,
+					discoveryRuns: fixture.discoveryRuns([f2]) + fixture.discoveryRuns([alias]),
+					liveAnchors: fixture.liveAnchorKeys().length,
+				}, {
+					viaFolder: ['f2-agent'],
+					viaAlias: ['f2-agent'],
+					// Only the key is normalized; the chat still runs in the folder it was given.
+					launchedIn: alias.fsPath,
+					discoveryRuns: 1,
+					liveAnchors: [f1, f2].length,
+				});
 			} finally {
 				await fixture.dispose();
 			}
