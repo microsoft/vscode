@@ -37,7 +37,9 @@ import { SessionStatus } from '../../../../../platform/agentHost/common/state/se
 import { SessionModelInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { parseHeaderNumber, parseRetryAfter as parseGitHubRetryAfter } from '../../../../../platform/github/common/client/headers.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
+import { classifyGitHubHttpRateLimit } from '../../../../../platform/github/common/githubRateLimitCoordinator.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
@@ -129,12 +131,8 @@ function taskSessionStatus(state: string | undefined, logService: ILogService): 
 	}
 }
 
-/**
- * The github.com REST API base, used for the repository-name lookup discovery needs. The CORS
- * caveat on {@link CloudSandboxApiService._tasksBaseUrl} is specific to `api.github.com/agents/*`;
- * the general REST API is CORS-enabled and already called from the renderer elsewhere.
- */
 const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
+const CLOUD_SANDBOX_API_BASE_URI = `${GITHUB_DOT_COM_API_BASE_URI}/cmc_internal/api/agents`;
 
 /** Default per-request timeout (ms) for environment reads and task updates. */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -205,6 +203,8 @@ const RATE_LIMIT_MAX_BACKOFF_MS = 8_000;
  * so the caller keeps the sessions it could not resolve and a later pass picks them up.
  */
 const RATE_LIMIT_WAIT_BUDGET_MS = 15_000;
+
+const DEFAULT_FORBIDDEN_RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
@@ -307,7 +307,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
 		const context = await this._sendEnvironment('get', environmentId, token);
 		if (!isSuccess(context)) {
-			await this._throwForStatus('get', context);
+			throw await this._errorForStatus('get', context);
 		}
 		const environment = await this._readJson<ICloudSandboxEnvironment>(context);
 		if (!environment?.status) {
@@ -330,11 +330,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (!options?.refresh && cached) {
 			return cached;
 		}
-		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments`, 'mc.environmentClient.list', 'listEnvironments', {
+		const context = await this._request(`${CLOUD_SANDBOX_API_BASE_URI}/environments`, 'mc.environmentClient.list', 'listEnvironments', {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token);
 		if (!isSuccess(context)) {
-			await this._throwForStatus('list environments', context);
+			throw await this._errorForStatus('list environments', context);
 		}
 		const response = await this._readJson<unknown>(context);
 		if (!Array.isArray(response)) {
@@ -390,7 +390,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
 				};
 				try {
-					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token);
+					const context = await this._sendTask(`${CLOUD_SANDBOX_API_BASE_URI}/tasks${toQuery(query)}`, 'list', token);
 					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
@@ -459,7 +459,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					let cached = cache.get(task.id);
 					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at || task.hasRepository !== cached.summary.hasRepository) {
-						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
+						const context = await this._sendTask(`${CLOUD_SANDBOX_API_BASE_URI}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
 						const full = await this._readJson<ITaskDetail>(context);
 						if (!full) {
 							throw new Error('getTask returned no task');
@@ -578,7 +578,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (request.repoNwo !== undefined && !repository) {
 			throw new Error(localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."));
 		}
-		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
+		const context = await this._request(`${CLOUD_SANDBOX_API_BASE_URI}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, CREATE_TIMEOUT_MS, session => ({
@@ -601,7 +601,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			} else {
 				this._logService.warn(`${LOG_PREFIX} Task create failed (HTTP ${context.res.statusCode ?? 'unknown'}) without reporting a task id. Mission Control may have recorded a task before failing; such a task is orphaned and can only be removed server-side.`);
 			}
-			await this._throwForStatus('task create', context, failureBody);
+			throw await this._errorForStatus('task create', context, failureBody);
 		}
 		const task = await this._readJson<ITaskDetail>(context);
 		const taskId = task?.id;
@@ -620,12 +620,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
-		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
+		const context = await this._request(`${CLOUD_SANDBOX_API_BASE_URI}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
 		if (!isSuccess(context) && context.res.statusCode !== 404) {
-			await this._throwForStatus('task delete', context);
+			throw await this._errorForStatus('task delete', context);
 		}
 		this._discoveredTasks.delete(taskId);
 		this.clearSessionHistory(taskId);
@@ -634,12 +634,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async renameTask(taskId: string, title: string, token: CancellationToken): Promise<void> {
-		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.update', 'renameTask', {
+		const context = await this._request(`${CLOUD_SANDBOX_API_BASE_URI}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.update', 'renameTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, REQUEST_TIMEOUT_MS, { name: title }, 'PATCH');
 		if (!isSuccess(context)) {
-			await this._throwForStatus('task rename', context);
+			throw await this._errorForStatus('task rename', context);
 		}
 		this.invalidateSessionHistory(taskId);
 		const cached = this._discoveredTasks.get(taskId);
@@ -656,12 +656,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
 		const action = archived ? 'archive' : 'unarchive';
-		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/${action}`, `mc.taskClient.${action}`, archived ? 'archiveTask' : 'unarchiveTask', {
+		const context = await this._request(`${CLOUD_SANDBOX_API_BASE_URI}/tasks/${encodeURIComponent(taskId)}/${action}`, `mc.taskClient.${action}`, archived ? 'archiveTask' : 'unarchiveTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, REQUEST_TIMEOUT_MS, undefined, 'POST');
 		if (!isSuccess(context)) {
-			await this._throwForStatus(`task ${action}`, context);
+			throw await this._errorForStatus(`task ${action}`, context);
 		}
 		this._discoveredTasks.delete(taskId);
 		this.invalidateSessionHistory(taskId);
@@ -703,7 +703,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CloudSandboxAuthenticationRequiredError();
 					}
 					return {
-						account: JSON.stringify([this._tasksBaseUrl(), this._authenticationProviderId, authentication.account.id]),
+						account: JSON.stringify([CLOUD_SANDBOX_API_BASE_URI, this._authenticationProviderId, authentication.account.id]),
 						fetch: (requestToken: CancellationToken) => this._fetchSessionHistory(taskId, requestToken, authentication, watch, diagnosticId),
 					};
 				} catch (error) {
@@ -744,7 +744,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let phaseStarted = 0;
 		logTiming('authenticated', `authenticationMs=${watch.elapsed()}`);
 		try {
-			const url = `${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/events`;
+			const url = `${CLOUD_SANDBOX_API_BASE_URI}/tasks/${encodeURIComponent(taskId)}/events`;
 			const context = await this._request(url, 'mc.taskClient.events', 'getTaskEvents', {
 				'Accept': 'application/vnd.github.ahp+json',
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
@@ -763,10 +763,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			phase = 'responseBody';
 			phaseStarted = responseReceived;
 			if (!isSuccess(context)) {
-				if ([401, 403, 404].includes(context.res.statusCode ?? 0)) {
+				const error = await this._errorForStatus('task events', context);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (!error.isRateLimited && [401, 403, 404].includes(error.statusCode ?? 0)) {
 					this.invalidateSessionHistory(taskId);
 				}
-				await this._throwForStatus('task events', context);
+				throw error;
 			}
 			const body = await this._readJson<unknown>(context);
 			if (token.isCancellationRequested) {
@@ -852,12 +856,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		if (!isSuccess(context)) {
 			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
-			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
 			const status = context.res.statusCode;
 			const responseError = await this._readJson<{ message?: string }>(context);
-			const detail = typeof responseError?.message === 'string' ? sanitizeConnectionDiagnosticText(responseError.message) : undefined;
-			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}${detail ? ` message=${detail}` : ''}`);
-			throw new CloudSandboxRequestError(status, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, retryAfter);
+			const message = typeof responseError?.message === 'string' ? responseError.message : undefined;
+			const error = createRequestError(context, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, message);
+			const detail = message && sanitizeConnectionDiagnosticText(message);
+			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(CLOUD_SANDBOX_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${error.retryAfterSeconds ?? 'none'}${detail ? ` message=${detail}` : ''}`);
+			throw error;
 		}
 		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
 		if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
@@ -879,7 +884,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<IRequestContext> {
 		const path = action === 'get' ? '' : `/${action}`;
-		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
+		const url = `${CLOUD_SANDBOX_API_BASE_URI}/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, action === 'get' ? REQUEST_TIMEOUT_MS : CONNECTION_REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
@@ -892,7 +897,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, DISCOVERY_TIMEOUT_MS));
 		if (!isSuccess(context)) {
-			await this._throwForStatus(`task ${action}`, context);
+			throw await this._errorForStatus(`task ${action}`, context);
 		}
 		return context;
 	}
@@ -909,18 +914,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let waited = 0;
 		for (let attempt = 0; ; attempt++) {
 			const context = await send();
-			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
+			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS && context.res.statusCode !== 403) {
 				return context;
 			}
-			const delay = rateLimitDelay(context.res.headers?.['retry-after'], attempt);
+			const error = await this._errorForStatus(action, context);
+			if (!error.isRateLimited || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
+				throw error;
+			}
+			const delay = rateLimitDelay(error.retryAfterSeconds, attempt);
 			// Waiting less than asked would re-issue inside the server's window, so a delay that
 			// does not fit ends the retries rather than being trimmed to fit.
 			if (waited + delay > RATE_LIMIT_WAIT_BUDGET_MS) {
 				this._logService.warn(`${LOG_PREFIX} ${action} was rate limited and asks for another ${delay}ms, beyond what is left of its ${RATE_LIMIT_WAIT_BUDGET_MS}ms budget; giving up so the pass stays bounded. A later pass retries it.`);
-				return context;
+				throw error;
 			}
-			// Nothing reads the body on this path, and an unconsumed stream holds its connection.
-			await asText(context).catch(() => undefined);
 			this._logService.warn(`${LOG_PREFIX} ${action} was rate limited; retrying in ${delay}ms (attempt ${attempt + 1} of ${RATE_LIMIT_MAX_RETRIES}).`);
 			await timeout(delay, token);
 			waited += delay;
@@ -982,21 +989,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	/**
-	 * Mission Control task API base. Uses the Copilot API host: `api.github.com/agents/*` omits
-	 * CORS headers on authenticated responses, so a renderer `fetch` receives the reply and discards it.
-	 */
-	private _tasksBaseUrl(): string {
-		return `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`;
-	}
-
 	async listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog> {
-		const context = await this._request(`${this._tasksBaseUrl()}/swe/models`, 'mc.models.list', 'listModels', {
+		// The model catalog is served separately from the sandbox control-plane API.
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/swe/models`, 'mc.models.list', 'listModels', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, DISCOVERY_TIMEOUT_MS);
 		if (!isSuccess(context)) {
-			await this._throwForStatus('model catalog', context);
+			throw await this._errorForStatus('model catalog', context);
 		}
 		const catalog = await this._readJson<{ data?: ICloudModel[]; default_model?: string }>(context);
 		if (!catalog || !Array.isArray(catalog.data) || (catalog.default_model !== undefined && typeof catalog.default_model !== 'string')) {
@@ -1051,16 +1051,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/**
-	 * Throw a diagnosable error for a non-success response. Pass `prereadBody` when the caller has
+	 * Read a diagnosable error for a non-success response. Pass `prereadBody` when the caller has
 	 * already consumed the stream, since reading it twice yields nothing.
 	 */
-	private async _throwForStatus(action: string, context: IRequestContext, prereadBody?: string): Promise<never> {
+	private async _errorForStatus(action: string, context: IRequestContext, prereadBody?: string): Promise<CloudSandboxRequestError> {
 		const body = prereadBody ?? await asText(context).catch(() => '');
 		const status = context.res.statusCode;
-		throw new CloudSandboxRequestError(
-			status,
+		return createRequestError(
+			context,
 			`Mission Control ${action} failed: HTTP ${status ?? 'unknown'} - ${(body ?? '').slice(0, 200)}`,
-			retryAfterSeconds(context.res.headers?.['retry-after']),
+			body ?? undefined,
 		);
 	}
 
@@ -1141,6 +1141,27 @@ function isSuccess(context: IRequestContext): boolean {
 	return status >= 200 && status < 300;
 }
 
+function createRequestError(context: IRequestContext, message: string, body?: string): CloudSandboxRequestError {
+	const headers = {
+		get: (name: string) => {
+			const value = context.res.headers[name];
+			return (Array.isArray(value) ? value[0] : value) ?? null;
+		},
+	};
+	const status = context.res.statusCode;
+	const isRateLimited = classifyGitHubHttpRateLimit({ status: status ?? 0, headers }, body) !== undefined;
+	let retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
+	if (isRateLimited && retryAfter === undefined) {
+		const reset = parseHeaderNumber(headers.get('x-ratelimit-reset'));
+		if (parseHeaderNumber(headers.get('x-ratelimit-remaining')) === 0 && reset !== undefined && reset * 1000 > Date.now()) {
+			retryAfter = Math.ceil(reset - Date.now() / 1000);
+		} else if (status === 403) {
+			retryAfter = DEFAULT_FORBIDDEN_RATE_LIMIT_RETRY_AFTER_SECONDS;
+		}
+	}
+	return new CloudSandboxRequestError(status, message, retryAfter, isRateLimited);
+}
+
 function toQuery(searchParams: Record<string, string> | undefined): string {
 	if (!searchParams) {
 		return '';
@@ -1151,18 +1172,7 @@ function toQuery(searchParams: Record<string, string> | undefined): string {
 
 /** Parse `Retry-After` as delta-seconds or an HTTP date. */
 function retryAfterSeconds(value: string | string[] | undefined): number | undefined {
-	const raw = (Array.isArray(value) ? value[0] : value)?.trim();
-	if (raw) {
-		const seconds = Number(raw);
-		if (Number.isSafeInteger(seconds) && seconds >= 0) {
-			return seconds;
-		}
-		const date = Number.isNaN(seconds) ? Date.parse(raw) : NaN;
-		if (Number.isFinite(date)) {
-			return Math.max(0, (date - Date.now()) / 1000);
-		}
-	}
-	return undefined;
+	return parseGitHubRetryAfter((Array.isArray(value) ? value[0] : value) ?? null, Date.now());
 }
 
 /** Parse a `Retry-After` header; fall back to a small default. */
@@ -1176,8 +1186,7 @@ function parseRetryAfter(value: string | string[] | undefined): number {
  * shortened — the caller decides whether it still fits its budget, since retrying early only earns
  * another 429.
  */
-function rateLimitDelay(retryAfter: string | string[] | undefined, attempt: number): number {
-	const seconds = retryAfterSeconds(retryAfter);
+function rateLimitDelay(seconds: number | undefined, attempt: number): number {
 	return seconds !== undefined
 		? seconds * 1000
 		: Math.min(RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt), RATE_LIMIT_MAX_BACKOFF_MS);
