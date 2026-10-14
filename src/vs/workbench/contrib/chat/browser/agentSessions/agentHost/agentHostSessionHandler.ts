@@ -110,7 +110,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind, getAgentHostSessionResource } from '../../../common/constants.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -5984,8 +5984,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (identity?.backendSessionIsAdvertised) {
 			return identity.backendSession;
 		}
-		const query = sessionResource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
-		const parent = sessionResource.with({ query, fragment: '' });
+		const parent = getAgentHostSessionResource(sessionResource);
 		const parentIdentity = this._connectionsService.resolveSessionResourceIdentity(parent);
 		if (parentIdentity?.backendSessionIsAdvertised) {
 			return parentIdentity.backendSession;
