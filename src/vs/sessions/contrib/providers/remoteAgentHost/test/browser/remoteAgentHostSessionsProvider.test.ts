@@ -5235,6 +5235,85 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 
 });
 
+suite('CloudSandboxSessionsProvider history retention', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestSandboxProvider extends CloudSandboxSessionsProvider {
+		refreshFromHost(): Promise<void> {
+			return this._refreshSessions();
+		}
+	}
+
+	for (const connectedBeforeDiscovery of [false, true]) {
+		test(`retains an inventory-owned session through empty listings (connectedBeforeDiscovery=${connectedBeforeDiscovery})`, async () => {
+			const metadata = createSession('recorded-session', {
+				session: URI.parse('ahp-session:/recorded-session'), provider: 'copilot', summary: 'Recorded title',
+			});
+			let hostSessions: IAgentSessionMetadata[] = [];
+			const connection = store.add(new class extends MockAgentConnection {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> { return hostSessions; }
+			}());
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				ctor: TestSandboxProvider, noConnection: true,
+				address: 'cloudsandbox:history-retention',
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				deleteSessionsOnDemand: {
+					ownsSession: session => extUri.isEqual(session, metadata.session),
+					deleteSessions: async () => { },
+				},
+			});
+			assert.ok(provider instanceof TestSandboxProvider);
+			if (connectedBeforeDiscovery) {
+				provider.setConnection(connection);
+				await timeout(0);
+			}
+			provider.seedSessions([metadata]);
+			const original = provider.getCachedSession('recorded-session');
+			assert.ok(original);
+			const removed: ISession[] = [];
+			store.add(provider.onDidChangeSessions(delta => removed.push(...delta.removed)));
+			if (!connectedBeforeDiscovery) {
+				provider.setConnection(connection);
+				await timeout(0);
+			}
+			await provider.refreshFromHost();
+			const initiallyRetained = provider.getCachedSession('recorded-session') === original;
+
+			hostSessions = [
+				{ ...metadata, summary: 'Live title', modifiedTime: 3000 },
+				createSession('recorded-session', { provider: 'codex', summary: 'Other provider' }),
+			];
+			await provider.refreshFromHost();
+			const updatedInPlace = provider.getCachedSession('recorded-session') === original && original.title.get() === 'Live title';
+			const other = provider.getSessions().find(session => session !== original);
+			assert.ok(other);
+
+			hostSessions = [createSession('companion', { session: URI.parse('ahp-session:/companion'), provider: 'copilot' })];
+			await provider.refreshFromHost();
+			const retainedInPartialList = provider.getCachedSession('recorded-session') === original;
+			const companion = provider.getCachedSession('companion');
+			assert.ok(companion);
+			hostSessions = [];
+			await provider.refreshFromHost();
+			provider.clearConnection();
+			provider.setConnection(connection);
+			await timeout(0);
+			await provider.refreshFromHost();
+			assert.deepStrictEqual({
+				initiallyRetained, updatedInPlace, retainedInPartialList,
+				retained: provider.getSessions().map(session => session === original),
+				removed: removed.map(session => session.sessionId),
+			}, { initiallyRetained: true, updatedInPlace: true, retainedInPartialList: true, retained: [true], removed: [other.sessionId, companion.sessionId] });
+
+			provider.removeDeletedSession('recorded-session');
+			await provider.refreshFromHost();
+			assert.deepStrictEqual({
+				remaining: provider.getSessions(), removed: removed.map(session => session.sessionId),
+			}, { remaining: [], removed: [other.sessionId, companion.sessionId, original.sessionId] });
+		});
+	}
+});
+
 suite('CloudSandboxSessionsProvider deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 

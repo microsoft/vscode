@@ -512,7 +512,7 @@ export interface ISessionsProvider {
 	 * Returns the current on-disk size of the session's isolated worktree.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
-	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Unarchive a session.
@@ -541,6 +541,12 @@ export interface ISessionsProvider {
 	 * Returns `false` when the transition was not accepted and may be retried.
 	 */
 	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
+
+	/**
+	 * Set the read/unread state of multiple chats in one provider operation.
+	 * Providers may use this to publish one atomic local state change before persisting each chat.
+	 */
+	setChatReadStates?(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.

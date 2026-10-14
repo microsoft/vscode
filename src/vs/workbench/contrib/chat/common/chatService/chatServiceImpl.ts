@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
+import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
+import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -24,6 +26,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
@@ -56,9 +59,9 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ModelSelectionReason } from '../modelSelection.js';
+import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
@@ -196,6 +199,20 @@ export function backfillTransferredModel(
 	return { ...transferredState, selectedModel: historyModel };
 }
 
+/**
+ * Carry a draft's intended model onto the session it materialized into when that session has a
+ * different type. Session types that own a model pool key their identifiers by the type, so a
+ * selection keyed by the draft type is re-keyed to the real type and reclaimed once that pool
+ * publishes it; the draft's metadata is dropped since it described the other pool's entry.
+ */
+export function rekeyIntendedModel(intended: IIntendedModelSelection | undefined, draftSessionType: string, realSessionType: string): IIntendedModelSelection | undefined {
+	const prefix = `${draftSessionType}:`;
+	if (!intended || draftSessionType === realSessionType || !intended.modelId.startsWith(prefix)) {
+		return intended;
+	}
+	return { ...intended, modelId: `${realSessionType}:${intended.modelId.substring(prefix.length)}`, model: undefined };
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
@@ -307,6 +324,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -640,9 +658,40 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		let { isReadOnly, historyStatus } = props;
+		const policyStore = new DisposableStore();
+		const provider = sessionResource?.scheme === 'agent-host-claude' ? 'claude' : sessionResource?.scheme === 'agent-host-codex' ? 'codex' : undefined;
+		if (provider) {
+			const policyBlocked = observableValue('agentHostPolicyBlocked', isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService));
+			const revoked = observableValue('agentHostPolicyRevoked', policyBlocked.get());
+			policyStore.add(this.configurationService.onDidChangeConfiguration(event => {
+				if (affectsAgentHostProviderPreference(event, true)) {
+					const blocked = isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService);
+					policyBlocked.set(blocked, undefined);
+					if (blocked) {
+						revoked.set(true, undefined);
+					}
+				}
+			}));
+			const providedReadOnly = isReadOnly;
+			const providedHistoryStatus = historyStatus;
+			isReadOnly = derived(reader => revoked.read(reader) || (providedReadOnly?.read(reader) ?? false));
+			historyStatus = derived<IChatSessionHistoryStatus | undefined>(reader => revoked.read(reader) ? {
+				kind: 'history',
+				message: policyBlocked.read(reader)
+					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. This conversation is read-only. Continue in Copilot to copy the conversation and keep the original.")
+					: localize('chat.agentHost.policyRemoved', "This agent is available again. This open chat is still read-only."),
+				action: {
+					label: localize('chat.agentHost.continueInCopilot', "Continue in Copilot"),
+					run: () => this.commandService.executeCommand<void>(CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, sessionResource),
+				},
+			} : providedHistoryStatus?.read(reader));
+		}
+
 		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason });
+		policyStore.add(model.onDidDispose(() => policyStore.dispose()));
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
 		}
@@ -1679,7 +1728,7 @@ export class ChatService extends Disposable implements IChatService {
 			// The real session continues the untitled conversation rather than replacing it, so the
 			// model it was meant to run on carries over. The accepted caller transfers the submitted
 			// mode after pending-request arbitration.
-			realModel.inputModel.setIntendedModel(untitledModel.inputModel.intendedModel);
+			realModel.inputModel.setIntendedModel(rekeyIntendedModel(untitledModel.inputModel.intendedModel, getChatSessionType(untitledResource), getChatSessionType(newItem.resource)));
 
 			// Publish the forward mapping only after a successful load (see
 			// `setMaterializedSessionResource`).

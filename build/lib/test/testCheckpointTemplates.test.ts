@@ -382,7 +382,7 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('Windows x64 CI gives unit tests and Electron smoke tests 70 minutes', () => {
+	test('Windows x64 CI gives every job 70 minutes', () => {
 		const ci = readTemplate('win32/product-build-win32-ci.yml');
 		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
 		assert.ok(job);
@@ -391,11 +391,8 @@ suite('Product test checkpoint templates', () => {
 			branches: Object.fromEntries(Object.entries(job).filter(([key]) => key.startsWith('${{ '))),
 			cancelTimeoutInMinutes: job.cancelTimeoutInMinutes,
 		}, {
-			timeout: undefined,
-			branches: {
-				'${{ if or(eq(parameters.VSCODE_JOB_NAME, \'Unit\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')) }}': { timeoutInMinutes: 70 },
-				'${{ else }}': { timeoutInMinutes: 50 },
-			},
+			timeout: 70,
+			branches: {},
 			cancelTimeoutInMinutes: 10,
 		});
 	});

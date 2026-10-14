@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* A background shell's full description leads its details, above the command. */
+.chat-background-shell-details {
+	width: min(420px, 70vw);
+}
+
 .chat-pill-location-hover > .chat-background-shell-title {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);

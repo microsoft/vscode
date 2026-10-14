@@ -1600,6 +1600,56 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('unchanged persistent footer avoids height measurements when background activity changes', async () => {
+		const { disposables, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const backgroundTool = createSubagentTool('previous-background-agent', backgroundData);
+		await backgroundTool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTool);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({ text: 'Inspect the workspace', parts: [] }, { variables: [] }, 0);
+		const pendingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.' } },
+			{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+			'pending-inspection', undefined, {},
+		);
+		model.acceptResponseProgress(nextRequest, pendingTool);
+		const response = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(response);
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const footer = template.value.querySelector('.chat-working-progress');
+		const label = () => footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const measure = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+		disposables.add(toDisposable(() => measure.restore()));
+
+		for (let i = 0; i < 5; i++) {
+			backgroundData.isActive = !backgroundData.isActive;
+			backgroundTool.notifyToolSpecificDataChanged();
+			await timeout(0);
+		}
+		const unchanged = { measurements: measure.callCount, label: label() };
+		IChatToolInvocation.confirmWith(pendingTool, { type: ToolConfirmKind.UserAction });
+		await timeout(0);
+		backgroundData.isActive = true;
+		backgroundTool.notifyToolSpecificDataChanged();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changed: {
+				label: label(),
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+			},
+		}, {
+			unchanged: { measurements: 0, label: '1 confirmation pending' },
+			changed: { label: '1 subagent running', sameFooter: true },
+		});
+		nextRequest.response?.complete();
+	});
+
 	for (const stop of ['complete', 'cancel'] as const) {
 		test(`persistent footer hides running background work when the parent stops (${stop})`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
@@ -5175,6 +5225,35 @@ suite('ChatListRenderer', () => {
 			}
 		}
 	}
+
+	test('working progress reports rendered changes without rewriting unchanged persistent content', () => {
+		const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+		const snapshots = [];
+		for (const suppressProgressShimmer of [false, true]) {
+			const working = { kind: 'working' as const, content: new MarkdownString('Working'), isActive: true };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = suppressProgressShimmer;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			snapshots.push({
+				persistent: suppressProgressShimmer,
+				changes: [
+					part.updateWorkingContent(new MarkdownString('Working')),
+					part.updateWorkingContent(new MarkdownString('Updated')),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+				],
+				label: part.workingLabel,
+			});
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ persistent: false, changes: [true, true, true, true], label: 'Updated' },
+			{ persistent: true, changes: [false, true, true, false], label: 'Updated' },
+		]);
+	});
 
 	test('working progress announces once when verbose updates are enabled in both modes', () => {
 		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
@@ -9558,7 +9637,9 @@ suite('ChatListRenderer', () => {
 			const logos = [...template.value.querySelectorAll<HTMLElement>('.chat-working-logo')];
 			const renderedParts = template.renderedParts;
 			const header = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel');
-			const headerContent = header?.innerHTML;
+			assert.ok(header);
+			const headerContent = header.textContent;
+			const headerChildren = [...header.childNodes];
 			const snapshots = [];
 			for (const animation of Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off)) {
 				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
@@ -9577,7 +9658,10 @@ suite('ChatListRenderer', () => {
 				snapshots,
 				sameLogos: [...template.value.querySelectorAll('.chat-working-logo')].every((logo, index) => logo === logos[index]),
 				sameParts: template.renderedParts === renderedParts,
-				sameHeader: header?.innerHTML === headerContent,
+				sameHeader: template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel') === header
+					&& header.textContent === headerContent
+					&& header.childNodes.length === headerChildren.length
+					&& headerChildren.every((child, index) => header.childNodes[index] === child),
 			}, {
 				snapshots: Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off).map(animation => ({
 					motions: [animation],

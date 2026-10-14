@@ -678,6 +678,8 @@ export class TabbedModelPicker extends Disposable {
 				id: 'workflow',
 				icon: Codicon.layers,
 				tooltip: workflow.label,
+				alignEnd: true,
+				useManagedHover: true,
 				checked: !!workflow.state.get(),
 				run: () => {
 					if (workflow.state.get()) {
@@ -1016,28 +1018,16 @@ export class TabbedModelPicker extends Disposable {
 	): IActionListItem<IActionWidgetDropdownAction> {
 		const workflow = context.workflow;
 		const step = workflow?.state.get();
-		if (workflow && step) {
-			const checked = step.selectedModelIds.includes(model.identifier);
-			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
-			const { action, ariaDescription } = createModelAction(model, undefined, () => {
+		const workflowChecked = !!step?.selectedModelIds.includes(model.identifier);
+		const workflowDisabled = !!step?.multiple && !workflowChecked && step.selectedModelIds.length >= step.maxSelections;
+		const hydraFusionTier = !step && isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
+		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
+		const { action, ariaDescription } = createModelAction(model, step ? undefined : hydraFusionTier ? model.identifier : context.selectedModelId, next => {
+			if (workflow && step) {
 				workflow.select(model.identifier);
 				this._showCurrent(this._filterValue, model.identifier);
-			}, section, true);
-			return {
-				item: { ...action, checked, enabled: !disabled },
-				kind: ActionListItemKind.Action,
-				label: action.label,
-				ariaDescription,
-				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
-				hideIcon: false,
-				section,
-				disabled,
-				className: 'chat-model-picker-model',
-			};
-		}
-		const hydraFusionTier = isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
-		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
-		const { action, ariaDescription } = createModelAction(model, hydraFusionTier ? model.identifier : context.selectedModelId, next => {
+				return;
+			}
 			this._selectionVersion++;
 			// Auto with a HydraFusion tier is already in use, so picking Auto keeps it.
 			if (isAutoModel(next) && this._selectedHydraFusionTier(this._context ?? context)) {
@@ -1073,7 +1063,13 @@ export class TabbedModelPicker extends Disposable {
 		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
 		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
 		return {
-			item: rowLabel === action.label ? action : { ...action, label: rowLabel, tooltip: rowLabel },
+			item: {
+				...action,
+				label: rowLabel,
+				tooltip: rowLabel === action.label ? action.tooltip : rowLabel,
+				checked: step ? workflowChecked : action.checked,
+				enabled: step ? !workflowDisabled : action.enabled,
+			},
 			kind: ActionListItemKind.Action,
 			label: rowLabel,
 			description: modelBadge || routingBadge ? undefined : action.description,
@@ -1084,10 +1080,11 @@ export class TabbedModelPicker extends Disposable {
 				: [ariaDescription, configDescription].filter(Boolean).join(', '),
 			// Right Arrow on the row opens the same details as its button.
 			opensDialog: hasDetails,
-			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+			group: { title: '', icon: step ? (workflowChecked ? Codicon.check : Codicon.blank) : action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 			hideIcon: false,
 			section,
-			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
+			disabled: workflowDisabled,
+			className: ['chat-model-picker-model', ...(!step && action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
 			toolbarLabels: true,
 			// An on-device model's details page is its family's.
 			toolbarActions: !hasDetails
@@ -1187,6 +1184,7 @@ export class TabbedModelPicker extends Disposable {
 					this._applyModelSelection(next, this._context ?? context);
 				}
 			},
+			selectModelOnConfigurationChange: !context.workflow?.state.get(),
 			onDidAccept: () => {
 				this.refresh();
 			},

@@ -29,6 +29,7 @@ export interface IAgentPermissionResponseContext {
 	readonly selectedOptionId?: string;
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
+	readonly sandboxPathGrantSaved?: true;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -642,6 +643,7 @@ export interface IAgentCreateSessionConfig {
 	readonly importConversation?: {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
+		readonly title?: string;
 	};
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
@@ -1447,7 +1449,7 @@ export interface IAgentChatAdoptionResult {
 		readonly eventsFileStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
 		readonly workspaceMetadataStatus?: 'valid' | 'missing' | 'invalid' | 'readError' | 'tooLarge' | 'notFile' | 'notChecked';
 		/** Persisted runtime client, which can change on resume; not immutable creator provenance. */
-		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github/cli' | 'github/autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
+		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github-cli' | 'github-autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
 		readonly errorCode?: string;
 		readonly errorMessage?: string;
 	};
@@ -1497,8 +1499,8 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
-	/** Refresh live sessions after account-backed Connector membership changes. */
-	refreshConnectorSessions?(): Promise<void>;
+	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
+	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;

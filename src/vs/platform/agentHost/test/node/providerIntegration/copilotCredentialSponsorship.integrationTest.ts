@@ -378,6 +378,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			scopedProductEnvironment: agent.clients.filter(entry => entry.options.mode === 'empty').map(entry =>
 				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.env?.[key] === undefined]))),
 			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty').map(entry => entry.options.gitHubToken))],
+			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty').map(entry => entry.options.env?.COPILOT_SDK_AUTH_TOKEN))],
 			connectorTokenKinds: [...new Set(connectorTokens)],
 			unexpectedRequests,
 			githubTokenKinds: [...new Set(githubTokens)].sort(),
@@ -395,10 +396,11 @@ suite('Copilot Agent credential sponsorship', function () {
 			storage: [0, 1].map(() => ({ token: undefined, mode: 'empty', stops: 1, errors: 0 })),
 			stoppedScoped: [1, 1, 1, 1, 1],
 			scopedProductEnvironment: [0, 1, 2, 3, 4, 5, 6].map(() => Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, true]))),
-			legacyStartupTokenKinds: ['L'],
+			legacyStartupTokenKinds: [undefined],
+			legacyAmbientTokenKinds: ['ENV_COPILOT_SDK_AUTH_TOKEN'],
 			connectorTokenKinds: ['L'],
 			toolCompletions: 15, unexpectedRequests: [],
-			githubTokenKinds: ['A', 'AR', 'B', 'L'],
+			githubTokenKinds: ['A', 'AR', 'B', 'ENV_COPILOT_SDK_AUTH_TOKEN', 'L'],
 			scopedRuntimeTokens: ['A', 'AR', 'AR', 'B', 'B'],
 		});
 	});

@@ -15,7 +15,8 @@ import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/ag
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
-import { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -1149,18 +1150,28 @@ function isUnauthorizedPathGateRequest(request: PermissionRequest): boolean {
 	return isObject(request) && Array.isArray((request as { paths?: unknown }).paths);
 }
 
-/**
- * Chooses the confirmation title for a read request based on why approval is
- * actually needed.
- *
- * A read is gated for several reasons — the path lies outside the allowed
- * directories, a managed or scoped rule matched it, or the model asked to
- * escape the sandbox. Only the first is about location, so the title claims it
- * either when the unauthorized-path gate raised the request or when the path is
- * absolute and contained by none of the session's workspace roots. A relative
- * path, an unknown path, or an unknown workspace falls back to the neutral
- * title rather than asserting a location the request does not establish.
- */
+/** Describes the actual grant scope saved to user settings. */
+export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
+	const path = appendEscapedMarkdownInlineCode(grant.path);
+	const description = grant.removedReadonlyPaths?.length
+		? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
+		: grant.access === 'read'
+			? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
+			: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
+	const denied = grant.deniedPath
+		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover the granted path above, including its contents if it is a folder.", appendEscapedMarkdownInlineCode(grant.deniedPath))
+		: '';
+	return {
+		confirmationTitle: localize('copilot.permission.grant.title', "Add to user sandbox settings and retry?"),
+		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.")].filter(Boolean).join('\n\n')),
+		options: [
+			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: 'skip', label: localize('copilot.permission.grant.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
+		],
+	};
+}
+
+/** Claims an outside-workspace location only when the permission gate or known roots establish it. */
 function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
 	if (requestSandboxBypass) {
 		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");

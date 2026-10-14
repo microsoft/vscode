@@ -22,6 +22,7 @@ interface IAhpLogMeta {
 	readonly connectionId: string;
 	readonly transport: string;
 	readonly byteLength?: number;
+	readonly droppedEntries?: number;
 	/** Set when oversized string values in the entry were elided (see {@link stringifyAhpLogEntryTruncated}). */
 	truncated?: boolean;
 }
@@ -35,6 +36,7 @@ export interface IAhpJsonlLoggerOptions {
 	readonly maxFileSizeBytes?: number;
 	readonly maxFiles?: number;
 	readonly retention?: AhpJsonlLogRetention;
+	readonly maxPendingBytes?: number;
 }
 
 const AHP_LOG_DIR = 'ahp';
@@ -42,6 +44,7 @@ const AHP_LOG_FILE_PREFIX = 'ahp';
 const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
+const DEFAULT_MAX_PENDING_BYTES = 4 * 1024 * 1024;
 // Cap the size of any single coalesced writeFile to avoid producing huge
 // concatenated VSBuffers (which would just create the GC pressure we're
 // trying to avoid). 1 MiB strikes a balance between amortizing IPC overhead
@@ -108,11 +111,14 @@ export class AhpJsonlLogger extends Disposable {
 	private readonly _baseName: string;
 	private readonly _maxFileSizeBytes: number;
 	private readonly _maxFiles: number;
+	private readonly _maxPendingBytes: number;
 	private _currentFile: URI;
 	private _currentSize = 0;
 	private _segment = 0;
 	private _queue = Promise.resolve();
 	private _pending: VSBuffer[] = [];
+	private _pendingBytes = 0;
+	private readonly _droppedEntries: Record<AhpLogDirection, number> = { c2s: 0, s2c: 0 };
 	private _drainScheduled = false;
 	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
 
@@ -128,6 +134,7 @@ export class AhpJsonlLogger extends Disposable {
 		this._baseName = `${getAhpLogFilePrefix(this._options.logId)}${toFileTimestamp(new Date())}-${safeConnectionId}${AHP_LOG_FILE_EXTENSION}`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
+		this._maxPendingBytes = this._options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
 		this._currentFile = joinPath(this._directory, this._baseName);
 	}
 
@@ -136,6 +143,10 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	log(message: object, dir: AhpLogDirection, byteLength?: number): void {
+		if (this._pendingBytes >= this._maxPendingBytes) {
+			this._droppedEntries[dir]++;
+			return;
+		}
 		const meta: IAhpLogMeta = {
 			ts: new Date().toISOString(),
 			dir,
@@ -156,15 +167,21 @@ export class AhpJsonlLogger extends Disposable {
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
 		}
 		const line = `${body}\n`;
-		this._pending.push(VSBuffer.fromString(line));
+		this._enqueue(VSBuffer.fromString(line));
+	}
+
+	private _enqueue(buffer: VSBuffer): void {
+		this._pending.push(buffer);
+		this._pendingBytes += buffer.byteLength;
 		this._scheduleDrain();
 	}
 
 	async flush(): Promise<void> {
-		// Pending entries always have a drain scheduled (see _scheduleDrain), so
-		// awaiting the queue is sufficient to flush everything submitted before
-		// this call.
-		await this._queue;
+		let queue: Promise<void>;
+		do {
+			queue = this._queue;
+			await queue;
+		} while (queue !== this._queue);
 	}
 
 	private _scheduleDrain(): void {
@@ -188,7 +205,16 @@ export class AhpJsonlLogger extends Disposable {
 		}
 		const buffers = this._pending;
 		this._pending = [];
+		const buffersSize = buffers.reduce((total, buffer) => total + buffer.byteLength, 0);
+		try {
+			await this._writeBuffers(buffers);
+		} finally {
+			this._pendingBytes -= buffersSize;
+			this._enqueueDroppedEntries();
+		}
+	}
 
+	private async _writeBuffers(buffers: readonly VSBuffer[]): Promise<void> {
 		// Create folder once and memoize to avoid repeated filesystem calls
 		if (!this._folderCreated) {
 			this._folderCreated = this._fileService.createFolder(this._directory);
@@ -228,6 +254,26 @@ export class AhpJsonlLogger extends Disposable {
 			chunkSize += buffer.byteLength;
 		}
 		await flushChunk();
+	}
+
+	private _enqueueDroppedEntries(): void {
+		for (const dir of ['c2s', 's2c'] as const) {
+			const droppedEntries = this._droppedEntries[dir];
+			if (droppedEntries === 0 || this._pendingBytes >= this._maxPendingBytes) {
+				continue;
+			}
+			this._droppedEntries[dir] = 0;
+			const entry = {
+				_ahpLog: {
+					ts: new Date().toISOString(),
+					dir,
+					connectionId: this._options.connectionId,
+					transport: this._options.transport,
+					droppedEntries,
+				} satisfies IAhpLogMeta,
+			};
+			this._enqueue(VSBuffer.fromString(`${stringifyAhpLogEntry(entry)}\n`));
+		}
 	}
 
 	private async _rotate(): Promise<void> {
