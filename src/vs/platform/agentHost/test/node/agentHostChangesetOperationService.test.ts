@@ -130,9 +130,10 @@ class TestConfigurationService implements IAgentConfigurationService {
 	readonly onDidSessionConfigChange = Event.None;
 	readonly onDidChatConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
-	setSessionSandboxEnabled(): void { }
 	getSessionSandboxEnabled(): undefined { return undefined; }
-	rejectSessionSandboxChange(): void { }
+	getChatSandboxEnabled(): undefined { return undefined; }
+	setChatSandboxEnabled(): void { }
+	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 

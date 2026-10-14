@@ -1804,6 +1804,7 @@ export class CopilotAgentSession extends Disposable {
 		this._sandbox = this._register(this._instantiationService.createInstance(CopilotSessionSandbox, {
 			sessionId: this.sessionId,
 			ownerSession: this._ownerSessionUri,
+			chat: options.chatChannelUri,
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
@@ -2724,7 +2725,7 @@ export class CopilotAgentSession extends Disposable {
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		const clientToolName = this._clientToolName(toolName);
 		const networkRestrictions = this._clientToolNames.has(clientToolName)
-			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, this._ownerSessionUri.toString(), clientToolName) : undefined;
+			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
 		return {
 			...(networkRestrictions ? {
 				'vscode.copilotSandboxNetworkRestrictions': networkRestrictions,

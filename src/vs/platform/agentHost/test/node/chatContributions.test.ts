@@ -30,7 +30,7 @@ import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributi
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
-import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { readSessionSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -904,6 +904,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		return originalGetPersistedTurns();
 	};
 	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
+	// The session-level applied sandbox state, as the real service reports it while the default chat uses the session's selection.
+	agentConfigService.getSessionSandboxEnabled = session => readSessionSandboxState(stateManager.getSessionState(session))?.enabled;
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));

@@ -23,13 +23,14 @@ import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
+import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
-import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
-import { getSessionSandboxOverrides } from './sessionSandbox.js';
+import { ISessionSandboxState, readChatSandboxState, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
+import { getSessionSandboxOverrides, resolveSandboxEnabled } from './sessionSandbox.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -199,9 +200,22 @@ export interface IAgentConfigurationService {
 	/** Runtime-resolved sandbox floor for this configuration owner. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
+	/**
+	 * The applied enablement of the session's own sandbox selection: the default
+	 * chat's applied enablement while it uses the session's selection, else the
+	 * selection itself when it is `on` or `off`.
+	 */
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
-	setSessionSandboxEnabled(session: ProtocolURI, enabled: boolean, error?: ISessionSandboxState['error']): void;
-	rejectSessionSandboxChange(session: ProtocolURI, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void;
+	/** The last enablement a chat's runtime applied successfully, if known. */
+	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined;
+	/** Records the enablement a chat's runtime applied, with an optional error for the client that requested it. */
+	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void;
+	/**
+	 * Reports that a chat's runtime failed to apply the sandbox selection it read
+	 * as `values` and rolls the selection back where it was set (the chat's own
+	 * values or the session's), unless a newer selection superseded it.
+	 */
+	rejectChatSandboxChange(target: IAgentChatConfigurationTarget, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void;
 
 	/**
 	 * Returns the merged config values currently stored on `session`.
@@ -250,9 +264,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
-	private readonly _sessionSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
+	/** Sessions and chats whose sandbox selection a client made last; a policy allowing bypass keeps their `off`. */
 	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();
-	private readonly _sessionSandboxRollbackActions = new WeakSet<object>();
+	private readonly _chatSandboxUserSelections = new Set<ProtocolURI>();
+	/** Rollbacks of a rejected sandbox selection, which keep the rejection reported. */
+	private readonly _sandboxRollbackActions = new WeakSet<object>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -261,6 +277,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _onDidChatConfigChange = this._register(new Emitter<IAgentChatConfigurationChangeEvent>());
 	readonly onDidChatConfigChange: Event<IAgentChatConfigurationChangeEvent> = this._onDidChatConfigChange.event;
 	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown> }>();
+	/** A chat's effective values with the inputs they were computed from, so unchanged inputs return the same object. */
+	private readonly _chatValues = new Map<ProtocolURI, { readonly inputs: readonly unknown[]; readonly values: Record<string, unknown> }>();
+	/** A chat's effective values when its sandbox selection last changed; a rejection of older values is stale. */
+	private readonly _chatSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -290,8 +310,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			this._sessionSandboxPolicies.delete(session);
-			this._sessionSandboxChanges.delete(session);
 			this._sessionSandboxUserSelections.delete(session);
+		}));
+		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
+			this._chatValues.delete(chat);
+			this._chatSandboxChanges.delete(chat);
+			this._chatSandboxUserSelections.delete(chat);
 		}));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -302,8 +326,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
 				const sandboxConfigChanged = Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled);
-				if (sandboxConfigChanged && !this._sessionSandboxRollbackActions.has(envelope.action)) {
-					this._clearSessionSandboxRejectedSelection(envelope.channel);
+				if (sandboxConfigChanged && !this._sandboxRollbackActions.has(envelope.action)) {
+					// A new selection for the chats that take the session's.
+					this._clearSandboxRejectedSelections(envelope.channel, chat => !Object.hasOwn(this.getChatOwnConfigValues({ session: envelope.channel, chat }), SessionConfigKey.SandboxEnabled), true);
 				}
 				if (sandboxConfigChanged) {
 					if (envelope.origin) {
@@ -314,7 +339,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				}
 				this._publishSessionSandboxPolicy(envelope.channel, !!envelope.origin);
 				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
-					this._sessionSandboxChanges.set(envelope.channel, this.getSessionConfigValues(envelope.channel));
+					this._recordSandboxChanges(envelope.channel, undefined);
 				}
 				this._fireSessionConfigChange({
 					session: envelope.channel,
@@ -324,6 +349,18 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			} else if (envelope.action.type === ActionType.ChatConfigChanged) {
 				const session = this._stateManager.getChatOwner(envelope.channel);
 				if (session !== undefined) {
+					if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
+						if (!this._sandboxRollbackActions.has(envelope.action)) {
+							const changed = envelope.channel;
+							this._clearSandboxRejectedSelections(session, chat => chat === changed, this._stateManager.getDefaultChat(session) === changed);
+						}
+						if (envelope.origin) {
+							this._chatSandboxUserSelections.add(envelope.channel);
+						} else {
+							this._chatSandboxUserSelections.delete(envelope.channel);
+						}
+						this._recordSandboxChanges(session, envelope.channel);
+					}
 					this._fireChatConfigChange(session, envelope.channel, Object.keys(envelope.action.config), envelope.origin);
 				}
 			}
@@ -368,12 +405,19 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {
-		const session = this.getSessionConfigValues(target.session);
+		const session = this._stateManager.getSessionState(target.session)?.config;
 		if (!session) {
 			return undefined;
 		}
+		const inputs = [target.session, session, ...[...this._chatAncestry(target.chat)].map(chat => this._ownChatValues(chat))];
+		const cached = this._chatValues.get(target.chat);
+		if (cached && cached.inputs.length === inputs.length && cached.inputs.every((input, index) => input === inputs[index])) {
+			return cached.values;
+		}
 		const layers = [...this._chatLayers(target)].reverse();
-		return layers.length === 0 ? session : Object.assign({}, session, ...layers);
+		const values = layers.length === 0 ? session.values : Object.assign({}, session.values, ...layers);
+		this._chatValues.set(target.chat, { inputs, values });
+		return values;
 	}
 
 	getChatOwnConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> {
@@ -382,6 +426,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	updateChatConfig(target: IAgentChatConfigurationTarget, patch: Record<string, unknown>): void {
+		this._updateChatConfig(target, patch, false);
+	}
+
+	private _updateChatConfig(target: IAgentChatConfigurationTarget, patch: Record<string, unknown>, isSandboxRollback: boolean): void {
 		const { chat, session } = splitChatConfigPatch(this._stateManager.getSessionState(target.session)?.config?.schema, patch);
 		if (Object.keys(session).length > 0) {
 			this.updateSessionConfig(target.session, session);
@@ -395,7 +443,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			seed.values = { ...seed.values, ...chat };
 			this._onDidChatConfigChange.fire({ session: target.session, chat: owner, config: this._effectiveValuesOf({ session: target.session, chat: owner }, Object.keys(chat)), origin: undefined });
 		} else if (this._stateManager.getChatOwner(owner) !== undefined) {
-			this._stateManager.dispatchServerAction(owner, { type: ActionType.ChatConfigChanged, config: chat });
+			this._dispatchTagged(owner, { type: ActionType.ChatConfigChanged, config: chat }, isSandboxRollback);
 		} else {
 			this._logService.warn(`[AgentConfigurationService] Dropping config for unregistered chat ${owner}: ${Object.keys(chat).join(', ')}`);
 		}
@@ -501,34 +549,26 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			type: ActionType.SessionConfigChanged as const,
 			config: patch,
 		};
-		if (isSandboxRollback) {
-			this._sessionSandboxRollbackActions.add(action);
-		}
-		try {
-			this._stateManager.dispatchServerAction(session, action);
-		} finally {
-			if (isSandboxRollback) {
-				this._sessionSandboxRollbackActions.delete(action);
-			}
-		}
+		this._dispatchTagged(session, action, isSandboxRollback);
 	}
 
-	private _clearSessionSandboxRejectedSelection(session: ProtocolURI): void {
-		const state = this._stateManager.getSessionState(session);
-		const sandboxState = readSessionSandboxState(state);
-		if (!sandboxState?.rejectedSelection) {
-			return;
+	private _dispatchTagged(channel: ProtocolURI, action: SessionConfigChangedAction | ChatConfigChangedAction, isSandboxRollback: boolean): void {
+		if (isSandboxRollback) {
+			this._sandboxRollbackActions.add(action);
 		}
-		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
-			enabled: sandboxState.enabled,
-			...(sandboxState.error ? { error: sandboxState.error } : {}),
-		}));
+		try {
+			this._stateManager.dispatchServerAction(channel, action);
+		} finally {
+			if (isSandboxRollback) {
+				this._sandboxRollbackActions.delete(action);
+			}
+		}
 	}
 
 	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
 	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
 		this._stateManager.setSessionConfig(session, config);
-		this._clearSessionSandboxRejectedSelection(session);
+		this._clearSandboxRejectedSelections(session, () => true, true);
 		if (!this._publishSessionSandboxPolicy(session)) {
 			this._fireSessionConfigChange({
 				session,
@@ -576,9 +616,20 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				: state._meta;
 			this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
 		}
+		// An `off` that the floor no longer allows becomes `on`, unless a client chose it and the policy allows bypassing the
+		// floor (and has not changed since): a chat's own, like the session's below.
+		for (const chat of state.chats) {
+			const target = { session, chat: chat.resource };
+			const preserveChatSelection = !policyChanged && this._chatSandboxUserSelections.has(chat.resource) && policy?.allowBypass === true;
+			if (!policy?.failClosed && !preserveChatSelection && this._stateManager.getChatOrigin(chat.resource)?.kind !== ChatOriginKind.Tool
+				&& this._stateManager.getChatConfig(chat.resource)?.values[SessionConfigKey.SandboxEnabled] === 'off'
+				&& getSessionSandboxOverrides(this, target).enabled === AgentSandboxEnabledValue.On) {
+				this.updateChatConfig(target, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On });
+			}
+		}
 		const preserveSelection = (isUserChange || (!policyChanged && this._sessionSandboxUserSelections.has(session))) && policy?.allowBypass === true;
 		if (!policy?.failClosed && !preserveSelection && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off'
-			&& getSessionSandboxOverrides(this, session).enabled === AgentSandboxEnabledValue.On) {
+			&& resolveSandboxEnabled('off', policy, this.getSessionSandboxEnabled(session)) === AgentSandboxEnabledValue.On) {
 			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On });
 			return true;
 		}
@@ -589,35 +640,111 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined {
-		return readSessionSandboxState(this._stateManager.getSessionState(session))?.enabled;
+		const defaultChat = this._stateManager.getDefaultChat(session);
+		if (defaultChat !== undefined && !Object.hasOwn(this._stateManager.getChatConfig(defaultChat)?.values ?? {}, SessionConfigKey.SandboxEnabled)) {
+			return readSessionSandboxState(this._stateManager.getSessionState(session))?.enabled;
+		}
+		const selection = this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
+		return selection === 'on' ? true : selection === 'off' ? false : undefined;
 	}
 
-	setSessionSandboxEnabled(session: ProtocolURI, enabled: boolean, error?: ISessionSandboxState['error']): void {
-		const state = this._stateManager.getSessionState(session);
-		const previous = readSessionSandboxState(state);
-		if (previous?.enabled === enabled && !previous.error && !error) {
+	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined {
+		return this._readChatSandboxState(target)?.enabled;
+	}
+
+	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void {
+		const state = this._stateManager.getSessionState(target.session);
+		if (!state) {
 			return;
 		}
-		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
-			enabled,
-			...(previous?.rejectedSelection ? { rejectedSelection: true } : {}),
-			...(error ? { error } : {}),
-		}));
+		const previous = this._readChatSandboxState(target);
+		if (previous?.enabled === enabled && !previous.error && !error && readChatSandboxState(state, target.chat)) {
+			return;
+		}
+		// A rejected selection stays reported until a new one is made.
+		this._writeChatSandboxState(target, { enabled, ...(previous?.rejectedSelection ? { rejectedSelection: true } : {}), ...(error ? { error } : {}) });
 	}
 
-	rejectSessionSandboxChange(session: ProtocolURI, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void {
+	private _writeChatSandboxState(target: IAgentChatConfigurationTarget, next: ISessionSandboxState): void {
+		const state = this._stateManager.getSessionState(target.session);
+		if (!state) {
+			return;
+		}
+		let meta = withChatSandboxState(state._meta, target.chat, next);
+		// Older clients read the session-level state, which describes the default chat.
+		if (this._stateManager.getDefaultChat(target.session) === target.chat) {
+			meta = withSessionSandboxState(meta, next);
+		}
+		this._stateManager.setSessionMeta(target.session, meta);
+	}
+
+	/**
+	 * Clears the reported rejection of the chats `affected` matches (a new
+	 * selection supersedes it), and of the session-level state when
+	 * `includeSessionLevel`.
+	 */
+	private _clearSandboxRejectedSelections(session: ProtocolURI, affected: (chat: ProtocolURI) => boolean, includeSessionLevel: boolean): void {
 		const state = this._stateManager.getSessionState(session);
-		const previous = readSessionSandboxState(state);
-		if (!previous || this._sessionSandboxChanges.get(session) !== values) {
+		if (!state) {
+			return;
+		}
+		let meta = state._meta;
+		const sessionLevel = readSessionSandboxState(state);
+		if (includeSessionLevel && sessionLevel?.rejectedSelection) {
+			meta = withSessionSandboxState(meta, { enabled: sessionLevel.enabled, ...(sessionLevel.error ? { error: sessionLevel.error } : {}) });
+		}
+		for (const { resource: chat } of state.chats) {
+			const chatState = readChatSandboxState(state, chat);
+			if (chatState?.rejectedSelection && affected(chat)) {
+				meta = withChatSandboxState(meta, chat, { enabled: chatState.enabled, ...(chatState.error ? { error: chatState.error } : {}) });
+			}
+		}
+		if (meta !== state._meta) {
+			this._stateManager.setSessionMeta(session, meta);
+		}
+	}
+
+	rejectChatSandboxChange(target: IAgentChatConfigurationTarget, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void {
+		const previous = this._readChatSandboxState(target);
+		if (!previous || this._chatSandboxChanges.get(target.chat) !== values) {
 			return;
 		}
 		// Publish the failure before rollback so clients can notify before reconciling the toggle.
-		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
+		this._writeChatSandboxState(target, {
 			enabled: previous.enabled,
 			rejectedSelection: true,
 			error: { clientId: origin.clientId, clientSeq: origin.clientSeq, message },
-		}));
-		this._dispatchSessionConfigChange(session, { [SessionConfigKey.SandboxEnabled]: previous.enabled ? 'on' : 'off' }, true);
+		});
+		const rollback = { [SessionConfigKey.SandboxEnabled]: previous.enabled ? 'on' : 'off' };
+		if (Object.hasOwn(this.getChatOwnConfigValues(target), SessionConfigKey.SandboxEnabled)) {
+			this._updateChatConfig(target, rollback, true);
+		} else {
+			this._dispatchSessionConfigChange(target.session, rollback, true);
+		}
+	}
+
+	/**
+	 * Records the values each affected chat had when a sandbox selection changed:
+	 * the chat that changed it (or, for a session change, every chat without its
+	 * own selection) and the chats it spawned.
+	 */
+	private _recordSandboxChanges(session: ProtocolURI, changedChat: ProtocolURI | undefined): void {
+		for (const summary of this._stateManager.getSessionState(session)?.chats ?? []) {
+			const target = { session, chat: summary.resource };
+			const affected = changedChat !== undefined
+				? [...this._chatAncestry(summary.resource)].includes(changedChat)
+				: !Object.hasOwn(this.getChatOwnConfigValues(target), SessionConfigKey.SandboxEnabled);
+			if (affected) {
+				this._chatSandboxChanges.set(summary.resource, this.getChatConfigValues(target));
+			}
+		}
+	}
+
+	/** A chat's applied sandbox state; the default chat falls back to the session-level state older builds wrote. */
+	private _readChatSandboxState(target: IAgentChatConfigurationTarget): ISessionSandboxState | undefined {
+		const state = this._stateManager.getSessionState(target.session);
+		return readChatSandboxState(state, target.chat)
+			?? (this._stateManager.getDefaultChat(target.session) === target.chat ? readSessionSandboxState(state) : undefined);
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {

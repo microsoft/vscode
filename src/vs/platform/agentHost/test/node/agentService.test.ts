@@ -31519,7 +31519,7 @@ suite('AgentService (node dispatcher)', () => {
 				persisted,
 				restored: configuration.getSessionConfigValues(session.toString()),
 				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
-				effective: getSessionSandboxConfig(configuration, session.toString()).enabled,
+				effective: getSessionSandboxConfig(configuration, { session: session.toString(), chat: buildDefaultChatUri(session.toString()) }).enabled,
 			}, {
 				persisted: { sandboxEnabled: 'off', mode: 'plan' },
 				restored: { sandboxEnabled: 'off', mode: 'plan' },
@@ -31543,9 +31543,10 @@ suite('AgentService (node dispatcher)', () => {
 			const applied: boolean[] = [];
 			disposables.add(configuration.onDidSessionConfigChange(event => {
 				if (event.session === session.toString()) {
-					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, event.session))?.enabled ?? false;
+					const target = { session: event.session, chat: buildDefaultChatUri(event.session) };
+					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, target))?.enabled ?? false;
 					applied.push(enabled);
-					configuration.setSessionSandboxEnabled(event.session, enabled);
+					configuration.setChatSandboxEnabled(target, enabled);
 				}
 			}));
 
