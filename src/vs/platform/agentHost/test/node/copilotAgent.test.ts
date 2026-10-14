@@ -19,9 +19,10 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -2241,6 +2242,304 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	suite('per-chat customization anchors', () => {
+		type AnchorInternals = { _activeClients: { get(session: URI): { pluginController: { liveAnchorKeys(): readonly string[] } } | undefined } };
+
+		/**
+		 * A session whose two folders each carry their own custom agent,
+		 * instructions file and workspace MCP server (`<folder>-agent`,
+		 * `<folder>.instructions.md`, `<folder>-server`). The default chat runs
+		 * in the session's folders; peers are created in a chosen folder.
+		 */
+		async function createAnchorFixture(multiRoot: boolean) {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-chat-anchors-`);
+			const f1 = URI.file(join(root, 'f1'));
+			const f2 = URI.file(join(root, 'f2'));
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
+			for (const folder of [f1, f2]) {
+				const name = basename(folder.fsPath);
+				await fileService.writeFile(URI.joinPath(folder, '.github', 'agents', `${name}.agent.md`), VSBuffer.fromString(`${name} agent`));
+				await fileService.writeFile(URI.joinPath(folder, '.github', 'instructions', `${name}.instructions.md`), VSBuffer.fromString(`${name} instructions`));
+				await fileService.writeFile(URI.joinPath(folder, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { [`${name}-server`]: { command: `${name}-server` } } })));
+			}
+			const client = new TestCopilotClient([]);
+			const agentFile = (projectPath: string) => URI.file(join(projectPath, '.github', 'agents', `${basename(projectPath)}.agent.md`));
+			const instructionsFile = (projectPath: string) => URI.file(join(projectPath, '.github', 'instructions', `${basename(projectPath)}.instructions.md`));
+			client.getAgentDiscoveryPaths = async params => ({
+				paths: (params.projectPaths ?? []).map(projectPath => ({ path: dirname(agentFile(projectPath).fsPath), scope: 'project', preferredForCreation: true, projectPath })),
+			});
+			client.discoverAgents = async params => ({
+				agents: (params.projectPaths ?? []).map(projectPath => ({ id: customizationId(agentFile(projectPath).toString()), name: `${basename(projectPath)}-agent`, displayName: `${basename(projectPath)}-agent`, description: '', path: agentFile(projectPath).fsPath })),
+			});
+			client.getInstructionDiscoveryPaths = async params => ({
+				paths: (params.projectPaths ?? []).map(projectPath => ({ path: dirname(instructionsFile(projectPath).fsPath), location: 'repository', kind: 'directory', preferredForCreation: true, projectPath })),
+			});
+			client.discoverInstructions = async params => ({
+				sources: (params.projectPaths ?? []).map(projectPath => ({ id: customizationId(instructionsFile(projectPath).toString()), label: basename(instructionsFile(projectPath).fsPath), sourcePath: instructionsFile(projectPath).fsPath, content: '', type: 'vscode', location: 'repository', applyTo: ['**'], description: '', projectPath })),
+			});
+			const launches: { readonly sdkSessionId: string; readonly tools: readonly string[] }[] = [];
+			const sdkSessions = new Map<string, MockCopilotSession>();
+			client.createSession = async config => {
+				const sdk = new MockCopilotSession(config.sessionId);
+				sdkSessions.set(sdk.sessionId, sdk);
+				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools ?? []).map(tool => tool.name) });
+				return sdk as unknown as CopilotSession;
+			};
+			client.resumeSession = async (id, config) => {
+				launches.push({ sdkSessionId: id, tools: (config?.tools ?? []).map(tool => tool.name) });
+				return (sdkSessions.get(id) ?? new MockCopilotSession(id)) as unknown as CopilotSession;
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const createAgent = async () => {
+				const context = createTestAgentContext(disposables, {
+					sessionDataService, copilotClient: client, fileService, userHome: URI.file(join(root, 'home')),
+					rootConfig: { [AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot, [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				});
+				await context.agent.authenticate('https://api.github.com', 'token');
+				return context;
+			};
+			let { agent, stateManager } = await createAgent();
+			const session = AgentSession.uri('copilotcli', `chat-anchors-${multiRoot}`);
+			const main = defaultChatUri(session);
+			const sessionDirectories = multiRoot ? [f1, f2] : [f1];
+			await provisionSession(agent, { session, workingDirectories: sessionDirectories });
+			await agent.chats.sendMessage(main, 'Work in the session folders', sessionDirectories, undefined, undefined, undefined, exactChatContext(session, main, session));
+			const summarize = (plugins: CopilotAgentSession['appliedSnapshot']['plugins']) => ({
+				agents: plugins.flatMap(plugin => plugin.agents.map(item => item.name)).sort(),
+				instructions: plugins.flatMap(plugin => plugin.instructions.map(item => item.name)).sort(),
+				mcpServers: plugins.flatMap(plugin => plugin.mcpServers.map(item => item.name)).sort(),
+			});
+			const mainSdkSessionId = launches[0].sdkSessionId;
+			return {
+				get agent() { return agent; },
+				get stateManager() { return stateManager; },
+				client, session, main, f1, f2, sessionDataService, launches,
+				/** Creates a peer chat working in `folders`, optionally before the host has loaded the session's state. */
+				createPeer: async (name: string, folder: URI, options?: { readonly sessionSettingsUnloaded?: boolean }) => {
+					const peer = URI.parse(buildChatUri(session, name));
+					const context = exactChatContext(session, peer, peer);
+					await agent.chats.createChat(peer, options?.sessionSettingsUnloaded ? { ...context, sessionSettings: undefined } : context, { workingDirectories: [folder] });
+					return peer;
+				},
+				/** Replaces the agent with a fresh one over the same storage, the default chat restored but not live. */
+				restart: async () => {
+					await disposeAgent(agent);
+					({ agent, stateManager } = await createAgent());
+					await agent.materializeChat(main, exactChatContext(session, main, session), JSON.stringify({ sdkSessionId: mainSdkSessionId }));
+				},
+				context: (chat: URI) => exactChatContext(session, chat, isEqual(chat, main) ? session : chat),
+				/** What the chat's SDK session was launched with. */
+				applied: (chat: URI) => summarize(getPeerChatStub(agent, chat)!.appliedSnapshot.plugins),
+				/** The session's published customizations (`SessionState.customizations`). */
+				published: async () => {
+					const customizations = await getDefaultChatCustomizations(agent, session);
+					return {
+						agents: customizations.flatMap(item => item.type === CustomizationType.Directory && item.uri !== buildCopilotBuiltinAgentsContainer().uri
+							? (item.children ?? []).filter(child => child.type === CustomizationType.Agent).map(child => child.name) : []).sort(),
+						mcpServers: customizations.filter(item => item.type === CustomizationType.McpServer).map(item => item.name).sort(),
+					};
+				},
+				discoveryRuns: (folders: readonly URI[]) => client.skillDiscoveryRequests.filter(request => equals(request.projectPaths, folders.map(folder => folder.fsPath))).length,
+				liveAnchorKeys: () => (agent as unknown as AnchorInternals)._activeClients.get(session)?.pluginController.liveAnchorKeys() ?? [],
+				dispose: async () => {
+					await disposeAgent(agent);
+					await fs.rm(root, { recursive: true, force: true });
+				},
+			};
+		}
+
+		for (const multiRoot of [false, true]) {
+			test(`a peer in the session's second folder gets that folder's agents, instructions and MCP servers, and the default chat is unchanged (multi-root: ${multiRoot})`, async () => {
+				const fixture = await createAnchorFixture(multiRoot);
+				try {
+					const { agent, f1, f2 } = fixture;
+					const peer = await fixture.createPeer('peer-f2', f2);
+					// A peer whose own folders are `f2` then `f1` gets its other folder only when multi-root is on.
+					const multiFolderPeer = await fixture.createPeer('peer-f2-f1', f2);
+					await agent.chats.sendMessage(multiFolderPeer, 'Work in both folders', [f2, f1], undefined, undefined, undefined, fixture.context(multiFolderPeer));
+					const name = (folder: URI) => basename(folder.fsPath);
+					const folderView = (folders: readonly URI[]) => ({
+						agents: folders.map(folder => `${name(folder)}-agent`).sort(),
+						instructions: folders.map(folder => `${name(folder)}.instructions.md`).sort(),
+						mcpServers: folders.map(folder => `${name(folder)}-server`).sort(),
+					});
+					const sessionFolders = multiRoot ? [f1, f2] : [f1];
+					assert.deepStrictEqual({
+						peer: fixture.applied(peer),
+						multiFolderPeer: fixture.applied(multiFolderPeer),
+						main: fixture.applied(fixture.main),
+						published: await fixture.published(),
+					}, {
+						// Neither the first folder's (multi-root off) nor the union (multi-root on).
+						peer: folderView([f2]),
+						multiFolderPeer: folderView(multiRoot ? [f2, f1] : [f2]),
+						main: folderView(sessionFolders),
+						published: { agents: folderView(sessionFolders).agents, mcpServers: folderView(sessionFolders).mcpServers },
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+		}
+
+		test('the default chat follows a chat-only move to another folder, sharing a peer\'s discovery there, while older builds still get the shared folders', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, main, f1, f2 } = fixture;
+				const peer = await fixture.createPeer('peer-f2', f2);
+				const before = { main: fixture.applied(main), published: await fixture.published() };
+				await agent.setChatWorkingDirectory(main, fixture.context(main), f2);
+				const publishedAfterMove = await fixture.published();
+				await agent.chats.sendMessage(main, 'Continue in the second folder', [f2], undefined, undefined, undefined, fixture.context(main));
+				const db = fixture.sessionDataService.openDatabase(fixture.session);
+				let sharedRoots: string | undefined;
+				try {
+					sharedRoots = await db.object.getMetadata('copilot.sharedCustomizationDirectories');
+				} finally {
+					db.dispose();
+				}
+				assert.deepStrictEqual({
+					before,
+					publishedAfterMove,
+					main: fixture.applied(main),
+					peer: fixture.applied(peer),
+					published: await fixture.published(),
+					f2DiscoveryRuns: fixture.discoveryRuns([f2]),
+					sharedRoots,
+				}, {
+					before: {
+						main: { agents: ['f1-agent'], instructions: ['f1.instructions.md'], mcpServers: ['f1-server'] },
+						published: { agents: ['f1-agent'], mcpServers: ['f1-server'] },
+					},
+					publishedAfterMove: { agents: ['f2-agent'], mcpServers: ['f2-server'] },
+					main: { agents: ['f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
+					peer: { agents: ['f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
+					published: { agents: ['f2-agent'], mcpServers: ['f2-server'] },
+					f2DiscoveryRuns: 1,
+					sharedRoots: JSON.stringify([f1.toString()]),
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('the published view stays the default chat\'s when a peer in another folder starts first after a restart', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { main, f1, f2 } = fixture;
+				await fixture.restart();
+				const peer = await fixture.createPeer('peer-f2', f2, { sessionSettingsUnloaded: true });
+				await fixture.agent.chats.sendMessage(main, 'Continue in the first folder', [f1], undefined, undefined, undefined, fixture.context(main));
+				assert.deepStrictEqual({ peer: fixture.applied(peer).agents, main: fixture.applied(main).agents, published: await fixture.published() }, {
+					peer: ['f2-agent'],
+					main: ['f1-agent'],
+					published: { agents: ['f1-agent'], mcpServers: ['f1-server'] },
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('chats working in the same folder share one discovery of it', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { f1, f2 } = fixture;
+				const first = await fixture.createPeer('first-f2', f2);
+				const second = await fixture.createPeer('second-f2', f2);
+				assert.deepStrictEqual({
+					first: fixture.applied(first).agents,
+					second: fixture.applied(second).agents,
+					f2DiscoveryRuns: fixture.discoveryRuns([f2]),
+					liveAnchors: [...fixture.liveAnchorKeys()].sort(),
+				}, {
+					first: ['f2-agent'],
+					second: ['f2-agent'],
+					f2DiscoveryRuns: 1,
+					liveAnchors: [f1.toString(), f2.toString()].sort(),
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('client tool updates reach every chat of the session, whichever folder it works in', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, main, f2 } = fixture;
+				const peer = await fixture.createPeer('peer-f2', f2);
+				for (const chat of [main, peer]) {
+					agent.getOrCreateActiveClient(chat, fixture.context(chat), { clientId: 'window' }).tools = [{
+						name: 'window_tool',
+						description: 'A client tool',
+						inputSchema: { type: 'object', properties: {} },
+					}];
+				}
+				const mark = fixture.launches.length;
+				await agent.chats.sendMessage(peer, 'Use the tool', [f2], undefined, undefined, undefined, fixture.context(peer));
+				await agent.chats.sendMessage(main, 'Use the tool', [fixture.f1], undefined, undefined, undefined, fixture.context(main));
+				assert.deepStrictEqual({
+					relaunches: fixture.launches.slice(mark).map(launch => launch.tools.includes('window_tool')),
+					peer: getPeerChatStub(agent, peer)?.appliedSnapshot.tools.map(tool => tool.name),
+					main: getPeerChatStub(agent, main)?.appliedSnapshot.tools.map(tool => tool.name),
+				}, {
+					relaunches: [true, true],
+					peer: ['window_tool'],
+					main: ['window_tool'],
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('a folder\'s discovery is released with the last chat using it, and every discovery with the session', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, session, main, f1, f2 } = fixture;
+				const peer = await fixture.createPeer('peer-f2', f2);
+				await fixture.published();
+				const controller = (agent as unknown as AnchorInternals)._activeClients.get(session)!.pluginController;
+				const withPeer = [...controller.liveAnchorKeys()].sort();
+				await agent.chats.disposeChat(peer, fixture.context(peer));
+				const afterPeer = [...controller.liveAnchorKeys()];
+				await agent.chats.disposeChat(main, fixture.context(main));
+				assert.deepStrictEqual({ withPeer, afterPeer, afterSession: controller.liveAnchorKeys(), finalized: (agent as unknown as AnchorInternals)._activeClients.get(session) }, {
+					withPeer: [f1.toString(), f2.toString()].sort(),
+					afterPeer: [f1.toString()],
+					afterSession: [],
+					finalized: undefined,
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('a peer\'s folder-only MCP server still appears in the session\'s list (MCP runtime state is published by every chat)', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, stateManager, session, f1, f2 } = fixture;
+				const peer = await fixture.createPeer('peer-f2', f2);
+				const now = new Date().toISOString();
+				stateManager.createSession({
+					resource: session.toString(), provider: 'copilotcli', title: 'Anchors', status: SessionStatus.Idle,
+					createdAt: now, modifiedAt: now, workingDirectories: [f1.toString()], defaultChat: fixture.main.toString(),
+				});
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.resource.toString() === session.toString()) {
+						stateManager.dispatchServerAction(session.toString(), signal.action as SessionAction);
+					}
+				}));
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...await getDefaultChatCustomizations(agent, session)] });
+				const listed = () => (stateManager.getSessionState(session.toString())?.customizations ?? []).filter(item => item.type === CustomizationType.McpServer).map(item => item.name).sort();
+				const before = listed();
+				getPeerChatStub(agent, peer)!['_mcpCustomizations'].applyOne({ name: 'f2-server', state: { kind: McpServerStatus.Ready } });
+				assert.deepStrictEqual({ before, after: listed() }, { before: ['f1-server'], after: ['f1-server', 'f2-server'] });
+			} finally {
+				await fixture.dispose();
+			}
+		});
 	});
 
 	suite('MCP authentication during session initialization', () => {
