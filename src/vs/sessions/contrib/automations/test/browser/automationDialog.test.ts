@@ -17,7 +17,7 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -303,6 +303,43 @@ suite('Automation dialog creation', () => {
 			{ checked: 'true', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
 			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
 		]);
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('cloud row appears only while cloud automations are available', async () => {
+		const visibility = (dialog: ReturnType<typeof openDialog>) => {
+			const row = dialog.container.querySelector<HTMLElement>('.automation-cloud-row')!;
+			return { display: row.style.display, hidden: row.getAttribute('aria-hidden') };
+		};
+		const local = openDialog();
+		const withoutCloud = visibility(local);
+		local.cancelButton.click();
+		await local.result;
+		const dialog = openDialog({}, cloudConfiguration());
+		const withCloud = visibility(dialog);
+		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+		await timeout(0);
+		const sessionType = () => dialog.container.querySelector('.automation-target-toolbar [aria-label^="Session Type"], .automation-target-toolbar [aria-label^="Pick Session Type"]')?.getAttribute('aria-label');
+		const cloudSessionType = sessionType();
+		transaction(tx => {
+			dialog.cloudEnabled.set(false, tx);
+			dialog.providers.set([{ id: 'host', label: 'Host' }], tx);
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			withoutCloud, withCloud, cloudSessionType,
+			afterDisable: visibility(dialog),
+			checked: dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+			sessionType: sessionType(),
+		}, {
+			withoutCloud: { display: 'none', hidden: 'true' },
+			withCloud: { display: '', hidden: null },
+			cloudSessionType: 'Session Type, Cloud',
+			afterDisable: { display: 'none', hidden: 'true' },
+			checked: 'false',
+			sessionType: 'Session Type, Copilot',
+		});
 		dialog.cancelButton.click();
 		await dialog.result;
 	});

@@ -1195,8 +1195,9 @@ export function renderForm(
 		return runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined;
 	});
 	disposables.add(autorun(reader => {
+		setAutomationControlVisible(cloudRow, availableCloudConfiguration.read(reader) !== undefined);
 		cloudSwitch.checked = runInCloud.read(reader);
-		cloudSwitch.disabled = isEdit || availableCloudConfiguration.read(reader) === undefined;
+		cloudSwitch.disabled = isEdit;
 	}));
 	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	let switchingTarget = false;
@@ -1463,11 +1464,7 @@ export function renderForm(
 		revalidate();
 	};
 	disposables.add(workspacePicker.onDidSelectWorkspace(applyWorkspaceTarget));
-	disposables.add(cloudSwitch.onChange(async checked => {
-		if (!await workspacePicker.onWillSelectWorkspace()) {
-			cloudSwitch.checked = runInCloud.get();
-			return;
-		}
+	const setRunInCloud = (checked: boolean) => {
 		const folder = checked
 			? state.folderUri && availableCloudConfiguration.get()?.getWorkspaceTarget(state.folderUri).get().workspace
 				? state.folderUri
@@ -1482,6 +1479,18 @@ export function renderForm(
 		}
 		switchingTarget = false;
 		applyWorkspaceTarget(folder);
+	};
+	disposables.add(cloudSwitch.onChange(async checked => {
+		if (!await workspacePicker.onWillSelectWorkspace()) {
+			cloudSwitch.checked = runInCloud.get();
+			return;
+		}
+		setRunInCloud(checked);
+	}));
+	disposables.add(autorun(reader => {
+		if (!isEdit && availableCloudConfiguration.read(reader) === undefined && runInCloud.read(undefined)) {
+			setRunInCloud(false);
+		}
 	}));
 	disposables.add(autorun(reader => {
 		if (isolationModel.isQuickChatObs.read(reader)) {
