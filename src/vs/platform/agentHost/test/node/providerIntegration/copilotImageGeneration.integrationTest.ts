@@ -10,13 +10,13 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { driveTurnWithModelToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createProviderSession } from '../providerIntegrationTestHelpers.js';
-import { startRealServer, stopServer, TestProtocolClient, type IServerHandle } from '../serverIntegrationTestHelpers.js';
+import { startRealServer, stopServer, TestProtocolClient, type IServerHandle, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
 
 interface IChatRequest {
 	readonly model: string;
@@ -159,7 +159,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			await connection.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'image-tool-client' }, 30_000);
 			await connection.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 			await connection.call('subscribe', { channel: session }, 30_000);
-			await connection.call('subscribe', { channel: buildDefaultChatUri(session) }, 30_000);
+			await connection.call('subscribe', { channel: defaultChatChannel(session) }, 30_000);
 			await run('image-resumed', 100);
 			assert.deepStrictEqual({ offered, responses, unexpectedRequests, imageRequests }, {
 				offered: [available, available], responses: ['IMAGE_TOOL_READY', 'IMAGE_TOOL_READY'],
