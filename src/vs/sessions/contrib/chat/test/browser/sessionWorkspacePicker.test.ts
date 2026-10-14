@@ -325,6 +325,10 @@ class TestAutomationsWorkspacePicker extends AutomationsWorkspacePicker {
 		return this._buildItems();
 	}
 
+	getMobileItems() {
+		return this._buildMobileItems();
+	}
+
 	getItemStates(): Array<{ readonly label: string; readonly checked: boolean }> {
 		return this.getItems()
 			.filter(entry => entry.item)
@@ -4603,22 +4607,24 @@ suite('AutomationsWorkspacePicker', () => {
 		await ready;
 		gitDetected.set(true, undefined);
 		const populated = rows();
-		const publicRow = picker.getItems().find(row => row.item?.folderUri && extUri.isEqual(row.item.folderUri, publicFolder))!;
+		const publicRow = picker.getMobileItems().find(row => row.item?.folderUri && extUri.isEqual(row.item.folderUri, publicFolder))!;
 		const mobilePublicRow = buildMobileWorkspacePickerRows([publicRow], () => { })[0].sheetItem;
 		const errors: string[] = [];
 		picker.onSelectionError = error => errors.push(error.message);
 		await picker.select('local/public');
 		await picker.select('local/other-git');
 		const rejectedSelections = picker.selectedFolderUri;
+		await picker.select('local/private');
+		const selectedPrivateFolder = picker.selectedFolderUri?.toString();
 		await picker.select('Add repository');
 		const selected = picker.selectedFolderUri?.toString();
 		cloudMode.set(false, undefined);
 		assert.deepStrictEqual({
-			pending, waitedForLocalFolder, populated, rejectedSelections, errors, pickCount, selected,
+			pending, waitedForLocalFolder, populated, rejectedSelections, selectedPrivateFolder, errors, pickCount, selected,
 			publicAriaLabel: publicRow.item?.ariaLabel,
 			mobilePublicRow: { icon: mobilePublicRow.icon?.id, description: mobilePublicRow.description, disabled: mobilePublicRow.disabled },
 			localFolders: picker.getItems().flatMap(row => row.item?.folderUri?.scheme === Schemas.file ? [row.item.folderUri.toString()] : []).sort(),
-			localOffersGitHub: rows().some(row => row.label === 'Add repository' || row.label === 'Work in GitHub'),
+			localOffersGitHub: rows().some(row => row.label === 'Add repository'),
 		}, {
 			pending: { label: 'local/private', icon: 'repo', disabled: true, description: '$(info)', reason: 'Checking repository access...', hover: 'Checking repository access...' },
 			waitedForLocalFolder: true,
@@ -4629,10 +4635,11 @@ suite('AutomationsWorkspacePicker', () => {
 				{ label: 'Add repository', icon: 'github', disabled: false, description: undefined, reason: undefined, hover: undefined },
 			],
 			rejectedSelections: undefined,
+			selectedPrivateFolder: folder.toString(),
 			errors: ['Private GitHub repository required.', 'Private GitHub repository required.'],
 			pickCount: 1, selected: repository.toString(),
 			publicAriaLabel: 'local/public, unavailable. Cloud automations require a private GitHub repository. This repository is public.',
-			mobilePublicRow: { icon: 'repo', description: 'Cloud automations require a private GitHub repository. This repository is public.', disabled: true },
+			mobilePublicRow: { icon: 'folder', description: 'Cloud automations require a private GitHub repository. This repository is public.', disabled: true },
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
 		});
@@ -4647,9 +4654,11 @@ suite('AutomationsWorkspacePicker', () => {
 		picker.render(container);
 		assert.deepStrictEqual({
 			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			ariaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 			items: picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label),
 		}, {
 			label: 'Select a repository',
+			ariaLabel: 'Pick a repository for this automation',
 			items: ['No known Git repositories', 'Add repository'],
 		});
 	});
@@ -4702,7 +4711,7 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	}
 
-	test('Work in GitHub rejects a non-private repository and rechecks eligibility at selection', async () => {
+	test('Add repository rejects a non-private repository and rechecks eligibility at selection', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('github');
 		const folderUri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/project/HEAD' });
@@ -4718,32 +4727,33 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => folderUri,
 			getWorkspaceTarget: () => target,
 		}));
+		picker.setCloudMode(constObservable(true));
 		const errors: string[] = [];
 		picker.onSelectionError = error => errors.push(error.message);
-		const github = picker.getItems().find(row => row.item?.id === 'automation.workInGitHub');
-		assert.deepStrictEqual({ label: github?.label, icon: github?.group?.icon?.id }, { label: 'Work in GitHub', icon: 'github' });
+		const github = picker.getItems().find(row => row.item?.id === 'automation.addRepository');
+		assert.deepStrictEqual({ label: github?.label, icon: github?.group?.icon?.id }, { label: 'Add repository', icon: 'github' });
 		const disabledRepository = picker.getItems().find(row => row.item?.folderUri);
 		assert.deepStrictEqual({
 			icon: disabledRepository?.group?.icon?.id,
 			disabled: disabledRepository?.disabled,
 			reason: disabledRepository?.ariaDescription,
 		}, { icon: 'repo', disabled: true, reason: 'The repository must be private.' });
-		await picker.select('Work in GitHub');
+		await picker.select('Add repository');
 		target.set({ workspace: folderUri }, undefined);
 		const enabled = picker.getItems().find(row => row.item?.folderUri)?.disabled;
 		target.set({ disabledReason: 'Repository access changed.' }, undefined);
-		await picker.select('Work in GitHub');
+		await picker.select('Add repository');
 		assert.deepStrictEqual({ enabled, errors, selected: picker.selectedFolderUri }, {
 			enabled: false, errors: ['The repository must be private.', 'Repository access changed.'], selected: undefined,
 		});
 		target.set({ workspace: folderUri }, undefined);
 		assert.strictEqual(picker.getItems().find(row => row.item?.folderUri)?.group?.icon?.id, 'repo');
-		await picker.select('Work in GitHub');
+		await picker.select('Add repository');
 		assert.strictEqual(picker.selectedFolderUri?.toString(), folderUri.toString());
 	});
 
 	for (const [selected, offersCloud] of [[true, true], [false, true], [true, false]] as const) {
-		test(`Work in GitHub ${offersCloud ? 'reuses' : 'bypasses'} a matching ${selected ? 'selected' : 'recent'} local checkout ${offersCloud ? 'that offers' : 'without'} Cloud and retains repository intent`, async () => {
+		test(`Add repository ${offersCloud ? 'reuses' : 'bypasses'} a matching ${selected ? 'selected' : 'recent'} local checkout ${offersCloud ? 'that offers' : 'without'} Cloud and retains repository intent`, async () => {
 			const providersService = disposables.add(new MockSessionsProvidersService());
 			const folder = URI.file('/local/project');
 			const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/project/HEAD' });
@@ -4781,9 +4791,10 @@ suite('AutomationsWorkspacePicker', () => {
 				pickWorkspace: async () => repository,
 				getWorkspaceTarget: () => constObservable({ workspace: repository }),
 			}));
+			picker.setCloudMode(constObservable(true));
 			const selections: Array<{ folder: string | undefined; repository: boolean }> = [];
 			disposables.add(picker.onDidSelectWorkspace(uri => selections.push({ folder: uri?.toString(), repository: picker.isSelectingRepository })));
-			await picker.select('Work in GitHub');
+			await picker.select('Add repository');
 			const expected = (offersCloud ? folder : repository).toString();
 			assert.deepStrictEqual({ selections, folder: picker.selectedFolderUri?.toString() }, {
 				selections: [{ folder: expected, repository: true }], folder: expected,
@@ -4807,6 +4818,7 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => folderUri,
 			getWorkspaceTarget: () => target,
 		}));
+		picker.setCloudMode(constObservable(true));
 		const cancellation = disposables.add(new CancellationTokenSource());
 		const cancelled = picker.waitForTargets(cancellation.token);
 		cancellation.cancel();
@@ -4836,6 +4848,7 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => folderUri,
 			getWorkspaceTarget: () => target,
 		}));
+		picker.setCloudMode(constObservable(true));
 		const workbench = document.createElement('div');
 		workbench.classList.add('phone-layout');
 		document.body.appendChild(workbench);

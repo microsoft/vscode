@@ -1184,7 +1184,6 @@ export function renderForm(
 	// The execution mode constrains the harness before workspace selection.
 	const initialProviderConfiguration = getProviderConfiguration(state.providerId);
 	const runInCloud = observableValue(form, initialProviderConfiguration !== undefined);
-	const selectedProvider = observableValue(form, state.providerId);
 	// New automations keep an enabled cloud provider reachable before its catalogue is ready, so repository
 	// picking can request access; saving stays gated on allowedProviders.
 	const cloudProvider = derived(reader => allowedProviders.read(reader).find(id => getProviderConfiguration(id) !== undefined)
@@ -1266,8 +1265,6 @@ export function renderForm(
 		}
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
-		const wasCloud = selectedProvider.get() !== undefined && getProviderConfiguration(selectedProvider.get()) !== undefined;
-		selectedProvider.set(state.providerId, undefined);
 		const configuration = cloudConfiguration.get();
 		const target = configuration?.getWorkspaceTarget(state.folderUri).get();
 		state.resolvedFolderUri = target?.workspace;
@@ -1279,11 +1276,6 @@ export function renderForm(
 			state.branch = undefined;
 			if (configuration && isEdit && initialTarget?.kind === 'workspace' && target?.workspace && !isEqual(initialTarget.folderUri, target.workspace)) {
 				state.targetDisabledReason = configuration.targetChangeDisabledReason;
-			}
-		} else if (wasCloud && isEqual(state.folderUri, localTarget.folderUri)) {
-			state.isolationMode = localTarget.isolationMode;
-			if (localTarget.branch) {
-				isolationModel.selectBranch(localTarget.branch);
 			}
 		}
 		onDidChangeSessionTarget.fire();
@@ -1431,13 +1423,12 @@ export function renderForm(
 			}
 		}
 	};
-	const applyWorkspaceTarget = (uri: URI | undefined) => {
+	const applyWorkspaceTarget = (uri: URI | undefined, restoreLocalTarget = false) => {
 		if (switchingTarget) {
 			return;
 		}
 		switchingTarget = true;
 		transaction(() => {
-			const wasCloud = runInCloud.get();
 			const currentPick = sessionTypePicker.selectedPick;
 			isolationModel.setQuickChat(!uri && !runInCloud.get(), uri);
 			const types = sessionTypes.get().filter(type => pickerProviders.get().includes(type.providerId));
@@ -1450,8 +1441,7 @@ export function renderForm(
 			sessionTypePicker.setFolderSource(isolationModel.folderUriObs, { initialPick: pick });
 			state.providerId = pick?.providerId;
 			state.sessionTypeId = pick?.sessionTypeId;
-			selectedProvider.set(state.providerId, undefined);
-			if (!runInCloud.get() && wasCloud && isEqual(uri, localTarget.folderUri)) {
+			if (restoreLocalTarget && isEqual(uri, localTarget.folderUri)) {
 				state.isolationMode = localTarget.isolationMode;
 				if (localTarget.branch) {
 					isolationModel.selectBranch(localTarget.branch);
@@ -1463,7 +1453,7 @@ export function renderForm(
 		updateAutomationSessionTarget();
 		revalidate();
 	};
-	disposables.add(workspacePicker.onDidSelectWorkspace(applyWorkspaceTarget));
+	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
 	const setRunInCloud = (checked: boolean) => {
 		const folder = checked
 			? state.folderUri && availableCloudConfiguration.get()?.getWorkspaceTarget(state.folderUri).get().workspace
@@ -1478,10 +1468,10 @@ export function renderForm(
 			workspacePicker.clearSelection();
 		}
 		switchingTarget = false;
-		applyWorkspaceTarget(folder);
+		applyWorkspaceTarget(folder, !checked);
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
-		if (!await workspacePicker.onWillSelectWorkspace()) {
+		if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
 			cloudSwitch.checked = runInCloud.get();
 			return;
 		}
@@ -2313,10 +2303,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	protected async waitForWorkspaceTargets(token: CancellationToken): Promise<boolean> {
 		const configuration = this.cloudConfiguration.get();
-		if (!configuration) {
+		if (!configuration || !this.cloudMode?.get()) {
 			return true;
 		}
-		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri && (this.cloudMode?.get() || item.item.folderUri.scheme === GITHUB_REMOTE_FILE_SCHEME)
+		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri && this.isGitWorkspace(item.item.folderUri)
 			? [waitForState(configuration.getWorkspaceTarget(item.item.folderUri), target => !target.pending, undefined, token)]
 			: []));
 		return !token.isCancellationRequested && configuration === this.cloudConfiguration.get();
@@ -2342,7 +2332,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			provider.resolveWorkspace(folder)?.folders.some(folder => {
 				const repository = folder.gitRepository;
 				repository?.resolveRepository?.();
-				return repository !== undefined && (repository.isRepository?.read(reader) ?? true);
+				return repository !== undefined && repository.isRepository?.read(reader) === true;
 			}) === true);
 	}
 
@@ -2385,7 +2375,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				kind: ActionListItemKind.Action,
 				label: localize('automation.form.noGitRepositories', "No known Git repositories"),
 				disabled: true,
-				item: { id: 'automation.noPrivateRepositories' },
+				item: { id: 'automation.noGitRepositories' },
 			}];
 			items.push({ kind: ActionListItemKind.Separator, label: '' }, {
 				kind: ActionListItemKind.Action,
@@ -2395,34 +2385,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			});
 			return items;
 		}
-		const items = super._buildItems().map(item => {
-			if (item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				return item;
-			}
-			const reason = configuration
-				? configuration.getWorkspaceTarget(item.item.folderUri).get().disabledReason
-				: localize('automation.form.cloudUnavailable', "Cloud automations are unavailable.");
-			return {
-				...item,
-				submenuActions: undefined,
-				group: { title: '', icon: Codicon.repo },
-				...(reason === undefined ? {} : {
-					disabled: true,
-					description: reason,
-					ariaDescription: reason,
-					tooltip: reason,
-					hover: { content: reason },
-				}),
-			};
-		}).filter(item => !this.cloudMode || item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME);
-		if (configuration && !this.cloudMode) {
-			items.unshift({
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.workInGitHub', "Work in GitHub"),
-				group: { title: '', icon: Codicon.github },
-				item: { id: 'automation.workInGitHub' },
-			});
-		}
+		const items = super._buildItems().filter(item => item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME);
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
 			label: this._getNoWorkspaceLabel(),
@@ -2455,7 +2418,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
 				}
 			}
-			if (item.id === 'automation.workInGitHub' || item.id === 'automation.addRepository') {
+			if (item.id === 'automation.addRepository') {
 				if (!configuration) {
 					throw new Error(localize('automation.form.cloudUnavailable', "Cloud automations are unavailable."));
 				}
@@ -2514,6 +2477,13 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return !this.targetModel?.isQuickChat && super._isSelectedFolder(folderUri);
 	}
 
+	/** The mobile sheet shows descriptions as text, so disabled repository rows carry their reason instead of the info icon. */
+	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {
+		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
+			? { ...item, description: item.ariaDescription }
+			: item);
+	}
+
 	/** A matching checkout is only usable when a provider can still run the cloud session type from it. */
 	private offersCloud(folderUri: URI, configuration: IAutomationProviderConfiguration | undefined): boolean {
 		return !!configuration && this.sessionsProvidersService.getProviders().some(provider => provider.resolveWorkspace(folderUri)
@@ -2533,7 +2503,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 		trigger.setAttribute('aria-label', workspace || noWorkspace
 			? localize('automation.form.workspacePicker.selectedAriaLabel', "Automation target, {0}", label)
-			: localize('automation.form.workspacePicker.pickAriaLabel', "Pick a workspace for this automation"));
+			: this.cloudMode?.get()
+				? localize('automation.form.workspacePicker.pickRepositoryAriaLabel', "Pick a repository for this automation")
+				: localize('automation.form.workspacePicker.pickAriaLabel', "Pick a workspace for this automation"));
 		const disabled = this.disabledReason !== undefined;
 		trigger.setAttribute('aria-disabled', String(disabled));
 		trigger.tabIndex = disabled ? -1 : 0;
@@ -2603,7 +2575,7 @@ export class MobileAutomationsWorkspacePicker extends AutomationsWorkspacePicker
 		}
 		trigger.removeAttribute('aria-busy');
 		await showMobileWorkspacePickerSheet(
-			layoutService, trigger, this._buildItems(),
+			layoutService, trigger, this._buildMobileItems(),
 			item => { void this._dispatchPickerItem(item); }, this._getAllBrowseActions(),
 		);
 	}

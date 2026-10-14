@@ -813,6 +813,29 @@ suite('Automation dialog creation', () => {
 		await timeout(0);
 	});
 
+	test('cloud becoming unavailable while switching on keeps the local target', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration | null>();
+		const dialog = openDialog({}, cloudConfiguration(), { getAutomationSessionConfiguration: () => capture.p });
+		await timeout(0);
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		toggle.click();
+		await timeout(0);
+		transaction(tx => {
+			dialog.cloudEnabled.set(false, tx);
+			dialog.providers.set([{ id: 'host', label: 'Host' }], tx);
+		});
+		void capture.complete(null);
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual({
+			checked: toggle.getAttribute('aria-checked'),
+			rowHidden: dialog.container.querySelector('.automation-cloud-row')?.getAttribute('aria-hidden'),
+			sessionType: dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label'),
+		}, { checked: 'false', rowHidden: 'true', sessionType: 'Session Type, Copilot' });
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('pending target capture is progress rather than a validation error', async () => {
 		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
 		const dialog = openDialog({}, cloudConfiguration(), { getAutomationSessionConfiguration: () => capture.p });
@@ -1036,7 +1059,7 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('cloud roundtrip captures unsaved local configuration before retargeting and restores Worktree', async () => {
+	test('switching Cloud on and off captures the local configuration and restores Worktree', async () => {
 		const localConfiguration = { sessionTemplate: { modelId: 'selected-model', config: { mode: 'plan', autoApprove: 'assisted' } } };
 		const captures: string[] = [];
 		const restored: Array<IAutomationSessionConfiguration | undefined> = [];
@@ -1067,18 +1090,25 @@ suite('Automation dialog creation', () => {
 			getRefs: async () => [{ type: GitRefType.Head, name: 'release' }],
 		}));
 		await timeout(0);
-		await dialog.selectWorkspace(REPOSITORY);
-		await dialog.selectWorkspace(FOLDER);
-		await dialog.selectSessionType('Copilot');
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		const flip = async () => {
+			toggle.click();
+			for (let i = 0; i < 4; i++) {
+				await timeout(0);
+			}
+		};
+		await flip();
+		const cloudSessionType = dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label');
+		await flip();
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
 		assert.deepStrictEqual({
-			capturedBeforeCloud: captures[0], restored: restored.at(-1),
+			capturedBeforeCloud: captures[0], cloudSessionType, restored: restored.at(-1),
 			isolation: result.value.target.kind === 'workspace' ? result.value.target.isolation : undefined,
 			configuration: result.value.sessionTemplate,
 		}, {
-			capturedBeforeCloud: 'host', restored: localConfiguration,
+			capturedBeforeCloud: 'host', cloudSessionType: 'Session Type, Cloud', restored: localConfiguration,
 			isolation: { kind: 'worktree', branch: 'release' }, configuration: localConfiguration.sessionTemplate,
 		});
 	});
@@ -1637,6 +1667,7 @@ suite('Automation dialog layout', () => {
 		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
 			setTargetModel: model => { targetModel = model; },
 			setCloudConfiguration: () => { },
+			setCloudMode: () => { },
 			setLayoutService: () => { },
 			onDidSelectWorkspace: Event.None,
 			render: container => container.appendChild(workspaceButton),
@@ -1731,6 +1762,7 @@ suite('Automation dialog layout', () => {
 		}, {
 			formSections: [
 				'automation-form-row',
+				'automation-cloud-row',
 				'automation-session-section',
 				'automation-form-row automation-form-schedule-row',
 				'automation-target-error',
