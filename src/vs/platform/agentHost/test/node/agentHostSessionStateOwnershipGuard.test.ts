@@ -9,7 +9,7 @@ import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY } from '../../common/state/sessionState.js';
-import { getSessionStateValueKey } from '../../node/agentHostSessionStateMirror.js';
+import { getSessionStateValueKey, SESSION_STATE_VALUE_KEYS } from '../../node/agentHostSessionStateMirror.js';
 
 /**
  * Grep guard v1 for invariants I1/I6: production code under `node/` must not read or write a
@@ -17,8 +17,10 @@ import { getSessionStateValueKey } from '../../node/agentHostSessionStateMirror.
  *
  * The guard finds database metadata calls whose arguments mention an owned key, counts them per
  * (file, key) and compares them with {@link ALLOWLIST}. A new access fails the test; so does an
- * allowance that is no longer used, so the list only ever shrinks. Keys passed through variables
- * are not seen (v1 limitation).
+ * allowance that is no longer used, so the list only ever shrinks. Besides the named identifiers,
+ * every string constant declared under `node/` or `common/` (a module `const` or a class
+ * `static readonly`, such as `CopilotAgent._META_*`) whose value is an owned key is resolved and
+ * tracked the same way. Keys computed at runtime are not seen.
  */
 
 const OWNED_IDENTIFIERS: readonly string[] = [
@@ -37,6 +39,27 @@ const OWNED_LITERALS: readonly string[] = [
 	'configValues', 'customizationEnablement', 'agentHost.additionalWorktrees', 'agentHost.chatWorkingDirectories',
 	'agentHost.diffBaseBranch', 'agentHost.workspaceless', 'copilot.worktree.', 'peerChats',
 ];
+
+/** Whether `value` is a key the central session state store owns. */
+function isOwnedKeyValue(value: string): boolean {
+	return getSessionStateValueKey(value) !== undefined
+		|| OWNED_LITERALS.some(literal => literal.endsWith('.') ? value.startsWith(literal) : value === literal)
+		|| SESSION_STATE_VALUE_KEYS.some(entry => entry.key === value);
+}
+
+const CONSTANT_DECLARATION = /\b(?:const|static\s+readonly|readonly)\s+(?<name>[A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*'(?<value>[^'\n]+)'/g;
+
+/** The string constants declared in `source` whose value is an owned key, by name. */
+function findOwnedConstants(source: string): Map<string, string> {
+	const constants = new Map<string, string>();
+	for (const match of stripComments(source).matchAll(CONSTANT_DECLARATION)) {
+		const { name, value } = match.groups!;
+		if (isOwnedKeyValue(value)) {
+			constants.set(name, value);
+		}
+	}
+	return constants;
+}
 
 /** Modules that implement the store, its mirror or the database layer and may touch owned keys freely. */
 const EXEMPT_FILES: readonly string[] = [
@@ -95,10 +118,28 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 2, removedBy: 'permanent', reason: 'fork source and adoption reads of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'fork source read of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgentSession.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'own-db diffBaseBranch for restricted telemetry (design §4.5)' },
-	// Detached worktree records are their own databases, not session.db.
-	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
-	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
-	{ file: 'shared/worktreeIsolation.ts', key: 'META_DIFF_BASE_BRANCH', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
+	// Session metadata readers: `openMetadataWithoutImport` (central state, never importing) for a session; a chat's own database.
+	{ file: 'copilot/copilotAgent.ts', key: '_META_CUSTOMIZATION_DIRECTORY', count: 3, removedBy: 'permanent', reason: 'working-directory and stored-metadata reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_SHARED_CUSTOMIZATION_DIRECTORIES', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_URI', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_RESOLVED', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	// Legacy-catalog (v1) membership: the peer store is its writer, with its own revision tracking, as on main (group 5).
+	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 4, removedBy: 'permanent', reason: 'v1 peerChats read and written by its owner, the peer store, as on main (group 5)' },
+	{ file: 'agentHostSavedChatService.ts', key: 'PEER_CHATS_METADATA_KEY', count: 2, removedBy: 'permanent', reason: 'v1 saved-chat membership read, as on main (group 5)' },
+	// A chat's working directories in the chat's own database (group 6).
+	{ file: 'agentHostPeerChatStore.ts', key: 'CHAT_WORKING_DIRECTORIES_METADATA_KEY', count: 3, removedBy: 'permanent', reason: 'a peer\'s own db: written only when its working directories change, read for chats central state does not know (group 6)' },
+	{ file: 'agentHostSavedChatService.ts', key: 'CHAT_WORKING_DIRECTORIES_METADATA_KEY', count: 1, removedBy: 'permanent', reason: 'v1 saved chat\'s own db (a v1 default chat\'s is the session db), as on main' },
+	{ file: 'agentService.ts', key: 'CHAT_WORKING_DIRECTORIES_METADATA_KEY', count: 1, removedBy: 'permanent', reason: 'fallback read of the default chat\'s own database for a session the peer store has not normalized' },
+	// Detached worktree records are their own databases, not session.db; a session's worktree metadata goes through the store.
+	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 1, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_BRANCH', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_PATH', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_REPOSITORY_ROOT', count: 3, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_PATTERNS', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_SYMLINK_SOURCE_ROOT', count: 2, removedBy: 'permanent', reason: 'a detached record\'s own db; readers use worktreeMetadataSource (the store for a session)' },
+	{ file: 'shared/worktreeIsolation.ts', key: 'WORKTREE_META_CREATION_FAILURE', count: 1, removedBy: 'permanent', reason: 'readers use worktreeMetadataSource (the store for a session, a detached record\'s own db)' },
 ];
 
 /**
@@ -129,14 +170,15 @@ function stripComments(source: string): string {
 	return source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
 }
 
-function keyMentioned(args: string, key: string): boolean {
-	return OWNED_IDENTIFIERS.includes(key)
-		? new RegExp(`\\b${key}\\b`).test(args)
+function keyMentioned(args: string, key: string, identifiers: readonly string[]): boolean {
+	return identifiers.includes(key)
+		? new RegExp(`\\b${key.replace(/\$/g, '\\$')}\\b`).test(args)
 		: args.includes(`'${key}`) || args.includes(`\`${key}`) || args.includes(`"${key}`) || new RegExp(`\\b${key.replace(/\./g, '\\.')}\\b`).test(args);
 }
 
 /** Counts, per owned key, the database metadata calls in `source` whose arguments mention that key. */
-function findOwnedKeyAccesses(source: string): Map<string, number> {
+function findOwnedKeyAccesses(source: string, ownedConstants: readonly string[] = []): Map<string, number> {
+	const identifiers = [...OWNED_IDENTIFIERS, ...ownedConstants.filter(name => !OWNED_IDENTIFIERS.includes(name))];
 	const text = stripComments(source);
 	const counts = new Map<string, number>();
 	for (const match of text.matchAll(DB_ACCESS)) {
@@ -150,8 +192,8 @@ function findOwnedKeyAccesses(source: string): Map<string, number> {
 			}
 		}
 		const args = text.slice(start, index);
-		for (const key of [...OWNED_IDENTIFIERS, ...OWNED_LITERALS]) {
-			if (keyMentioned(args, key)) {
+		for (const key of [...identifiers, ...OWNED_LITERALS]) {
+			if (keyMentioned(args, key, identifiers)) {
 				counts.set(key, (counts.get(key) ?? 0) + 1);
 			}
 		}
@@ -196,6 +238,24 @@ suite('Agent Host session state ownership guard', () => {
 		]);
 	});
 
+	test('resolves owned keys passed through string constants and statics', () => {
+		const source = [
+			`private static readonly _META_CUSTOMIZATION_DIRECTORY = 'copilot.customizationDirectory';`,
+			`const OWNER_KEY = 'copilot.worktree.owner';`,
+			`private static readonly _META_MODEL = 'copilot.model';`,
+			`await db.getMetadataObject({ [CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true, [CopilotAgent._META_MODEL]: true });`,
+			`await db.setMetadata(OWNER_KEY, owner);`,
+		].join('\n');
+		const constants = findOwnedConstants(source);
+		assert.deepStrictEqual({
+			constants: [...constants].sort(),
+			accesses: [...findOwnedKeyAccesses(source, [...constants.keys()])].sort(),
+		}, {
+			constants: [['OWNER_KEY', 'copilot.worktree.owner'], ['_META_CUSTOMIZATION_DIRECTORY', 'copilot.customizationDirectory']],
+			accesses: [['OWNER_KEY', 1], ['_META_CUSTOMIZATION_DIRECTORY', 1]],
+		});
+	});
+
 	test('chat data keys are not owned by the session state store', () => {
 		assert.deepStrictEqual(
 			CHAT_DATA_KEYS.filter(({ identifier, key }) => OWNED_IDENTIFIERS.includes(identifier) || OWNED_LITERALS.some(literal => key.startsWith(literal)) || getSessionStateValueKey(key) !== undefined),
@@ -232,13 +292,22 @@ suite('Agent Host session state ownership guard', () => {
 
 	test('production code accesses owned keys in a session db only where allowlisted', () => {
 		const nodeDir = join(FileAccess.asFileUri('').fsPath, '..', 'src', 'vs', 'platform', 'agentHost', 'node');
+		const commonDir = join(nodeDir, '..', 'common');
+		const ownedConstants = new Set<string>();
+		for (const [dir, file] of [...listSources(nodeDir).map(file => [nodeDir, file]), ...listSources(commonDir).map(file => [commonDir, file])]) {
+			for (const name of findOwnedConstants(readFileSync(join(dir, file), 'utf8')).keys()) {
+				if (!CHAT_DATA_KEYS.some(entry => entry.identifier === name)) {
+					ownedConstants.add(name);
+				}
+			}
+		}
 		const allowed = new Map(ALLOWLIST.map(allowance => [`${allowance.file}\u0000${allowance.key}`, allowance.count]));
 		const found = new Map<string, number>();
 		for (const file of listSources(nodeDir)) {
 			if (EXEMPT_FILES.includes(file.split('/').pop()!)) {
 				continue;
 			}
-			for (const [key, count] of findOwnedKeyAccesses(readFileSync(join(nodeDir, file), 'utf8'))) {
+			for (const [key, count] of findOwnedKeyAccesses(readFileSync(join(nodeDir, file), 'utf8'), [...ownedConstants])) {
 				found.set(`${file}\u0000${key}`, count);
 			}
 		}

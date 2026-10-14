@@ -1337,13 +1337,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			};
 			if (metadata?.worktreePath && metadata.repositoryRoot) {
 				const { worktreePath, repositoryRoot } = metadata;
-				const source = this._sessionDataService.openDatabase(sessionUri);
-				let baseBranch: string | undefined;
-				try {
-					baseBranch = await source.object.getMetadata(META_DIFF_BASE_BRANCH);
-				} finally {
-					source.dispose();
-				}
+				const baseBranch = await this._sessionStateStore.readBaseBranchWithoutImport(sessionUri, undefined);
 				const worktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, sessionUri);
 				const existing = worktrees.find(worktree => isEqual(URI.parse(worktree.workingDirectory), metadata.worktreePath)
 					&& isEqual(URI.parse(worktree.repositoryRoot), metadata.repositoryRoot));
@@ -1897,21 +1891,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 
 	private async _isSessionArchived(sessionUri: URI): Promise<boolean> {
-		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
-		if (!ref) {
-			return false;
-		}
-		try {
-			const [isArchived, isDone] = await Promise.all([
-				ref.object.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
-				ref.object.getMetadata(AH_META_IS_DONE_DB_KEY),
-			]);
-			return isArchived !== undefined ? isArchived === 'true' : isDone === 'true';
-		} finally {
-			ref.dispose();
-		}
+		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY]);
+		const isArchived = values.get(AH_META_IS_ARCHIVED_DB_KEY);
+		return isArchived !== undefined ? isArchived === 'true' : values.get(AH_META_IS_DONE_DB_KEY) === 'true';
 	}
-
 }
 
 export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolation {

@@ -25,7 +25,7 @@ import { TestSessionDatabase, createNoopGitService, createSessionDataService } f
 import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
 import { createTestSessionStateStore, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
 import type { AgentHostSessionStateStore } from '../../../node/agentHostSessionStateStore.js';
-import { SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
+import { SessionStateMirrorFlush, SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
 function createNullCopilotApiService(): ICopilotApiService {
@@ -249,7 +249,9 @@ suite('WorktreeIsolation', () => {
 					if (fail && set[ADDITIONAL_WORKTREES_METADATA_KEY]) {
 						throw new Error('Retention persistence failed');
 					}
-					await super.applyMetadataChanges(set, remove);
+					// The session.db mirror never receives the custom base branch: retention must read it from central state.
+					const { [META_DIFF_BASE_BRANCH]: baseBranch, ...rest } = set;
+					await super.applyMetadataChanges(baseBranch === 'origin/custom-base' ? rest : set, remove);
 				}
 			}();
 			const detached = new TestSessionDatabase();
@@ -259,11 +261,12 @@ suite('WorktreeIsolation', () => {
 				openDatabase: resource => createSessionDataService(resource.toString() === sessionUri.toString() ? sessionDb : detached).openDatabase(resource),
 				tryOpenDatabase: async resource => createSessionDataService(resource.toString() === sessionUri.toString() ? sessionDb : detached).openDatabase(resource),
 			};
-			const isolation = createIsolation(disposables, { sessionDataService: service });
+			const stores: AgentHostSessionStateStore[] = [];
+			const isolation = createIsolation(disposables, { sessionDataService: service, stores });
 			const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
 			const original = await isolation.resolveForWorkspaceConversion(request);
 			assert.ok(original);
-			await db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/custom-base');
+			await stores[0].writeMetadata(sessionUri, sessionUri, { [META_DIFF_BASE_BRANCH]: 'origin/custom-base' }, SessionStateMirrorFlush.Coalesced);
 			if (fail) {
 				await assert.rejects(isolation.retainSessionWorktree(sessionUri, sessionId), /Retention persistence failed/);
 				assert.deepStrictEqual({
@@ -1857,6 +1860,34 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({ resolved: resolved.toString(), worktreesRecreated: addExistingCalls.length }, {
 			resolved: repoRoot.toString(),
+			worktreesRecreated: 0,
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume reads the archive state from central session state', async () => {
+		// The session.db mirror never receives the archive flag (a mirror that has not caught up).
+		db = new class extends TestSessionDatabase {
+			override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				const { [AH_META_IS_ARCHIVED_DB_KEY]: _archived, ...rest } = set;
+				return super.applyMetadataChanges(rest, remove);
+			}
+		}();
+		const stores: AgentHostSessionStateStore[] = [];
+		const isolation = createIsolation(disposables, { stores });
+		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-central-archived-worktree');
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.worktree.path', missingWorktree.toString()),
+			db.setMetadata('copilot.worktree.repositoryRoot', repoRoot.toString()),
+		]);
+		// Archived centrally only.
+		await stores[0].writeMetadata(sessionUri, sessionUri, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Coalesced);
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree);
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), mirrored: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY), worktreesRecreated: addExistingCalls.length }, {
+			resolved: repoRoot.toString(),
+			mirrored: undefined,
 			worktreesRecreated: 0,
 		});
 	});
