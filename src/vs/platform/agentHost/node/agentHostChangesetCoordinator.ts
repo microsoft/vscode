@@ -590,8 +590,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * aggregate computation lives in the changeset service; the coordinator
 	 * only projects the result onto the entry.
 	 */
-	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
-		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
+	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata, persistMigration: boolean): IAgentSessionMetadata {
+		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata, persistMigration);
 		return changes ? { ...entry, changes } : entry;
 	}
 

@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
@@ -464,5 +465,55 @@ suite('AgentHostSessionStateStore', () => {
 		await sessionStore.write(session, sessionStatePatch({ values: { isArchived: '' } }), SessionStateMirrorFlush.Immediate);
 		const mirror = await sessionDb(session, ['isArchived', 'isDone']);
 		assert.strictEqual((mirror.isArchived ?? mirror.isDone) === 'true', false, JSON.stringify(mirror));
+	});
+	test('the catalog is projected from central state, not session.db, and older builds\' edits win after re-upgrade', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const [, sameFolder, otherFolder] = fixture.chats;
+		const otherScope = getWorkingDirectoryScopeId(otherFolder.workingDirectories);
+		const first = createStore();
+		await first.load(session);
+		first.dispose();
+		const gitData = JSON.parse(legacySessionMetadata(fixture)['agentHost.gitData']);
+		await oldBuildEdit(fixture.session, {
+			isArchived: 'true',
+			configValues: '{"old":true}',
+			defaultChatIsRead: 'true',
+			'agentHost.gitData': JSON.stringify({ ...gitData, [otherScope]: { branchName: 'old-build' } }),
+			[`customChatTitle:${sameFolder.uri}`]: 'Renamed by an older build',
+		});
+
+		const second = createStore();
+		await database.registerSessionV2(fixture.session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sync = new AgentHostCatalogSyncService(sessionData.createService(), database, second, new NullLogService());
+		// A central-only value that session.db does not hold yet tells the two sources apart.
+		await second.write(session, sessionStatePatch({ values: { customizationEnablement: '{"central":"only"}' } }), SessionStateMirrorFlush.Coalesced);
+		let projected: Record<string, string | undefined> | undefined;
+		await sync.synchronizeWithFactory(session, async catalog => {
+			projected = await catalog.object.getMetadataObject({ isArchived: true, configValues: true, defaultChatIsRead: true, customizationEnablement: true, [`customChatTitle:${sameFolder.uri}`]: true, 'agentHost.gitData': true });
+			return {
+				data: { modifiedTime: 2, summary: 'Conversation', isRead: true, isArchived: false, workingDirectories: [], chats: [{ uri: fixture.chats[0].uri, order: 0, kind: 'default' }] },
+				legacyMetadata: {},
+			};
+		});
+		const snapshot = await second.load(session);
+		const reference = sessionData.createService().openDatabase(session);
+		const outbox = await reference.object.getCatalogSyncSnapshot().finally(() => reference.dispose());
+		assert.deepStrictEqual({
+			projected: projected && { ...projected, 'agentHost.gitData': JSON.parse(projected['agentHost.gitData'] ?? '{}')[otherScope] },
+			peerTitle: snapshot.chats.get(sameFolder.uri)?.title,
+			outbox: outbox?.state,
+		}, {
+			projected: {
+				isArchived: 'true',
+				configValues: '{"old":true}',
+				defaultChatIsRead: 'true',
+				customizationEnablement: '{"central":"only"}',
+				[`customChatTitle:${sameFolder.uri}`]: 'Renamed by an older build',
+				'agentHost.gitData': { branchName: 'old-build' },
+			},
+			peerTitle: 'Renamed by an older build',
+			// The outbox is still written inside the mirror transaction, for older builds.
+			outbox: 'acknowledged',
+		});
 	});
 });

@@ -2808,7 +2808,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			assert.deepStrictEqual({
 				live,
 				mirroredBeforeFlush,
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }, true),
 			}, { live: sessionSummary, mirroredBeforeFlush: oldSummary, listed: sessionSummary });
 		});
 
@@ -2819,7 +2819,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				[META_CHANGES_SUMMARY]: JSON.stringify(oldSummary),
 				[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
 				[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 40, 10)]),
-			}), oldSummary);
+			}, true), oldSummary);
 		});
 
 		test('idle eviction keeps cached summary counts ahead of ready Session Changes', async () => {
@@ -2834,7 +2834,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				keys: svc.getListMetadataKeys(sessionStr),
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
 				status: stateManager.getChangesetState(sessionChangeset)?.status,
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await settledMetadata(db, META_CHANGES_SUMMARY) }),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await settledMetadata(db, META_CHANGES_SUMMARY) }, true),
 				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 			}, {
 				keys: CHANGES_SUMMARY_METADATA_KEYS,
@@ -2856,7 +2856,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				const listed = svc.computeListEntryChanges(sessionStr, {
 					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/old-session.ts', 50, 10)]),
 					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-				});
+				}, true);
 				const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
 				assert.deepStrictEqual({
 					listed,
@@ -2875,7 +2875,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 						[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
 						[META_LEGACY_DIFFS]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
 						[key]: JSON.stringify(empty ? [] : [gitDiff('/wd/session.ts', 3, 1)]),
-					});
+					}, true);
 					const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
 
 					assert.deepStrictEqual({
@@ -2898,12 +2898,12 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 			stateManager.deleteSession(sessionStr);
 			const metadata = { [META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]) };
-			const cold = svc.computeListEntryChanges(sessionStr, metadata);
+			const cold = svc.computeListEntryChanges(sessionStr, metadata, true);
 			svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/wd/branch.ts', 100, 20)]);
 
 			assert.deepStrictEqual({
 				cold,
-				warm: svc.computeListEntryChanges(sessionStr, metadata),
+				warm: svc.computeListEntryChanges(sessionStr, metadata, true),
 				persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 			}, { cold: undefined, warm: undefined, persisted: undefined });
 		});
@@ -2930,7 +2930,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					const listed = svc.computeListEntryChanges(sessionStr, {
 						...Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])),
 						configValues: metadata.configValues,
-					});
+					}, true);
 					const expected = source === 'cached' ? oldSummary : source === 'missing' ? undefined : empty ? { additions: 0, deletions: 0, files: 0 } : branchSummary;
 					assert.deepStrictEqual({
 						listed,
@@ -2955,7 +2955,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					configValues,
 					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
 					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-				});
+				}, true);
 				assert.deepStrictEqual({ changes, logged: log.warnings.some(warning => warning.includes('Failed to parse persisted isolation')) }, {
 					changes: sessionSummary, logged: true,
 				});
@@ -2977,7 +2977,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			assert.deepStrictEqual({
 				live,
 				persisted: JSON.parse(persisted!),
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted, configValues: '{"isolation":"worktree"}' }),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted, configValues: '{"isolation":"worktree"}' }, true),
 			}, {
 				live: { additions: 0, deletions: 0, files: 0 },
 				persisted: { additions: 0, deletions: 0, files: 0 },

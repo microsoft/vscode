@@ -424,20 +424,20 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
 		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const modern = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
-		const first = await new AgentHostCatalogSyncService(modern, db, new NullLogService()).synchronize(session, {
+		const first = await new AgentHostCatalogSyncService(modern, db, createTestSessionStateStore(db, modern), new NullLogService()).synchronize(session, {
 			data: payload(session.toString()), legacyMetadata: { customTitle: 'Conversation' },
 		});
 		await db.close();
 		const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		const oldData = new SessionDataService(URI.file(directory), fileService, new NullLogService());
-		const oldWritten = await new AgentHostCatalogSyncService(oldData, old, new NullLogService()).synchronize(URI.parse('copilotcli:/new'), {
+		const oldWritten = await new AgentHostCatalogSyncService(oldData, old, createTestSessionStateStore(old, oldData), new NullLogService()).synchronize(URI.parse('copilotcli:/new'), {
 			data: { ...payload('copilotcli:/new'), summary: 'Edited by stable' },
 			legacyMetadata: { customTitle: 'Edited by stable' },
 		});
 		await old.close();
 		const upgraded = await database();
 		const upgradedData = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, upgraded.identity);
-		const sync = new AgentHostCatalogSyncService(upgradedData, upgraded, new NullLogService());
+		const sync = new AgentHostCatalogSyncService(upgradedData, upgraded, createTestSessionStateStore(upgraded, upgradedData), new NullLogService());
 		const request = { data: { ...payload(session.toString()), summary: 'Edited by stable' }, legacyMetadata: { customTitle: 'Edited by stable' } };
 		const settled = await sync.synchronize(session, request);
 		const repeated = await sync.synchronize(session, request);

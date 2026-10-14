@@ -10439,7 +10439,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				await publish();
 				if (customTitle) {
-					await sessionData.database(session).setMetadata(SESSION_CUSTOM_TITLE_KEY, customTitle);
+					await getTestSessionStateStore(svc).writeMetadata(session, session, { [SESSION_CUSTOM_TITLE_KEY]: customTitle }, SessionStateMirrorFlush.Immediate);
 				}
 				const stateManager = getStateManager(svc);
 				await svc.restoreSession(session);
@@ -12424,7 +12424,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.markStartupComplete();
 			await svc.whenDeferredWorkSettled();
 			await svc.whenCatalogReconciliationIdle();
-			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
+			await getTestSessionStateStore(svc).writeMetadata(session, session, { [AH_META_IS_READ_DB_KEY]: '' }, SessionStateMirrorFlush.Immediate);
 			const rediscoveredModifiedTime = Date.now() + 60_000;
 			agent.catalog.set(AgentSession.id(session), { session, modifiedTime: rediscoveredModifiedTime, summary: 'After rediscovery' });
 
@@ -17629,12 +17629,14 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				registerTestAgentProvider(svc, agent);
 				const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
-				await db.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: isolation }));
-				await db.setMetadata(META_CHANGESET_BRANCH, JSON.stringify([
-					{ diff: { added: 7, removed: 2 } },
-					{ diff: { added: 4, removed: 1 } },
-				]));
-				await db.setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 3, removed: 1 } }]));
+				await getTestSessionStateStore(svc).writeMetadata(session, session, {
+					configValues: JSON.stringify({ [SessionConfigKey.Isolation]: isolation }),
+					[META_CHANGESET_BRANCH]: JSON.stringify([
+						{ diff: { added: 7, removed: 2 } },
+						{ diff: { added: 4, removed: 1 } },
+					]),
+					[META_CHANGESET_SESSION]: JSON.stringify([{ diff: { added: 3, removed: 1 } }]),
+				}, SessionStateMirrorFlush.Immediate);
 				const stateManager = getStateManager(svc);
 				stateManager.deleteSession(session.toString());
 

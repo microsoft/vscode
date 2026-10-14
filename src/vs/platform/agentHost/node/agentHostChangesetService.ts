@@ -369,7 +369,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return CHANGESET_DB_METADATA_KEYS;
 	}
 
-	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined {
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>, persistMigration: boolean): ChangesSummary | undefined {
 		// Loaded session: the caller has already projected
 		// `state.summary.changes` onto the entry. Nothing to overlay.
 		if (this._stateManager.getSessionState(sessionUri)) {
@@ -394,7 +394,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const liveChanges = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(staticChangesetUri(changesetOwner, kind)));
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, liveChanges);
+			if (persistMigration) {
+				this.persistChangesSummary(sessionUri, liveChanges);
+			}
 			return liveChanges;
 		}
 
@@ -410,7 +412,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored[kind]);
 		if (persistedChanges) {
 			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, persistedChanges);
+			if (persistMigration) {
+				this.persistChangesSummary(sessionUri, persistedChanges);
+			}
 			return persistedChanges;
 		}
 

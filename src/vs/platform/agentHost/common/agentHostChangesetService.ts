@@ -191,8 +191,12 @@ export interface IAgentHostChangesetService {
 	 *
 	 * Prefers live or persisted summary counts, falling back to the isolation-selected changeset.
 	 * Existing caches are refreshed from that changeset when opened.
+	 *
+	 * `persistMigration` writes a freshly derived summary back to the session
+	 * state; the catalog migration passes `false` because the catalog sync it
+	 * feeds persists the summary itself, and a separate write would supersede it.
 	 */
-	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined;
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>, persistMigration: boolean): ChangesSummary | undefined;
 
 	/**
 	 * Returns true when the static changeset identified by `changesetUri` is

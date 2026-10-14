@@ -139,7 +139,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const exclusive: ISessionStateExclusive = {
 				get snapshot() { return snapshot(); },
 				write: async (patch, flush) => {
-					const revision = await this._writeCentral(record, patch, true);
+					const revision = await this._writeCentral(record, patch, true, true);
 					if (flush === SessionStateMirrorFlush.Immediate) {
 						immediate = true;
 					} else if (!record.scheduler.isScheduled()) {
@@ -148,6 +148,21 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					return revision;
 				},
 				noteMirrored: (revision, entries) => this._noteMirrored(record, revision, entries),
+				writeLegacyMetadata: async (values, flush) => {
+					const { patches } = this._legacyWritePatches(record, URI.parse(record.key), values);
+					const patch = mergePatches(patches);
+					const revision = await this._writeCentral(record, patch, true, false);
+					if (flush === SessionStateMirrorFlush.Immediate) {
+						immediate = true;
+					} else if (!record.scheduler.isScheduled()) {
+						record.scheduler.schedule();
+					}
+					// Only entries the caller's raw write leaves exactly as rendered may be noted as mirrored.
+					const entries = patchMirrorEntries(patch)
+						.filter(entry => entry.kind === 'folder' || (entry.kind === 'value' && renderMirrorEntry(record.model, entry) === values[entry.key]))
+						.map(mirrorEntryId);
+					return { revision, entries };
+				},
 			};
 			let result: T;
 			try {
@@ -170,33 +185,39 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}));
 	}
 
+	/** Splits old-format writes to the database of `resource` into the central patches of owned keys and the rest. */
+	private _legacyWritePatches(record: ISessionRecord, resource: URI, values: Readonly<Record<string, string | null>>): { readonly patches: Partial<ISessionStatePatch>[]; readonly unowned: Record<string, string>; readonly unownedRemovals: string[] } {
+		const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
+		const patches: Partial<ISessionStatePatch>[] = [];
+		const unowned: Record<string, string> = {};
+		const unownedRemovals: string[] = [];
+		for (const [key, value] of Object.entries(values)) {
+			const mapPatch = resource.toString() === record.key ? legacyMapWritePatch(record.model, key, value) : undefined;
+			if (mapPatch) {
+				patches.push(mapPatch);
+				continue;
+			}
+			const entry = legacyWriteEntry(record.model, record.key, resource.toString(), key);
+			if (entry) {
+				patches.push(patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault));
+			} else if (value === null) {
+				unownedRemovals.push(key);
+			} else {
+				unowned[key] = value;
+			}
+		}
+		return { patches, unowned, unownedRemovals };
+	}
+
 	async writeMetadata(session: URI, resource: URI, values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<void> {
 		const sequencerKey = this._enter(session);
 		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
 		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
-			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
-			const patches: Partial<ISessionStatePatch>[] = [];
-			const unowned: Record<string, string> = {};
-			const unownedRemovals: string[] = [];
 			let failure: unknown;
-			for (const [key, value] of Object.entries(values)) {
-				const mapPatch = resource.toString() === record.key ? legacyMapWritePatch(record.model, key, value) : undefined;
-				if (mapPatch) {
-					patches.push(mapPatch);
-					continue;
-				}
-				const entry = legacyWriteEntry(record.model, record.key, resource.toString(), key);
-				if (entry) {
-					patches.push(patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault));
-				} else if (value === null) {
-					unownedRemovals.push(key);
-				} else {
-					unowned[key] = value;
-				}
-			}
+			const { patches, unowned, unownedRemovals } = this._legacyWritePatches(record, resource, values);
 			if (patches.length > 0) {
-				await this._writeCentral(record, mergePatches(patches), true);
+				await this._writeCentral(record, mergePatches(patches), true, true);
 				if (flush === SessionStateMirrorFlush.Immediate) {
 					record.scheduler.cancel();
 					// Old-format readers still depend on the mirror, so an Immediate write reports its failure.
@@ -310,7 +331,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				this._setBase(record, mirrorEntryId(entry), observed);
 			}
 			if (Object.keys(changes).length > 0) {
-				await this._writeCentral(record, sessionStatePatch({ values: changes }), false);
+				await this._writeCentral(record, sessionStatePatch({ values: changes }), false, true);
 			}
 			await this._flushLocked(record);
 		});
@@ -376,7 +397,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			reads = await this._observe(key, chats, []);
 			const result = await this._database.importSessionState(key, this._importData(key, chats, reads));
 			if (result === 'tombstoned') {
-				throw new Error(`Session ${key} was deleted`);
+				throw new SessionStateDeletedError(key);
 			}
 			if (result === 'alreadyImported') {
 				reads = undefined;
@@ -532,7 +553,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 		}
 		if (patches.length > 0) {
-			const revision = await this._writeCentral(record, mergePatches(patches), false);
+			const revision = await this._writeCentral(record, mergePatches(patches), false, true);
 			record.base = base;
 			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(base));
 		}
@@ -568,12 +589,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	// ---- Writing ----------------------------------------------------------------------
 
 	/** Writes central state first. Mirror entries the patch changes become dirty when `markDirty`. */
-	private async _writeCentral(record: ISessionRecord, patch: ISessionStatePatch, markDirty: boolean): Promise<number> {
+	private async _writeCentral(record: ISessionRecord, patch: ISessionStatePatch, markDirty: boolean, markPayloadDirty: boolean): Promise<number> {
 		if (this._deleting.has(record.key)) {
 			throw new SessionStateDeletedError(record.key);
 		}
 		const entries = patchMirrorEntries(patch);
-		const databasePatch = toDatabasePatch(patch, entries.some(isProjectedMirrorEntry));
+		const databasePatch = toDatabasePatch(patch, markPayloadDirty && entries.some(isProjectedMirrorEntry));
 		let result = await this._database.writeSessionState(record.key, record.model.revision, databasePatch);
 		if (result.status === 'conflict') {
 			// Only an external repair of the same database can move the revision.
@@ -582,6 +603,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				record.model = new SessionStateModel(state, record.model.authority);
 			}
 			result = await this._database.writeSessionState(record.key, record.model.revision, databasePatch);
+		}
+		if (result.status === 'notImported') {
+			// The rows were removed beneath the cached record (the registry unregistered the session): drop it so the next load re-imports.
+			this._forget(record.key);
+			throw new SessionStateDeletedError(record.key);
 		}
 		if (result.status !== 'applied') {
 			throw new Error(`Cannot write the session state of ${record.key}: ${result.status}`);

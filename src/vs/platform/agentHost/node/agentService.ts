@@ -950,7 +950,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
-		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
+		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._sessionStateStore, this._logService);
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
 			worktreeProjectFromRepositoryRoot,
@@ -1308,6 +1308,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		for (const session of staleExternalSessions) {
 			await this._sessionRegistry.unregister(session);
+			await this._sessionStateStore.evict(session);
 		}
 		if (staleExternalSessions.length > 0) {
 			this._invalidateSessionList();
@@ -2411,7 +2412,7 @@ export class AgentService extends Disposable implements IAgentService {
 				updated = { ...updated, project: worktreeProject };
 			}
 			return {
-				metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>),
+				metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>, true),
 				persistedTitle,
 			};
 		} catch (error) {
@@ -3038,10 +3039,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// session still lacking the aggregate falls back to the full set.
 			const summaryOnly = await database.object.getMetadataObject({ configValues: true, ...CHANGES_SUMMARY_METADATA_KEYS }) as Record<string, string | undefined>;
 			if (summaryOnly[META_CHANGES_SUMMARY] !== undefined || changesetKeys === CHANGES_SUMMARY_METADATA_KEYS) {
-				return this._changesetCoordinator.decorateListEntry(metadata, summaryOnly).changes;
+				return this._changesetCoordinator.decorateListEntry(metadata, summaryOnly, false).changes;
 			}
 			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
-			return this._changesetCoordinator.decorateListEntry(metadata, persisted as Record<string, string | undefined>).changes;
+			return this._changesetCoordinator.decorateListEntry(metadata, persisted as Record<string, string | undefined>, false).changes;
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);
 			return metadata.changes;
