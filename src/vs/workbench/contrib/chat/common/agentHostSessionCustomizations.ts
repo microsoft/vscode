@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
-import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IdleDeadline, runWhenGlobalIdle } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
@@ -122,6 +126,10 @@ function parseToolCall(toolCall: ToolCallState, refs: ICustomizationRef[], seen:
 		}
 	}
 
+	// Every path token contains a separator, so most inputs skip the expensive pattern.
+	if (!input.includes('/') && !input.includes('\\')) {
+		return;
+	}
 	for (const match of input.matchAll(pathTokenPattern)) {
 		pushRef(refs, seen, CustomizationRefKind.Path, match[0]);
 	}
@@ -432,4 +440,202 @@ export function resolveChatCustomizations(refs: readonly ICustomizationRef[], in
 		}
 	}
 	return resolved;
+}
+
+/** Runs customization work in cooperative slices, outside the task that requested it. */
+export interface ICustomizationJobScheduler {
+	now(): number;
+	/** Runs `callback` in a later task. Disposing cancels it. */
+	schedule(callback: (deadline?: IdleDeadline) => void): IDisposable;
+}
+
+/** Idle-time scheduler; the timeout keeps work moving while the host is busy streaming. */
+const idleCustomizationJobScheduler: ICustomizationJobScheduler = {
+	now: () => performance.now(),
+	schedule: callback => runWhenGlobalIdle(idle => callback(idle), 100),
+};
+
+let defaultCustomizationJobScheduler = idleCustomizationJobScheduler;
+
+/** Test-only: replaces the default scheduler used when none is passed. Dispose to restore. */
+export function overrideDefaultCustomizationJobScheduler(scheduler: ICustomizationJobScheduler): IDisposable {
+	defaultCustomizationJobScheduler = scheduler;
+	return toDisposable(() => {
+		if (defaultCustomizationJobScheduler === scheduler) {
+			defaultCustomizationJobScheduler = idleCustomizationJobScheduler;
+		}
+	});
+}
+
+/** Time one slice of customization work may take before yielding. */
+export const customizationJobSliceBudgetMs = 8;
+
+export interface IProgressiveChatCustomizationsOptions {
+	/** Cached per-turn results are dropped when this changes (for example when switching chats). */
+	readonly scope?: IObservable<unknown>;
+	readonly scheduler?: ICustomizationJobScheduler;
+	readonly sliceBudgetMs?: number;
+	readonly parseTurn?: (responseParts: Turn['responseParts']) => readonly ICustomizationRef[];
+}
+
+interface ITurnCustomizations {
+	refs?: readonly ICustomizationRef[];
+	resolved?: readonly ISessionChatCustomization[];
+	resolvedAgainst?: CustomizationIndex;
+}
+
+/**
+ * Projects a chat's customizations without doing transcript-wide work in the
+ * task that reads it.
+ *
+ * Completed turns are parsed and resolved in time-budgeted slices on the
+ * scheduler, oldest first, and the result grows turn by turn. Only the active
+ * turn is processed synchronously, so streamed updates stay immediate once the
+ * completed turns are done. When the index changes, the previous results stay
+ * visible until each turn is re-resolved. Once the work completes the result
+ * equals {@link resolveChatCustomizations} over all references.
+ *
+ * The work only runs while the returned observable is observed (and for
+ * unobserved reads, until it completes): losing the last observer cancels the
+ * pending slice, while per-turn results stay cached.
+ */
+export function createProgressiveChatCustomizations(
+	owner: DebugOwner,
+	chatState: IObservable<ICustomizationRefChatState | undefined>,
+	index: IObservable<CustomizationIndex>,
+	{ scope, scheduler = defaultCustomizationJobScheduler, sliceBudgetMs = customizationJobSliceBudgetMs, parseTurn = parseTurnCustomizationRefs }: IProgressiveChatCustomizationsOptions = {},
+): IObservable<readonly ISessionChatCustomization[]> {
+	const entries = new Map<string, ITurnCustomizations>();
+	let latest: { readonly turns: NonNullable<ICustomizationRefChatState['turns']>; readonly index: CustomizationIndex } | undefined;
+	let job: IDisposable | undefined;
+	let lastScope: unknown;
+	// The most recent active-turn result: when that turn completes it becomes a new entry,
+	// which is seeded from this so its customizations stay visible until it is re-resolved.
+	let lastActive: readonly ISessionChatCustomization[] | undefined;
+
+	const cancelJob = () => {
+		job?.dispose();
+		job = undefined;
+	};
+	const onDidProgress = new Emitter<void>({
+		onDidRemoveLastListener: () => {
+			cancelJob();
+			latest = undefined;
+		},
+	});
+	const progress = observableSignalFromEvent(owner, onDidProgress.event);
+
+	const resolveTurn = (entry: ITurnCustomizations, responseParts: Turn['responseParts'], currentIndex: CustomizationIndex): readonly ISessionChatCustomization[] => {
+		// An empty index resolves nothing, so the turn is not parsed until it has one.
+		if (currentIndex.isEmpty) {
+			return [];
+		}
+		entry.refs ??= parseTurn(responseParts);
+		return resolveChatCustomizations(entry.refs, currentIndex);
+	};
+
+	const runSlice = (idle?: IdleDeadline) => {
+		cancelJob();
+		if (!latest) {
+			return;
+		}
+		const { turns, index: currentIndex } = latest;
+		// After a timeout the deadline reports no time left, but the slice may still use its full budget.
+		// A turn is the smallest unit of work, so a slice always processes at least one.
+		const deadline = scheduler.now() + (idle && !idle.didTimeout ? Math.min(sliceBudgetMs, idle.timeRemaining()) : sliceBudgetMs);
+		let didWork = false;
+		let hasMore = false;
+		for (const turn of turns) {
+			const entry = entries.get(turn.id);
+			if (!entry || entry.resolvedAgainst === currentIndex && entry.resolved) {
+				continue;
+			}
+			if (didWork && scheduler.now() >= deadline) {
+				hasMore = true;
+				break;
+			}
+			try {
+				entry.resolved = resolveTurn(entry, turn.responseParts, currentIndex);
+			} catch (error) {
+				// A failing turn contributes nothing but must not stall the remaining turns.
+				onUnexpectedError(error);
+				entry.resolved = [];
+			}
+			entry.resolvedAgainst = currentIndex;
+			didWork = true;
+		}
+		if (hasMore) {
+			job = scheduler.schedule(runSlice);
+		}
+		if (didWork) {
+			onDidProgress.fire();
+		}
+	};
+
+	return derivedOpts<readonly ISessionChatCustomization[]>({ owner, equalsFn: sessionChatCustomizationsEqual }, reader => {
+		progress.read(reader);
+		const currentScope = scope?.read(reader);
+		if (currentScope !== lastScope) {
+			lastScope = currentScope;
+			entries.clear();
+			lastActive = undefined;
+			cancelJob();
+		}
+		const state = chatState.read(reader);
+		const currentIndex = index.read(reader);
+		const turns = state?.turns ?? [];
+		const turnIds = new Set(turns.map(turn => turn.id));
+		for (const id of entries.keys()) {
+			if (!turnIds.has(id)) {
+				entries.delete(id);
+			}
+		}
+		for (const [i, turn] of turns.entries()) {
+			if (!entries.has(turn.id)) {
+				const completedActive = !state?.activeTurn && i === turns.length - 1 ? lastActive : undefined;
+				entries.set(turn.id, completedActive ? { resolved: completedActive } : {});
+			}
+		}
+		if (!state?.activeTurn) {
+			lastActive = undefined;
+		}
+		latest = { turns, index: currentIndex };
+
+		const result: ISessionChatCustomization[] = [];
+		const seen = new Set<string>();
+		const append = (customizations: readonly ISessionChatCustomization[]) => {
+			for (const customization of customizations) {
+				if (!seen.has(customization.id)) {
+					seen.add(customization.id);
+					result.push(customization);
+				}
+			}
+		};
+
+		// Results are a prefix of the transcript, so they only ever grow in order.
+		let isComplete = true;
+		let needsWork = false;
+		for (const turn of turns) {
+			const entry = entries.get(turn.id)!;
+			if (!entry.resolved) {
+				isComplete = false;
+				needsWork = true;
+				break;
+			}
+			if (entry.resolvedAgainst !== currentIndex) {
+				needsWork = true;
+			}
+			append(entry.resolved);
+		}
+		if (needsWork && !job) {
+			job = scheduler.schedule(runSlice);
+		}
+		if (isComplete && state?.activeTurn) {
+			const active: ITurnCustomizations = {};
+			const resolved = resolveTurn(active, state.activeTurn.responseParts, currentIndex);
+			lastActive = resolved;
+			append(resolved);
+		}
+		return result;
+	});
 }

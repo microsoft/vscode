@@ -30,6 +30,7 @@ import {
 	type Turn,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationIndex } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
+import { TestCustomizationJobScheduler } from '../../../../../../workbench/contrib/chat/test/common/testCustomizationJobScheduler.js';
 import type { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import {
@@ -490,6 +491,7 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			}
 		}();
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', createWorkspace(URI.file('/repo')));
+		const scheduler = new TestCustomizationJobScheduler();
 		let indexCreations = 0;
 		let uncachedPathResolutions = 0;
 		class CountingCustomizationIndex extends CustomizationIndex {
@@ -509,24 +511,31 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 				indexCreations++;
 				return new CountingCustomizationIndex(customizations, roots, mapHostUri, previous);
 			},
+			scheduler,
 		);
 		const observed: string[][] = [];
 		const observer = store.add(autorun(reader => {
 			observed.push(output.getChatCustomizations(CHAT_A).read(reader).map(customization => customization.id));
 		}));
 
+		scheduler.flush();
 		for (let i = 0; i < 5; i++) {
 			workspace.set(createWorkspace(URI.file('/repo')), undefined);
 			sessionState = createSessionState('hook-1');
 			sessionChanged.fire(sessionState);
+			scheduler.flush();
 		}
 		sessionState = createSessionState('hook-2');
 		sessionChanged.fire(sessionState);
+		scheduler.flush();
 		sessionState = createSessionState('hook-2', false);
 		sessionChanged.fire(sessionState);
+		scheduler.flush();
 		sessionState = createSessionState('hook-2', false, true);
 		sessionChanged.fire(sessionState);
+		scheduler.flush();
 		workspace.set(createWorkspace(URI.file('/other')), undefined);
+		scheduler.flush();
 		observer.dispose();
 
 		assert.deepStrictEqual({
@@ -536,7 +545,7 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 		}, {
 			indexCreations: 5,
 			uncachedPathResolutions: 3,
-			observed: [['hook-1'], ['hook-2'], []],
+			observed: [[], ['hook-1'], ['hook-2'], []],
 		});
 	});
 

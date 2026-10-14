@@ -62,7 +62,8 @@ import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
-import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind } from '../../../common/agentHostSessionCustomizations.js';
+import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
+import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind, overrideDefaultCustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -356,17 +357,23 @@ suite('AgentHostSessionInputPills', () => {
 				menuActions = delegate.getActions();
 			},
 		});
+		const customizationScheduler = new TestCustomizationJobScheduler();
+		store.add(overrideDefaultCustomizationJobScheduler(customizationScheduler));
 		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
 		return {
-			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills, openedImages,
+			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
 			switchHost: (authority: string) => {
 				currentAuthority = authority;
 				connection.resourceUris = createAgentHostResourceUriMapper(authority);
 				sessionResolutionChanged.fire();
 			},
-			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+			labels: () => {
+				customizationScheduler.flush();
+				return [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent);
+			},
 			dropdownItems: () => dropdownItems,
 			dropdown: (label: string) => {
+				customizationScheduler.flush();
 				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
 				assert.ok(button, `Missing ${label} pill`);
 				button.click();
@@ -1119,6 +1126,9 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const harness = createActivityPills(session, chat, undefined, 'remote-server');
 		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		// Selecting the chat only schedules customization resolution; nothing is resolved until it runs.
+		const beforeFlush = { pending: harness.customizationScheduler.pendingCount > 0, pill: harness.persistentContent.textContent?.includes('Customizations') };
+		assert.deepStrictEqual(beforeFlush, { pending: true, pill: false });
 		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
 		for (const entry of entries) {
 			entry.select();
