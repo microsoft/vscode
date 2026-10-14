@@ -1953,7 +1953,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overflowContainer.style.display = '';
 		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 		this._overlayLayout.reapplyLayoutStyles();
-		this._overflowContainer.style.zIndex = this._overlayContainer.style.zIndex;
+		this._overflowContainer.style.zIndex = isModal ? this._overlayContainer.style.zIndex : '';
 	}
 
 	//#endregion
