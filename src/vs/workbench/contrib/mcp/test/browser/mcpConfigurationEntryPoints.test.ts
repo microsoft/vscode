@@ -22,6 +22,8 @@ import { ContextKeyValue } from '../../../../../platform/contextkey/common/conte
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -114,6 +116,7 @@ suite('MCP configuration entry points', () => {
 		const existenceChecks: string[] = [];
 		const installs: { server: IInstallableMcpServer; options: IWorkbencMcpServerInstallOptions | undefined }[] = [];
 		const agentHostAdds: { session: URI; name: string; config: IMcpServerConfiguration }[] = [];
+		const agentHostGlobalAdds: { provider: string; name: string; config: IMcpServerConfiguration }[] = [];
 		const servers = observableValue<readonly IMcpServer[]>('servers', []);
 		const collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 
@@ -150,6 +153,7 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(INotificationService, { error: error => errors.push(error) });
 		instantiation.stub(ILabelService, {});
 		instantiation.stub(IAgentHostCustomizationService, { addMcpServer: (session, name, config) => agentHostAdds.push({ session, name, config }) });
+		instantiation.stub(IAgentHostService, { addMcpServerConfiguration: async (provider, name, config) => { agentHostGlobalAdds.push({ provider, name, config }); } });
 		const lastFocusedWidget = withAgentHostSession ? chatWidget(agentHostSession) : undefined;
 		instantiation.stub(IChatWidgetService, { lastFocusedWidget, getAllWidgets: () => lastFocusedWidget ? [lastFocusedWidget] : [] });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
@@ -194,7 +198,7 @@ suite('MCP configuration entry points', () => {
 				return upcastPartial<IWorkbenchMcpServer>({ id: local.id, name: local.name, local });
 			},
 		});
-		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, errors, existenceChecks, installs, agentHostAdds, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
+		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, errors, existenceChecks, installs, agentHostAdds, agentHostGlobalAdds, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
 	}
 
 	for (const enabled of [false, true]) {
@@ -688,6 +692,7 @@ suite('MCP configuration entry points', () => {
 					await new AddConfigurationAction().run(fixture.instantiation);
 					assert.deepStrictEqual({
 						writes: fixture.writes,
+						agentHostGlobalAdds: fixture.agentHostGlobalAdds,
 						opened: fixture.opened,
 						installs: fixture.installs,
 						started: fixture.started,
@@ -697,7 +702,12 @@ suite('MCP configuration entry points', () => {
 						questions: fixture.quickInput.questionOrder,
 						notified: fixture.notifications.length === 1 && String(fixture.notifications[0]).includes('environment variables on the agent-host machine'),
 					}, {
-						writes: [{ servers: [{ ...(http ? { name: installable.name, config: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } } : installable), inputs: undefined }], resource, format: McpResourceFormat.CopilotGlobal }],
+						writes: [],
+						agentHostGlobalAdds: [{
+							provider: COPILOT_CLI_AGENT_PROVIDER_ID,
+							name: installable.name,
+							config: http ? { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } : installable.config,
+						}],
 						opened: [resource],
 						installs: [], started: [],
 						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'User Configuration (deprecated)']],
@@ -742,6 +752,27 @@ suite('MCP configuration entry points', () => {
 			await new AddConfigurationAction().run(fixture.instantiation);
 			assert.deepStrictEqual({ targets: fixture.installs.map(install => install.options?.target), writes: fixture.writes, pickers: fixture.quickInput.pickLabels.length },
 				{ targets: [ConfigurationTarget.USER_LOCAL], writes: [], pickers: 2 });
+		});
+
+		test('older Agent Host falls back to writing Copilot Global configuration', async () => {
+			const fixture = setupGlobal();
+			fixture.instantiation.stub(IAgentHostService, {});
+			fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+
+			await new AddConfigurationAction().run(fixture.instantiation);
+
+			assert.deepStrictEqual({
+				writes: fixture.writes,
+				agentHostGlobalAdds: fixture.agentHostGlobalAdds,
+			}, {
+				writes: [{
+					servers: [{ ...installable, inputs: undefined }],
+					resource: URI.file('/home/me/.copilot/mcp-config.json'),
+					format: McpResourceFormat.CopilotGlobal,
+				}],
+				agentHostGlobalAdds: [],
+			});
 		});
 
 		for (const failure of ['policy', 'write']) {

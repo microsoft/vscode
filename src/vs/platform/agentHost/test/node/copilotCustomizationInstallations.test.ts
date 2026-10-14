@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
 
 type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
@@ -184,6 +185,40 @@ suite('CopilotCustomizationInstallations', () => {
 			hasIds: true,
 			reusedFirst: true,
 			replacedAfterRelease: true,
+		});
+
+		test('adds a raw MCP configuration through the SDK', async () => {
+			const requests: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+							override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { requests.push(request); };
+						}();
+					}(),
+				},
+			};
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, () => undefined));
+
+			await service.addMcpServerConfiguration('demo', {
+				type: McpServerType.LOCAL,
+				command: 'node',
+				args: ['server.js'],
+				env: { PORT: 3000, TOKEN: '$TOKEN', UNSET: null },
+			});
+
+			assert.deepStrictEqual(requests, [{
+				name: 'demo',
+				config: {
+					type: 'local',
+					command: 'node',
+					args: ['server.js'],
+					tools: ['*'],
+					env: { PORT: '3000', TOKEN: '$TOKEN' },
+				},
+			}]);
 		});
 	});
 

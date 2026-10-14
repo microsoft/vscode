@@ -13,6 +13,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
+import { toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
+import type { IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 
 const catalogContract = {
 	protocolVersion: 3,
@@ -309,6 +311,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 			...this.getSkillInstallations(skills),
 			...this.getMcpInstallations(mcp),
 		];
+	}
+
+	async addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
+		const client = await this.getClient();
+		await client.rpc.mcp.config.add({ name, config: toCopilotMcpServerConfiguration(config) });
 	}
 
 	async prepare(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {

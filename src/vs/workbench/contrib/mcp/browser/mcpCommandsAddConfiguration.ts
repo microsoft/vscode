@@ -19,6 +19,8 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IAllowedMcpServersService, IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
@@ -158,6 +160,7 @@ export class McpAddConfigurationCommand {
 		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpWorkspaceInstallTargetService private readonly _workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
@@ -623,7 +626,11 @@ export class McpAddConfigurationCommand {
 				if (allowed !== true) {
 					throw new Error(allowed.value);
 				}
-				await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+				if (this._agentHostService.addMcpServerConfiguration) {
+					await this._agentHostService.addMcpServerConfiguration(COPILOT_CLI_AGENT_PROVIDER_ID, name, config);
+				} else {
+					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+				}
 				await this._editorService.openEditor({ resource });
 				this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
 				return;

@@ -30,6 +30,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parsePlugin, Pl
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import type { IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
@@ -2192,6 +2193,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	recoverCustomizationInstallations(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
 		return this._customizationInstallations.recover(session);
+	}
+
+	addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
+		return this._customizationInstallations.addMcpServerConfiguration(name, config);
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
