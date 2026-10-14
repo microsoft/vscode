@@ -1291,8 +1291,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidArchiveSession.fire(session);
 	}
 
-	getSessionWorktreeDiskUsage(session: ISession): Promise<number | undefined> {
-		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId) ?? Promise.resolve(undefined);
+	getSessionWorktreeDiskUsage(session: ISession, token?: CancellationToken): Promise<number | undefined> {
+		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
