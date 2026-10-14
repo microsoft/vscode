@@ -5,7 +5,7 @@
 
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -6005,15 +6005,16 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('fails imported creation when the retained user title cannot be persisted', async () => {
-			const db = new class extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					if (values[SESSION_CUSTOM_TITLE_SOURCE_KEY] === 'user') {
-						throw new Error('Retained title persistence failed');
-					}
-					await super.setMetadataValues(values);
+			const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(new TestSessionDatabase())));
+			// The title is persisted by its central write; the session database only receives a retried mirror of it.
+			const store = getTestSessionStateStore(svc);
+			const writeMetadata = store.writeMetadata.bind(store);
+			stub(store, 'writeMetadata').callsFake(async (session, resource, values, flush) => {
+				if (values[SESSION_CUSTOM_TITLE_SOURCE_KEY] === 'user') {
+					throw new Error('Retained title persistence failed');
 				}
-			}();
-			const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db)));
+				return writeMetadata(session, resource, values, flush);
+			});
 			registerTestAgentProvider(svc, disposables.add(new TitleTestAgent('copilot')));
 			await assert.rejects(svc.createSession({
 				legacyChatUris: true, provider: 'copilot', importConversation: { title: 'Retain this title', turns: [] },
