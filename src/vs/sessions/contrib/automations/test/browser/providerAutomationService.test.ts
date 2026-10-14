@@ -13,7 +13,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, AutomationUnavailableReasonCode, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, AutomationUnavailableReasonCode, IAutomationRefreshOptions, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
@@ -43,6 +43,11 @@ class TestAuthority extends mock<ISessionsProviderAutomations>() {
 	override readonly automations;
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly calls: string[] = [];
+	readonly refreshOptions: (IAutomationRefreshOptions | undefined)[] = [];
+
+	override async refresh(options?: IAutomationRefreshOptions): Promise<void> {
+		this.refreshOptions.push(options);
+	}
 
 	constructor(readonly providerId: string) {
 		super();
@@ -138,6 +143,14 @@ suite('ProviderAutomationService', () => {
 			{ states: ['ready', 'loading', 'error'], catalogue: 'ready', canRun: true });
 		cloud.enabled.set(false, undefined);
 		assert.strictEqual(service.historyState.get(), 'ready');
+	});
+
+	test('routes background refresh options without changing explicit refresh behavior', async () => {
+		const cloud = new TestAuthority('cloud');
+		const { service } = setup([provider(cloud)]);
+		await service.refresh({ background: true });
+		await service.refresh();
+		assert.deepStrictEqual(cloud.refreshOptions, [{ background: true }, undefined]);
 	});
 
 	test('full refresh activity aggregates providers independently of history-only polling', () => {

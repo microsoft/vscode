@@ -27,7 +27,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -279,11 +279,19 @@ export class AutomationsCardsWidget extends Disposable {
 			void refresh();
 		}, 60_000));
 		const refresh = async (): Promise<void> => {
-			await refreshAutomations(this.automationService, this.logService);
-			if (!this._store.isDisposed) {
+			refreshScheduler.cancel();
+			await refreshAutomations(this.automationService, this.logService, undefined, { background: true });
+			if (!this._store.isDisposed && !this.automationService.isRefreshing?.get()) {
 				refreshScheduler.schedule();
 			}
 		};
+		this._register(autorun(reader => {
+			if (this.automationService.isRefreshing?.read(reader)) {
+				refreshScheduler.cancel();
+			} else {
+				refreshScheduler.schedule();
+			}
+		}));
 		void refresh();
 	}
 
@@ -2496,9 +2504,9 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService): Promise<void> {
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {
 	try {
-		await automationService.refresh?.();
+		await automationService.refresh?.(options);
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			logService.error('[Automations] Failed to refresh', error);

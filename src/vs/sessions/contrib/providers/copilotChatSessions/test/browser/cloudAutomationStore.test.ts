@@ -12,7 +12,7 @@ import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -38,7 +38,9 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTIN
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
@@ -213,6 +215,52 @@ suite('CloudAutomationStore', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('background refresh preserves an open cloud draft and its unsaved model selection', async () => {
+		const { provider, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const currentSession = observableValue<ISession | undefined>('draft', undefined);
+		let modelId = 'saved-model';
+		let created = 0;
+		let discarded = 0;
+		const errors: unknown[] = [];
+		const sessions = upcastPartial<ISessionsManagementService>({
+			automationSession: currentSession,
+			isNewSessionTargetAvailable: () => true,
+			supportsAutomationSessionConfiguration: () => true,
+			createAutomationSession: (_workspace, options) => {
+				created++;
+				modelId = options?.sessionTemplate?.modelId ?? 'saved-model';
+				currentSession.set(session, undefined);
+				return session;
+			},
+			getAutomationSessionConfiguration: async () => ({ sessionTemplate: { modelId } }),
+			discardAutomationSession: () => { discarded++; currentSession.set(undefined, undefined); },
+		});
+		const draft = disposables.add(new AutomationSessionDraftSynchronizer(sessions, async () => true, error => errors.push(error)));
+		disposables.add(autorun(reader => {
+			const target = provider.configuration.getWorkspaceTarget(workspace).read(reader);
+			draft.update(target.workspace ? {
+				kind: 'workspace', folderUri: target.workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent',
+				sessionConfiguration: { sessionTemplate: { modelId: 'saved-model' } },
+			} : undefined);
+		}));
+		await timeout(0);
+		await draft.waitForSync();
+		modelId = 'unsaved-model';
+		await provider.refresh({ background: true });
+		await draft.waitForSync();
+		const afterBackground = { created, discarded, configuration: await draft.getSessionConfiguration(), errors };
+		await provider.refresh();
+		await timeout(0);
+		await draft.waitForSync();
+		assert.deepStrictEqual({ afterBackground, manualRefreshRecheckedTarget: discarded > 0 }, {
+			afterBackground: { created: 1, discarded: 0, configuration: { kind: 'captured', configuration: { sessionTemplate: { modelId: 'unsaved-model' } } }, errors: [] },
+			manualRefreshRecheckedTarget: true,
+		});
 	});
 
 	test('cached definitions stay editable during refresh and refresh progress includes history', async () => {

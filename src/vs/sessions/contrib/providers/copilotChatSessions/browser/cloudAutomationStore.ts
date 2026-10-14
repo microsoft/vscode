@@ -26,7 +26,7 @@ import { getGitHubRepositoryId } from '../../../../../platform/github/common/git
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
@@ -166,19 +166,19 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 	}
 
-	async refresh(): Promise<void> {
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		this.pendingRefreshes.set(this.pendingRefreshes.get() + 1, undefined);
 		try {
-			await this.refreshCatalogueAndHistory();
+			await this.refreshCatalogueAndHistory(options);
 		} finally {
 			this.pendingRefreshes.set(this.pendingRefreshes.get() - 1, undefined);
 		}
 	}
 
-	private async refreshCatalogueAndHistory(): Promise<void> {
+	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		const store = this.requireStore();
 		try {
-			await store.refresh();
+			await store.refresh(options);
 			if (this.store.get() === store) {
 				this.refreshError.set(undefined, undefined);
 			}

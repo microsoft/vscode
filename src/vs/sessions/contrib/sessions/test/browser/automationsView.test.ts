@@ -52,7 +52,7 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -172,10 +172,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.stoppedRuns.push(run.id);
 	}
 	refreshCalls = 0;
+	readonly refreshOptions: (IAutomationRefreshOptions | undefined)[] = [];
 	refreshFailure: Error | undefined;
 	pendingRefresh: Promise<void> | undefined;
-	override async refresh(): Promise<void> {
+	override async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		this.refreshCalls++;
+		this.refreshOptions.push(options);
 		await this.pendingRefresh;
 		if (this.refreshFailure) {
 			throw this.refreshFailure;
@@ -1066,6 +1068,36 @@ suite('AutomationsCardsWidget', () => {
 			windowFocus.fire(true);
 			await clock.tickAsync(120_000);
 			assert.strictEqual(automationService.refreshCalls, 3);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('a manual refresh in its history phase postpones the timer until 60 seconds after completion', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { widget, automationService, instantiationService } = setup();
+			await clock.tickAsync(59_000);
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
+			const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
+			const refresh = instantiationService.invokeFunction(accessor => command.handler(accessor));
+			automationService.isRefreshing.set(true, undefined);
+			automationService.historyState.set('loading', undefined);
+			await clock.tickAsync(61_000);
+			const whileLoading = automationService.refreshCalls;
+			await pending.complete();
+			automationService.historyState.set('ready', undefined);
+			automationService.isRefreshing.set(false, undefined);
+			await refresh;
+			await clock.tickAsync(59_999);
+			const beforeNextPoll = automationService.refreshCalls;
+			await clock.tickAsync(1);
+			assert.deepStrictEqual({ whileLoading, beforeNextPoll, calls: automationService.refreshCalls, options: automationService.refreshOptions }, {
+				whileLoading: 2, beforeNextPoll: 2, calls: 3,
+				options: [{ background: true }, undefined, { background: true }],
+			});
+			widget.dispose();
 		} finally {
 			clock.restore();
 		}

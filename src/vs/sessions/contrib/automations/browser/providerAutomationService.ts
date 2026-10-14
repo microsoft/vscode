@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 
@@ -111,8 +111,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return store !== undefined && store.enabled?.get() !== false && store.canCreateAutomation.get();
 	}
 
-	async refresh(): Promise<void> {
-		await Promise.all(this.getStores().map(store => store.refresh?.()));
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
+		await Promise.all(this.getStores().map(store => store.refresh?.(options)));
 	}
 
 	getProviderConfiguration(providerId: string | undefined) {
