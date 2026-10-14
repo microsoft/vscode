@@ -24,10 +24,17 @@ suite('CustomizationMigrationDashboard', () => {
 	function createDashboard(callbacks: Partial<ICustomizationMigrationDashboardCallbacks> = {}) {
 		const parent = DOM.append(document.body, DOM.$('div'));
 		const telemetryActions: string[] = [];
+		const hoverContents = new Map<HTMLElement, string>();
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover() { return Disposable.None; }
+			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
+				const options = typeof args[1] === 'function' ? args[1]() : args[1];
+				if (typeof options.content === 'string') {
+					hoverContents.set(args[0], options.content);
+				}
+				return Disposable.None;
+			}
 		});
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
 			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
@@ -43,7 +50,7 @@ suite('CustomizationMigrationDashboard', () => {
 			...callbacks,
 		}));
 		dashboard.layout(1000);
-		return { parent, dashboard, telemetryActions };
+		return { parent, dashboard, hoverContents, telemetryActions };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -117,7 +124,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];
-		const { parent, dashboard, telemetryActions } = createDashboard({
+		const { parent, dashboard, hoverContents, telemetryActions } = createDashboard({
 			configureLocations: (id, storage) => actions.push(`destinations:${id}:${storage}`),
 			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
@@ -133,14 +140,14 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		const agentMigrationButton = button(parent, 'Start an agent-guided customization migration');
-		const migrateButton = button(parent, 'Migrate Convert Prompt to Skills (Workspace)');
+		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
-		button(parent, 'Migrate Convert Prompt to Skills (User)').click();
-		button(parent, 'Migrate MCP Servers (Workspace)').click();
-		button(parent, 'Migrate Plugin Marketplaces (User)').click();
-		button(parent, 'Migrate User Data (User)').click();
-		button(parent, 'Migrate Custom location settings (Workspace)').click();
+		button(parent, 'Migrate: Convert Prompt to Skills (User)').click();
+		button(parent, 'Migrate: MCP Servers (Workspace)').click();
+		button(parent, 'Migrate: Plugin Marketplaces (User)').click();
+		button(parent, 'Migrate: User Data (User)').click();
+		button(parent, 'Migrate: Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -156,6 +163,9 @@ suite('CustomizationMigrationDashboard', () => {
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
 			agentButtonIsSecondary: agentMigrationButton.classList.contains('migration-secondary-button'),
 			migrateButtonIsSecondary: migrateButton.classList.contains('migration-secondary-button'),
+			migrateTooltips: [...parent.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.filter(element => element.textContent?.startsWith('Migrate'))
+				.map(element => hoverContents.get(element)),
 			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
@@ -175,7 +185,15 @@ suite('CustomizationMigrationDashboard', () => {
 			agentButtonInTitleRow: true,
 			agentButtonIsSecondary: true,
 			migrateButtonIsSecondary: true,
-			initialFocus: 'Migrate Convert Prompt to Skills (Workspace)',
+			migrateTooltips: [
+				'Convert prompt files to skills (Workspace)',
+				'Convert prompt files to skills (User)',
+				'Migrate eligible MCP servers (Workspace)',
+				'Migrate plugin marketplaces to Copilot settings (User)',
+				'Migrate user data customizations to the active harness (User)',
+				'Migrate customizations from VS Code-configured locations (Workspace)',
+			],
+			initialFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
@@ -193,14 +211,14 @@ suite('CustomizationMigrationDashboard', () => {
 			overviewFocus: document.activeElement?.getAttribute('aria-label'),
 		}, {
 			loadingFocus: 'Migrations',
-			overviewFocus: 'Migrate Convert Prompt to Skills (Workspace)',
+			overviewFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
 		});
 	});
 
 	test('updates group actions from item selection and exposes item, ignore, and restore actions', () => {
 		const actions: string[] = [];
 		const model = overview();
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, hoverContents } = createDashboard({
 			setItemSelected: (item, selected) => actions.push(`selected:${item.id}:${selected}`),
 			showItemActions: item => actions.push(`actions:${item.id}`),
 			ignoreCategory: (id, storage) => actions.push(`ignore:${id}:${storage}`),
@@ -216,10 +234,14 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Show and restore ignored migrations').click();
 
 		assert.deepStrictEqual({
-			migrateLabel: button(parent, 'Migrate Convert Prompt to Skills (User)').textContent,
+			migrateLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').textContent,
+			migrateAriaLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').getAttribute('aria-label'),
+			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1: Convert Prompt to Skills (User)')),
 			actions,
 		}, {
 			migrateLabel: 'Migrate 1',
+			migrateAriaLabel: 'Migrate 1: Convert Prompt to Skills (User)',
+			migrateTooltip: 'Convert prompt files to skills (User)',
 			actions: [
 				'selected:user-prompt-1:false',
 				'actions:user-prompt-1',
