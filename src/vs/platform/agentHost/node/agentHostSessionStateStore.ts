@@ -127,6 +127,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _records = new Map<string, ISessionRecord>();
+	/** Advances with every central write; {@link _centralWrites} records the last one per session, for stale-prefetch checks. */
+	private _centralWriteSequence = 0;
+	private readonly _centralWrites = new Map<string, number>();
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _deleting = new Set<string>();
 	/** Chats deleted by {@link deleteChat}, by session, so a late row write cannot recreate their storage. Dropped with the session. */
@@ -393,11 +396,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (unloaded.length === 0) {
 			return new Map();
 		}
+		const sequence = this._centralWriteSequence;
 		const central = await this._database.readSessionStateValues(unloaded, SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
-		return new Map(unloaded.map(session => {
+		return new CurrentSessionStateValuesPrefetch(unloaded.map(session => {
 			const values = central.get(session);
 			return [session, values?.imported ? { values: values.values, mirrored: values.mirrored } : undefined];
-		}));
+		}), session => (this._centralWrites.get(session) ?? 0) > sequence);
 	}
 
 	async readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
@@ -540,6 +544,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				this._deleting.delete(key);
 				this._deletedChats.delete(key);
 				this._createdDefaultChats.delete(key);
+				this._centralWrites.delete(key);
 				this._forget(key);
 			},
 		};
@@ -593,6 +598,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			reads = await this._observe(key, chats, []);
 			const importedChats = authority === 1 ? chats : await this._normalizedChats(session, catalog);
 			const result = await this._database.importSessionState(key, this._importData(key, importedChats, reads));
+			this._noteCentralWrite(key);
 			if (result === 'tombstoned') {
 				throw new SessionStateDeletedError(key);
 			}
@@ -846,6 +852,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (result.status !== 'applied') {
 			throw new Error(`Cannot write the session state of ${record.key}: ${result.status}`);
 		}
+		this._noteCentralWrite(record.key);
 		record.model.apply(patch, result.revision);
 		record.snapshot = undefined;
 		if (markDirty) {
@@ -984,6 +991,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	// ---- Snapshots -----------------------------------------------------------------------
 
+	/** Called once a central write commits, so a prefetch read before it no longer answers for the session. */
+	private _noteCentralWrite(key: string): void {
+		this._centralWrites.set(key, ++this._centralWriteSequence);
+	}
+
 	private _forget(key: string): void {
 		const record = this._records.get(key);
 		if (record) {
@@ -1038,4 +1050,22 @@ function snapshotOf(session: string, model: SessionStateModel): ISessionStateSna
 		});
 	}
 	return { session, authority: model.authority, revision: model.revision, values, folders, chats };
+}
+
+/**
+ * A page prefetch that stops answering for a session once the store writes it centrally after the prefetch was
+ * read, so a long-lived page never projects values older than a write it raced with.
+ */
+class CurrentSessionStateValuesPrefetch extends Map<string, ISessionStateValuesPrefetchEntry | undefined> {
+	constructor(entries: Iterable<readonly [string, ISessionStateValuesPrefetchEntry | undefined]>, private readonly _isStale: (session: string) => boolean) {
+		super(entries);
+	}
+
+	override has(session: string): boolean {
+		return super.has(session) && !this._isStale(session);
+	}
+
+	override get(session: string): ISessionStateValuesPrefetchEntry | undefined {
+		return this.has(session) ? super.get(session) : undefined;
+	}
 }

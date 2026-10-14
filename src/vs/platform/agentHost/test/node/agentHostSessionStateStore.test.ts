@@ -269,6 +269,22 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('a page prefetch stops answering for a session the store writes after it was read', async () => {
+		const { session } = await oldBuildSession();
+		const store = createStore();
+		await store.write(session, sessionStatePatch({ values: { configValues: 'before' } }), SessionStateMirrorFlush.Immediate);
+		await store.evict(session);
+		const prefetch = await store.prefetchWithoutImport([session]);
+		const prefetched = (await store.readWithoutImport(session, ['configValues'], prefetch)).get('configValues');
+		await store.write(session, sessionStatePatch({ values: { configValues: 'after' } }), SessionStateMirrorFlush.Immediate);
+		await store.evict(session);
+		assert.deepStrictEqual({
+			prefetched,
+			afterWrite: (await store.readWithoutImport(session, ['configValues'], prefetch)).get('configValues'),
+			covers: prefetch.has(session.toString()),
+		}, { prefetched: 'before', afterWrite: 'after', covers: false });
+	});
+
 	test('reads without importing use central values once imported and the mirror before', async () => {
 		const { fixture, session } = await oldBuildSession();
 		const imports = sinon.spy(database, 'importSessionState');
