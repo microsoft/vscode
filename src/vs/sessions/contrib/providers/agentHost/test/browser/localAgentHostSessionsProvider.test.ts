@@ -9143,6 +9143,100 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('session-list chat details do not subscribe default chat snapshots until the session is shown', async () => {
+			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+			const addMultiChatSession = (rawId: string) => {
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.addSession(createSession(rawId, {
+					summary: rawId,
+					chats: [
+						{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+						{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+					],
+				}));
+				return { sessionUri, defaultChat };
+			};
+			const background = addMultiChatSession('list-background');
+			const shown = addMultiChatSession('list-shown');
+			const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+			provider.getSessions();
+			await timeout(0);
+			const backgroundSession = provider.getSessions().find(session => session.title.get() === 'list-background');
+			const shownSession = provider.getSessions().find(session => session.title.get() === 'list-shown');
+			assert.ok(backgroundSession && shownSession);
+			const resources = [background.sessionUri, background.defaultChat, shown.sessionUri, shown.defaultChat];
+			const wire = () => ({
+				subscribed: [...new Set(agentHost.wireOps.filter(op => resources.some(resource => op === `subscribe:${resource}`)))],
+				unsubscribed: resources.filter(resource => agentHost.sessionUnsubscribeCounts.has(resource)),
+			});
+
+			// Session-list rows read each chat's modified time, which needs the session's chat catalog.
+			const rows = disposables.add(new DisposableStore());
+			const renderRows = () => rows.add(autorun(reader => {
+				for (const session of [backgroundSession, shownSession]) {
+					session.mainChat.read(reader).updatedAt.read(reader);
+				}
+			}));
+			renderRows();
+			const listed = wire();
+			rows.clear();
+			renderRows();
+			const rerendered = wire();
+			const shownResource = shownSession.resource;
+			visibleSessions.set([new class extends mock<IActiveSession>() {
+				override readonly resource = shownResource;
+			}()], undefined);
+			const visible = wire();
+			agentHost.setChatState(shown.defaultChat, {
+				resource: shown.defaultChat,
+				title: 'Default',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				turns: [],
+				draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'agent://shown' } },
+			});
+
+			const sessionSubscribes = [`subscribe:${background.sessionUri}`, `subscribe:${shown.sessionUri}`];
+			assert.deepStrictEqual({ listed, rerendered, visible, modes: [backgroundSession.mode.get(), shownSession.mode.get()] }, {
+				listed: { subscribed: sessionSubscribes, unsubscribed: [] },
+				rerendered: { subscribed: sessionSubscribes, unsubscribed: [] },
+				visible: { subscribed: [...sessionSubscribes, `subscribe:${shown.defaultChat}`], unsubscribed: [] },
+				modes: [undefined, { id: 'agent://shown', kind: 'agent' }],
+			});
+		});
+
+		test('shown sessions subscribe their default chat again after the session-state subscription is recreated', async () => {
+			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+			const rawId = 'shown-recreated';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.addSession(createSession(rawId, {
+				summary: rawId,
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			disposables.add(autorun(reader => session.mainChat.read(reader).updatedAt.read(reader)));
+			const sessionResource = session.resource;
+			visibleSessions.set([new class extends mock<IActiveSession>() {
+				override readonly resource = sessionResource;
+			}()], undefined);
+			const defaultChatSubscribes = () => agentHost.wireOps.filter(op => op === `subscribe:${defaultChat}`).length;
+			const beforeRestart = defaultChatSubscribes();
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+
+			assert.deepStrictEqual({ subscribedBeforeRestart: beforeRestart > 0, subscribedAgainAfterRestart: defaultChatSubscribes() > beforeRestart }, { subscribedBeforeRestart: true, subscribedAgainAfterRestart: true });
+		});
+
 		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
 			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });

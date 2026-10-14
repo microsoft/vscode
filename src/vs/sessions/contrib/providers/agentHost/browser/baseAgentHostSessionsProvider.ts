@@ -4183,16 +4183,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _sessionChatDetailsReferences = new SessionChatDetailsReferenceCollection(
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
-			this._ensureSessionStateSubscription(sessionId);
+			this._ensureSessionStateSubscription(sessionId, false);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 		},
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
 			if (!this._store.isDisposed) {
-				this._keepSessionStateAlive(sessionId);
+				this._keepSessionStateAlive(sessionId, false);
 			}
 		},
 	);
+	/** Session-state subscription stores whose draft hydration has not started; see {@link _ensureDraftHydration}. */
+	private readonly _pendingDraftHydrations = new WeakMap<DisposableStore, IAgentSubscription<SessionState>>();
 	private readonly _chatModelRetentionLeases = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
@@ -7443,7 +7445,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		for (const sessionId of [...this._pinnedSessionStates]) {
 			if (!nowVisible.has(sessionId)) {
 				this._pinnedSessionStates.delete(sessionId);
-				this._keepSessionStateAlive(sessionId);
+				this._keepSessionStateAlive(sessionId, false);
 			}
 		}
 	}
@@ -7455,8 +7457,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `_runningSessionConfigs` / `_meta` being in sync but cannot themselves
 	 * own a subscription handle.
 	 */
-	private _keepSessionStateAlive(sessionId: string): void {
-		this._ensureSessionStateSubscription(sessionId);
+	private _keepSessionStateAlive(sessionId: string, hydrateDraft = true): void {
+		this._ensureSessionStateSubscription(sessionId, hydrateDraft);
 		if (!this._sessionStateSubscriptions.has(sessionId)) {
 			return;
 		}
@@ -7494,11 +7496,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * The subscription is reference-counted by {@link IAgentConnection.getSubscription},
 	 * so when the session handler is also subscribed (chat content open) this
 	 * shares the existing wire subscription rather than opening a new one.
+	 *
+	 * `hydrateDraft` also restores the draft agent and model, which subscribes the
+	 * session's default chat. Passive observers such as session-list rows must
+	 * pass `false`: a chat snapshot carries the whole transcript, and fetching it
+	 * for chats that are not open delays the chat the user is looking at.
 	 */
-	private _ensureSessionStateSubscription(sessionId: string): void {
-		if (this._sessionStateSubscriptions.has(sessionId)) {
-			return;
+	private _ensureSessionStateSubscription(sessionId: string, hydrateDraft = true): void {
+		if (!this._sessionStateSubscriptions.has(sessionId)) {
+			this._openSessionStateSubscription(sessionId);
 		}
+		if (hydrateDraft) {
+			this._ensureDraftHydration(sessionId);
+		}
+	}
+
+	private _openSessionStateSubscription(sessionId: string): void {
 		const connection = this.connection;
 		if (!connection) {
 			return;
@@ -7556,7 +7569,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._sessionStateErrorRetries.set(sessionId, retries + 1);
 						queueMicrotask(() => {
 							if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
-								this._ensureSessionStateSubscription(sessionId);
+								this._ensureSessionStateSubscription(sessionId, this._pinnedSessionStates.has(sessionId));
 							}
 						});
 					}
@@ -7564,14 +7577,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 		}
 		this._sessionStateSubscriptions.set(sessionId, store);
+		this._pendingDraftHydrations.set(store, ref.object);
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._applySessionStateUpdate(sessionId, value);
 		}
+	}
 
-		this._whenBackendDefaultChat(sessionUri, ref.object, store, defaultChat => {
+	/**
+	 * Start the one-shot draft agent/model hydration for the session's current
+	 * state subscription, if it has not started yet. The hydration lives in the
+	 * subscription's store, so a re-created subscription hydrates again on demand.
+	 */
+	private _ensureDraftHydration(sessionId: string): void {
+		const store = this._sessionStateSubscriptions.get(sessionId);
+		const session = store ? this._pendingDraftHydrations.get(store) : undefined;
+		const connection = this.connection;
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!store || !session || !connection || !cached) {
+			return;
+		}
+		this._pendingDraftHydrations.delete(store);
+		this._whenBackendDefaultChat(cached.backendUri, session, store, defaultChat => {
 			this._hydrateAgentFromDraft(connection, cached, defaultChat, store);
 			this._hydrateModelFromDraft(connection, cached, defaultChat, store);
 		});
@@ -8291,7 +8321,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
-			this._ensureSessionStateSubscription(sessionId);
+			this._ensureSessionStateSubscription(sessionId, this._pinnedSessionStates.has(sessionId));
 		}
 
 		store.add(connection.onDidNotification(n => {
