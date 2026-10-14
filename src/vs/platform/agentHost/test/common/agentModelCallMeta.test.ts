@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
+import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
 suite('Agent model call diagnostics', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,5 +28,15 @@ suite('Agent model call diagnostics', () => {
 	test('rejects malformed and future records', () => {
 		assert.deepStrictEqual([undefined, null, [], { schemaVersion: 2 }, { schemaVersion: 1, sdkSessionId: 'sdk' }]
 			.map(value => readAgentModelCallDiagnostics({ _meta: { [agentModelCallMetaKey]: value } })), [undefined, undefined, undefined, undefined, undefined]);
+	});
+
+	test('normalizes Copilot call detail without inventing local identifiers or mixing sources', () => {
+		const meta = { 'copilot.usageDetail': { apiCallId: 'call', duration: 12, reasoningTokens: 5 } };
+		assert.deepStrictEqual([
+			readAgentModelCallDetail({ _meta: meta }),
+			readAgentModelCallDetail({ _meta: { ...meta, [agentModelCallMetaKey]: null } }),
+		], [{
+			apiCallId: 'call', providerCallId: undefined, serviceRequestId: undefined, durationMs: 12, timeToFirstTokenMs: undefined, reasoningTokens: 5,
+		}, undefined]);
 	});
 });

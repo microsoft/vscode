@@ -7,9 +7,11 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
+import { ColorScheme } from '../../../theme/common/theme.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,6 +26,35 @@ suite('CustomizationMarketplaceService', () => {
 		representativeQueries: [],
 		version: '1.0',
 	};
+
+	test('resolves and compares scalar and themed icons', () => {
+		const scalar = URI.parse('https://example.com/icon.png');
+		const themed = {
+			light: URI.parse('https://example.com/light.png'),
+			dark: URI.parse('https://example.com/dark.png'),
+		};
+
+		assert.deepStrictEqual({
+			scalarLight: getCustomizationMarketplaceIconUri(scalar, ColorScheme.LIGHT)?.toString(),
+			scalarDark: getCustomizationMarketplaceIconUri(scalar, ColorScheme.DARK)?.toString(),
+			themedLight: getCustomizationMarketplaceIconUri(themed, ColorScheme.LIGHT)?.toString(),
+			themedDark: getCustomizationMarketplaceIconUri(themed, ColorScheme.DARK)?.toString(),
+			scalarEqual: isCustomizationMarketplaceIconEqual(scalar, URI.parse(scalar.toString())),
+			themedEqual: isCustomizationMarketplaceIconEqual(themed, {
+				light: URI.parse(themed.light.toString()),
+				dark: URI.parse(themed.dark.toString()),
+			}),
+			crossSyntaxEqual: isCustomizationMarketplaceIconEqual(scalar, themed),
+		}, {
+			scalarLight: 'https://example.com/icon.png',
+			scalarDark: 'https://example.com/icon.png',
+			themedLight: 'https://example.com/light.png',
+			themedDark: 'https://example.com/dark.png',
+			scalarEqual: true,
+			themedEqual: true,
+			crossSyntaxEqual: false,
+		});
+	});
 
 	test('aggregates registered sources without conflating identifiers or mutating their entries', async () => {
 		const calls: { source: string; options: ICustomizationMarketplaceSourceQuery }[] = [];

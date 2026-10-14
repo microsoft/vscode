@@ -6,6 +6,7 @@
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import type { IAgentTelemetryContext } from '../../common/agent.js';
 
 const DEFAULT_TIMEOUT_MS = 100;
 const DEFAULT_CACHE_LIMIT = 1000;
@@ -25,6 +26,7 @@ export class ModelCallTurnCorrelation {
 	private readonly _recordedTurnIdsByModelCallId: LRUCache<string, string>;
 	private readonly _pendingTurnIdsByModelCallId = new Map<string, DeferredPromise<string>>();
 	private readonly _forwardedModelCallIdsAwaitingCorrelation: LRUCache<string, true>;
+	private readonly _telemetryByModelCallId: LRUCache<string, IAgentTelemetryContext>;
 	private readonly _timeoutMs: number;
 
 	constructor(options: { readonly timeoutMs?: number; readonly cacheLimit?: number } = {}) {
@@ -33,6 +35,21 @@ export class ModelCallTurnCorrelation {
 		this._turnIdsByModelCallId = new LRUCache<string, string>(cacheLimit);
 		this._recordedTurnIdsByModelCallId = new LRUCache<string, string>(cacheLimit);
 		this._forwardedModelCallIdsAwaitingCorrelation = new LRUCache<string, true>(cacheLimit);
+		this._telemetryByModelCallId = new LRUCache<string, IAgentTelemetryContext>(cacheLimit);
+	}
+
+	recordTelemetryContext(modelCallId: string, context: IAgentTelemetryContext | undefined): void {
+		if (context && !this._telemetryByModelCallId.has(modelCallId)) {
+			this._telemetryByModelCallId.set(modelCallId, context);
+		}
+	}
+
+	getTelemetryContext(modelCallId: string): IAgentTelemetryContext | undefined {
+		return this._telemetryByModelCallId.get(modelCallId);
+	}
+
+	clearTelemetryContexts(): void {
+		this._telemetryByModelCallId.clear();
 	}
 
 	record(modelCallId: string, turnId: string): ModelCallTurnCorrelationRecordStatus {

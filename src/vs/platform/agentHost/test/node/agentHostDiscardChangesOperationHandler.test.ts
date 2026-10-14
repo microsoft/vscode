@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,7 +18,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../c
 import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -32,6 +33,7 @@ class TestGitService implements IAgentHostGitService {
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
@@ -69,6 +71,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -102,6 +105,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: opts?.withWorkingDirectory === false ? undefined : [(opts?.workingDirectory ?? URI.file('/repo')).toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
@@ -151,7 +155,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerRoot = URI.file('/peer-repo');
-		stateManager.addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
 		const target = URI.file('/peer-repo/src/file.ts');
 
 		await handler.invoke({

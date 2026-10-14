@@ -10,18 +10,17 @@ import { autorun } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
-import type { GitHubCredentialInvalidation } from '../../github/common/githubCredentialService.js';
-import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
-import { IGitHubService } from '../../github/common/githubService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, parseChatUri, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, hasSessionPullRequestForBranch, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { parsePullRequestUrl } from './agentMergeController.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -131,12 +130,13 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
-		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(containingSession(owner))));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(containingSession(key))));
+		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(this._containingSession(owner))));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(this._containingSession(key))));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopSessionWatches(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -150,31 +150,20 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 					this._sync(envelope.channel);
 			}
 		}));
-		this._register(this._gitHubService.credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
+		this._register(this._gitHubService.onDidChangeRepositoryClient(() => this._handleClientChange()));
 	}
 
-	/**
-	 * Rebuilds watches whose backing pull request resource the resource service
-	 * has thrown away.
-	 *
-	 * An account or endpoint change disposes the resource outright, leaving a
-	 * subscription whose snapshot can never update — the button bar would then
-	 * advertise stale operations until some unrelated git or subscription event
-	 * happened to trigger a resync. A replaced or re-authenticated credential
-	 * keeps the resource and refreshes it in place, so those need nothing here.
-	 */
-	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
-		if (event.reason === 'replacement' || event.reason === 'authentication') {
-			return;
+
+	/** The session a session, chat channel or folder changeset owner URI belongs to; an unregistered chat stands for itself. */
+	private _containingSession(key: ProtocolURI): ProtocolURI {
+		return parseFolderChangesetOwnerUri(key)?.sessionUri ?? (isAhpChatChannel(key) ? this._chatOwnership.getChatOwner(key) : undefined) ?? key;
+	}
+	private _handleClientChange(): void {
+		for (const key of [...this._watches.keys()]) {
+			this._stopWatch(key, 'the authorized GitHub client changed');
 		}
-		for (const [key, watch] of [...this._watches]) {
-			if (event.credential && !sameAccount(event.credential.account, watch.ref)) {
-				continue;
-			}
-			this._stopWatch(key, `the GitHub credential was invalidated (${event.reason})`);
-			if (event.reason !== 'shutdown') {
-				this._sync(watch.sessionUri);
-			}
+		for (const session of this._stateManager.getSessionUris()) {
+			this._sync(session);
 		}
 	}
 
@@ -235,23 +224,22 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
 			return undefined;
 		}
-		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
-		if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
-			return undefined;
-		}
-		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
-		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
-			priority: 'background',
-			core: true,
-		});
+		const store = new DisposableStore();
 		try {
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			const credential = await client.credentials.getCredential(this._abortController.signal);
+			if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+				return undefined;
+			}
+			const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+			const subscription = store.add(client.pullRequests.subscribePullRequest(ref, { priority: 'background', core: true }));
 			await subscription.refresh('core', undefined, { authoritative: true });
 			return toPullRequestStatus(subscription.resource.snapshot.get());
 		} catch (error) {
-			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(ref)}, error=${error}`);
+			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${pullRequestUrl}, error=${error}`);
 			return undefined;
 		} finally {
-			subscription.dispose();
+			store.dispose();
 		}
 	}
 
@@ -330,7 +318,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return [];
 		}
 		const folders = new Map<string, IGitHubStateFolder>();
-		const defaultChat = buildDefaultChatUri(sessionKey);
+		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
 			if (folder && !folders.has(watchKey(folder))) {
@@ -362,53 +350,66 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return;
 		}
 
-		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
-		if (this._abortController.signal.aborted) {
-			return;
-		}
-		// The pull request URL carries its own host: after a restore or an
-		// endpoint switch the same owner/repo/number can name a different GitHub
-		// instance, which must never be read with this account's credential.
-		if (credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
-			const reason = `the signed in account (${credential.account.host}) does not host ${parsed.owner}/${parsed.repo}#${parsed.number} (${parsed.apiHost})`;
-			this._stopWatch(key, reason);
-			this._logService.debug(`[AgentHostPullRequestStatusService] Not watching pull request: session=${folder.sessionUri}, reason=${reason}`);
-			return;
-		}
-		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
-
-		// Eligibility can have changed while the credential was in flight; the
-		// follow-up run installs the watch the folder actually needs.
-		const current = this._getWatchTarget(folder);
-		if (current.kind === 'skip' || current.pullRequestUrl !== target.pullRequestUrl) {
-			this._logService.trace(`[AgentHostPullRequestStatusService] Retrying sync because the session changed while resolving credentials: session=${folder.sessionUri}`);
-			this._staleSyncs.add(folder.sessionUri);
-			return;
-		}
-
-		this._stopWatch(key, `replaced by ${describeRef(ref)}`);
 		const store = new DisposableStore();
-		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(folder)));
-		const watch: IWatch = {
-			sessionUri: folder.sessionUri,
-			folder,
-			ref,
-			subscription,
-			awaitingAuthoritativeRefresh: this._hasPersistedMergedState(folder, ref),
-			dispose: () => store.dispose(),
-		};
-		this._watches.set(key, watch);
-		store.add(autorun(reader => {
-			const snapshot = subscription.resource.snapshot.read(reader);
-			if (watch.awaitingAuthoritativeRefresh) {
+		let installed = false;
+		try {
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			const credential = await client.credentials.getCredential(this._abortController.signal);
+			if (this._abortController.signal.aborted) {
 				return;
 			}
-			this._updateStatus(key, watch, snapshot);
-		}));
-		if (watch.awaitingAuthoritativeRefresh) {
-			void this._refreshRecreatedMergedWatch(key, watch);
+			if (credential.signal.aborted) {
+				this._staleSyncs.add(folder.sessionUri);
+				return;
+			}
+			// The pull request URL carries its own host: after a restore or an
+			// endpoint switch the same owner/repo/number can name a different GitHub
+			// instance, which must never be read with this account's credential.
+			if (credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+				const reason = `the signed in account (${credential.account.host}) does not host ${parsed.owner}/${parsed.repo}#${parsed.number} (${parsed.apiHost})`;
+				this._stopWatch(key, reason);
+				this._logService.debug(`[AgentHostPullRequestStatusService] Not watching pull request: session=${folder.sessionUri}, reason=${reason}`);
+				return;
+			}
+			const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+
+			// Eligibility can have changed while the credential was in flight; the
+			// follow-up run installs the watch the folder actually needs.
+			const current = this._getWatchTarget(folder);
+			if (current.kind === 'skip' || current.pullRequestUrl !== target.pullRequestUrl) {
+				this._logService.trace(`[AgentHostPullRequestStatusService] Retrying sync because the session changed while resolving credentials: session=${folder.sessionUri}`);
+				this._staleSyncs.add(folder.sessionUri);
+				return;
+			}
+
+			this._stopWatch(key, `replaced by ${describeRef(ref)}`);
+			const subscription = store.add(client.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(folder)));
+			const watch: IWatch = {
+				sessionUri: folder.sessionUri,
+				folder,
+				ref,
+				subscription,
+				awaitingAuthoritativeRefresh: this._hasPersistedMergedState(folder, ref),
+				dispose: () => store.dispose(),
+			};
+			this._watches.set(key, watch);
+			installed = true;
+			store.add(autorun(reader => {
+				const snapshot = subscription.resource.snapshot.read(reader);
+				if (watch.awaitingAuthoritativeRefresh) {
+					return;
+				}
+				this._updateStatus(key, watch, snapshot);
+			}));
+			if (watch.awaitingAuthoritativeRefresh) {
+				void this._refreshRecreatedMergedWatch(key, watch);
+			}
+			this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${folder.sessionUri}, pr=${describeRef(ref)}`);
+		} finally {
+			if (!installed) {
+				store.dispose();
+			}
 		}
-		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${folder.sessionUri}, pr=${describeRef(ref)}`);
 	}
 
 	private _getSubscriptionOptions(folder: IGitHubStateFolder): PullRequestSubscriptionOptions {
@@ -551,10 +552,6 @@ function watchKey(folder: IGitHubStateFolder): string {
 	return `${folder.sessionUri}\u0001${folder.folderKey}`;
 }
 
-/** The session a session, chat channel or folder changeset owner URI belongs to. */
-function containingSession(key: ProtocolURI): ProtocolURI {
-	return parseFolderChangesetOwnerUri(key)?.sessionUri ?? parseChatUri(key)?.session ?? key;
-}
 
 /** Compact `owner/repo#number` form used in every log line. */
 function describeRef(ref: PullRequestRef): string {
@@ -645,8 +642,4 @@ function sameParsedRef(left: ParsedPullRequestUrl, right: ParsedPullRequestUrl):
 
 function sameRefAndHost(left: PullRequestRef, right: ParsedPullRequestUrl): boolean {
 	return left.host.toLowerCase() === right.apiHost.toLowerCase() && sameRef(left, right);
-}
-
-function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {
-	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
 }

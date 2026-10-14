@@ -16,13 +16,14 @@ import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('SessionPermissionManager', () => {
 
@@ -40,7 +41,7 @@ suite('SessionPermissionManager', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/s' }).toString();
 	const directoryLinkType = isWindows ? 'junction' : 'dir';
 
-	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource,
 			provider: 'copilot',
@@ -50,6 +51,7 @@ suite('SessionPermissionManager', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
+			defaultChat: buildDefaultChatUri(resource),
 		};
 	}
 
@@ -92,7 +94,7 @@ suite('SessionPermissionManager', () => {
 			...baseSessionDataService,
 			getSessionDataDir: session => URI.joinPath(sessionDataRoot, session.path.slice(1)),
 		};
-		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService));
+		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
 		await permissions.initialize();
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
@@ -112,8 +114,9 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
-	test('auto-approves an owning-session attachment for a peer chat but not another session attachment', async () => {
-		const peerChat = buildChatUri(sessionUri, 'peer');
+	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {
+		const peerChat = buildChatUri(URI.from({ scheme: 'copilot', path: '/other' }), 'peer');
+		manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 		const attachmentPath = URI.joinPath(
 			sessionDataService.getSessionDataDir(URI.parse(sessionUri)),
 			SESSION_ATTACHMENTS_DIRNAME,
@@ -211,6 +214,19 @@ suite('SessionPermissionManager', () => {
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
 		});
+
+		test('requires confirmation for configured locations with non-canonical casing', async () => {
+			manager.setSessionConfig(sessionUri, {
+				schema: platformSessionSchema.toProtocol(),
+				values: {
+					[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+				},
+			});
+
+			const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'CUSTOM-HOOKS', 'hook.json')), sessionUri);
+
+			assert.strictEqual(result, undefined);
+		});
 	}
 
 	test('respects forwarded edit auto-approve patterns', async () => {
@@ -284,6 +300,89 @@ suite('SessionPermissionManager', () => {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for configured custom hook file location', async () => {
+		const sensitiveEditLocations = getChatSensitiveEditLocations({
+			'custom-hooks/hooks.json': true,
+			'custom-hook-dir': true,
+			'disabled-hooks': false,
+			'~/personal-hooks': true,
+		}, {
+			'custom-agents': true,
+			'disabled-agents': false,
+		});
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {
+				[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocations,
+			},
+		});
+
+		assert.deepStrictEqual({
+			sensitiveEditLocations,
+			approvals: await Promise.all([
+				permissions.getAutoApproval(writeEvent(join(workDir, 'custom-hooks', 'hooks.json')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'custom-hooks', 'other.json')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'custom-hook-dir', 'nested', 'hook.json')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'custom-agents', 'reviewer.agent.md')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'disabled-hooks', 'hook.json')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'disabled-agents', 'reviewer.agent.md')), sessionUri),
+				permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+			]),
+		}, {
+			sensitiveEditLocations: [
+				{ path: 'custom-agents', isDirectory: true },
+				{ path: 'custom-hook-dir', isDirectory: true },
+				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+			],
+			approvals: [
+				undefined,
+				ToolCallConfirmationReason.NotNeeded,
+				undefined,
+				undefined,
+				ToolCallConfirmationReason.NotNeeded,
+				ToolCallConfirmationReason.NotNeeded,
+				ToolCallConfirmationReason.NotNeeded,
+			],
+		});
+	});
+
+	test('requires confirmation for configured locations in every working directory', async () => {
+		const multiRootSession = URI.from({ scheme: 'copilot', path: '/multi-root' }).toString();
+		manager.createSession(makeSummary(multiRootSession, URI.file(workDir).toString(), URI.file(workDir2).toString()));
+		manager.setSessionConfig(multiRootSession, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			},
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(writeEvent(join(workDir, 'custom-hooks', 'one.json')), multiRootSession),
+			permissions.getAutoApproval(writeEvent(join(workDir2, 'custom-hooks', 'two.json')), multiRootSession),
+			permissions.getAutoApproval(writeEvent(join(workDir2, 'src', 'app.ts')), multiRootSession),
+		]);
+
+		assert.deepStrictEqual(results, [undefined, undefined, ToolCallConfirmationReason.NotNeeded]);
+	});
+
+	test('requires confirmation through either side of a configured symlink location', async () => {
+		mkdirSync(join(workDir, 'real-hooks'));
+		symlinkSync(join(workDir, 'real-hooks'), join(workDir, 'custom-hooks'), directoryLinkType);
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			},
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(writeEvent(join(workDir, 'custom-hooks', 'hook.json')), sessionUri),
+			permissions.getAutoApproval(writeEvent(join(workDir, 'real-hooks', 'hook.json')), sessionUri),
+		]);
+
+		assert.deepStrictEqual(results, [undefined, undefined]);
 	});
 
 	test('requires confirmation for package manager configuration files', async () => {
@@ -411,7 +510,7 @@ suite('SessionPermissionManager', () => {
 					error.code = code;
 					throw error;
 				},
-			}, configService, new NullLogService(), sessionDataService));
+			}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
 			await deniedPermissions.initialize();
 			results.push(await deniedPermissions.getAutoApproval(readEvent(join(workDir, 'secret.txt')), sessionUri));
 		}
@@ -422,6 +521,22 @@ suite('SessionPermissionManager', () => {
 	test('auto-approves shell commands in default permission mode when terminal auto-approve is enabled', async () => {
 		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('requires confirmation when a shell redirect targets a configured sensitive location', async () => {
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			},
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(shellEvent('echo hook > custom-hooks/hooks.json', 'bash'), sessionUri),
+			permissions.getAutoApproval(shellEvent('echo code > src/app.ts', 'bash'), sessionUri),
+		]);
+
+		assert.deepStrictEqual(results, [undefined, ToolCallConfirmationReason.NotNeeded]);
 	});
 
 	test('requires confirmation for sed in-place edits', async () => {
@@ -601,6 +716,98 @@ suite('SessionPermissionManager', () => {
 		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
+
+	for (const mode of ['session', 'global'] as const) {
+		for (const terminalAutoApproveEnabled of [true, false]) {
+			test(`${mode} allow-all overrides terminal approval settings and restores them in default mode (terminal auto-approve ${terminalAutoApproveEnabled})`, async () => {
+				configService.updateRootConfig({
+					[AgentHostTerminalAutoApproveEnabledConfigKey]: terminalAutoApproveEnabled,
+					[AgentHostTerminalAutoApproveRulesConfigKey]: { ls: false, rm: false },
+				});
+				const events = [shellEvent('ls -lh', 'bash'), shellEvent('rm -f file.txt', 'bash')];
+				const before = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+					});
+				}
+				const allowAll = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: false });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'default' },
+					});
+				}
+				const after = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				assert.deepStrictEqual({ before, allowAll, after }, {
+					before: [undefined, undefined],
+					allowAll: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting],
+					after: [undefined, undefined],
+				});
+			});
+		}
+	}
+
+	test('global approval cannot bypass the host-reported permission policy', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const config = {
+			schema: {
+				...platformSessionSchema.toProtocol(), properties: {
+					...platformSessionSchema.toProtocol().properties,
+					availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true },
+				}
+			},
+			values: { autoApprove: 'autoApprove', availableApprovalModes: ['default'], effectiveApprovalMode: 'default' },
+		};
+		manager.setSessionConfig(sessionUri, config);
+		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'outside.txt')), sessionUri);
+		assert.deepStrictEqual({ result, level: permissions.getEffectiveApprovalLevel(sessionUri) }, { result: undefined, level: 'default' });
+	});
+
+	for (const global of [false, true]) {
+		test(`standard approval reports control automatic approval (global=${global})`, async () => {
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: global });
+			const results = [];
+			for (const [effective, available] of [
+				['manual', ['manual', 'assisted', 'allow-all']],
+				['assisted', ['manual', 'assisted', 'allow-all']],
+				['allow-all', ['manual', 'assisted', 'allow-all']],
+				['allow-all', ['manual']],
+				['invalid', ['manual', 'invalid']],
+			] as const) {
+				manager.setSessionConfig(sessionUri, {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+							effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', effectiveApprovalMode: effective, availableApprovalModes: [...available] },
+				});
+				results.push({
+					level: permissions.getEffectiveApprovalLevel(sessionUri),
+					approved: await permissions.getAutoApproval(writeEvent(join(outsideDir, 'outside.txt')), sessionUri),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ level: 'default', approved: undefined },
+				{ level: 'assisted', approved: undefined },
+				{ level: 'autoApprove', approved: ToolCallConfirmationReason.Setting },
+				{ level: 'default', approved: undefined },
+				{ level: 'default', approved: undefined },
+			]);
+		});
+	}
 
 	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });

@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync } from 'fs';
+import { mkdirSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,11 +17,12 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../../common/agen
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const portableShellToolReplayEnabled = RECORD || process.platform !== 'linux' || !CODEX_CONFIG.shellToolReplayUnstableOnLinux;
@@ -59,7 +60,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 	test('invalid workspace skills retain their paths and validation diagnostics', async function () {
 		this.timeout(120_000);
 
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-codex-invalid-skills-')));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-codex-invalid-skills-'));
 		tempDirs.push(workspace);
 		mkdirSync(join(workspace, '.git'));
 		const names = ['missing-description-one', 'missing-description-two'];
@@ -114,7 +115,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 	(portableShellToolReplayEnabled ? test : test.skip)('secondary workspace skill reaches the Codex model request', async function () {
 		this.timeout(120_000);
 
-		const parent = mkdtempSync(join(tmpdir(), 'ahp-codex-multiroot-'));
+		const parent = createTestDirectory(join(tmpdir(), 'ahp-codex-multiroot-'));
 		tempDirs.push(parent);
 		const rootA = join(parent, 'a');
 		const rootB = join(parent, 'b');
@@ -163,7 +164,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			}, 30_000);
 			createdSessions.push(sessionUri);
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 			client.dispatch({
 				channel: sessionUri,
 				clientSeq: 1,

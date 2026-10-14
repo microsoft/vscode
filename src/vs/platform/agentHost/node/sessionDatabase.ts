@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type ILocalTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -197,6 +197,25 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			output       BLOB NOT NULL
 		)`,
 	},
+	{
+		version: 15,
+		sql: `ALTER TABLE local_turns ADD COLUMN kind TEXT NOT NULL DEFAULT 'local'`,
+	},
+	{
+		version: 16,
+		sql: `CREATE TABLE IF NOT EXISTS tool_result_resources (
+			tool_call_id TEXT    NOT NULL,
+			ordinal      INTEGER NOT NULL,
+			turn_id      TEXT    NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			kind         TEXT    NOT NULL,
+			name         TEXT    NOT NULL,
+			mime_type    TEXT,
+			uri          TEXT    NOT NULL,
+			size         INTEGER,
+			content      BLOB,
+			PRIMARY KEY (tool_call_id, ordinal)
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -284,6 +303,14 @@ function validateCatalogSyncAcknowledgement(acknowledgement: ISessionCatalogSync
 	validateCatalogSyncInteger('sourceRevision', acknowledgement.sourceRevision);
 	validateCatalogSyncInteger('projectionVersion', acknowledgement.projectionVersion);
 	validateCatalogSyncIdentity('payloadHash', acknowledgement.payloadHash);
+}
+
+class SessionDatabaseWriteCancelledError extends Error { }
+
+function validateCatalogSyncWriteBoundary(validate?: SessionCatalogSyncWriteValidator): void {
+	if (validate && !validate()) {
+		throw new SessionDatabaseWriteCancelledError();
+	}
 }
 
 function toCatalogSyncSnapshot(row: Record<string, unknown>): ISessionCatalogSyncSnapshot {
@@ -467,6 +494,7 @@ export class SessionDatabase implements ISessionDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
+		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
 	/**
@@ -532,6 +560,7 @@ export class SessionDatabase implements ISessionDatabase {
 	deleteTurn(turnId: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned file edits, usage, and workspace transitions cascade-delete.
+			await dbRun(db, 'DELETE FROM local_turns WHERE turn_id = ?', [turnId]);
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -584,8 +613,8 @@ export class SessionDatabase implements ISessionDatabase {
 
 	hasConversationTurns(): Promise<boolean> {
 		return this._queueOperation(async db => {
-			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_local_turns`, []);
-			return !!row?.has_turns || !!row?.has_local_turns;
+			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_persisted_turns`, []);
+			return !!row?.has_turns || !!row?.has_persisted_turns;
 		});
 	}
 
@@ -735,6 +764,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete the target turn and all turns inserted after it (by rowid order).
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -747,6 +782,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself. Turn-owned child records cascade-delete.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -758,25 +799,31 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbExec(db, 'DELETE FROM turns');
+			await dbExec(db, 'DELETE FROM local_turns');
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
-	// ---- Local (host-injected) turns ------------------------------------
+	// ---- Host-persisted turns -------------------------------------------
 
-	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		return this._mutate(async db => {
+			if (record.kind === 'failed') {
+				await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [record.turnId]);
+			}
 			await dbRun(db,
-				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
-				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+				`INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload, kind)
+				VALUES (?, ?, ?, COALESCE(?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM local_turns)), ?, ?)`,
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq ?? null, record.payload, record.kind],
 			);
 		});
 	}
 
-	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
 		const db = await this._ensureDb();
-		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []);
 		return rows.map(r => ({
+			kind: r.kind as IPersistedTurnRecord['kind'],
 			turnId: r.turn_id as string,
 			chatUri: r.chat_uri as string,
 			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
@@ -785,7 +832,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+	deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
 		return this._track(() => {
 			if (turnIds.length === 0) {
 				return Promise.resolve();
@@ -964,6 +1011,74 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	// ---- Tool result resources ------------------------------------------
+
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void> {
+		if (rows.some(row => row.kind === 'embedded' && row.content && row.content.byteLength > MAX_TOOL_RESULT_RESOURCE_BYTES)) {
+			return Promise.reject(new Error(`Tool result resource exceeds the ${MAX_TOOL_RESULT_RESOURCE_BYTES}-byte limit`));
+		}
+		return this._track(() => this._turnUsageSequencer.queue(() => this._queueTransaction(async db => {
+			if (!await dbGet(db, 'SELECT 1 FROM turns WHERE id = ?', [turnId])) {
+				throw new Error(`Cannot store tool result resources for missing turn '${turnId}'`);
+			}
+			await dbRun(db, 'DELETE FROM tool_result_resources WHERE tool_call_id = ?', [toolCallId]);
+			for (const row of rows) {
+				await dbRun(db,
+					`INSERT INTO tool_result_resources (tool_call_id, ordinal, turn_id, kind, name, mime_type, uri, size, content)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[toolCallId, row.ordinal, turnId, row.kind, row.name, row.mimeType ?? null, row.uri, row.size ?? null,
+						row.kind === 'embedded' && row.content ? Buffer.from(row.content) : null],
+				);
+			}
+		})));
+	}
+
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>> {
+		return this._queueTurnData(async db => {
+			const result = new Map<string, IToolResultResource[]>();
+			if (toolCallIds.length === 0) {
+				return result;
+			}
+			const placeholders = toolCallIds.map(() => '?').join(',');
+			const rows = await dbAll(db,
+				`SELECT tool_call_id, ordinal, kind, name, mime_type, uri, size FROM tool_result_resources
+					WHERE tool_call_id IN (${placeholders}) ORDER BY ordinal`,
+				toolCallIds,
+			);
+			for (const row of rows) {
+				const toolCallId = row.tool_call_id as string;
+				let resources = result.get(toolCallId);
+				if (!resources) {
+					resources = [];
+					result.set(toolCallId, resources);
+				}
+				resources.push({
+					ordinal: row.ordinal as number,
+					kind: row.kind as IToolResultResource['kind'],
+					name: row.name as string,
+					mimeType: row.mime_type as string | null ?? undefined,
+					uri: row.uri as string,
+					size: row.size as number | null ?? undefined,
+				});
+			}
+			return result;
+		});
+	}
+
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined> {
+		return this._queueTurnData(async db => {
+			const sizeRow = await dbGet(db, `SELECT length(content) AS size FROM tool_result_resources WHERE tool_call_id = ? AND ordinal = ? AND kind = 'embedded'`, [toolCallId, ordinal]);
+			if (!sizeRow || sizeRow.size === null) {
+				return undefined;
+			}
+			if ((sizeRow.size as number) > MAX_TOOL_RESULT_RESOURCE_BYTES) {
+				throw new Error(`Stored tool result resource exceeds the ${MAX_TOOL_RESULT_RESOURCE_BYTES}-byte limit`);
+			}
+			const row = await dbGet(db, 'SELECT content, mime_type FROM tool_result_resources WHERE tool_call_id = ? AND ordinal = ?', [toolCallId, ordinal]);
+			return row ? { content: toUint8Array(row.content), mimeType: row.mime_type as string | null ?? undefined } : undefined;
+		});
+	}
+
 	// ---- Session metadata -----------------------------------------------
 
 	async getMetadata(key: string): Promise<string | undefined> {
@@ -997,6 +1112,14 @@ export class SessionDatabase implements ISessionDatabase {
 		})));
 	}
 
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(() => this._queueTransaction(async db => {
+			const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
+			const value = update(row?.value as string | undefined);
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+		})));
+	}
+
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 		return this._track(() => this._metadataSequencer.queue(() =>
 			this._queueTransaction(async db => {
@@ -1019,7 +1142,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 		validateCatalogSyncSnapshot(snapshot);
 		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
@@ -1044,6 +1167,7 @@ export class SessionDatabase implements ISessionDatabase {
 						}
 					}
 
+					validateCatalogSyncWriteBoundary(validate);
 					const result: SessionCatalogSyncWriteResult = existing?.sourceRevision === snapshot.sourceRevision ? 'replayed' : 'applied';
 					if (result === 'replayed') {
 						await dbExec(db, 'COMMIT');
@@ -1053,17 +1177,21 @@ export class SessionDatabase implements ISessionDatabase {
 						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 					}
 					await this._writeCatalogSyncSnapshot(db, snapshot, existing?.acknowledgedHash);
+					validateCatalogSyncWriteBoundary(validate);
 					await dbExec(db, 'COMMIT');
 					return result;
 				} catch (err) {
 					await dbExec(db, 'ROLLBACK');
+					if (err instanceof SessionDatabaseWriteCancelledError) {
+						return 'cancelled';
+					}
 					throw err;
 				}
 			});
 		}));
 	}
 
-	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
 		validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
 		validateCatalogSyncSnapshot(snapshot);
 		if (snapshot.sessionGeneration === expectedSessionGeneration) {
@@ -1076,18 +1204,23 @@ export class SessionDatabase implements ISessionDatabase {
 				try {
 					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
 					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					validateCatalogSyncWriteBoundary(validate);
 					if (!existing || existing.sessionGeneration !== expectedSessionGeneration) {
 						await dbExec(db, 'COMMIT');
-						return false;
+						return 'generationMismatch';
 					}
 					for (const [key, value] of Object.entries(values)) {
 						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 					}
 					await this._writeCatalogSyncSnapshot(db, snapshot, undefined);
+					validateCatalogSyncWriteBoundary(validate);
 					await dbExec(db, 'COMMIT');
-					return true;
+					return 'applied';
 				} catch (err) {
 					await dbExec(db, 'ROLLBACK');
+					if (err instanceof SessionDatabaseWriteCancelledError) {
+						return 'cancelled';
+					}
 					throw err;
 				}
 			});
@@ -1145,7 +1278,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	private async _writeCatalogSyncSnapshot(db: Database, snapshot: ISessionCatalogSyncPendingSnapshot, acknowledgedHash: string | undefined): Promise<void> {
-		await dbRun(db, `INSERT INTO catalog_sync_snapshot (
+		const sql = `INSERT INTO catalog_sync_snapshot (
 			singleton_id, session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload
 		) VALUES (1, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(singleton_id) DO UPDATE SET
@@ -1154,7 +1287,8 @@ export class SessionDatabase implements ISessionDatabase {
 			projection_version = excluded.projection_version,
 			acknowledged_hash = excluded.acknowledged_hash,
 			pending_hash = excluded.pending_hash,
-			pending_payload = excluded.pending_payload`, [
+			pending_payload = excluded.pending_payload`;
+		await dbRun(db, sql, [
 			snapshot.sessionGeneration,
 			snapshot.sourceRevision,
 			snapshot.projectionVersion,
@@ -1162,6 +1296,7 @@ export class SessionDatabase implements ISessionDatabase {
 			snapshot.payloadHash,
 			snapshot.payload,
 		]);
+		await this._onDidRunStatement?.(sql);
 	}
 
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
@@ -1239,12 +1374,16 @@ export class SessionDatabase implements ISessionDatabase {
 					oldIds,
 				);
 			}
+			const failedTurns = oldIds.length === 0
+				? []
+				: await dbAll(db, `SELECT turn_id, anchor_turn_id, payload FROM local_turns WHERE kind = 'failed'`, []);
 
 			// Remap the remaining turn IDs to their new values
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE terminal_outputs SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE tool_result_resources SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			for (const [turnId, eventId] of eventIds ?? []) {
 				await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
@@ -1258,8 +1397,8 @@ export class SessionDatabase implements ISessionDatabase {
 				);
 			}
 			for (const [oldId, newId] of mapping) {
-				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ? AND kind = ?', [newId, oldId, 'local']);
+				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ? AND kind = ?', [newId, oldId, 'local']);
 			}
 
 			// Rows past the fork point were already removed by the `turns`
@@ -1270,6 +1409,20 @@ export class SessionDatabase implements ISessionDatabase {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+			}
+			for (const failedTurn of failedTurns) {
+				const oldId = failedTurn.turn_id as string;
+				const newId = mapping.get(oldId);
+				if (!newId) {
+					continue;
+				}
+				const payload = remapPersistedTurnPayload(failedTurn.payload as string, oldId, newId);
+				const anchorTurnId = failedTurn.anchor_turn_id as string | null;
+				await dbRun(db,
+					`UPDATE local_turns SET turn_id = ?, anchor_turn_id = ?, payload = ?
+					WHERE turn_id = ? AND kind = 'failed'`,
+					[newId, anchorTurnId === null ? null : mapping.get(anchorTurnId) ?? null, payload, oldId],
+				);
 			}
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -1316,6 +1469,23 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function remapPersistedTurnPayload(payload: string, oldId: string, newId: string): string {
+	let value: unknown;
+	try {
+		value = JSON.parse(payload);
+	} catch {
+		throw new Error(`Cannot remap persisted turn ${oldId}: invalid JSON`);
+	}
+	if (!isRecord(value) || value.id !== oldId) {
+		throw new Error(`Cannot remap persisted turn ${oldId}: payload id does not match record id`);
+	}
+	return JSON.stringify({ ...value, id: newId });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {

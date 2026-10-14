@@ -11,6 +11,8 @@
 process.env.MOCHA_COLORS = '1';
 
 const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
+// A renderer's execPath points at the helper executable on macOS.
+process.env.VSCODE_TEST_ELECTRON_PATH = process.execPath;
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync, promises } = require('fs');
@@ -247,6 +249,8 @@ class IPCRunner extends events.EventEmitter {
 }
 
 app.on('ready', async () => {
+	session.defaultSession.setSpellCheckerLanguages([]);
+	session.defaultSession.setSpellCheckerEnabled(false);
 	const outDir = args.build ? 'out-build' : 'out';
 	const [{ createRemoteResourceRequestHandler }, { getRemoteResourceResponseHeaders }] = await Promise.all([
 		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/remoteResourceProtocol.js`)).href),

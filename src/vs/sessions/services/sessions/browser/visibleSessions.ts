@@ -9,6 +9,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { ISessionGridSlot } from './sessionsPartService.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -235,6 +238,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get resource() { return this._session.resource; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get harness() { return this._session.harness; }
+	get environment() { return this._session.environment; }
+	get application() { return this._session.application; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
@@ -253,6 +259,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get preparationProgress() { return this._session.preparationProgress; }
@@ -286,6 +294,9 @@ class ResourceOverrideSession implements ISession {
 	get sessionId() { return this._session.sessionId; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get harness() { return this._session.harness; }
+	get environment() { return this._session.environment; }
+	get application() { return this._session.application; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
@@ -304,6 +315,8 @@ class ResourceOverrideSession implements ISession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get preparationProgress() { return this._session.preparationProgress; }
@@ -340,6 +353,27 @@ const NO_RECENT = Symbol('no-recent');
  * the visibility model.
  */
 export class VisibleSessions extends Disposable {
+
+	private readonly _gridSlots = new Map<string | undefined, ISessionGridSlot>([[undefined, { id: 'initial' }]]);
+
+	getGridSlots(): readonly ISessionGridSlot[] {
+		return (this._visibleList.length ? this._visibleList : [undefined]).map(id => {
+			let slot = this._gridSlots.get(id);
+			if (!slot) {
+				slot = { id: generateUuid() };
+				this._gridSlots.set(id, slot);
+			}
+			return slot;
+		});
+	}
+
+	private transferGridSlot(from: string | undefined, to: string | undefined): void {
+		const slot = this._gridSlots.get(from);
+		this._gridSlots.delete(from);
+		if (slot) {
+			this._gridSlots.set(to, slot);
+		}
+	}
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
@@ -439,6 +473,7 @@ export class VisibleSessions extends Disposable {
 			}
 
 			if (replaceSlot !== NO_RECENT) {
+				this.transferGridSlot(replaceSlot, targetId);
 				const idx = this._visibleList.indexOf(replaceSlot);
 				this._visibleList.splice(idx, 1, targetId);
 				if (replaceSlot !== undefined) {
@@ -450,6 +485,9 @@ export class VisibleSessions extends Disposable {
 					}
 				}
 			} else {
+				if (!this._visibleList.length) {
+					this.transferGridSlot(undefined, targetId);
+				}
 				this._visibleList.push(targetId);
 			}
 			this._mostRecentNonStickySlot = targetId;
@@ -483,14 +521,26 @@ export class VisibleSessions extends Disposable {
 	 * `targetSessionId` may be `undefined` to position relative to the empty
 	 * (new-session) slot. No-op if the target slot is not currently visible.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right' | 'up' | 'down', activate: boolean = true): void {
+		if (!this._visibleList.length && targetSessionId === undefined) {
+			this._visibleList.push(undefined);
+		}
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
 			return;
 		}
 
-		let destIdx = side === 'left' ? targetIdx : targetIdx + 1;
+		if (id === targetSessionId) {
+			return;
+		}
+		const reference = this.getGridSlots()[targetIdx].id;
+		const previous = this._gridSlots.get(id);
+		this._gridSlots.set(id, {
+			id: previous?.id ?? generateUuid(),
+			placement: { reference, direction: side === 'left' ? Direction.Left : side === 'right' ? Direction.Right : side === 'up' ? Direction.Up : Direction.Down }
+		});
+		let destIdx = side === 'left' || side === 'up' ? targetIdx : targetIdx + 1;
 
 		const currentIdx = this._visibleList.indexOf(id);
 		if (currentIdx >= 0) {
@@ -539,7 +589,7 @@ export class VisibleSessions extends Disposable {
 	 * @param activeIndex Index into `slots` of the slot that should be active,
 	 * or `-1` for none.
 	 */
-	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean; readonly gridId?: string }>, activeIndex: number): void {
 		this._visibleList = [];
 		this._stickyIds.clear();
 
@@ -548,6 +598,12 @@ export class VisibleSessions extends Disposable {
 		for (let i = 0; i < slots.length; i++) {
 			const { session, sticky } = slots[i];
 			const id = session?.sessionId;
+			if (this._visibleList.includes(id)) {
+				continue;
+			}
+			if (slots[i].gridId) {
+				this._gridSlots.set(id, { id: slots[i].gridId! });
+			}
 			this._visibleList.push(id);
 			if (session) {
 				const wrapper = this._getOrCreateVisibleSession(session);
@@ -590,6 +646,9 @@ export class VisibleSessions extends Disposable {
 	 * when `sessionId` is `undefined`), or `undefined` when it is not visible.
 	 */
 	getSlot(sessionId: string | undefined): { readonly index: number; readonly sticky: boolean } | undefined {
+		if (!this._visibleList.length && sessionId === undefined) {
+			return { index: 0, sticky: false };
+		}
 		const index = this._visibleList.indexOf(sessionId);
 		return index < 0 ? undefined : { index, sticky: this._isStickySlot(sessionId) };
 	}
@@ -644,6 +703,7 @@ export class VisibleSessions extends Disposable {
 		}
 
 		this._visibleList.splice(idx, 1, id);
+		this.transferGridSlot(slotId, id);
 		if (slotId !== undefined) {
 			this._stickyIds.delete(slotId);
 			this._wrappers.deleteAndDispose(slotId);
@@ -817,6 +877,7 @@ export class VisibleSessions extends Disposable {
 		}
 		const idx = this._visibleList.indexOf(fromId);
 		if (idx >= 0) {
+			this.transferGridSlot(fromId, toId);
 			this._visibleList.splice(idx, 1, toId);
 		}
 		if (this._stickyIds.delete(fromId)) {
@@ -884,6 +945,13 @@ export class VisibleSessions extends Disposable {
 	}
 
 	private _refresh(tsx: ITransaction | undefined): void {
+		const ids = this._visibleList.length ? this._visibleList : [undefined];
+		for (const id of this._gridSlots.keys()) {
+			if (!ids.includes(id)) {
+				this._gridSlots.delete(id);
+			}
+		}
+		this.getGridSlots();
 		const wrappers: (IActiveSession | undefined)[] = [];
 		for (const id of this._visibleList) {
 			if (id === undefined) {

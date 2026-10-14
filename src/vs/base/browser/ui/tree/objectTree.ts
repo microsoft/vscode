@@ -316,6 +316,10 @@ export class CompressibleObjectTree<T, TFilterData = void> extends ObjectTree<T,
 		}
 	}
 
+	isCompressionEnabled(): boolean {
+		return this.model.isCompressionEnabled();
+	}
+
 	getCompressedTreeNode(element: T | null = null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {
 		return this.model.getCompressedTreeNode(element);
 	}

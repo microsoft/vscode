@@ -14,21 +14,16 @@
 // shape. The envelopes are folded by the same `sessionReducer` / `chatReducer` the live
 // subscriptions use, so a replayed session and a live one cannot drift.
 
+import { equals } from '../../../base/common/objects.js';
 import { ChunkEnvelope, Reassembler } from './webPubSub/chunking.js';
 import { ActionEnvelope, ActionType, StateAction } from './state/protocol/common/actions.js';
-import { SessionDefaultChatChangedAction } from './state/protocol/channels-session/actions.js';
 import { chatReducer } from './state/protocol/channels-chat/reducer.js';
-import { ChatState } from './state/protocol/channels-chat/state.js';
+import { ChatOriginKind, ChatState } from './state/protocol/channels-chat/state.js';
 import { sessionReducer } from './state/protocol/channels-session/reducer.js';
 import { SessionLifecycle, SessionState, SessionStatus } from './state/protocol/channels-session/state.js';
 import { ChatAction, SessionAction } from './state/sessionActions.js';
 
-/**
- * Highest transport sequence number that may legitimately appear *below* the expected next
- * sequence. Mission Control re-hosts a dormant session on a fresh mirror process whose transport
- * sequence restarts at 0 or 1 while `/events` continues with only the new actions; anything
- * further back is a genuine gap.
- */
+/** Highest starting sequence allowed for a new mirror epoch after exact duplicates are removed. */
 const MAX_RESTART_EPOCH_INITIAL_SEQUENCE = 1;
 
 /** A persisted history that could not be decoded. Distinct from a transport/HTTP failure. */
@@ -48,11 +43,8 @@ export interface IReplayedSession {
 	/** Folded chat-channel state, keyed by chat channel URI. */
 	readonly chats: ReadonlyMap<string, ChatState>;
 	/**
-	 * Channel of the session's default chat, as the recorded history named it.
-	 *
-	 * Resolved from the history rather than derived locally: the host writes whatever channel
-	 * convention it uses (today `<session>/chat`), which need not match the URI a client would
-	 * build for the same chat.
+	 * The host-announced default chat, or a sole recorded chat consistent with all recorded catalogue evidence.
+	 * History without either retains the legacy `<session>/chat` fallback.
 	 */
 	readonly defaultChat: string;
 	/** Timestamp of the last persisted event, ISO 8601. */
@@ -75,6 +67,7 @@ export interface IReplayedTaskHistory {
 /** Per-session accumulator used while decoding the transport layer. */
 interface ISessionReplayState {
 	readonly envelopes: ActionEnvelope[];
+	readonly eventsBySeq: Map<number, Record<string, unknown>>;
 	modifiedAt: string;
 	nextSeq: number;
 	reassembler: Reassembler;
@@ -154,7 +147,8 @@ function seedChatState(chatChannel: string, modifiedAt: string): ChatState {
 }
 
 /**
- * Decode the persisted transport layer into ordered envelopes, grouped by session.
+ * Decode the persisted transport layer into ordered envelopes, grouped by session, ignoring exact
+ * duplicate records within each mirror epoch.
  *
  * Throws on a genuine sequence gap or a corrupt record — a history that cannot be trusted must
  * not be shown as if it were complete.
@@ -176,10 +170,13 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 
 		let entry = sessions.get(session);
 		if (!entry) {
-			entry = { envelopes: [], modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
+			entry = { envelopes: [], eventsBySeq: new Map(), modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
 			sessions.set(session, entry);
 		}
-		entry.modifiedAt = at;
+		// Persisted batches can overlap; never fold an already-seen delta or chunk twice.
+		if (equals(entry.eventsBySeq.get(seq), value)) {
+			continue;
+		}
 
 		const startsRestartEpoch = seq !== entry.nextSeq && seq < entry.nextSeq && seq <= MAX_RESTART_EPOCH_INITIAL_SEQUENCE;
 		if (seq !== entry.nextSeq && !startsRestartEpoch) {
@@ -192,9 +189,12 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 			// buffered at the restart is an action the previous epoch never finished emitting, so
 			// remember it — replacing the reassembler is what would otherwise lose that fact.
 			entry.abandonedChunkGroup ||= entry.reassembler.inFlightGroupCount > 0;
+			entry.eventsBySeq.clear();
 			entry.nextSeq = seq;
 			entry.reassembler = new Reassembler();
 		}
+		entry.eventsBySeq.set(seq, value);
+		entry.modifiedAt = at;
 		entry.nextSeq += 1;
 
 		let reassembled: unknown;
@@ -227,9 +227,7 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 /**
  * Fold one session's envelopes into session state plus a chat state per chat channel.
  *
- * Routed by **action type**, not channel scheme: recorded channels are whatever the host wrote
- * (today `<session>/chat`, not the `ahp-chat://` URI a client builds), so matching on a scheme would
- * silently drop every chat action. The live subscriptions route the same way.
+ * Routed by action type, not channel scheme, so host-defined chat URIs are preserved.
  *
  * A session may own several peer chats, so each chat channel found in the history gets its own fold
  * — discovered from the envelopes rather than assumed, which keeps forked and peer chats intact.
@@ -237,19 +235,39 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 function foldSession(session: string, entry: ISessionReplayState): IReplayedSession {
 	let state = seedSessionState();
 	const chats = new Map<string, ChatState>();
-	// The host announces its default chat via `session/defaultChatChanged`; until then the
-	// deterministic `<session>/chat` is the convention it writes.
-	let defaultChat = `${session}/chat`;
+	// Catalogue evidence the reducer cannot keep. A chat created together with its session is only
+	// ever announced in the subscribe snapshot, which the mirror never sees, so its later
+	// `session/chatUpdated` frames name a chat the folded catalogue lacks and the reducer drops
+	// them. Such a mention still attests that the host has the chat; only a removal rules it out.
+	// `removed` outlives the catalogue too: a removal whose addition predates the mirror leaves
+	// the folded catalogue untouched.
+	const mentioned = new Set<string>();
+	const removed = new Set<string>();
 
 	for (const envelope of entry.envelopes) {
 		const channel = envelope.channel;
 		const action: StateAction = envelope.action;
 
 		if (action.type.startsWith('session/') && channel === session) {
-			state = sessionReducer(state, action as SessionAction);
-			if (action.type === ActionType.SessionDefaultChatChanged) {
-				defaultChat = (action as SessionDefaultChatChangedAction).defaultChat || `${session}/chat`;
+			const sessionAction = action as SessionAction;
+			switch (sessionAction.type) {
+				case ActionType.SessionChatAdded:
+					removed.delete(sessionAction.summary.resource);
+					break;
+				case ActionType.SessionChatUpdated:
+					mentioned.add(sessionAction.chat);
+					break;
+				case ActionType.SessionChatsReordered:
+					for (const chat of sessionAction.chats) {
+						mentioned.add(chat);
+					}
+					break;
+				case ActionType.SessionChatRemoved:
+					mentioned.delete(sessionAction.chat);
+					removed.add(sessionAction.chat);
+					break;
 			}
+			state = sessionReducer(state, sessionAction);
 			continue;
 		}
 		if (action.type.startsWith('chat/')) {
@@ -260,8 +278,40 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	// A session whose history never announced its chats still owns a default chat, so surface an
-	// empty one rather than a session that appears to have no conversation at all.
+	const catalogue = new Map(state.chats.map(chat => [chat.resource, chat]));
+	const isPeer = (chat: string) => {
+		const origin = catalogue.get(chat)?.origin;
+		return !!origin && origin.kind !== ChatOriginKind.User;
+	};
+	const candidates = [...chats.keys()].filter(chat => !removed.has(chat) && !isPeer(chat));
+	const [candidate] = candidates;
+	const reachesCandidateCache = new Map<string, boolean>();
+	const reachesCandidate = (chat: string): boolean => {
+		const visited = new Set<string>();
+		let current = chat;
+		while (current !== candidate && !reachesCandidateCache.has(current)) {
+			if (visited.has(current) || removed.has(current)) {
+				break;
+			}
+			visited.add(current);
+			const origin = catalogue.get(current)?.origin;
+			if (origin?.kind !== ChatOriginKind.Tool && origin?.kind !== ChatOriginKind.Fork && origin?.kind !== ChatOriginKind.SideChat) {
+				break;
+			}
+			current = origin.chat;
+		}
+		const result = current === candidate || reachesCandidateCache.get(current) === true;
+		for (const resource of visited) {
+			reachesCandidateCache.set(resource, result);
+		}
+		return result;
+	};
+	// Only infer a default when every retained peer's ancestry leads to the candidate.
+	const unambiguousChat = candidates.length === 1
+		&& state.chats.every(chat => reachesCandidate(chat.resource))
+		&& [...mentioned].every(reachesCandidate)
+		? candidate : undefined;
+	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}
