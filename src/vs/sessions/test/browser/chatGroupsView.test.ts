@@ -339,6 +339,21 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
 
+	test('releases the main chat resource observable when clearing the session', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const before = view['_mainChatResource'] !== undefined;
+		view.setSession(undefined, options);
+		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
+	});
+
+	test('releases the main chat resource observable on disposal', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		view.dispose();
+		assert.strictEqual(view['_mainChatResource'], undefined);
+	});
+
 	test('aligns transcript overlays with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
