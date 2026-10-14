@@ -199,8 +199,9 @@ function defineWebTests(context: IAgentHostE2ETestContext): void {
 						assert.strictEqual(completions.length, 1);
 						const completion = completions[0];
 						let text = textFromContent(completion.result.content ?? []);
-						if (readSpilledOutput && text.startsWith('Output too large to read at once')) {
-							const path = /Saved to: (?<path>[^\r\n]+)/.exec(text)?.groups?.path;
+						if (readSpilledOutput && (text.startsWith('Output too large to read at once') || /\[Truncated[^\r\n]*temporarily saved to /.test(text))) {
+							const path = /Saved to: (?<path>[^\r\n]+)/.exec(text)?.groups?.path
+								?? /\[Truncated[^\r\n]*temporarily saved to (?<path>[^\r\n]+)\]$/.exec(text)?.groups?.path;
 							assert.ok(path, text);
 							const resource = URI.file(path);
 							assert.ok(isEqualOrParent(resource, URI.file(workspace)), 'Spilled web output must remain in its controlled fixture workspace');
