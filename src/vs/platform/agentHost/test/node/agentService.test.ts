@@ -6555,6 +6555,62 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('a chat\'s own config is persisted, restored per chat, and copied into a fork', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}('copilotcli', sdkMetadata));
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+			const plain = URI.parse(buildChatUri(session, 'plain'));
+			const state = getStateManager(creating);
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true } } },
+				values: { autoApprove: 'default' },
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			const applied = Event.toPromise(Event.filter(creating.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			creating.dispatchAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }, 'client', 1);
+			await applied;
+			await creating.createChat(session, fork, { fork: { source: URI.parse(defaultChat), turnId: 'source-turn' } });
+			await creating.createChat(session, plain);
+			const forkCreated = state.getChatConfig(fork.toString());
+			const changed = Event.toPromise(Event.filter(creating.onDidAction, envelope => envelope.origin?.clientSeq === 2));
+			creating.dispatchAction(plain.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 2);
+			await changed;
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			await restarted.restoreSession(session);
+			const restoredState = getStateManager(restarted);
+			assert.deepStrictEqual({
+				forkCreated,
+				defaultChat: restoredState.getChatConfig(defaultChat),
+				fork: restoredState.getChatConfig(fork.toString()),
+				plain: restoredState.getChatConfig(plain.toString()),
+			}, {
+				forkCreated: { values: { autoApprove: 'autoApprove' } },
+				defaultChat: { values: { autoApprove: 'autoApprove' } },
+				fork: { values: { autoApprove: 'autoApprove' } },
+				plain: { values: { autoApprove: 'assisted' } },
+			});
+		});
+
 		for (const provider of ['copilotcli', 'codex', 'claude']) {
 			for (const legacy of [false, true]) {
 				test(`${provider} host-generated allocations respect the initiating client's legacy addressing (${legacy})`, async () => {

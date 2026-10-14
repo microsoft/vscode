@@ -35,6 +35,7 @@ import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
@@ -3709,11 +3710,14 @@ suite('AgentHostChatContributions', () => {
 		const draft = { text: 'Restored draft', origin: { kind: MessageKind.User } };
 		await contributions.database.setMetadata(titleKey, 'Restored title');
 		await contributions.database.setChatDraft(URI.parse(chat), draft);
+		await contributions.database.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat, values: { autoApprove: 'autoApprove' } }));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		const getChatDraft = contributions.database.getChatDraft.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
 			if (key === titleKey) {
 				calls.push('sessionTitle');
+			} else if (key === AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				calls.push('chatConfig');
 			}
 			return getMetadata(key);
 		};
@@ -3725,10 +3729,11 @@ suite('AgentHostChatContributions', () => {
 		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, {});
 
 		assert.deepStrictEqual({ calls, restored }, {
-			calls: ['sessionTitle', 'chatDraft'],
+			calls: ['sessionTitle', 'chatDraft', 'chatConfig'],
 			restored: {
 				title: 'Restored title',
 				draft,
+				config: { values: { autoApprove: 'autoApprove' } },
 			},
 		});
 	});
@@ -3752,7 +3757,10 @@ suite('AgentHostChatContributions', () => {
 		await contributions.chatRows.getDraft(URI.parse(contributions.session), URI.parse(chat));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
-			metadataReads++;
+			// The chat's own config is not title metadata; reading it is part of every chat's restore.
+			if (key !== AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				metadataReads++;
+			}
 			return getMetadata(key);
 		};
 

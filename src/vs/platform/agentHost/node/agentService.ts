@@ -5865,6 +5865,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
+		// A fork or side chat starts with its source chat's own config values; any
+		// other chat starts with none and inherits the session's. The seed makes
+		// them visible to the provider while it creates the chat.
+		const configSource = peerChatOrigin?.kind === ChatOriginKind.Fork || peerChatOrigin?.kind === ChatOriginKind.SideChat ? peerChatOrigin.chat : undefined;
+		const configSeed = this._configurationService.seedChatConfig(chat.toString(), configSource === undefined ? {} : this._configurationService.getChatOwnConfigValues({
+			session: this._stateManager.getChatOwner(configSource) ?? sessionKey,
+			chat: configSource,
+		}));
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
 			if (!initiallyArchived && isSessionStatusArchived(this._stateManager.getSessionSummary(sessionKey)?.status)) {
 				throw new Error(localize('agentHost.sessionArchivedWhilePreparingChat', "The session was archived while preparing the new chat. Unarchive it before trying again."));
@@ -5931,7 +5939,16 @@ export class AgentService extends Disposable implements IAgentService {
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 					...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
+					...(Object.keys(configSeed.values).length > 0 ? { config: { values: configSeed.values } } : {}),
 				});
+				// The registered chat owns its values from here on; persist the initial ones explicitly.
+				const initialConfig = configSeed.values;
+				configSeed.dispose();
+				if (Object.keys(initialConfig).length > 0) {
+					this._sessionStateStore.chatRows.setChatConfig(session, chat, initialConfig).catch(err => {
+						this._logService.warn(`[AgentService] createChat: failed to persist the initial config of ${chat.toString()}`, err);
+					});
+				}
 				this._publishWorkingDirectoryIdentities(sessionKey);
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
@@ -5961,7 +5978,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._flushDeferredCatalogMetadataOverrides(session);
 			}
 			return createResult;
-		});
+		}).finally(() => configSeed.dispose());
 		this._sessionResidency.touch(session);
 		void this._sessionResidency.reconcile();
 
