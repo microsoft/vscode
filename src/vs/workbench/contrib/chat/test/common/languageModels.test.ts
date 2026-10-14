@@ -291,6 +291,17 @@ suite('LanguageModels', function () {
 			lightAndDark: resolve({ light: 'media/light.svg', dark: 'media/dark.svg' }),
 			malformed: resolve({ light: 'media/light.svg' } as unknown as Parameters<typeof resolveLanguageModelProviderIcon>[0]),
 			outsideExtension: [resolve('../other.provider/icon.svg'), resolve({ light: 'media/light.svg', dark: '../../dark.svg' })],
+			// Loading the image decodes `%2e%2e` and treats `\` as a separator, which would reach the
+			// sibling extension even though both paths stay inside the folder as written.
+			encodedTraversal: [
+				resolve('%2e%2e/other.provider/icon.svg'),
+				resolve({ light: 'media/light.svg', dark: '%2e%2e/other.provider/dark.svg' }),
+				resolve('%252e%252e/other.provider/icon.svg'),
+			],
+			backslashTraversal: [
+				resolve('..\\other.provider\\icon.svg'),
+				resolve({ light: '..\\other.provider\\light.svg', dark: 'media/dark.svg' }),
+			],
 			vendorIcon: languageModels.getVendors().find(vendor => vendor.vendor === 'icon-vendor')?.icon,
 		}, {
 			themeIcon: { id: 'zap' },
@@ -298,6 +309,8 @@ suite('LanguageModels', function () {
 			lightAndDark: { light: '/extensions/publisher.provider/media/light.svg', dark: '/extensions/publisher.provider/media/dark.svg' },
 			malformed: undefined,
 			outsideExtension: [undefined, undefined],
+			encodedTraversal: [undefined, undefined, undefined],
+			backslashTraversal: [undefined, undefined],
 			vendorIcon: icon,
 		});
 	});
