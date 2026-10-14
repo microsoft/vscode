@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { markAsSingleton } from '../../../../base/common/lifecycle.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
@@ -127,32 +130,42 @@ export async function readTestSessionRegistrations(database: IAgentHostDatabase)
 	return { generation, current, legacy, normalizedCatalogs: [] };
 }
 
-function unsupportedSessionState(): never {
-	throw new Error('Session state is not supported by this database fake');
+/**
+ * Base for database fakes: central session state is held by a private in-memory database, the rest of the
+ * fake keeps its own catalog bookkeeping.
+ */
+export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase {
+	private _sessionStateDatabase: IAgentHostDatabase | undefined;
+
+	private get _sessionState(): IAgentHostDatabase {
+		return this._sessionStateDatabase ??= new AgentHostDatabase(':memory:');
+	}
+
+	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
+	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>): ReturnType<IAgentHostSessionStateDatabase['readSessionStateValues']> { return this._sessionState.readSessionStateValues(...args); }
+	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>): ReturnType<IAgentHostSessionStateDatabase['importSessionState']> { return this._sessionState.importSessionState(...args); }
+	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>): ReturnType<IAgentHostSessionStateDatabase['writeSessionState']> { return this._sessionState.writeSessionState(...args); }
+	markSessionStateLegacyMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLegacyMirrored']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateLegacyMirrored']> { return this._sessionState.markSessionStateLegacyMirrored(...args); }
+	recordSessionStateLegacyMirrorPayload(...args: Parameters<IAgentHostSessionStateDatabase['recordSessionStateLegacyMirrorPayload']>): ReturnType<IAgentHostSessionStateDatabase['recordSessionStateLegacyMirrorPayload']> { return this._sessionState.recordSessionStateLegacyMirrorPayload(...args); }
+	bumpSessionStateRowsRevision(...args: Parameters<IAgentHostSessionStateDatabase['bumpSessionStateRowsRevision']>): ReturnType<IAgentHostSessionStateDatabase['bumpSessionStateRowsRevision']> { return this._sessionState.bumpSessionStateRowsRevision(...args); }
+	markSessionStateRowsMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']> { return this._sessionState.markSessionStateRowsMirrored(...args); }
+	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']> { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
+	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']> { return this._sessionState.markSessionStateRowsMoved(...args); }
+	readBranchChangeset(...args: Parameters<IAgentHostSessionStateDatabase['readBranchChangeset']>): ReturnType<IAgentHostSessionStateDatabase['readBranchChangeset']> { return this._sessionState.readBranchChangeset(...args); }
+	nextSessionCheckpointSequence(...args: Parameters<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']>): ReturnType<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']> { return this._sessionState.nextSessionCheckpointSequence(...args); }
+	upsertTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']> { return this._sessionState.upsertTurnCheckpoints(...args); }
+	readTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['readTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['readTurnCheckpoints']> { return this._sessionState.readTurnCheckpoints(...args); }
+	deleteTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']> { return this._sessionState.deleteTurnCheckpoints(...args); }
+	addCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['addCheckpointRepositories']>): ReturnType<IAgentHostSessionStateDatabase['addCheckpointRepositories']> { return this._sessionState.addCheckpointRepositories(...args); }
+	readCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['readCheckpointRepositories']>): ReturnType<IAgentHostSessionStateDatabase['readCheckpointRepositories']> { return this._sessionState.readCheckpointRepositories(...args); }
+	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>): ReturnType<IAgentHostSessionStateDatabase['readChatRowMirror']> { return this._sessionState.readChatRowMirror(...args); }
+	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>): ReturnType<IAgentHostSessionStateDatabase['writeChatRowMirror']> { return this._sessionState.writeChatRowMirror(...args); }
+	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>): ReturnType<IAgentHostSessionStateDatabase['countStorageReferences']> { return this._sessionState.countStorageReferences(...args); }
+	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>): ReturnType<IAgentHostSessionStateDatabase['listSessionStateGarbage']> { return this._sessionState.listSessionStateGarbage(...args); }
+	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>): ReturnType<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']> { return this._sessionState.deleteSessionStateGarbage(...args); }
 }
 
-/** Base for database fakes that do not hold central session state. */
-export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase {
-	readSessionState(): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return unsupportedSessionState(); }
-	readSessionStateValues(): ReturnType<IAgentHostSessionStateDatabase['readSessionStateValues']> { return unsupportedSessionState(); }
-	importSessionState(): ReturnType<IAgentHostSessionStateDatabase['importSessionState']> { return unsupportedSessionState(); }
-	writeSessionState(): ReturnType<IAgentHostSessionStateDatabase['writeSessionState']> { return unsupportedSessionState(); }
-	markSessionStateLegacyMirrored(): ReturnType<IAgentHostSessionStateDatabase['markSessionStateLegacyMirrored']> { return unsupportedSessionState(); }
-	recordSessionStateLegacyMirrorPayload(): ReturnType<IAgentHostSessionStateDatabase['recordSessionStateLegacyMirrorPayload']> { return unsupportedSessionState(); }
-	bumpSessionStateRowsRevision(): ReturnType<IAgentHostSessionStateDatabase['bumpSessionStateRowsRevision']> { return unsupportedSessionState(); }
-	markSessionStateRowsMirrored(): ReturnType<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']> { return unsupportedSessionState(); }
-	markSessionStateLaunchDirsBackfilled(): ReturnType<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']> { return unsupportedSessionState(); }
-	markSessionStateRowsMoved(): ReturnType<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']> { return unsupportedSessionState(); }
-	readBranchChangeset(): ReturnType<IAgentHostSessionStateDatabase['readBranchChangeset']> { return unsupportedSessionState(); }
-	nextSessionCheckpointSequence(): ReturnType<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']> { return unsupportedSessionState(); }
-	upsertTurnCheckpoints(): ReturnType<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']> { return unsupportedSessionState(); }
-	readTurnCheckpoints(): ReturnType<IAgentHostSessionStateDatabase['readTurnCheckpoints']> { return unsupportedSessionState(); }
-	deleteTurnCheckpoints(): ReturnType<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']> { return unsupportedSessionState(); }
-	addCheckpointRepositories(): ReturnType<IAgentHostSessionStateDatabase['addCheckpointRepositories']> { return unsupportedSessionState(); }
-	readCheckpointRepositories(): ReturnType<IAgentHostSessionStateDatabase['readCheckpointRepositories']> { return unsupportedSessionState(); }
-	readChatRowMirror(): ReturnType<IAgentHostSessionStateDatabase['readChatRowMirror']> { return unsupportedSessionState(); }
-	writeChatRowMirror(): ReturnType<IAgentHostSessionStateDatabase['writeChatRowMirror']> { return unsupportedSessionState(); }
-	countStorageReferences(): ReturnType<IAgentHostSessionStateDatabase['countStorageReferences']> { return unsupportedSessionState(); }
-	listSessionStateGarbage(): ReturnType<IAgentHostSessionStateDatabase['listSessionStateGarbage']> { return unsupportedSessionState(); }
-	deleteSessionStateGarbage(): ReturnType<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']> { return unsupportedSessionState(); }
+/** A real session state store over `database` and `service`, outside the leak check. */
+export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
+	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
 }

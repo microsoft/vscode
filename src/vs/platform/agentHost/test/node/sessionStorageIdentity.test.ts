@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -250,7 +251,7 @@ suite('Session storage identity compatibility', () => {
 		await raw.close();
 		const db = await database();
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern));
 		const peer = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: peer }]);
 		const normalized = await db.registerChatCatalogV2(session.toString(), {
@@ -541,7 +542,7 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
 		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern));
 		const first = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: first, providerData: 'sdk-first' }]);
 		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());

@@ -19,6 +19,7 @@ import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -97,7 +98,7 @@ export function createAgentServiceComposition(
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, accessor.get(IAgentHostSessionStateStore));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -237,7 +238,7 @@ export function createAgentServiceComposition(
 						ref.dispose();
 					}
 				},
-				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
+				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(accessor.get(IAgentHostSessionStateStore), session.toString(), {
 					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
 				}),
 				archiveSession: session => agentService!.archiveSession(session),

@@ -569,6 +569,27 @@ function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirr
 	return undefined;
 }
 
+/**
+ * The central entry that a write of `key` to the database opened by `resource`
+ * changes, or `undefined` when the store does not own that key there.
+ */
+export function legacyWriteEntry(model: SessionStateModel, session: string, resource: string, key: string): SessionStateMirrorEntry | undefined {
+	if (resource === session) {
+		const entry = legacyKeyEntry(model, key);
+		return typeof entry === 'object' ? entry : undefined;
+	}
+	const chat = model.authority === 1 ? model.chats.get(resource) : undefined;
+	if (!chat) {
+		return undefined;
+	}
+	switch (key) {
+		case SESSION_CUSTOM_TITLE_KEY: return chat.isDefault ? undefined : { kind: 'chat', field: 'title', chat: resource };
+		case SESSION_CUSTOM_TITLE_SOURCE_KEY: return chat.isDefault ? undefined : { kind: 'chat', field: 'titleSource', chat: resource };
+		case CHAT_WORKING_DIRECTORIES_MIRROR_KEY: return { kind: 'chat', field: 'workingDirectories', chat: resource };
+	}
+	return undefined;
+}
+
 /** Old-format session.db values rendered from central state, and the requested keys the store does not own. */
 export interface ILegacyMetadata {
 	readonly values: Record<string, string | undefined>;

@@ -33,6 +33,8 @@ import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '..
 import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
@@ -54,7 +56,6 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
@@ -72,7 +73,7 @@ import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTit
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
@@ -446,7 +447,7 @@ class AsyncOutgoingTurnContribution extends TestContribution {
 		if (turn.turnId !== 'send-async') {
 			return undefined;
 		}
-		await Promise.resolve();
+		await timeout(25);
 		calls.push('async');
 		return { instructions: ['async'] };
 	}
@@ -620,7 +621,7 @@ class AsyncHydrationContribution extends TestContribution {
 	static readonly id = 'asyncHydration';
 
 	async onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		await Promise.resolve();
+		await timeout(25);
 		calls.push('async');
 		return [...turns, hydrationTurn('async')];
 	}
@@ -677,7 +678,7 @@ class AsyncChatHydrationContribution extends TestContribution {
 	readonly order = 10;
 
 	async onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
-		await Promise.resolve();
+		await timeout(25);
 		return { ...restored, title: 'async' };
 	}
 }
@@ -822,6 +823,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostSessionTitleController, titleController],
 		[IAgentHostPeerChatPersistenceService, chatPersistence ?? {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
@@ -846,6 +848,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 	);
@@ -917,6 +920,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, worktree],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
@@ -1005,6 +1009,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostPeerChatPersistenceService, { _serviceBrand: undefined, ...createLegacyChatMetadataPersistence(sessionDataService) }],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
@@ -1197,7 +1202,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual({
 			persisted,
@@ -1241,7 +1246,7 @@ suite('AgentHostChatContributions', () => {
 
 		contributions.didDispatchAction(dispatchedAction(recordedDefault, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(shapedPeer, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual(persisted, [{ chat: shapedPeer, archived: true }]);
 	});
@@ -1373,6 +1378,7 @@ suite('AgentHostChatContributions', () => {
 			[ILogService, logService],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 			[ISessionDataService, createSessionDataService(database)],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(database))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1383,7 +1389,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }, 'rejected'));
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsReadChanged, isRead: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual({ persisted, defaultChatMetadata: database.setMetadataCalls, errors }, {
 			persisted: [
@@ -1848,8 +1854,8 @@ suite('AgentHostChatContributions', () => {
 		const action = queuedMessage('rename', '/rename Suggested title');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
 		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
-		await Promise.resolve();
-		await Promise.resolve();
+		await timeout(25);
+		await timeout(25);
 
 		assert.deepStrictEqual({
 			admitted: queue.admitted,
@@ -2825,7 +2831,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsReadChanged, isRead: false }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: { mode: 'interactive' } }, 'rejected'));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual({
 			isRead: await contributions.database.getMetadata(AH_META_IS_READ_DB_KEY),
@@ -2848,7 +2854,7 @@ suite('AgentHostChatContributions', () => {
 			schema: { type: 'object', properties: {} }, values,
 		});
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
-		await Promise.resolve();
+		await timeout(25);
 		assert.deepStrictEqual({
 			persisted: await contributions.database.getMetadata('configValues'),
 			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
@@ -2867,7 +2873,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionConfigChanged, config: { mode: 'plan' },
 			}));
-			await Promise.resolve();
+			await timeout(25);
 			const beforeConfirmation = JSON.parse((await contributions.database.getMetadata('configValues'))!);
 
 			const meta = withSessionSandboxState(undefined, { enabled: pending === 'on' });
@@ -2875,7 +2881,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await Promise.resolve();
+			await timeout(25);
 
 			assert.deepStrictEqual({
 				beforeConfirmation,
@@ -2905,14 +2911,14 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await Promise.resolve();
+			await timeout(25);
 			snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		};
 		await publish(true);
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 			type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' },
 		}));
-		await Promise.resolve();
+		await timeout(25);
 		snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		await publish(true, true);
 		await publish(false);
@@ -2929,7 +2935,7 @@ suite('AgentHostChatContributions', () => {
 		await contributions.database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(Date.now()));
 
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.strictEqual(await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY), '');
 	});
@@ -2983,7 +2989,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.stateManager.addChat(contributions.session, subagentChat, creationTimeChatStorageResource(contributions.session, subagentChat, chat), { origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' } });
 		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
 		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual([...(await contributions.database.getTurnUsages()).entries()], [
 			['parent-turn', JSON.stringify(usage)],
@@ -3756,7 +3762,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
-		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(new TestSessionDatabase())));
 		const contributions = createSessionTitleContributions(disposables, persistence);
 		await database.registerRuntimeSession(contributions.session, { provider: 'test', startTime: 1, source: 'explicit' }, { checkTombstone: true });
 		const peers = Array.from({ length: 100 }, (_, index) => ({

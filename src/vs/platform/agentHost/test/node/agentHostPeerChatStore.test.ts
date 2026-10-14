@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
@@ -92,7 +93,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
 	}
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
@@ -350,7 +351,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined)),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service)),
 			databaseFor,
 		};
 	}
@@ -366,7 +367,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -434,7 +435,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -476,7 +477,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -614,7 +615,7 @@ suite('AgentHostPeerChatStore', () => {
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
 		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
 		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
@@ -832,7 +833,7 @@ suite('AgentHostPeerChatStore', () => {
 		const recordedDefault = buildChatUri(session, 'primary');
 		const shapedPeer = URI.parse(buildDefaultChatUri(session));
 		const local = new TestSessionDatabase();
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)));
 		await store.upsert(session, shapedPeer, 'peer-backing');
 		await store.setRead(session, shapedPeer, false);
 		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);

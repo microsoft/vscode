@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { ISessionDataService } from '../../common/sessionDataService.js';
+import { type IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 
 export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
 export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';
@@ -41,35 +41,22 @@ export function customChatTitleSourceMetadataKey(chat: string): string {
 }
 
 /**
- * Fire-and-forget persistence of a single session-metadata key/value pair to a
- * session's database. Opens the database, writes the value, and disposes the
- * handle; failures are logged, not thrown. Updaters run atomically against the stored value.
+ * Fire-and-forget persistence of a single session-metadata key/value pair
+ * through the session state store. Failures are logged, not thrown. Updaters
+ * run atomically against the stored value.
  *
- * Used for host-owned fields that must survive restart (custom titles, isRead /
- * isArchived flags, merged config values, …). Shared so callers do not each
- * re-implement the open/write/dispose dance.
+ * Used for host-owned fields that must survive restart (isRead / isArchived
+ * flags, merged config values, …). Shared so callers do not each re-implement
+ * the write.
  */
-export function persistSessionMetadata(sessionDataService: ISessionDataService, logService: ILogService, session: string, key: string, value: string | ((previous: string | undefined) => string)): void {
-	const onError = (err: unknown) => {
-		logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
-	};
-	try {
-		const ref = sessionDataService.openDatabase(URI.parse(session));
-		const write = typeof value === 'string' ? ref.object.setMetadata(key, value) : ref.object.updateMetadata(key, value);
-		write.catch(onError).finally(() => {
-			ref.dispose();
-		});
-	} catch (err) {
-		onError(err);
-	}
+export function persistSessionMetadata(stateStore: IAgentHostSessionStateStore, logService: ILogService, session: string, key: string, value: string | ((previous: string | undefined) => string)): void {
+	const write = typeof value === 'string'
+		? stateStore.writeMetadata(URI.parse(session), URI.parse(session), { [key]: value }, SessionStateMirrorFlush.Immediate)
+		: stateStore.update(URI.parse(session), key, value, SessionStateMirrorFlush.Immediate);
+	write.catch(err => logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err));
 }
 
 /** Persists multiple metadata values before returning and propagates write failures. */
-export async function persistSessionMetadataValues(sessionDataService: ISessionDataService, session: string, values: Readonly<Record<string, string>>): Promise<void> {
-	const ref = sessionDataService.openDatabase(URI.parse(session));
-	try {
-		await ref.object.setMetadataValues(values);
-	} finally {
-		ref.dispose();
-	}
+export async function persistSessionMetadataValues(stateStore: IAgentHostSessionStateStore, session: string, values: Readonly<Record<string, string>>): Promise<void> {
+	await stateStore.writeMetadata(URI.parse(session), URI.parse(session), values, SessionStateMirrorFlush.Immediate);
 }

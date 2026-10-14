@@ -156,6 +156,12 @@ export interface IAgentHostSessionStateStore {
 	write(session: URI, patch: ISessionStatePatch, flush: SessionStateMirrorFlush): Promise<number>;
 	/** Replaces one session value from its previous value; `null` deletes it. */
 	update(session: URI, key: string, updater: (previous: string | undefined) => string | null, flush: SessionStateMirrorFlush): Promise<number>;
+	/**
+	 * Writes old-format metadata keys of the database opened by `resource`:
+	 * keys the store owns change central state (the mirror follows), the rest
+	 * go to that database. `null` removes a key.
+	 */
+	writeMetadata(session: URI, resource: URI, values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<void>;
 	/** Runs `task` with the loaded session held exclusively. The task must not call the store for the same session. */
 	runExclusive<T>(session: URI, task: (exclusive: ISessionStateExclusive) => Promise<T>): Promise<T>;
 	/**

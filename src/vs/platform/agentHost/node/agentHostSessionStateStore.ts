@@ -17,7 +17,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { IMirrorReadPlan, isProjectedMirrorEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { IMirrorReadPlan, isProjectedMirrorEntry, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -149,6 +149,55 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				await this._flushLocked(record);
 			}
 			return result;
+		}));
+	}
+
+	async writeMetadata(session: URI, resource: URI, values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<void> {
+		const sequencerKey = this._enter(session);
+		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
+		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
+			const record = await this._loadLocked(session, sequencerKey);
+			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
+			const patches: Partial<ISessionStatePatch>[] = [];
+			const unowned: Record<string, string> = {};
+			const unownedRemovals: string[] = [];
+			let failure: unknown;
+			for (const [key, value] of Object.entries(values)) {
+				const entry = legacyWriteEntry(record.model, record.key, resource.toString(), key);
+				if (entry) {
+					patches.push(patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault));
+				} else if (value === null) {
+					unownedRemovals.push(key);
+				} else {
+					unowned[key] = value;
+				}
+			}
+			if (patches.length > 0) {
+				await this._writeCentral(record, mergePatches(patches), true);
+				if (flush === SessionStateMirrorFlush.Immediate) {
+					record.scheduler.cancel();
+					// Old-format readers still depend on the mirror, so an Immediate write reports its failure.
+					failure = await this._flushLocked(record);
+				} else if (!record.scheduler.isScheduled()) {
+					record.scheduler.schedule();
+				}
+			}
+			if (Object.keys(unowned).length > 0 || unownedRemovals.length > 0) {
+				const reference = this._sessionDataService.openDatabase(resource);
+				try {
+					if (Object.keys(unowned).length > 0) {
+						await reference.object.setMetadataValues(unowned);
+					}
+					if (unownedRemovals.length > 0) {
+						await reference.object.deleteMetadata(unownedRemovals);
+					}
+				} finally {
+					reference.dispose();
+				}
+			}
+			if (failure) {
+				throw failure;
+			}
 		}));
 	}
 
@@ -550,7 +599,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	/** Writes the dirty entries' old format, then acknowledges the revision once nothing is dirty. */
-	private async _flushLocked(record: ISessionRecord): Promise<void> {
+	/** Resolves to the first mirror write failure of this flush, which stays dirty and is retried. */
+	private async _flushLocked(record: ISessionRecord): Promise<unknown> {
+		let failure: unknown;
 		if (record.dirty.size > 0) {
 			const entries = [...record.dirty].map(parseMirrorEntryId);
 			const blobs = new Map<string, string | undefined>();
@@ -570,6 +621,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 						this._setBase(record, id, write.written.get(id));
 					}
 				} catch (error) {
+					failure ??= error;
 					if (!record.mirrorFailureLogged) {
 						record.mirrorFailureLogged = true;
 						this._logService.error(error, `[AgentHostSessionStateStore] Failed to write session state mirrors of ${record.key} to ${resource}`);
@@ -587,6 +639,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				model.legacyMirroredRevision = model.revision;
 			}
 		}
+		return failure;
 	}
 
 	// ---- Snapshots -----------------------------------------------------------------------

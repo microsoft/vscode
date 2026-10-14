@@ -49,6 +49,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
@@ -101,7 +102,7 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -4776,6 +4777,7 @@ suite('AgentService (node dispatcher)', () => {
 				isRead: true,
 			}, 'test-client', 1);
 			await sessionReadPromise;
+			await waitForCondition(async () => await database.getMetadata(AH_META_IS_READ_DB_KEY) === 'true', 'the session read flag should be mirrored to session.db');
 
 			assert.deepStrictEqual({
 				sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionUri)!.status),
@@ -6816,17 +6818,18 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('remote session origin persistence failure rolls back creation', async () => {
-			const db = new class extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					if (values[REMOTE_SESSION_ORIGIN_METADATA_KEY]) {
-						throw new Error('Remote origin persistence failed');
-					}
-					return super.setMetadataValues(values);
-				}
-			}();
 			const agent = disposables.add(new MockAgent('copilot'));
-			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(creating, agent);
+			// Owned keys are written to the central store, whose mirror failures are logged rather than thrown.
+			const store = (creating as unknown as { _sessionStateStore: IAgentHostSessionStateStore })._sessionStateStore;
+			const writeMetadata = store.writeMetadata.bind(store);
+			store.writeMetadata = async (session, resource, values, flush) => {
+				if (values[REMOTE_SESSION_ORIGIN_METADATA_KEY]) {
+					throw new Error('Remote origin persistence failed');
+				}
+				return writeMetadata(session, resource, values, flush);
+			};
 			const origin = { session: 'agent-host-copilot:/parent', chat: 'agent-host-copilot:/parent', depth: 1 };
 			await assert.rejects(creating.createSession({ legacyChatUris: true, provider: 'copilot', _meta: withRemoteSessionOrigin(undefined, origin) }), /Remote origin persistence failed/);
 			assert.deepStrictEqual(await agent.listSessions(), []);
@@ -7134,6 +7137,12 @@ suite('AgentService (node dispatcher)', () => {
 						throw new Error('provider data write failed');
 					}
 					return super.setMetadata(key, value);
+				}
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[CHAT_PROVIDER_DATA_METADATA_KEY]) {
+						throw new Error('provider data write failed');
+					}
+					return super.setMetadataValues(values);
 				}
 			}
 			class BackedDefaultChatAgent extends MockAgent {
@@ -9166,9 +9175,8 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			}, {
 				applied: [
-					{ summary: undefined, isArchived: false, sourceRevision: 1 },
-					{ summary: 'Ordered title', isArchived: false, sourceRevision: 2 },
-					{ summary: 'Newer title', isArchived: true, sourceRevision: 3 },
+					{ summary: 'Ordered title', isArchived: false, sourceRevision: 1 },
+					{ summary: 'Newer title', isArchived: true, sourceRevision: 2 },
 				],
 				central: {
 					summary: 'Newer title',
@@ -9181,12 +9189,12 @@ suite('AgentService (node dispatcher)', () => {
 						isArtifact: true,
 						link: 'https://example.com',
 					}],
-					sourceRevision: 3,
+					sourceRevision: 2,
 					sessionGeneration: central?.sessionGeneration,
 				},
 				receipt: {
 					state: 'acknowledged',
-					sourceRevision: 3,
+					sourceRevision: 2,
 					sessionGeneration: central?.sessionGeneration,
 				},
 			});
@@ -21358,8 +21366,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
+			await timeout(25);
+			await timeout(25);
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
@@ -21389,8 +21397,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
+			await timeout(25);
+			await timeout(25);
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
@@ -21523,6 +21531,7 @@ suite('AgentService (node dispatcher)', () => {
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
 			await evicted;
+			await timeout(25);
 
 			assert.deepStrictEqual({
 				resident: !!stateManager.getSessionState(sessionStr),
@@ -27061,8 +27070,9 @@ suite('AgentService (node dispatcher)', () => {
 				persistedChatLocalTitle: undefined,
 				persistedChatLocalTitleSource: undefined,
 				persistedSessionTitle: 'User title',
-				persistedSessionScopedChatTitle: undefined,
-				persistedSessionScopedChatTitleSource: undefined,
+				// The state store mirrors every chat title (default chat included) to `customChatTitle:<chat>`.
+				persistedSessionScopedChatTitle: 'User title',
+				persistedSessionScopedChatTitleSource: 'user',
 				normalizedTitle: 'User title',
 				normalizedTitleSource: 'user',
 			});
@@ -30636,10 +30646,11 @@ suite('AgentService (node dispatcher)', () => {
 			const configuration = getConfigurationService(localService);
 			configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 			const { session } = await createAgentSession(localAgent);
-			await sessionDb.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'off', mode: 'interactive' }));
+			await getTestSessionStateStore(localService).update(session, 'configValues', () => JSON.stringify({ sandboxEnabled: 'off', mode: 'interactive' }), SessionStateMirrorFlush.Immediate);
 
 			await localService.restoreSession(session);
 			configuration.updateSessionConfig(session.toString(), { mode: 'plan' });
+			await getTestSessionStateStore(localService).whenIdle(session);
 			await sessionDb.whenIdle();
 			const persisted = JSON.parse((await sessionDb.getMetadata('configValues'))!);
 			getStateManager(localService).removeSession(session.toString());
@@ -32155,6 +32166,7 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(localService).dispatchServerAction(sessionResource.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repo' });
 			getConfigurationService(localService).updateSessionConfig(sessionResource.toString(), { [SessionConfigKey.AgentMerge]: { enabled: true } });
 			await localService.whenAgentMergeSessionsRestored();
+			await getTestSessionStateStore(localService).whenIdle(sessionResource);
 			return { localService, localAgent, sessionResource };
 		}
 
@@ -32236,6 +32248,9 @@ suite('AgentService (node dispatcher)', () => {
 				const sessionDb = new TestSessionDatabase();
 				const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
 				const sessionStr = sessionResource.toString();
+				// The flags contribution persists the merged config asynchronously
+				// (not observable under fake timers), so seed the durable value.
+				await sessionDb.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.AgentMerge]: { enabled: true } }));
 
 				// A fresh host over the same durable state must resume monitoring
 				// from the index alone. Remove best-effort local notices so the

@@ -8,6 +8,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
@@ -70,6 +71,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _logService: ILogService,
 		private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {
@@ -208,6 +210,10 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					if (await this._database.isSessionTombstoned(session.toString())) {
 						throw new Error(`Cannot snapshot a default title for deleted session ${session.toString()}`);
 					}
+					// Central state already holds the default chat's title.
+					if ((await this._sessionStateStore.load(session)).chats.has(chat.toString())) {
+						return;
+					}
 					const ref = this._sessionDataService.openDatabase(session);
 					try {
 						const key = customChatTitleMetadataKey(chat.toString());
@@ -258,17 +264,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			while (true) {
 				const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 				if (snapshot?.authorityVersion !== 2) {
-					const ref = this._sessionDataService.openDatabase(resource);
-					try {
-						const entries = Object.entries(values);
-						if (entries.length === 1) {
-							await ref.object.setMetadata(entries[0][0], entries[0][1]);
-						} else {
-							await ref.object.setMetadataValues(values);
-						}
-					} finally {
-						ref.dispose();
-					}
+					await this._sessionStateStore.writeMetadata(session, resource, values, SessionStateMirrorFlush.Immediate);
 					return;
 				}
 				const legacy: Record<string, string> = {};
@@ -306,12 +302,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					continue;
 				}
 				if (Object.keys(legacy).length) {
-					const ref = this._sessionDataService.openDatabase(resource);
-					try {
-						await ref.object.setMetadataValues(legacy);
-					} finally {
-						ref.dispose();
-					}
+					await this._sessionStateStore.writeMetadata(session, resource, legacy, SessionStateMirrorFlush.Immediate);
 				}
 				return;
 			}

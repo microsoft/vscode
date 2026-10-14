@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
 import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -681,7 +682,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)));
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,

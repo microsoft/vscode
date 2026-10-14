@@ -22,7 +22,7 @@ import type { GitHubIssueOrPullRequest } from '../../github/common/githubQuerySe
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -982,7 +982,11 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
 			return;
 		}
-		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+		// Strategy and deferred-seed keys are not central state; production routes titles through `persistMetadata`.
+		const reference = this._options.sessionDataService.openDatabase(URI.parse(session));
+		reference.object.setMetadata(key, value)
+			.catch(err => this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err))
+			.finally(() => reference.dispose());
 	}
 
 	/** Snapshots host-owned scheduling independently of explicit rename-tool availability. */

@@ -364,4 +364,44 @@ suite('AgentHostSessionStateStore', () => {
 			unchangedOtherwise: true,
 		});
 	});
+	suite('writeMetadata', () => {
+		const owned = 'isArchived';
+		const unowned = 'someUnownedKey';
+
+		test('an owned key updates central state and is mirrored to the session database before returning', async () => {
+			const { session } = await oldBuildSession();
+			const writer = createStore();
+			await writer.writeMetadata(session, session, { [owned]: 'true' }, SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				mirrored: (await sessionDb(session, [owned]))[owned],
+				central: (await writer.load(session)).values.get(owned),
+			}, { mirrored: 'true', central: 'true' });
+		});
+
+		test('an unowned key is written straight to the session database and leaves central state untouched', async () => {
+			const { session } = await oldBuildSession();
+			const writer = createStore();
+			const before = await writer.load(session);
+			await writer.writeMetadata(session, session, { [unowned]: 'value' }, SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				stored: (await sessionDb(session, [unowned]))[unowned],
+				centralRevisionUnchanged: (await writer.load(session)).revision === before.revision,
+				centralHasKey: (await writer.load(session)).values.has(unowned),
+			}, { stored: 'value', centralRevisionUnchanged: true, centralHasKey: false });
+		});
+
+		test('null deletes owned and unowned keys', async () => {
+			const { session } = await oldBuildSession();
+			const writer = createStore();
+			await writer.writeMetadata(session, session, { [owned]: 'true', [unowned]: 'value' }, SessionStateMirrorFlush.Immediate);
+			await writer.writeMetadata(session, session, { [owned]: null, [unowned]: null }, SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				stored: await sessionDb(session, [owned, unowned]),
+				central: (await writer.load(session)).values.has(owned),
+			}, { stored: { [owned]: undefined, [unowned]: undefined }, central: false });
+		});
+	});
 });

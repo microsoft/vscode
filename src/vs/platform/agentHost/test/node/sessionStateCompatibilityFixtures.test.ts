@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -88,7 +89,7 @@ suite('Session state compatibility fixtures', () => {
 			const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 			await today.initialize();
 			const service = sessionData.createService(today.identity);
-			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
 			const session = URI.parse(fixture.runtimeSession);
 			const drafts: Record<string, string | undefined> = {};
 			for (const chat of fixture.chats) {

@@ -71,6 +71,7 @@ import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -899,6 +900,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
@@ -5291,24 +5293,6 @@ export class AgentService extends Disposable implements IAgentService {
 			?? (creationReference ? readSessionInitiator(this._stateManager.getSessionSummary(creationReference.session)) : undefined)
 			?? getLegacySessionInitiator(provider.id, false);
 		config = { ...config, legacyChatUris: config?.legacyChatUris, _meta: withSessionInitiator(config?._meta, initiator) };
-		if (!isEphemeral) {
-			try {
-				const metadata: Record<string, string> = { [SESSION_INITIATOR_METADATA_KEY]: JSON.stringify(initiator) };
-				if (creationReference) {
-					metadata[AH_META_CREATED_BY_SESSION_DB_KEY] = JSON.stringify(creationReference);
-				}
-				if (devContainerWorktree) {
-					metadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY] = JSON.stringify(devContainerWorktree);
-				}
-				if (remoteOrigin) {
-					metadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
-				}
-				await persistSessionMetadataValues(this._sessionDataService, session.toString(), metadata);
-			} catch (err) {
-				await this._rollbackProviderSession(provider, session, created.defaultChat);
-				throw err;
-			}
-		}
 		if (isEphemeral) {
 			try {
 				await this._retryRegistryMutation(
@@ -5337,6 +5321,17 @@ export class AgentService extends Disposable implements IAgentService {
 					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false, provisional: isIdleProvisional }),
 					`registration for ${session.toString()}`,
 				);
+				const metadata: Record<string, string> = { [SESSION_INITIATOR_METADATA_KEY]: JSON.stringify(initiator) };
+				if (creationReference) {
+					metadata[AH_META_CREATED_BY_SESSION_DB_KEY] = JSON.stringify(creationReference);
+				}
+				if (devContainerWorktree) {
+					metadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY] = JSON.stringify(devContainerWorktree);
+				}
+				if (remoteOrigin) {
+					metadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
+				}
+				await persistSessionMetadataValues(this._sessionStateStore, session.toString(), metadata);
 				if (isIdleProvisional) {
 					this._provisionalSessionKeys.add(session.toString());
 				} else {
@@ -6814,18 +6809,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
-		let ref;
-		try {
-			ref = this._sessionDataService.openDatabase(session);
-		} catch (err) {
-			this._logService.warn(`[AgentService] Failed to open session database to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
-			return;
-		}
 		const appliedSandboxEnabled = this._configurationService.getSessionSandboxEnabled(session.toString());
-		ref.object.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous))).catch(err => {
+		this._sessionStateStore.update(session, 'configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous)), SessionStateMirrorFlush.Immediate).catch(err => {
 			this._logService.warn(`[AgentService] Failed to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
-		}).finally(() => {
-			ref.dispose();
 		});
 	}
 
@@ -7061,6 +7047,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const catalogDeletionFence = this._catalogSyncService.beginSessionDeletion(session);
 		let peerChatDeletionBegun = false;
+		let sessionStateDeletion: { dispose(): void } | undefined;
 		try {
 			const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
 			const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
@@ -7136,6 +7123,10 @@ export class AgentService extends Disposable implements IAgentService {
 				traceStage('disposeProviderChats');
 				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats, defaultChat)];
 			}
+			traceStage('drainSessionState');
+			const stateDeletion = this._sessionStateStore.beginDeletion(session);
+			sessionStateDeletion = stateDeletion;
+			await stateDeletion.whenDrained;
 			if (!isEphemeral) {
 				traceStage('tombstone');
 				await this._retryRegistryMutation(
@@ -7196,6 +7187,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._peerChatStore.endSessionDeletion(session);
 			}
 			catalogDeletionFence.dispose();
+			sessionStateDeletion?.dispose();
 		}
 		traceStage('complete');
 	}
@@ -7809,7 +7801,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? false
 			: requestedSet;
 		const soleChat = aggregateChats.length === 1 ? aggregateChats[0] : undefined;
-		await persistSessionMetadataValues(this._sessionDataService, session, {
+		await persistSessionMetadataValues(this._sessionStateStore, session, {
 			[key]: set ? 'true' : '',
 			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
 		});
@@ -8288,7 +8280,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			if (!equals(summary.workingDirectories ?? sessionDirectories, directories)) {
 				// Forked chats can inherit a baseline from their previous checkout.
-				await persistSessionMetadataValues(this._sessionDataService, chat.toString(), { [META_DIFF_BASE_BRANCH]: '' });
+				await this._sessionStateStore.writeMetadata(session, chat, { [META_DIFF_BASE_BRANCH]: '' }, SessionStateMirrorFlush.Immediate);
 			}
 			assertCurrentChat();
 			await this._peerChatStore.updateWorkingDirectories(session, chat, directories);
