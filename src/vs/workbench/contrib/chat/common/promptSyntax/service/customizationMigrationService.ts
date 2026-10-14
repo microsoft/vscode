@@ -320,6 +320,7 @@ export interface ICustomizationMigrationCount {
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomizations: Event<void>;
+	readonly onDidChangePluginMarketplaces: Event<void>;
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;

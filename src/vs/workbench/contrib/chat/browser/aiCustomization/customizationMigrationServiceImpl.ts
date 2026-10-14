@@ -26,6 +26,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomizations: Event<void>;
 	private readonly _onDidChangeMarketplaceInventory = this._register(new Emitter<void>());
+	readonly onDidChangePluginMarketplaces = this._onDidChangeMarketplaceInventory.event;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -52,7 +53,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			Event.fromObservableLight(customizationHarnessService.availableHarnesses),
 			Event.fromObservableLight(mcpService.servers),
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.PluginMarketplaces)),
-			this._onDidChangeMarketplaceInventory.event,
+			this.onDidChangePluginMarketplaces,
 		);
 	}
 
