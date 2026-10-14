@@ -19,7 +19,7 @@ import { parseMcpChannelUri } from '../shared/mcpCustomizationController.js';
 /** Reads linked MCP content through the owning agent provider. */
 export class McpResourceLinkProvider implements IAgentHostResourceProvider {
 	constructor(
-		private readonly _restoreSession: (session: URI) => Promise<void>,
+		private readonly _restoreSessionChat: (session: URI, chat: URI) => Promise<void>,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
@@ -34,7 +34,7 @@ export class McpResourceLinkProvider implements IAgentHostResourceProvider {
 			const recordedOwner = await this._chatOwnership.createRecordedOwnerLookup()(route.chatUri.toString());
 			const owningSession = resolveAgentHostSession(route.chatUri, () => recordedOwner);
 			if (owningSession) {
-				await this._restoreSession(owningSession);
+				await this._restoreSessionChat(owningSession, route.chatUri);
 			}
 		}
 		const result = await this._providerService.handleMcpRequest(mcpResource.channel, 'resources/read', { uri: mcpResource.uri }) as MCP.ReadResourceResult;

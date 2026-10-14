@@ -4093,34 +4093,38 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		test('restores the recorded owner of an unsubscribed MCP resource before dispatch', async () => {
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const provider = disposables.add(new MockAgent('copilot'));
-			registerTestAgentProvider(localService, provider);
-			await localService.listSessions();
-			await localService.whenCatalogReconciliationIdle();
-			const session = URI.parse('ahp-session:/saved-mcp-session');
-			const chat = URI.parse('ahp-chat:/opaque-saved-mcp-chat');
-			const database = getTestAgentHostDatabase(localService);
-			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-			await database.registerChatCatalogV2(session.toString(), {
-				defaultChat: { chat: chat.toString(), order: 0 },
-				peers: [], privateDescendants: [],
+		test('restores and materializes an unopened persisted peer chat before an MCP resource read', async () => {
+			const owner = AgentSession.uri('copilot', 'mcp-peer-owner');
+			const peer = buildChatUri(owner, 'peer');
+			const storage = AgentSession.uri('copilot', 'mcp-peer-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: buildDefaultChatUri(owner), order: 0 },
+				peers: [{ chat: peer, order: 1, storageResource: storage }],
+				privateDescendants: [],
 			});
-			const calls: string[] = [];
-			localService.restoreSession = async owner => { calls.push(`restore:${owner.toString()}`); };
-			const agent: IAgent = provider;
-			agent.handleMcpRequest = async requestedChat => {
-				calls.push(`read:${requestedChat.toString()}`);
-				return { contents: [{ uri: 'demo:/resource', text: 'restored' }] };
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: owner });
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(localService, agent);
+			agent.chatContexts.length = 0;
+			let materializedBeforeRead: boolean | undefined;
+			const provider: IAgent = agent;
+			provider.handleMcpRequest = async requestedChat => {
+				materializedBeforeRead = agent.chatContexts.some(call => call.chat.toString() === peer);
+				return { contents: [{ uri: 'demo:/resource', text: `read:${requestedChat.toString()}` }] };
 			};
-			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'server', 'copilot'), 'demo:/resource'));
-			const initiallyRestored = !!getStateManager(localService).getSessionState(session.toString());
+			const initiallyRestored = !!getStateManager(localService).getSessionState(owner.toString());
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(URI.parse(peer), 'server', 'copilot'), 'demo:/resource'));
 
-			assert.deepStrictEqual({ initiallyRestored, result: await localService.resourceRead(uri), calls }, {
+			assert.deepStrictEqual({ initiallyRestored, result: await localService.resourceRead(uri), materializedBeforeRead }, {
 				initiallyRestored: false,
-				result: { data: 'restored', encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
-				calls: [`restore:${session.toString()}`, `read:${chat.toString()}`],
+				result: { data: `read:${peer}`, encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
+				materializedBeforeRead: true,
 			});
 		});
 
