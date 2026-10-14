@@ -17,6 +17,11 @@ interface IAgentHostSandboxToggleState {
 	readonly devContainerSandboxSupported?: boolean;
 }
 
+/** A managed sandbox can only remain Off after a runtime-confirmed session opt-out. */
+export function isAgentHostSandboxDisablingBlocked(state: Pick<IAgentHostSandboxToggleState, 'managedEnabled' | 'allowsBypass' | 'confirmedEnabled' | 'sessionEnabled'>): boolean {
+	return state.managedEnabled && !(state.allowsBypass && state.confirmedEnabled === false && state.sessionEnabled === false);
+}
+
 /** Managed enablement permits turning On after an authorized session opt-out, but never a direct Off. */
 export function getAgentHostSandboxToggleState(state: IAgentHostSandboxToggleState): { checked: boolean; disabled: boolean } | undefined {
 	if (state.provider !== 'copilotcli') {
@@ -26,7 +31,7 @@ export function getAgentHostSandboxToggleState(state: IAgentHostSandboxToggleSta
 	const checked = state.managedEnabled && !authorizedDisable ? true : (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled));
 	return {
 		checked,
-		disabled: (state.managedEnabled && checked) || (state.devContainerSandboxSupported === false && !checked),
+		disabled: isAgentHostSandboxDisablingBlocked(state) || (state.devContainerSandboxSupported === false && !checked),
 	};
 }
 

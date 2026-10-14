@@ -10,12 +10,13 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
@@ -28,6 +29,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostSandboxNotification } from '../../../browser/agentSessions/agentHost/agentHostSandboxNotification.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 
@@ -38,6 +40,8 @@ suite('AgentHostSandboxNotification', () => {
 	let configurationService: TestConfigurationService;
 	let resolution: IAgentHostSessionResolution | undefined;
 	let dispatched: Parameters<IAgentConnection['dispatch']>[];
+	let localHost: IAgentHostService;
+	let remoteAuthority: string | undefined;
 	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 	const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 
@@ -48,6 +52,14 @@ suite('AgentHostSandboxNotification', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		dispatched = [];
+		localHost = new class extends mock<IAgentHostService>() {
+			override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
+				dispatched.push(args);
+			}
+		};
+		remoteAuthority = undefined;
+		instantiationService.stub(IAgentHostService, localHost);
+		instantiationService.stub(IWorkbenchEnvironmentService, { get remoteAuthority() { return remoteAuthority; } });
 		resolution = {
 			connectionAuthority: 'custom-host',
 			backendSession: URI.parse('custom-host://opaque/session'),
@@ -59,8 +71,7 @@ suite('AgentHostSandboxNotification', () => {
 		};
 		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 			override resolveSessionResource(sessionResource: URI): IAgentHostSessionResolution | undefined {
-				assert.strictEqual(sessionResource.toString(), resource.toString());
-				return resolution;
+				return sessionResource.toString() === resource.toString() ? resolution : undefined;
 			}
 		});
 		instantiationService.stub(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
@@ -87,7 +98,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.ok(this.value && !(this.value instanceof Error));
 			return this.value;
 		}
-		setValue(reasons?: readonly string[], managed?: boolean, allowBypass?: boolean): void {
+		setValue(reasons?: readonly string[], managed?: boolean, allowBypass?: boolean, failClosed?: boolean): void {
 			this.value = createSessionState({
 				resource: 'custom-host://opaque/session',
 				provider: 'custom-provider',
@@ -95,7 +106,7 @@ suite('AgentHostSandboxNotification', () => {
 				status: SessionStatus.Idle,
 				createdAt: '2026-09-25T00:00:00.000Z',
 				modifiedAt: '2026-09-25T00:00:00.000Z',
-				_meta: withSessionSandboxPolicy({ [agentSandboxDiagnosticsMetaKey]: reasons }, managed === undefined ? undefined : { enabled: managed, allowBypass }),
+				_meta: withSessionSandboxPolicy({ [agentSandboxDiagnosticsMetaKey]: reasons }, managed === undefined ? undefined : { enabled: managed, allowBypass, failClosed }),
 			});
 			this._onDidChange.fire(this.value);
 		}
@@ -314,7 +325,9 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	}
 
-	test('observes local managed policy when host policy is absent and honors explicit host policy', () => {
+	test('uses renderer policy only for the local desktop ambient host and honors explicit host policy', () => {
+		assert.ok(resolution);
+		resolution = { ...resolution, connection: localHost };
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.']);
 		const service = new NotificationService();
@@ -323,34 +336,89 @@ suite('AgentHostSandboxNotification', () => {
 		managedSandboxEnforced.set(true, undefined);
 		const managed = !!getDisableCommand(service);
 		subscription.setValue(['Missing dependencies.'], false);
-		assert.deepStrictEqual([initial, managed, !!getDisableCommand(service)], [true, false, true]);
+		assert.deepStrictEqual([initial, managed, !!getDisableCommand(service)], [true, isWeb, true]);
 	});
 
-	test('allows managed sandbox settings changes only with explicit host bypass permission', async () => {
+	for (const scenario of [
+		{ name: 'remote host', ambient: false, remoteAuthority: undefined },
+		{ name: 'remote workbench ambient host', ambient: true, remoteAuthority: 'ssh-remote+test' },
+	]) {
+		test(`does not apply renderer policy to a ${scenario.name} without host metadata`, async () => {
+			assert.ok(resolution);
+			if (scenario.ambient) {
+				resolution = { ...resolution, connection: localHost };
+			}
+			remoteAuthority = scenario.remoteAuthority;
+			managedSandboxEnforced.set(true, undefined);
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue(['Missing dependencies.']);
+			subscription.setSandboxConfig('on', true);
+			const service = new NotificationService();
+			const update = stub(configurationService, 'updateValue').resolves();
+			createNotification(resource, subscription, service);
+			await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
+			assert.deepStrictEqual({ dispatched, writes: update.args }, {
+				dispatched: [['custom-host://opaque/session', { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off' } }]],
+				writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'bypass is disallowed', allowBypass: false, value: 'on', confirmed: true },
+		{ name: 'bypass is allowed but not approved', allowBypass: true, value: 'on', confirmed: true },
+		{ name: 'off selection is not runtime-confirmed', allowBypass: true, value: 'off', confirmed: undefined },
+		{ name: 'sandbox has been re-enabled after an approved bypass', allowBypass: true, value: 'on', confirmed: false },
+		{ name: 'bypass has been revoked', allowBypass: false, value: 'off', confirmed: false },
+	]) {
+		test(`blocks a managed disable when ${scenario.name}`, async () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue(['Missing dependencies.'], false);
+			const service = new NotificationService();
+			const update = stub(configurationService, 'updateValue').resolves();
+			createNotification(resource, subscription, service);
+			const command = CommandsRegistry.getCommand(getDisableCommand(service))!;
+			subscription.setValue(['Missing dependencies.'], true, scenario.allowBypass);
+			subscription.setSandboxConfig(scenario.value, scenario.confirmed);
+			await assert.rejects(async () => instantiationService.invokeFunction(command.handler), /required by your organization/);
+			assert.deepStrictEqual({ hasLink: !!getDisableCommand(service), dispatched, writes: update.args }, {
+				hasLink: false, dispatched: [], writes: [],
+			});
+		});
+	}
+
+	test('permits saving Off after an approved managed session opt-out', async () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.'], true, true);
+		subscription.setSandboxConfig('off', false);
 		const service = new NotificationService();
 		const update = stub(configurationService, 'updateValue').resolves();
 		createNotification(resource, subscription, service);
 		const command = CommandsRegistry.getCommand(getDisableCommand(service))!;
 		await instantiationService.invokeFunction(command.handler);
-		subscription.setValue(['Missing dependencies.'], true, false);
-		await assert.rejects(async () => instantiationService.invokeFunction(command.handler), /required by your organization/);
-		const denied = !!getDisableCommand(service);
-		managedSandboxAllowsBypass.set(true, undefined);
-		subscription.setValue(['Missing dependencies.'], true);
-		assert.deepStrictEqual({
-			writes: update.args,
-			denied,
-			missingBypass: !!getDisableCommand(service),
-		}, {
+		assert.deepStrictEqual({ dispatched, writes: update.args }, {
+			dispatched: [],
 			writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
-			denied: false,
-			missingBypass: false,
 		});
 	});
 
-	test('updates the link when local managed bypass permission changes', async () => {
+	test('allows a fail-closed policy retry for the runtime to decide', async () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Missing dependencies.'], true, false, true);
+		subscription.setSandboxConfig('on', true);
+		const service = new NotificationService();
+		const update = stub(configurationService, 'updateValue').resolves();
+		createNotification(resource, subscription, service);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
+		assert.deepStrictEqual({ dispatched, writes: update.args }, {
+			dispatched: [['custom-host://opaque/session', { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off' } }]],
+			writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
+		});
+	});
+
+	test('local bypass permission only unlocks a runtime-confirmed opt-out', () => {
+		assert.ok(resolution);
+		resolution = { ...resolution, connection: localHost };
 		managedSandboxEnforced.set(true, undefined);
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.']);
@@ -359,10 +427,10 @@ suite('AgentHostSandboxNotification', () => {
 		const initial = !!getDisableCommand(service);
 		managedSandboxAllowsBypass.set(true, undefined);
 		const allowed = !!getDisableCommand(service);
-		const command = CommandsRegistry.getCommand(getDisableCommand(service))!;
+		subscription.setSandboxConfig('off', false);
+		const confirmed = !!getDisableCommand(service);
 		managedSandboxAllowsBypass.set(false, undefined);
-		await assert.rejects(async () => instantiationService.invokeFunction(command.handler), /required by your organization/);
-		assert.deepStrictEqual([initial, allowed, !!getDisableCommand(service)], [false, true, false]);
+		assert.deepStrictEqual([initial, allowed, confirmed, !!getDisableCommand(service)], [isWeb, isWeb, true, isWeb]);
 	});
 
 	test('surfaces configuration update failures', async () => {

@@ -8,11 +8,14 @@ import { createCommandUri, MarkdownString } from '../../../../../../base/common/
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
+import { isAgentHostSandboxDisablingBlocked } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
@@ -24,6 +27,7 @@ import { SessionState } from '../../../../../../platform/agentHost/common/state/
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 export class AgentHostSandboxNotification extends Disposable {
@@ -42,6 +46,8 @@ export class AgentHostSandboxNotification extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _enablementService: IAgentHostEnablementService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._id = `agentHost.sandboxUnsupported.${_sessionResource.toString()}`;
@@ -103,9 +109,17 @@ export class AgentHostSandboxNotification extends Disposable {
 			return false;
 		}
 		const policy = readSessionSandboxPolicy(state);
-		const managed = policy?.enabled ?? this._enablementService.managedSandboxEnforced.get();
-		const allowBypass = policy ? policy.allowBypass === true : this._enablementService.managedSandboxAllowsBypass.get();
-		return (!managed || allowBypass)
+		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
+		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
+			&& connection === this._agentHostService;
+		const value = state.config?.values[SessionConfigKey.SandboxEnabled] ?? state.config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
+		const confirmedEnabled = readSessionSandboxState(state)?.enabled;
+		return !isAgentHostSandboxDisablingBlocked({
+			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
+			confirmedEnabled,
+			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._enablementService.managedSandboxEnforced.get(),
+			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._enablementService.managedSandboxAllowsBypass.get(),
+		})
 			&& this._configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).policyValue === undefined;
 	}
 
