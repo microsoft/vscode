@@ -34,8 +34,11 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
+import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
@@ -967,9 +970,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getLanguageModelGroups: () => [],
 		...languageModelsServiceOverride,
 	});
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(): void { }
+	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
 		inspect: () => ({ policyValue: undefined }),
+		updateValue: async () => { },
 		getValue: (...args: any[]) => {
 			const key = args[0];
 			if (typeof key === 'string') {
@@ -9735,6 +9742,60 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
+
+		for (const failSave of [false, true]) {
+			test(`sandbox path grant ${failSave ? 'keeps confirmation open when saving fails' : 'saves before dispatching the grant'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+				const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+				const notifications = instantiationService.invokeFunction(accessor => accessor.get(INotificationService));
+				const gate = new DeferredPromise<void>();
+				const saved: unknown[] = [];
+				const update = sinon.stub(config, 'updateValue').callsFake(async (key, value, target) => {
+					saved.push({ key, value, target });
+					await gate.p;
+					if (failSave) {
+						throw new Error('settings are read-only');
+					}
+				});
+				const notify = sinon.stub(notifications, 'error');
+				try {
+					const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+					fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
+					fire({
+						type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-grant',
+						invocationMessage: 'Read /outside', confirmationTitle: 'Add to user sandbox settings and retry?',
+						_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
+						options: [
+							{ id: SAVE_SANDBOX_PATH, label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					} as ChatAction);
+					await timeout(10);
+					const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
+					assert.ok(invocation?.kind === 'toolInvocation');
+					const confirmations = () => agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
+					IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: SAVE_SANDBOX_PATH });
+					await timeout(10);
+					assert.deepStrictEqual({ saved, confirmations: confirmations().length }, {
+						saved: [{ key: AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, value: { readonlyPaths: ['/outside'] }, target: ConfigurationTarget.USER_LOCAL }],
+						confirmations: 0,
+					});
+					gate.complete();
+					await timeout(10);
+					assert.deepStrictEqual({
+						confirmations: confirmations().map(item => (item.action as IToolCallConfirmedAction).selectedOptionId),
+						saved: confirmations().map(item => readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).sandboxPathGrantSaved),
+						waiting: invocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation,
+						errors: notify.callCount,
+					}, { confirmations: failSave ? [] : [SAVE_SANDBOX_PATH], saved: failSave ? [] : [true], waiting: failSave, errors: failSave ? 1 : 0 });
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+				} finally {
+					update.restore();
+					notify.restore();
+				}
+			}));
+		}
 
 		test('pending confirmation refreshes risk assessment and options', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

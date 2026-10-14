@@ -28,6 +28,7 @@ export interface IAgentPermissionResponseContext {
 	readonly selectedOptionId?: string;
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
+	readonly sandboxPathGrantSaved?: true;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
