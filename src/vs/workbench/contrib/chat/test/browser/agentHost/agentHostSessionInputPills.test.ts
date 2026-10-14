@@ -61,6 +61,7 @@ import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IAgentHostEditorReviewService } from '../../../browser/agentSessions/agentHost/agentHostEditorReview.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -135,6 +136,10 @@ suite('AgentHostSessionInputPills', () => {
 	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostEditorReviewService, {
+			trackSession: () => { },
+			openFile: async () => false,
+		});
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: () => new Promise(() => { }),
@@ -928,6 +933,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -1389,6 +1395,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		await timeout(0);
 
@@ -1723,6 +1730,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
 		button?.click();
@@ -1927,6 +1935,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -2034,6 +2043,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
@@ -2206,6 +2216,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -2385,6 +2396,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -2502,6 +2514,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -2588,6 +2601,7 @@ suite('AgentHostSessionInputPills', () => {
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
+			instantiationService.get(IAgentHostEditorReviewService),
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();

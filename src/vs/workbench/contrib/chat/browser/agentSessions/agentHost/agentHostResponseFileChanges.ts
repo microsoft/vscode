@@ -125,6 +125,7 @@ function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: s
 		modifiedSnapshotURI,
 		isCreated: normalized.kind === FileEditKind.Create,
 		isDeleted: normalized.kind === FileEditKind.Delete,
+		...(normalized.kind === FileEditKind.Rename ? { isRenamed: true } : {}),
 		added: edit.diff?.added ?? 0,
 		removed: edit.diff?.removed ?? 0,
 		quitEarly: false,

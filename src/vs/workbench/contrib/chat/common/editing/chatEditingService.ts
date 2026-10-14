@@ -326,6 +326,9 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** Whether the modified resource was deleted by this edit. */
 	isDeleted?: boolean;
 
+	/** Whether this change moves the file to a different path. */
+	isRenamed?: boolean;
+
 	/** Diff state information: */
 	quitEarly: boolean;
 	identical: boolean;

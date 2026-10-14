@@ -60,6 +60,7 @@ import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
+import { IAgentHostEditorReviewService } from './agentHostEditorReview.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
@@ -527,6 +528,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
+		@IAgentHostEditorReviewService editorReviewService: IAgentHostEditorReviewService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -535,6 +537,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const editorReviewEnabled = observableConfigValue(ChatConfiguration.EditorAgentHostReviewEnabled, false, this._configurationService);
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
@@ -590,7 +593,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const session = sessionState.read(reader);
 			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const defaultKind = workingSetEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			const defaultKind = workingSetEnabled.read(reader) || editorReviewEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
@@ -643,8 +646,18 @@ export class AgentHostSessionInputPills extends Disposable {
 			return subagentChat.read(reader) ? [] : changes.read(reader);
 		});
 		this._register(autorun(reader => {
+			sessionResource.read(reader);
+			const model = this._widget.viewModel?.model;
+			if (editorReviewEnabled.read(reader) && model && resolution.read(reader) && changesetFiles.read(reader) && !subagentChat.read(reader)) {
+				editorReviewService.trackSession(model, changes.read(reader));
+			}
+		}));
+		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges));
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, async (diff, options, group) => {
+					const resource = sessionResource.read(undefined);
+					return resource ? editorReviewService.openFile(resource, diff.modifiedURI, options, group) : false;
+				}));
 			}
 		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {

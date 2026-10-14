@@ -17,7 +17,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
+import { IChangesSummaryFileListOptions, renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
 
 export class ChatSessionWorkingSet extends Disposable {
 	readonly domNode = dom.$('.chat-editing-session-container.chat-session-working-set');
@@ -26,6 +26,7 @@ export class ChatSessionWorkingSet extends Disposable {
 	constructor(
 		diffs: IObservable<readonly IEditSessionEntryDiff[]>,
 		collapsed: ISettableObservable<boolean>,
+		openFile: IChangesSummaryFileListOptions['openFile'],
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -48,6 +49,7 @@ export class ChatSessionWorkingSet extends Disposable {
 		this._register(renderChangesSummaryFileList(listContainer, diffs, scopedInstantiationService, editorService, configurationService, {
 			alwaysOpenInDiffEditor: true,
 			ariaLabel: localize('chat.sessionWorkingSet.list', "Session changes"),
+			openFile,
 		}));
 		this._register(button.onDidClick(() => collapsed.set(!collapsed.get(), undefined)));
 		this._register(autorun(reader => {

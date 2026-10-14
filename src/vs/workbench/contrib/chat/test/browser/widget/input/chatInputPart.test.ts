@@ -228,6 +228,7 @@ suite('ChatInputPart', () => {
 		inputPart.renderChatEditingSessionState(null);
 		const row = container.querySelector<HTMLElement>('.monaco-list-row')!;
 		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		await Promise.resolve();
 		assert.deepStrictEqual({
 			label: row.getAttribute('aria-label'),
 			editors: opened.map(input => isResourceDiffEditorInput(input) ? {
