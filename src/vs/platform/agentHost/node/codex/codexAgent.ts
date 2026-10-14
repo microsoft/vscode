@@ -1864,7 +1864,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const efforts = supportedEfforts.map(option => option.reasoningEffort);
 			properties[CODEX_THINKING_LEVEL_KEY] = {
 				type: 'string',
-				title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
+				title: localize('codex.modelThinkingLevel.title', "Effort Level"),
 				description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
 				default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
 				enum: efforts,
