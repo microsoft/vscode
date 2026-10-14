@@ -158,6 +158,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionListController {
 		const address = cloudSandboxAddress(env.environmentId);
 		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address, this._workspaceRepositories,
+			rawId => this._ownsSandboxSession(address, rawId),
 			async (rawId, token) => {
 				if (!this._ownsSandboxSession(address, rawId)) {
 					return false;

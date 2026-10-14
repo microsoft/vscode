@@ -338,6 +338,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {
+		if (this._deleteSessionsOnDemand?.ownsSession(URI.parse(rawId))) {
+			return false;
+		}
 		if (!this._provisionalSessions.has(rawId)) {
 			return true;
 		}
