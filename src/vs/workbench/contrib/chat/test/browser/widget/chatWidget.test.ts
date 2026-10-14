@@ -1333,6 +1333,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				domNode: { isConnected: true },
 				rerender: () => rerenders++,
 			},
 		});
@@ -1346,6 +1347,52 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('applies read-only to rendered rows on the first layout after the list is attached', () => {
+		const domNode = mainWindow.document.createElement('div');
+		const listContainer = mainWindow.document.createElement('div');
+		const welcomeMessageContainer = mainWindow.document.createElement('div');
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { }, height: 0 },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			bodyDimension: { width: 100, height: 100 },
+			_inputVisible: true,
+			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 } } },
+			listContainer,
+			welcomeMessageContainer,
+			_onDidChangeHeight: { fire: () => { } },
+			listWidget: {
+				domNode,
+				isScrolledToBottom: false,
+				isAutoScrollHeld: false,
+				lastItem: undefined,
+				updateRendererOptions: () => { },
+				layout: () => { },
+				rerender: () => rerenders++,
+			},
+		});
+		const layoutList = () => (widget as unknown as { _layoutListForInputHeight(): void })._layoutListForInputHeight();
+
+		widget.setReadOnly(true);
+		layoutList();
+		const whileDetached = rerenders;
+		mainWindow.document.body.appendChild(domNode);
+		try {
+			layoutList();
+			layoutList();
+		} finally {
+			domNode.remove();
+		}
+
+		assert.deepStrictEqual({ whileDetached, afterAttachedLayouts: rerenders }, { whileDetached: 0, afterAttachedLayouts: 1 });
 	});
 
 	test('policy read-only banner follows history switches and does not relabel other read-only states', () => {

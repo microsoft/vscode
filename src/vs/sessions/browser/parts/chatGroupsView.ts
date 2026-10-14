@@ -177,6 +177,11 @@ export class ChatGroupsView extends Themable {
 		// Ownership invariant: the view is owned by exactly one store. Here it is the session store (so it
 		// is disposed if setup throws or the layout is restored); takeReusableView hands it to the group store.
 		store.add(toDisposable(() => reusableView?.dispose()));
+		// Disposing the previous session store detached the old grid together with the reused view. Re-attach
+		// the view before it is rebound: a detached chat list measures every row as 0px and can spin forever.
+		if (reusableView) {
+			this.element.replaceChildren(reusableView.element);
+		}
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
 

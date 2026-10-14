@@ -54,6 +54,7 @@ class TestChatView extends AbstractChatView {
 	split = false;
 	onInput: (() => void) | undefined;
 	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
+	readonly connectedOnBind: boolean[] = [];
 	isDisposed = false;
 
 	constructor(
@@ -86,6 +87,7 @@ class TestChatView extends AbstractChatView {
 
 	override setChat(chat: IChat, _historyKey?: string, session?: ISession, onInput?: () => void): void {
 		this.boundChats.push({ chat: chat.resource.toString(), sessionId: session?.sessionId });
+		this.connectedOnBind.push(this.element.isConnected);
 		this.onInput = onInput;
 	}
 }
@@ -2942,6 +2944,23 @@ suite('Sessions - ChatGroupsView', () => {
 					{ chat: 'test-chat://b', sessionId: 'other-session' },
 				],
 				attached: true,
+			});
+		});
+
+		test('keeps a reused chat view attached to the document while it binds the next chat', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			const chatView = chatViewFactory.views[1];
+			view.setSession(new OtherTestActiveSession([createChat('b')]), options);
+
+			assert.deepStrictEqual({
+				reused: chatViewFactory.views.length === 2 && !chatView.isDisposed,
+				bound: chatView.boundChats.map(b => b.chat),
+				connectedOnBind: chatView.connectedOnBind,
+			}, {
+				reused: true,
+				bound: ['test-chat://a', 'test-chat://b'],
+				connectedOnBind: [true, true],
 			});
 		});
 
