@@ -12,6 +12,7 @@ import { getInlineToolInput, ToolResultContentType, TurnState } from '../../../.
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
+import { getRecordedShellCommand } from '../harness/posixCommandLint.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
@@ -155,7 +156,12 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 		const commands = new Map(context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallReady))
 			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
 			.filter(action => ids.has(action.toolCallId))
-			.map(action => [action.toolCallId, getInlineToolInput(action.toolInput)]));
+			.map(action => {
+				const input = getInlineToolInput(action.toolInput);
+				const command = input?.trimStart().startsWith('{') ? getRecordedShellCommand(JSON.parse(input)) : input;
+				assert.strictEqual(typeof command, 'string');
+				return [action.toolCallId, command] as const;
+			}));
 		assert.deepStrictEqual([...commands.values()], expected);
 	}
 
