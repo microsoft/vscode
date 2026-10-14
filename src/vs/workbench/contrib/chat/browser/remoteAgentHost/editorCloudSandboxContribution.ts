@@ -137,7 +137,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					id: NO_REPOSITORY_OPTION_ID,
 					name: localize('cloudSandbox.noRepository', "No Repository"),
 					description: localize('cloudSandbox.noRepositoryDescription', "Start in an empty sandbox"),
-					icon: Codicon.cloud,
+					icon: Codicon.circleSlash,
 					default: repositories.length === 0,
 				},
 			];
