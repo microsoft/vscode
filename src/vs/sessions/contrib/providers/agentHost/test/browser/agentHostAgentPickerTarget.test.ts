@@ -16,6 +16,7 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../.
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode, IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -25,7 +26,7 @@ import { ISessionContext, SessionContext } from '../../../../../services/session
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ModePicker, ModePickerModel } from '../../../copilotChatSessions/browser/modePicker.js';
 import { AgentHostAgentPickerContribution } from '../../browser/agentHostAgentPicker.js';
@@ -41,6 +42,8 @@ suite('AgentHostAgentPickerTarget', () => {
 		instantiation.stubInstance(ModePickerModel, { setSession() { }, dispose() { } });
 		const globalActiveSession = constObservable(undefined);
 		instantiation.stub(ISessionsService, { activeSession: globalActiveSession });
+		instantiation.stub(ISessionsManagementService, { onDidReplaceSession: Event.None });
+		instantiation.stub(IChatContextPickService, { registerChatContextItem: () => toDisposable(() => { }) });
 		instantiation.stub(IChatService, { getSession: () => undefined });
 		instantiation.stub(IChatWidgetService, { onDidAddWidget: Event.None, onDidChangeFocusedSession: Event.None });
 		instantiation.stub(ILogService, new NullLogService());

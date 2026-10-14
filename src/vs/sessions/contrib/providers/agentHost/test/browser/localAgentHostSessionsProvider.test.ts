@@ -1635,6 +1635,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await assert.rejects(provider.createSideChat(session.sessionId, session.resource, 'turn'), /organization has disabled/);
 		await assert.rejects(provider.deleteSession(session.sessionId), /organization has disabled/);
 		await assert.rejects(provider.sendRequest(session.sessionId, session.resource, { query: 'Do not send' }), /organization has disabled/);
+		assert.throws(() => provider.setAgent(session.sessionId, { uri: 'agent://review', name: 'Review' }, session.resource), /organization has disabled/);
 		assert.strictEqual(session.title.get(), 'Saved');
 		fireSessionRemoved(agentHost, 'claude-policy', 'claude');
 		assert.deepStrictEqual(provider.getSessions(), []);
