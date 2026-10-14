@@ -5,13 +5,13 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { createSandbox, spy } from 'sinon';
-import { Dimension } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { isLinux, isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -584,6 +584,147 @@ suite('Workbench - TerminalInstance', () => {
 
 			deepStrictEqual(droppedOn, ['second']);
 		});
+
+		if (isLinux) {
+			suite('Linux IME punctuation', () => {
+				const punctuationCases = [
+					[',', 'Comma', 188, '，', false],
+					['.', 'Period', 190, '。', false],
+					[';', 'Semicolon', 186, '；', false],
+					[':', 'Semicolon', 186, '：', true],
+					['\'', 'Quote', 222, '‘', false],
+					['"', 'Quote', 222, '“', true],
+					['[', 'BracketLeft', 219, '【', false],
+					[']', 'BracketRight', 221, '】', false],
+					['{', 'BracketLeft', 219, '「', true],
+					['}', 'BracketRight', 221, '」', true],
+					['<', 'Comma', 188, '《', true],
+					['>', 'Period', 190, '》', true],
+					['(', 'Digit9', 57, '（', true],
+					[')', 'Digit0', 48, '）', true],
+					['?', 'Slash', 191, '？', true],
+					['!', 'Digit1', 49, '！', true],
+					['\\', 'Backslash', 220, '、', false],
+					['_', 'Minus', 189, '——', true],
+					['^', 'Digit6', 54, '……', true],
+					['`', 'Backquote', 192, '·', false],
+					['$', 'Digit4', 52, '¥', true],
+					['+', 'Equal', 187, '+', true],
+					['=', 'Equal', 187, '=', false],
+					['-', 'Minus', 189, '-', false],
+					['/', 'Slash', 191, '/', false],
+					['%', 'Digit5', 53, '%', true],
+					['&', 'Digit7', 55, '&', true],
+					['*', 'Digit8', 56, '*', true],
+					['@', 'Digit2', 50, '@', true],
+					['#', 'Digit3', 51, '#', true],
+					['|', 'Backslash', 220, '|', true],
+					['~', 'Backquote', 192, '~', true],
+				] as const;
+
+				async function createPunctuationTerminal() {
+					const instance = await createTerminalInstance();
+					const container = document.createElement('div');
+					document.body.appendChild(container);
+					store.add(toDisposable(() => container.remove()));
+					instance.attachToElement(container);
+					instance.setVisible(true);
+					const output: string[] = [];
+					store.add(instance.xterm!.raw.onData(data => output.push(data)));
+					return { instance, textarea: instance.xterm!.raw.textarea!, output };
+				}
+
+				function dispatchPunctuationKey(textarea: HTMLTextAreaElement, key: string, code: string, keyCode: number, options: KeyboardEventInit = {}) {
+					const event = new KeyboardEvent('keydown', { key, code, keyCode, bubbles: true, cancelable: true, ...options });
+					textarea.dispatchEvent(event);
+					return event;
+				}
+
+				function dispatchTextInput(textarea: HTMLTextAreaElement, text: string) {
+					textarea.value += text;
+					textarea.dispatchEvent(new InputEvent('input', { data: text, inputType: 'insertText', bubbles: true, composed: true }));
+				}
+
+				test('delivers directly committed IME punctuation instead of the physical ASCII key', async () => {
+					const { textarea, output } = await createPunctuationTerminal();
+					for (const [key, code, keyCode, text, shiftKey] of punctuationCases) {
+						dispatchPunctuationKey(textarea, key, code, keyCode, { shiftKey });
+						dispatchTextInput(textarea, text);
+						textarea.dispatchEvent(new KeyboardEvent('keyup', { key, code, keyCode, bubbles: true }));
+					}
+					deepStrictEqual(output, punctuationCases.map(([, , , text]) => text));
+				});
+
+				test('delivers ordinary punctuation once through keypress and input', async () => {
+					const { textarea, output } = await createPunctuationTerminal();
+					for (const [key, code, keyCode, , shiftKey] of punctuationCases) {
+						const event = dispatchPunctuationKey(textarea, key, code, keyCode, { shiftKey });
+						if (!event.defaultPrevented) {
+							textarea.dispatchEvent(new KeyboardEvent('keypress', { key, code, charCode: key.charCodeAt(0), shiftKey, bubbles: true }));
+							dispatchTextInput(textarea, key);
+						}
+						textarea.dispatchEvent(new KeyboardEvent('keyup', { key, code, keyCode, bubbles: true }));
+					}
+					deepStrictEqual(output, punctuationCases.map(([key]) => key));
+				});
+
+				test('leaves modified keys and composition events on the xterm keydown path', async () => {
+					const { textarea } = await createPunctuationTerminal();
+					const received: string[] = [];
+					store.add(addDisposableListener(textarea, 'keydown', (event: KeyboardEvent) => received.push(event.key), true));
+					for (const options of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+						dispatchPunctuationKey(textarea, ',', 'Comma', 188, options);
+					}
+					deepStrictEqual(received, [',', ',', ',', ',', ',']);
+				});
+
+				test('leaves letters, numbers, whitespace and control keys on the keydown path', async () => {
+					const { textarea } = await createPunctuationTerminal();
+					const received: string[] = [];
+					store.add(addDisposableListener(textarea, 'keydown', (event: KeyboardEvent) => received.push(event.key), true));
+					const keys = ['a', 'A', '1', ' ', 'Enter', 'Backspace', 'ArrowLeft', 'Dead', 'Process'];
+					for (const key of keys) {
+						dispatchPunctuationKey(textarea, key, '', 0);
+					}
+					deepStrictEqual(received, keys);
+				});
+
+				test('preserves active keyboard protocol keydown handling', async () => {
+					for (const sequence of ['\x1b[>31u', '\x1b[?9001h']) {
+						const { instance, textarea, output } = await createPunctuationTerminal();
+						instance.xterm!.raw.options.vtExtensions = { kittyKeyboard: true, win32InputMode: true };
+						await new Promise<void>(resolve => instance.xterm!.raw.write(sequence, resolve));
+						strictEqual(instance.xterm!.isKeyboardProtocolActive, true);
+						const received: string[] = [];
+						store.add(addDisposableListener(textarea, 'keydown', (event: KeyboardEvent) => received.push(event.key), true));
+						dispatchPunctuationKey(textarea, ',', 'Comma', 188);
+						deepStrictEqual(received, [',']);
+						strictEqual(output.length, 1);
+						strictEqual(output[0].startsWith('\x1b['), true);
+					}
+				});
+
+				test('preserves screen reader keydown handling', async () => {
+					const { instance, textarea, output } = await createPunctuationTerminal();
+					instance.xterm!.raw.options.screenReaderMode = true;
+					dispatchPunctuationKey(textarea, ',', 'Comma', 188);
+					deepStrictEqual(output, [',']);
+				});
+
+				test('preserves terminal keybindings that skip the shell', async () => {
+					const { instance, textarea, output } = await createPunctuationTerminal();
+					const keybindingService = instance['_keybindingService'];
+					const originalSoftDispatch = keybindingService.softDispatch;
+					keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
+					try {
+						const event = dispatchPunctuationKey(textarea, ',', 'Comma', 188);
+						deepStrictEqual({ defaultPrevented: event.defaultPrevented, output }, { defaultPrevented: true, output: [] });
+					} finally {
+						keybindingService.softDispatch = originalSoftDispatch;
+					}
+				});
+			});
+		}
 
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();

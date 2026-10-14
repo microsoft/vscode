@@ -20,7 +20,7 @@ import { ISeparator, normalizeDriveLetter, template, tildify } from '../../../..
 import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
-import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { OS, OperatingSystem, isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
@@ -136,6 +136,8 @@ const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
 	[GeneralShellType.Copilot, /\bcopilot\b/i],
 	[GeneralShellType.Gemini, /\bgemini\b/i],
 ]);
+
+const punctuationOrSymbolKeyPattern = /^[\p{P}\p{S}]$/u;
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -1154,7 +1156,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._setAriaLabel(xterm.raw, this._instanceId, this._title);
 
-		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+		const customKeyEventHandler = (event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
 				return false;
@@ -1213,7 +1215,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			return true;
-		});
+		};
+		xterm.raw.attachCustomKeyEventHandler(customKeyEventHandler);
+		if (isLinux) {
+			this._register(dom.addDisposableListener(xterm.raw.element, 'keydown', (event: KeyboardEvent) => {
+				if (!xterm.isKeyboardProtocolActive && !xterm.raw.options.screenReaderMode && !event.isComposing && event.keyCode !== 229 && !event.ctrlKey && !event.altKey && !event.metaKey && punctuationOrSymbolKeyPattern.test(event.key) && customKeyEventHandler(event)) {
+					// Let keypress/input deliver IME punctuation before xterm consumes the physical key.
+					event.stopPropagation();
+				}
+			}, true));
+		}
 		this._register(dom.addDisposableListener(xterm.raw.element, 'mousedown', () => {
 			// We need to listen to the mouseup event on the document since the user may release
 			// the mouse button anywhere outside of _xterm.element.
