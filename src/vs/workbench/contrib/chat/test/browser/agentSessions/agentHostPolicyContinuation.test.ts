@@ -99,7 +99,14 @@ suite('Agent Host policy continuation', () => {
 		});
 		const targetWidget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<ChatViewModel>({ model: targetModel, sessionResource: target }), focusInput: () => { } });
 		const created: IAgentCreateSessionConfig[] = [];
+		const completions: { session: URI; chat: URI; identity: string; destination: URI; opened: boolean; draft: string | undefined }[] = [];
 		services.stub(IAgentHostService, {
+			...{
+				completeSavedChatContinuation: async (request: { session: URI; chat: URI; identity: string; destination: URI }) => {
+					completions.push({ ...request, opened: state.opened, draft: state.draft?.inputText });
+					return { archived: true };
+				},
+			},
 			onDidNotification: notifications.event,
 			listSessions: async () => [{ session: backend, provider: saved.provider, startTime: 0, modifiedTime: 0 }],
 			readSavedChat: async () => {
@@ -143,8 +150,34 @@ suite('Agent Host policy continuation', () => {
 		services.stub(IWorkspaceTrustManagementService, { getUriTrustInfo: async uri => ({ uri, trusted: state.trusted }) });
 		services.stub(IWorkspaceTrustRequestService, { requestResourcesTrust: async () => false });
 		let coordinator: AgentHostPolicyContinuationService | undefined;
-		return { services, source, sourceModel, sourceWidget, targetModel, targetInput, state, saved, created, notifications, setSourceHistoryLoaded: (value: boolean) => { sourceHistoryLoaded = value; }, run: () => (coordinator ??= store.add(services.createInstance(AgentHostPolicyContinuationService))).continueInCopilot(source) };
+		return { services, source, sourceModel, sourceWidget, targetModel, targetInput, state, saved, created, completions, notifications, setSourceHistoryLoaded: (value: boolean) => { sourceHistoryLoaded = value; }, run: () => (coordinator ??= store.add(services.createInstance(AgentHostPolicyContinuationService))).continueInCopilot(source) };
 	}
+
+	test('completes and archives only after the copied conversation and draft are presented', async () => {
+		const { run, state, completions } = setup();
+		state.openFailure = true;
+		await assert.rejects(run(), /Open failed/);
+		const beforePresentation = completions.length;
+		state.openFailure = false;
+		await run();
+		assert.deepStrictEqual({ beforePresentation, completed: completions.map(completion => ({ destination: completion.destination.toString(), opened: completion.opened, draft: completion.draft })) }, {
+			beforePresentation: 0,
+			completed: [{ destination: targetBackend.toString(), opened: true, draft: 'Unsent follow-up' }],
+		});
+	});
+
+	test('hands off the draft before awaiting the first presentation', async () => {
+		const { run, services, state } = setup();
+		let presentedDraft: Partial<IChatModelInputState> | undefined;
+		services.stub(IAgentHostPolicyContinuationPresenter, {
+			open: async () => {
+				presentedDraft = state.draft;
+				state.opened = true;
+			},
+		});
+		await run();
+		assert.deepStrictEqual(presentedDraft, { inputText: 'Unsent follow-up', attachments: [attachment], selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 4, positionLineNumber: 1, positionColumn: 4 }] });
+	});
 
 	for (const provider of ['claude', 'codex'] as const) {
 		test(`copies ${provider} history and unsent input without changing the source`, async () => {

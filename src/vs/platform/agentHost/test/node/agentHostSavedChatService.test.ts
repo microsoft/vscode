@@ -20,6 +20,7 @@ import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReade
 import { encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostSavedChatService, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
+import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
@@ -178,6 +179,24 @@ suite('AgentHostSavedChatService', () => {
 			});
 		});
 	}
+
+	test('inherits saved session directories for a legacy peer with an empty directory override', async () => {
+		const { database, peerDatabase, calls, createService } = await fixture('codex', false);
+		await database.replaceSessionChatCatalog(session.toString(), [{ chat: peerChat.toString(), order: 0, providerData: 'opaque-peer-backing' }], undefined);
+		await peerDatabase.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, '');
+		const saved = await createService().readSavedChat(session, peerChat);
+		assert.deepStrictEqual({ turns: saved.turns, workspace: saved.workspace, readerDirectories: calls[0].workingDirectories }, {
+			turns: [turn('native', 'Peer question')], workspace: { kind: 'folder', workingDirectories: [folder] }, readerDirectories: [folder],
+		});
+	});
+
+	test('rejects a malformed nonempty saved peer directory override', async () => {
+		const { database, peerDatabase, calls, createService } = await fixture('codex', false);
+		await database.replaceSessionChatCatalog(session.toString(), [{ chat: peerChat.toString(), order: 0, providerData: 'opaque-peer-backing' }], undefined);
+		await peerDatabase.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, '{broken');
+		await assert.rejects(createService().readSavedChat(session, peerChat), SyntaxError);
+		assert.deepStrictEqual(calls, []);
+	});
 
 	test('projects failed and local turns in place without pruning durable records or crossing chats', async () => {
 		const { sessionDatabase, createService } = await fixture();

@@ -1492,6 +1492,25 @@ suite('ChatWidget', () => {
 		return { banner, visible, policy, archived, requestInProgress, errors, observation, setHasRequests: (value: boolean) => { hasRequests = value; } };
 	}
 
+	for (const provider of ['claude', 'codex'] as const) {
+		test(`automatically migrates displayed policy-disabled ${provider} history after the active request settles`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.from({ scheme: `agent-host-${provider}`, path: '/policy-disabled' }) });
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { calls++; } });
+			fixture.policy.set(true, undefined);
+			fixture.requestInProgress.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			const activeCalls = calls;
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			fixture.visible.set(false, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ activeCalls, calls }, { activeCalls: 0, calls: 1 });
+		});
+	}
+
 	for (const policyDuringRequest of [false, true]) {
 		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
 			const fixture = createAutomaticMigrationFixture({ hasRequests: false });

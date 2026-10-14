@@ -5745,6 +5745,34 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('preserves a supplied imported conversation title as a durable user title', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'Unwanted replacement title';
+			const { svc, db } = await setupTitleGeneration(copilotApiService);
+			const importConversation = {
+				title: 'Original title: keep punctuation & spacing',
+				turns: [{
+					id: 'imported-turn',
+					message: { text: 'A different first prompt', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'imported-response', content: 'Saved answer.' }],
+					state: TurnState.Complete,
+					usage: undefined,
+				}] satisfies Turn[],
+			};
+			const imported = await svc.createSession({ legacyChatUris: true, provider: 'copilot', importConversation });
+			assert.deepStrictEqual({
+				title: getStateManager(svc).getSessionState(imported.toString())?.title,
+				persistedTitle: await db.getMetadata('customTitle'),
+				titleSource: await db.getMetadata('customTitleSource'),
+				utilityCalls: copilotApiService.utilityCalls.length,
+			}, {
+				title: 'Original title: keep punctuation & spacing',
+				persistedTitle: 'Original title: keep punctuation & spacing',
+				titleSource: 'user',
+				utilityCalls: 0,
+			});
+		});
+
 	});
 
 	// ---- attachment rewriting ------------------------------------------
