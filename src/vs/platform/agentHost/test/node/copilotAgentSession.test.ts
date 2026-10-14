@@ -20417,6 +20417,20 @@ Use the attached image as context.
 			});
 		});
 
+		test('forwarded create_pull_request overrides the built-in cloud agent tool', async () => {
+			const { runtime } = await createAgentSession(disposables, {
+				clientSnapshot: { ...snapshot, tools: [{ name: 'create_pull_request', description: 'Create a pull request' }] },
+			});
+
+			assert.deepStrictEqual(
+				[true, false].map(enabled => runtime.createClientSdkTools(enabled).map(({ name, overridesBuiltInTool, skipPermission }) => ({ name, overridesBuiltInTool, skipPermission }))),
+				[
+					[{ name: 'create_pull_request', overridesBuiltInTool: true, skipPermission: undefined }],
+					[{ name: 'create_pull_request', overridesBuiltInTool: true, skipPermission: undefined }],
+				],
+			);
+		});
+
 		test('remote session tools defer behind tool search with eager fallback', async () => {
 			const names = ['list_agent_hosts', 'create_remote_session', 'send_remote_message', 'get_remote_session'];
 			const { runtime } = await createAgentSession(disposables, {
