@@ -2104,7 +2104,7 @@ suite('MultiEditorTabsControl', () => {
 						});
 						expected.push({
 							...context,
-							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : 0] : [2, 2, wrapTabs ? 2 : 0],
+							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : 0] : [2, 2, wrapTabs ? 2 : 3.5],
 							corners: [topLeftRadius, radius, active && !upper ? '0px' : '4px', active && !upper ? '0px' : '4px'],
 							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
@@ -2480,6 +2480,49 @@ suite('MultiEditorTabsControl', () => {
 			interactionStrokes: result.theme.startsWith('hc-') ? ['rgb(171, 205, 239)', 'rgb(255, 170, 0)', result.cssFocused ? 'rgb(255, 170, 0)' : 'rgb(171, 205, 239)'] : undefined,
 			geometryStable: true,
 			controlHeight: result.tabHeight === 'compact' ? 28 : 32,
+		})));
+	});
+
+	test('resting selected, dirty and pinned single-row pills center their labels and actions on the painted fill', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		group.style.setProperty('--modern-ui-editor-tab-custom-inactive-background', '#234567');
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/dirty.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { pinned: true, active: false });
+		const pinned = disposables.add(new TestFileEditorInput(URI.file('/path/pinned.ts'), 'testEditorInput'));
+		model.openEditor(pinned, { pinned: true, active: false });
+		model.stick(pinned);
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const tabHeight of ['default', 'compact'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabHeight, wrapTabs: false, pinnedTabSizing: 'normal', tabActionUnpinVisibility: true };
+				control.updateOptions(oldOptions, partOptions);
+				control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+				await layoutConnectedGroup(group, 900);
+				const selected = container.querySelector<HTMLElement>('.tab:not(.active):not(.dirty):not(.sticky)')!;
+				selected.classList.add('selected');
+				for (const tab of [selected, container.querySelector<HTMLElement>('.tab.dirty')!, container.querySelector<HTMLElement>('.tab.sticky')!]) {
+					const center = (element: HTMLElement) => {
+						const bounds = element.getBoundingClientRect();
+						return (bounds.top + bounds.bottom) / 2;
+					};
+					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+					results.push({
+						theme, tabHeight,
+						labelCentered: Math.abs(center(tab.querySelector<HTMLElement>('.tab-label')!) - center(fill)) < 1 / 32,
+						actionCentered: Math.abs(center(tab.querySelector<HTMLElement>('.action-label')!) - center(fill)) < 1 / 32,
+						fillHeight: fill.getBoundingClientRect().height,
+					});
+				}
+				selected.classList.remove('selected');
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, labelCentered: true, actionCentered: true, fillHeight: result.tabHeight === 'default' ? 24 : 20,
 		})));
 	});
 
@@ -3033,7 +3076,7 @@ suite('MultiEditorTabsControl', () => {
 						pillHeight: Math.round(pillHeight),
 						sameCapHeight: Math.abs(beforeHeight - fillBounds.height / zoom) < 1 / 32,
 						defaultContentHeight: Math.round(beforeHeight - 8),
-						samePaintedTop: Math.abs(fillBounds.top - peerBounds.top) < 1 / 32,
+						peerCentered: Math.abs((peerBounds.top + peerBounds.bottom) / 2 - (tab.getBoundingClientRect().top + tab.getBoundingClientRect().bottom) / 2) < 1 / 32,
 						stableHitbox: JSON.stringify(hitbox) === JSON.stringify(tab.getBoundingClientRect().toJSON()),
 						stableClose: JSON.stringify(action) === JSON.stringify(tab.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect().toJSON()),
 						roundedCap: cap.borderTopRightRadius,
@@ -3045,7 +3088,7 @@ suite('MultiEditorTabsControl', () => {
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, contentHeight: result.pillHeight, sameCapHeight: true, defaultContentHeight: result.pillHeight, samePaintedTop: true, stableHitbox: true, stableClose: true, roundedCap: '7px', shoulderRadius: '7px', peerRadius: '4px', openJoin: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, contentHeight: result.pillHeight, sameCapHeight: true, defaultContentHeight: result.pillHeight, peerCentered: true, stableHitbox: true, stableClose: true, roundedCap: '7px', shoulderRadius: '7px', peerRadius: '4px', openJoin: true })));
 	});
 
 	test('Connected single-row caps match chat curvature while wrapped caps retain their geometry', async () => {
@@ -3123,7 +3166,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, sameContentHeight: result.wrapTabs, contentHeight: result.wrapTabs ? result.tabHeight === 'default' ? 24 : 20 : result.tabHeight === 'default' ? 32 : 28, hitboxStable: true, actionStable: true })));
 	});
 
-	test('single-row connected caps align with peer tops without losing rounded corners', async () => {
+	test('single-row connected caps stay flush while inactive pills are centered without losing rounded corners', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		root.style.setProperty('--vscode-focusBorder', '#ffaa00');
@@ -3153,14 +3196,14 @@ suite('MultiEditorTabsControl', () => {
 						capTop: getTabStrokeStyle(tab).borderTopColor,
 						topAligned: Math.abs(fill.getBoundingClientRect().top - tab.getBoundingClientRect().top) < 1 / 64,
 						roundedTop: mainWindow.getComputedStyle(edge).borderTopRightRadius === '7px' && mainWindow.getComputedStyle(fill).borderTopRightRadius === '7px',
-						peerInset: Math.round((peer.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom),
+						peerInset: Math.round((peer.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom * 2) / 2,
 						edgeTopAligns: Math.abs(edge.getBoundingClientRect().top - fill.getBoundingClientRect().top) < 1 / 64,
 						peerHeight: Math.round(peer.getBoundingClientRect().height / zoom),
-						connectionExtension: Math.round((fill.getBoundingClientRect().bottom - peer.getBoundingClientRect().bottom) / zoom),
+						connectionExtension: Math.round((fill.getBoundingClientRect().bottom - peer.getBoundingClientRect().bottom) / zoom * 2) / 2,
 						heightStable: Math.abs(tab.getBoundingClientRect().height / zoom - nominalHeight) < 1 / 64,
 						controlHeight: control.getHeight(),
 					});
-					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topAligned: true, roundedTop: true, peerInset: 0, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: 8, heightStable: true, controlHeight: nominalHeight + 1 });
+					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topAligned: true, roundedTop: true, peerInset: 3.5, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: 4.5, heightStable: true, controlHeight: nominalHeight + 1 });
 				}
 			}
 			root.classList.remove(theme);
@@ -3489,7 +3532,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			activeEdgeBottom: '-1px',
-			inactive: { top: '0px', left: '2px', right: '2px', bottom: '7px' },
+			inactive: { top: '3.5px', left: '2px', right: '2px', bottom: '3.5px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '31px',
 			rowPaddingLeft: '0px',

@@ -239,6 +239,10 @@
 	border-color: transparent;
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active) > .tab-fill {
+	inset-block: calc((var(--modern-ui-connected-tab-row-height) - var(--editor-group-tab-height)) / 2);
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):is(:hover, .hovered, :focus-within) > .tab-fill {
 	inset-block: 0 calc(-1 * var(--vscode-strokeThickness));
 }

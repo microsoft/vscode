@@ -171,7 +171,7 @@ suite('Sessions - Editor Contribution', () => {
 				for (const compact of [true, false]) {
 					title.classList.toggle('compact-height', compact);
 					const rowBounds = row.getBoundingClientRect();
-					const contentHeight = connected ? compact ? 24 : 28 : compact ? 28 : 32;
+					const contentHeight = (compact ? 28 : 32) - (connected ? 1 : 0);
 					const expectedCenter = rowBounds.top + contentHeight / 2;
 					assert.deepStrictEqual({
 						rowHeight: rowBounds.height,
