@@ -14,7 +14,7 @@ import { observableFromSubscription } from '../../../../platform/agentHost/commo
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICanvas, ICanvasContext, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -75,7 +75,17 @@ export class AgentHostCanvasCollection extends Disposable {
 			owner: this,
 			equalsFn: (first, second) => first.size === second.size && [...first].every(([key, value]) => value.id === second.get(key)?.id && value.succeeded === second.get(key)?.succeeded),
 		}, reader => getOpenRequests(chat.read(reader), canvases.read(reader))) : undefined;
-		return { owner, canvases, openRequests };
+		const definitionProvider: ICanvasDefinitionProvider | undefined = this.connection.listSessionCanvases && this.connection.openSessionCanvas
+			? {
+				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
+					canvasId: canvas.canvasId,
+					extensionId: canvas.extensionId,
+					instanceId,
+				}, owner.chat),
+			}
+			: undefined;
+		return { owner, canvases, openRequests, definitionProvider };
 	}
 }
 

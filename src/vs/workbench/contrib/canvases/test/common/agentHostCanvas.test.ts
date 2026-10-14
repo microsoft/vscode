@@ -10,7 +10,7 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -73,6 +73,44 @@ suite('AgentHost canvases', () => {
 		assert.deepStrictEqual({ resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source }, {
 			resource: resource.toString(), instanceId: undefined, source: undefined,
 		});
+	});
+
+	test('bridges registered canvas operations through the owning chat context', async () => {
+		const calls: unknown[] = [];
+		const definition: IAgentCanvasInfo = {
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			extensionSource: 'project',
+			extensionName: 'Preview Extension',
+			displayName: 'Preview',
+			description: 'A preview canvas.',
+			requiresInput: false,
+			actionCount: 0,
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+				calls.push(['list', session.toString(), chat.toString()]);
+				return [definition];
+			}
+			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+				calls.push(['open', session.toString(), chat.toString(), request]);
+			}
+		}();
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const context = collection.createContext(owner, constObservable([]));
+		assert.ok(context.definitionProvider);
+
+		const definitions = await context.definitionProvider.listCanvases();
+		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
+
+		assert.deepStrictEqual(calls, [
+			['list', owner.session.toString(), owner.chat.toString()],
+			['open', owner.session.toString(), owner.chat.toString(), {
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				instanceId: 'stable-preview',
+			}],
+		]);
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {
