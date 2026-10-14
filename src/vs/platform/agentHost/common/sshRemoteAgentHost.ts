@@ -271,6 +271,8 @@ export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHos
  */
 export interface ISSHResolvedConfig {
 	readonly hostname: string;
+	/** Host identity used for host-key lookup and storage instead of {@link hostname}. */
+	readonly hostKeyAlias?: string;
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
@@ -372,7 +374,7 @@ export type ISSHEndpointSelection =
  * `KnownHostsMatch` in `../node/sshKnownHosts.js`, redeclared here because
  * this common-layer module cannot import from `node`.
  */
-export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
+export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'other-key-type' | 'revoked' | 'ca-only' | 'unknown';
 
 /**
  * Error name for a connect attempt refused because the server's host key was
@@ -424,8 +426,10 @@ export interface ISSHHostKeyVerificationRequest {
 	readonly connectionKey: string;
 	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
 	readonly displayHost: string;
-	/** Resolved hostname the key was presented for. */
+	/** Effective host-key identity: `HostKeyAlias` when configured, otherwise the resolved hostname. */
 	readonly host: string;
+	/** Resolved connection hostname, used to consult trust stored before `HostKeyAlias` was supported. */
+	readonly resolvedHost: string;
 	readonly port: number;
 	/** Host key algorithm, e.g. `ssh-ed25519`. */
 	readonly keyType: string;
@@ -479,6 +483,9 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** Fires when a message is received from a remote agent host via the SSH relay. */
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+
+	/** Fires with a connection ID while that SSH relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
@@ -560,13 +567,20 @@ export interface ISSHRemoteAgentHostMainService {
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
+	 *
+	 * @param expectedConnectionId The caller's current relay lease. When it is
+	 * supplied, concurrent renewal of that lease coalesces and a stale lease
+	 * resolves to its current replacement.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+	connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 
 	/**
 	 * Send a message to a remote agent host through the SSH relay.
 	 */
 	relaySend(connectionId: string, message: string): Promise<void>;
+
+	/** Release one renderer-owned relay lease; the shared SSH session closes after its final lease is released. */
+	releaseRelay(connectionId: string): Promise<void>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -599,5 +613,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * The renderer computes this from its stored preference for this host's
 	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 }

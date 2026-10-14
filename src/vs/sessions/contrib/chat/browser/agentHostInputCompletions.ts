@@ -6,6 +6,7 @@
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -15,7 +16,7 @@ import { IDecorationOptions, IEditorDecorationsCollection } from '../../../../ed
 import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -46,10 +47,17 @@ interface IReferenceArg {
 	readonly entry: IChatRequestVariableEntry;
 	readonly insertText: string;
 	readonly range: OffsetRange | undefined;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 }
 
-CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IReferenceArg) => {
+CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, async (accessor, arg: IReferenceArg) => {
 	arg.handler.acceptCompletion(arg.entry, arg.insertText, arg.range);
+	if (arg.submitOnAccept) {
+		await arg.handler.submitInput();
+	} else if (arg.retriggerSuggestions) {
+		await accessor.get(ICommandService).executeCommand('editor.action.triggerSuggest');
+	}
 });
 
 /**
@@ -194,12 +202,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextAttachments: INewChatAttachments,
+		private readonly _submitInput: () => Promise<boolean>,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -290,13 +300,18 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
+			case 'text':
+				return AgentHostInputCompletionHandler.buildTextCompletionItem(position, item);
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
 					// Omit an elevated auto-approve toggle (Allow all / Assisted)
 					// when enterprise policy disables global auto-approval, rather
 					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const session = this._sessionContext.session.get();
+					const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+					const host = provider && isAgentHostProvider(provider) ? provider : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, session ? host?.getSessionConfig(session.sessionId) : undefined)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text
@@ -345,6 +360,8 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 							entry,
 							insertText: referenceText,
 							range: this._toOffsetRange(replaceRange.replace, referenceText),
+							...(attachment.retriggerSuggestions ? { retriggerSuggestions: true } : {}),
+							...(attachment.submitOnAccept ? { submitOnAccept: true } : {}),
 						} satisfies IReferenceArg],
 					},
 				};
@@ -426,6 +443,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._updateDecorations();
 	}
 
+	submitInput(): Promise<boolean> {
+		return this._submitInput();
+	}
+
 	/**
 	 * Accept handler for config-action completions (permission/mode toggles).
 	 * Applies the session-config change (gated by the elevated-permission
@@ -442,12 +463,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const provider = sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			throw new Error(localize('agentHost.completion.providerUnavailable', "Agent Host session provider is not available."));
+		}
 		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
-			if (provider && isAgentHostProvider(provider)) {
-				await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value).catch(() => { /* best-effort */ })));
-			}
-		});
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value)));
+		}, provider.getSessionConfig(session.sessionId));
 		// Keep-text items add their argument-hint reference once applied. Toggle
 		// items insert nothing, so there is no text to remove.
 		if (applied && arg.entry) {

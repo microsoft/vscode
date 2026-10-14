@@ -76,7 +76,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return this.labelService.getUriBasenameLabel(override);
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			return session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.name;
+			const workspace = session?.activeChat.read(reader).workspace.read(reader);
+			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -270,9 +271,9 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		}
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const creator = this.instantiationService.createInstance(CustomizationCreatorService);
-		await creator.createWithAI(type);
+		await creator.createWithAI(type, workspaceFolder);
 	}
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {

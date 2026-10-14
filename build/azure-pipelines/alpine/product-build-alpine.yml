@@ -1,13 +1,16 @@
 parameters:
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
 
 jobs:
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
     displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 60
     pool:
-      name: 1es-ubuntu-22.04-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
@@ -106,9 +109,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: prepare
+      - task: NuGetAuthenticate@1
+        displayName: Setup NuGet Authentication
 
       - task: Docker@1
         inputs:
@@ -175,15 +177,13 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          FOUNDRY_LOCAL_NUGET_MODE: dotnet
+          FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: install
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         displayName: Verify native optional dependency binaries

@@ -6,35 +6,57 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
+import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
@@ -43,6 +65,86 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
+		const element = dom.$('.chat-view-chat');
+		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+		const progress = dom.append(element, dom.$('.monaco-progress-container'));
+		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+		const layouts: number[][] = [];
+		const progressOffsets: string[] = [];
+		let offsetReads = 0;
+		let bannerHeight = 35;
+		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+			element,
+			_lastLayout: { width: 500, height: 400 },
+			_externalSessionBanner: { domNode: banner },
+			_widgetContainer: widgetContainer,
+			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
+			_comparisonResult: { layout: () => { } },
+			_layoutStickyScrollBackground: () => { },
+		});
+		view._layoutChatWidget();
+		const hiddenReads = offsetReads;
+		progressOffsets.push(progress.style.top);
+		banner.classList.remove('hidden');
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		bannerHeight = 60;
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		banner.classList.add('hidden');
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets }, {
+			hiddenReads: 0, offsetReads: 2,
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+			progressOffsets: ['0px', '35px', '60px', '0px'],
+		});
+	});
+
+	test('summarizes only comparison evaluators in their main chat', () => {
+		const attempt = URI.parse('test:/attempt');
+		const judge = URI.parse('test:/judge');
+		const synthesis = URI.parse('test:/synthesis');
+		const mainChat = URI.parse('test:/main-chat');
+		const secondaryChat = URI.parse('test:/secondary-chat');
+		const harness = { providerId: 'test', sessionTypeId: 'test', label: 'Test' };
+		const comparisons: ISessionComparison[] = [{
+			id: 'comparison', groupId: 'group', title: 'Compare', createdAt: 1,
+			workspace: URI.file('/workspace'), prompt: 'Implement the task',
+			participants: [
+				{ id: 'attempt', role: SessionComparisonParticipantRole.Attempt, harness, sessionResource: attempt },
+				{ id: 'judge', role: SessionComparisonParticipantRole.Judge, harness, sessionResource: judge },
+				{ id: 'synthesis', role: SessionComparisonParticipantRole.Synthesis, harness, sessionResource: synthesis },
+			],
+		}];
+		assert.deepStrictEqual({
+			attempt: getSessionComparisonRequestSummary(comparisons, attempt, mainChat, mainChat),
+			judge: getSessionComparisonRequestSummary(comparisons, judge, mainChat, mainChat),
+			synthesis: getSessionComparisonRequestSummary(comparisons, synthesis, mainChat, mainChat),
+			ordinary: getSessionComparisonRequestSummary(comparisons, URI.parse('test:/ordinary'), mainChat, mainChat),
+			secondary: getSessionComparisonRequestSummary(comparisons, judge, secondaryChat, mainChat),
+			unresolvedChat: getSessionComparisonRequestSummary(comparisons, judge, undefined, mainChat),
+			unresolvedSession: getSessionComparisonRequestSummary(comparisons, undefined, mainChat, mainChat),
+			unresolvedComparison: getSessionComparisonRequestSummary([], judge, mainChat, mainChat),
+		}, {
+			attempt: undefined, judge: 'Judge Instructions', synthesis: 'Synthesis Instructions',
+			ordinary: undefined, secondary: undefined, unresolvedChat: undefined, unresolvedSession: undefined, unresolvedComparison: undefined,
+		});
+	});
+
+	test('does not render the running-session secondary toolbar for the experimental composer', () => {
+		assert.deepStrictEqual([
+			shouldRenderRunningSessionSecondaryToolbar(false),
+			shouldRenderRunningSessionSecondaryToolbar(true),
+		], [true, false]);
+	});
+
+	test('reserves only the collapsed context usage widget width in the experimental composer', () => {
+		assert.strictEqual(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, 14 + 6 + 4 + 4);
+	});
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {
 		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
@@ -62,11 +164,6 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('reserves the expanded context usage widget width from long requests', () => {
-		const expandedContextUsageWidth = 14 + 6 + 4 + 44;
-		assert.ok(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE >= expandedContextUsageWidth);
-	});
-
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
 		_renderSubSessionTip(): void;
@@ -77,11 +174,14 @@ suite('Sessions - Chat View', () => {
 		_updateChatBackground(): void;
 	}
 
-	function createBackgroundReplicaHost(background: ISessionsChatBackground) {
+	function createBackgroundReplicaHost(background: ISessionsChatBackground, interactive = false) {
 		const store = disposables.add(new DisposableStore());
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-icon-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-codiconFontSize', '16px');
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		part.style.position = 'relative';
 		part.style.width = '600px';
@@ -100,7 +200,7 @@ suite('Sessions - Chat View', () => {
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		store.add(toDisposable(() => workbench.remove()));
 
-		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part));
+		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part, interactive, () => 0.5));
 		sourceRenderer.setBackground(background);
 		const source = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
 		if (!source) {
@@ -116,6 +216,11 @@ suite('Sessions - Chat View', () => {
 		return { viewport, replica };
 	}
 
+	function getCodiconTranslations(element: HTMLElement): string[] {
+		const targetWindow = dom.getWindow(element);
+		return [...element.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')].map(layer => targetWindow.getComputedStyle(layer).translate);
+	}
+
 	test('retries an unresolved chat when its content provider is registered', () => {
 		const resource = URI.parse('remote-agent:/session');
 		const loads: URI[] = [];
@@ -124,6 +229,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_preparationModel: { value: undefined },
 			_loadChat: (chatResource: URI) => loads.push(chatResource),
 		}) as {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
@@ -137,19 +243,654 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual(loads, [resource]);
 	});
 
+	test('draft-only input stays visible and sending waits for live content and session readiness', () => {
+		const resource = URI.parse('remote-agent:/session');
+		const interactivity = observableValue('interactivity', ChatInteractivity.DraftOnly);
+		const liveModelReady = observableValue('liveModelReady', false);
+		const modelReadOnly = observableValue('modelReadOnly', false);
+		const loading = observableValue('loading', false);
+		const loadedChatResource = observableValue<URI | undefined>('loadedChatResource', undefined);
+		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = resource;
+			override readonly interactivity = interactivity;
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly resource = resource;
+			override readonly loading = loading;
+		}();
+		let inputState = { readOnly: false, keepInputVisible: false };
+		let displayedHistoryStatus: IChatSessionHistoryStatus | undefined;
+		let attempts = 0;
+		const view: { setChat: ChatView['setChat']; _handleDraftInput(): void } = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_isPrimaryObs: constObservable(false),
+			_modelRef: { value: undefined },
+			_interactiveDisposable: disposables.add(new MutableDisposable()),
+			_liveModelReady: liveModelReady,
+			_modelReadOnly: modelReadOnly,
+			_loadedChatResource: loadedChatResource,
+			_loadFailure: loadFailure,
+			historyStatus: constObservable(undefined),
+			isInputBlocked: constObservable(false),
+			chatPillsDebugService: { clear: () => { } },
+			_externalSessionBanner: { setSession: () => { } },
+			_chatPills: { setChat: () => { } },
+			_selectionSideChatController: { setChat: () => { } },
+			_banners: { setDebugData: () => { } },
+			_applyHistoryKey: () => { },
+			_widget: { setReadOnly: (readOnly: boolean, keepInputVisible: boolean, status?: IChatSessionHistoryStatus) => { inputState = { readOnly, keepInputVisible }; displayedHistoryStatus = status; } },
+		});
+		view.setChat(chat, undefined, session, () => attempts++);
+		const restoringSavedDraft = inputState;
+		view._handleDraftInput();
+		loadedChatResource.set(resource, undefined);
+		const offline = { inputState, attempts };
+		view._handleDraftInput();
+		interactivity.set(ChatInteractivity.Full, undefined);
+		view.setChat(chat, undefined, session);
+		const waitingForLiveContent = inputState;
+		liveModelReady.set(true, undefined);
+		const ready = inputState;
+		loadFailure.set({ resource, status: { kind: 'history', message: 'Saved history is unavailable' } }, undefined);
+		const failedLoad = { inputState, message: displayedHistoryStatus?.message };
+		loadFailure.set(undefined, undefined);
+		modelReadOnly.set(true, undefined);
+		const revoked = inputState;
+		modelReadOnly.set(false, undefined);
+		loading.set(true, undefined);
+		const authenticating = inputState;
+		interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		view.setChat(chat, undefined, session);
+		view._handleDraftInput();
+
+		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, failedLoad, authenticating, revoked, archived: inputState, attempts }, {
+			restoringSavedDraft: { readOnly: true, keepInputVisible: false },
+			offline: { inputState: { readOnly: true, keepInputVisible: true }, attempts: 0 },
+			waitingForLiveContent: { readOnly: true, keepInputVisible: true },
+			ready: { readOnly: false, keepInputVisible: false },
+			failedLoad: { inputState: { readOnly: true, keepInputVisible: false }, message: 'Saved history is unavailable' },
+			authenticating: { readOnly: true, keepInputVisible: true },
+			revoked: { readOnly: true, keepInputVisible: false },
+			archived: { readOnly: true, keepInputVisible: false },
+			attempts: 1,
+		});
+	});
+
+	function createChatModel(resource: URI): ChatModel {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+			override getDefaultAgent() { return undefined; }
+		}());
+		return disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+			initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+		}));
+	}
+
+	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
+	function createProviderReplacementView(resource: URI, configurationService = new TestConfigurationService()) {
+		const loads: URI[] = [];
+		const cleared: URI[] = [];
+		const loading: boolean[] = [];
+		const preservedInputModels: Array<IInputModel | undefined> = [];
+		const warnings: string[] = [];
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const model = createChatModel(resource);
+		const reference: IChatModelReference = { object: model, dispose: () => model.dispose() };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		modelRef.value = reference;
+		const viewStore = disposables.add(new DisposableStore());
+		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_store: viewStore,
+			configurationService,
+			_currentChatResource: resource,
+			_currentSessionObs: { get: () => undefined },
+			_modelRef: modelRef,
+			_preparationModel: { value: undefined },
+			_loadCts: loadCts,
+			chatService: { onDidDisposeSession: onDidDisposeSession.event },
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+			showProgressWhile: () => { },
+			_saveCurrentViewState: () => { },
+			_clearCurrentChat: (_session: ISession | undefined, chatResource: URI) => {
+				cleared.push(chatResource);
+				modelRef.value = undefined;
+			},
+			_setLoading: (isLoading: boolean) => loading.push(isLoading),
+			_loadChat: (chatResource: URI, _session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }) => {
+				loads.push(chatResource);
+				preservedInputModels.push(options?.inputModelToPreserve);
+			},
+		}) as {
+			_currentChatResource: URI | undefined;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
+			dispose(): void;
+		};
+		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, warnings, onDidDisposeSession };
+	}
+
+	for (const provider of ['claude', 'codex']) {
+		test(`policy-disabled ${provider} keeps the held transcript until its live provider returns`, async () => {
+			const setting = `chat.agentHost.${provider}Agent.enabled`;
+			const configurationService = new class extends TestConfigurationService {
+				blocked = true;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: false });
+			const resource = URI.parse(`agent-host-${provider}:/saved`);
+			const { view, loads, cleared, reference, modelRef, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+			reference.object.inputModel.setState({ inputText: 'Unsent draft' });
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ loads, cleared, sameModel: modelRef.value === reference, draft: reference.object.inputModel.state.get()?.inputText }, {
+				loads: [], cleared: [], sameModel: true, draft: 'Unsent draft',
+			});
+			configurationService.blocked = false;
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ cleared, loads }, { cleared: [], loads: [] });
+			onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+			await timeout(0);
+			assert.deepStrictEqual({ loads, preserved: preservedInputModels[0] === reference.object.inputModel }, { loads: [resource], preserved: true });
+		});
+	}
+
+	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, cleared, loading, reference, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource);
+
+		// A registration without a prior removal, or a removal of another type, leaves the bound model alone.
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		view._trackUnregisteredContentProvider(['other-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['other-agent']);
+		const untouched = { cleared: [...cleared], loads: [...loads] };
+
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		// A repeated registration while the release is pending must not clear twice.
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [URI.parse('remote-agent:/other')], reason: 'disposed' });
+		await timeout(0);
+		const released = { cleared: [...cleared], loading: [...loading], loads: [...loads] };
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ untouched, released, loads, preservedInputModels }, {
+			untouched: { cleared: [], loads: [] },
+			released: { cleared: [], loading: [], loads: [] },
+			loads: [resource],
+			preservedInputModels: [reference.object.inputModel],
+		});
+	});
+
+	test('reloads a chat whose provider was replaced while its first load was still in flight', async () => {
+		// The connection banner is already clickable while history loads, so the stand-in can go
+		// away before the model is bound; that load still binds to the stand-in's session.
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, cleared, modelRef, reference, onDidDisposeSession } = createProviderReplacementView(resource);
+		modelRef.value = undefined;
+
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		modelRef.value = reference;
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ cleared, loads }, { cleared: [resource], loads: [resource] });
+	});
+
+	test('a newer load supersedes a pending provider-replacement reload', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, loadCts, onDidDisposeSession } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+
+		// The user moved on before the old model was released, as `setChat` and `_loadChat` would do.
+		view._currentChatResource = URI.parse('remote-agent:/next');
+		loadCts.value?.cancel();
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ loads, listening: onDidDisposeSession.hasListeners() }, { loads: [], listening: false });
+	});
+
+	test('a slow release and repeated provider registration cannot bypass actual model disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, warnings, onDidDisposeSession } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+
+		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS - 1);
+		const beforeDeadline = { loads: [...loads], warnings: warnings.length };
+		await timeout(1);
+		view._retryUnresolvedChatLoad(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'cleared' });
+		await timeout(0);
+		const stillWaiting = { loads: [...loads], warnings: warnings.length };
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeDeadline, stillWaiting, loads }, {
+			beforeDeadline: { loads: [], warnings: 0 },
+			stillWaiting: { loads: [], warnings: 1 },
+			loads: [resource],
+		});
+	}));
+
+	for (const retained of [false, true]) {
+		test(`provider reload acquires a fresh cached model after delayed disposal (another reference: ${retained})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const persistence = new DeferredPromise<void>();
+			let created = 0;
+			const cache = disposables.add(new ChatModelStore({
+				createModel: props => {
+					created++;
+					return createChatModel(props.sessionResource);
+				},
+				willDisposeModel: () => persistence.p,
+			}, new NullLogService()));
+			const props: IStartSessionProps = { sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false };
+			const original = disposables.add(cache.acquireOrCreate(props));
+			const originalModel = original.object;
+			const other = disposables.add(new MutableDisposable<IChatModelReference>());
+			if (retained) {
+				other.value = cache.acquireExisting(resource);
+			}
+			const rebound = disposables.add(new MutableDisposable<IChatModelReference>());
+			const { view, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
+			modelRef.value = original;
+			disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+			let cleared = false;
+			Object.assign(view, {
+				_clearCurrentChat: () => {
+					cleared = true;
+					modelRef.value?.dispose();
+					modelRef.value = undefined;
+				},
+				_loadChat: () => { rebound.value = cache.acquireOrCreate(props); },
+			});
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+
+			await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
+			const beforeEviction = { cleared, created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
+			other.clear();
+			await persistence.complete();
+			await cache.waitForModelDisposals();
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeEviction, created, fresh: !!rebound.value && rebound.value.object !== originalModel }, {
+				beforeEviction: { cleared: false, created: 1, cachedOriginal: true, reloaded: false },
+				created: 2,
+				fresh: true,
+			});
+			rebound.clear();
+			await cache.waitForModelDisposals();
+		}));
+	}
+
+	test('policy reapplication cancels a waiting reload and retains the old model', async () => {
+		const resource = URI.parse('agent-host-claude:/retained-policy');
+		const configurationService = new class extends TestConfigurationService {
+			blocked = false;
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: this.blocked ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const cache = disposables.add(new ChatModelStore({ createModel: props => createChatModel(props.sessionResource), willDisposeModel: async () => { } }, new NullLogService()));
+		const original = disposables.add(cache.acquireOrCreate({ sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false }));
+		const originalModel = original.object;
+		const other = disposables.add(cache.acquireExisting(resource)!);
+		const { view, modelRef, loads, cleared, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+		modelRef.value = original;
+		Object.assign(view, { chatService: { onDidDisposeSession: onDidDisposeSession.event, acquireExistingSession: (resource: URI) => cache.acquireExisting(resource) } });
+		disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		configurationService.blocked = true;
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		other.dispose();
+		await cache.waitForModelDisposals();
+		await timeout(0);
+		assert.deepStrictEqual({ retained: modelRef.value?.object === originalModel, cached: cache.get(resource) === originalModel, loads, cleared }, {
+			retained: true, cached: true, loads: [], cleared: [],
+		});
+		modelRef.clear();
+		await cache.waitForModelDisposals();
+	});
+
+	test('disposing the view cancels a slow provider reload and releases its listener', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, onDidDisposeSession } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
+		view.dispose();
+		await timeout(0);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ loads, listening: onDidDisposeSession.hasListeners() }, { loads: [], listening: false });
+	}));
+
+	function createInputState(inputText: string): IChatModelInputState {
+		return {
+			inputText,
+			attachments: [{ kind: 'file', id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') }],
+			mode: { id: 'agent', kind: ChatModeKind.Agent },
+			selectedModel: {
+				identifier: 'remote-agent:model-b',
+				metadata: {
+					extension: new ExtensionIdentifier('test.agent'), id: 'model-b', name: 'Model B',
+					vendor: 'test', version: '1', family: 'test', maxInputTokens: 1000, maxOutputTokens: 100,
+					isDefaultForLocation: {},
+				},
+			},
+			modelConfiguration: { reasoningEffort: 'high' },
+			selectedModelReason: ModelSelectionReason.UserSelection,
+			permissionLevel: ChatPermissionLevel.Default,
+			origin: undefined,
+			selections: [new Selection(1, 2, 1, 4)],
+			contrib: { attachmentNote: 'local draft' },
+		};
+	}
+
+	function createChatLoadView(resource: URI) {
+		let inputState = createInputState('draft before reconnect');
+		const focus = { active: true, restores: 0 };
+		const bindings: IChatModelInputState[] = [];
+		const disposedReferences: URI[] = [];
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const completions: Promise<void>[] = [];
+		const loading: boolean[] = [];
+		const currentResource = observableValue<URI | undefined>('resource', resource);
+		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view: {
+			_currentChatResource: URI | undefined;
+			_onInput?: () => void;
+			_handleDraftInput(): void;
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
+			_loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentChatResourceObs: currentResource,
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loadedChatResource', undefined),
+			_loadFailure: loadFailure,
+			_preparationModel: { value: undefined },
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			element: dom.$('div'),
+			chatService: {
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined },
+			_updateWidgetLockState: () => { },
+			_setLoading: (value: boolean) => loading.push(value),
+			_layoutChatWidget: () => { },
+			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
+			_widget: {
+				getInput: () => inputState.inputText,
+				getInputState: () => inputState,
+				setInput: (inputText: string) => { inputState = { ...inputState, inputText }; },
+				inputEditor: { hasTextFocus: () => focus.active },
+				setModel: (model: IChatModel) => {
+					const state = model.inputModel.state.get();
+					assert.ok(state);
+					inputState = state;
+					bindings.push(state);
+					focus.active = false;
+				},
+				focusInput: () => {
+					focus.active = true;
+					focus.restores++;
+				},
+			},
+		});
+		return {
+			view, focus, bindings, disposedReferences, requests, currentResource, loadFailure, loading, loadCts,
+			setInputState: (state: IChatModelInputState) => { inputState = state; },
+			fail: async (index: number, error: Error) => {
+				await requests[index].error(error);
+				await completions[index];
+			},
+			complete: async (index: number, model: IChatModel) => {
+				await requests[index].complete({
+					object: model,
+					dispose: () => {
+						disposedReferences.push(model.sessionResource);
+						model.dispose();
+					},
+				});
+				await completions[index];
+			},
+		};
+	}
+
+	test('latches a failed chat load instead of immediately loading it again', async () => {
+		const resource = URI.parse('agent-host-claude:/missing-history');
+		const { view, requests, currentResource, loading, bindings, fail } = createChatLoadView(resource);
+		disposables.add(autorun(reader => {
+			if (!currentResource.read(reader) && requests.length < 3) {
+				view._currentChatResource = resource;
+				currentResource.set(resource, undefined);
+				view._loadChat(resource, undefined);
+			}
+		}));
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Saved transcript is missing'));
+		assert.deepStrictEqual({ requests: requests.length, loading: loading.at(-1), bindings }, { requests: 1, loading: false, bindings: [] });
+	});
+
+	test('shows a failed history load with an explicit retry and no empty model', async () => {
+		const resource = URI.parse('agent-host-codex:/missing-history');
+		const { view, requests, loadFailure, loading, bindings, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Saved transcript is missing\n    at readSavedChat (/private/source/agentHost.js:42:1)'));
+		const failure = loadFailure.get();
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), kind: failure?.status.kind, message: failure?.status.message, action: failure?.status.action?.label, requests: requests.length, loading: loading.at(-1), bindings }, {
+			resource: resource.toString(), kind: 'history', message: 'Couldn\'t load this conversation.', action: 'Retry', requests: 1, loading: false, bindings: [],
+		});
+		assert.ok(failure?.status.action);
+		const retry = failure.status.action.run();
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Saved draft'));
+		await complete(1, incoming);
+		await retry;
+		assert.deepStrictEqual({ requests: requests.length, failure: loadFailure.get(), loading: loading.at(-1), boundDraft: bindings[0].inputText }, { requests: 2, failure: undefined, loading: false, boundDraft: 'Saved draft' });
+	});
+
+	test('retries failed history when the content provider is replaced', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Provider unavailable'));
+		view._retryUnresolvedChatLoad([resource.scheme]);
+		assert.strictEqual(requests.length, 2);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Restored draft'));
+		await complete(1, incoming);
+		assert.strictEqual(loadFailure.get(), undefined);
+	});
+
+	test('does not show a failure or clear the resource after cancellation', async () => {
+		const resource = URI.parse('agent-host-claude:/cancelled-history');
+		const { view, loadCts, loadFailure, loading, fail } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		loadCts.value?.cancel();
+		await fail(0, new Error('Cancelled load'));
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), failure: loadFailure.get(), loading: loading.at(-1) }, { resource: resource.toString(), failure: undefined, loading: false });
+	});
+
+	test('a stale failed load cannot change the newly selected conversation', async () => {
+		const resource = URI.parse('agent-host-claude:/old-history');
+		const next = URI.parse('agent-host-codex:/new-history');
+		const { view, currentResource, loadFailure, loading, bindings, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		view._currentChatResource = next;
+		currentResource.set(next, undefined);
+		view._loadChat(next, undefined);
+		const incoming = createChatModel(next);
+		incoming.inputModel.setState(createInputState('New conversation draft'));
+		await complete(1, incoming);
+		await fail(0, new Error('Old conversation failed'));
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), failure: loadFailure.get(), loading: loading.at(-1), boundDraft: bindings[0].inputText }, { resource: next.toString(), failure: undefined, loading: false, boundDraft: 'New conversation draft' });
+	});
+
+	test('a stale retry action cannot reload a different selected conversation', async () => {
+		const resource = URI.parse('agent-host-claude:/old-history');
+		const next = URI.parse('agent-host-codex:/new-history');
+		const { view, requests, currentResource, loadFailure, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Old conversation failed'));
+		const retry = loadFailure.get()?.status.action;
+		assert.ok(retry);
+		view._currentChatResource = next;
+		currentResource.set(next, undefined);
+		view._loadChat(next, undefined);
+		await retry.run();
+		assert.strictEqual(requests.length, 2);
+		const incoming = createChatModel(next);
+		incoming.inputModel.setState(createInputState('New conversation draft'));
+		await complete(1, incoming);
+	});
+
+	for (const keepFocus of [true, false]) {
+		test(`preserves the latest composer draft on provider replacement without ${keepFocus ? 'losing' : 'stealing'} focus`, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const outgoing = createChatModel(resource);
+			const incoming = createChatModel(resource);
+			incoming.inputModel.setState(createInputState('older saved draft'));
+			const { view, focus, bindings, setInputState, complete } = createChatLoadView(resource);
+
+			view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+			const latestDraft = createInputState('text added while the live chat loads');
+			const intent = { modelId: 'remote-agent:model-b', reason: ModelSelectionReason.UserSelection, configuration: { reasoningEffort: 'high' } };
+			outgoing.inputModel.setIntendedModel(intent);
+			setInputState(latestDraft);
+			focus.active = keepFocus;
+			await complete(0, incoming);
+
+			assert.deepStrictEqual({ bindings, intendedModel: incoming.inputModel.intendedModel, focus }, {
+				bindings: [latestDraft],
+				intendedModel: intent,
+				focus: { active: keepFocus, restores: keepFocus ? 1 : 0 },
+			});
+		});
+	}
+
+	test('does not restore deleted text or attachments when the provider replacement finishes', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const outgoing = createChatModel(resource);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('older saved draft'));
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		const emptiedDraft = { ...createInputState(''), attachments: [], selections: [] };
+		setInputState(emptiedDraft);
+		await complete(0, incoming);
+
+		assert.deepStrictEqual(bindings, [emptiedDraft]);
+	});
+
+	test('preserves the composer draft without restoring stale permissions over the new model', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const outgoing = createChatModel(resource);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('older saved draft'));
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		const latestDraft = createInputState('text typed while reconnecting');
+		setInputState({ ...latestDraft, permissionLevel: ChatPermissionLevel.AutoApprove });
+		await complete(0, incoming);
+
+		assert.deepStrictEqual(bindings, [latestDraft]);
+	});
+
+	test('abandons a provider replacement draft when navigation starts another chat load', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const nextResource = URI.parse('remote-agent:/next');
+		const outgoing = createChatModel(resource);
+		const stale = createChatModel(resource);
+		const incoming = createChatModel(nextResource);
+		const nextDraft = createInputState('the other chat has its own draft');
+		incoming.inputModel.setState(nextDraft);
+		const { view, bindings, disposedReferences, complete, focus } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		view._currentChatResource = nextResource;
+		view._loadChat(nextResource, undefined);
+		await complete(1, incoming);
+		await complete(0, stale);
+
+		assert.deepStrictEqual({ bindings, disposedReferences, focus }, {
+			bindings: [nextDraft],
+			disposedReferences: [resource],
+			focus: { active: false, restores: 0 },
+		});
+	});
+
+	test('preserves the saved draft on initial history load and does not resume while it is being restored', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const incoming = createChatModel(resource);
+		const savedDraft = createInputState('saved draft belonging to this session');
+		incoming.inputModel.setState(savedDraft);
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+		let attempts = 0;
+		view._onInput = () => attempts++;
+		view._loadChat(resource, undefined);
+		setInputState(createInputState('leftover widget input'));
+		view._handleDraftInput();
+		await complete(0, incoming);
+
+		assert.deepStrictEqual({ bindings, attempts }, {
+			bindings: [savedDraft], attempts: 0,
+		});
+	});
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
+		const maximumWidths: number[] = [];
+		let layouts = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_isPrimaryObs: observableValue(disposables, true),
+			_isSplit: false,
 			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
 			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
+			_widget: { setMaximumWidth: (value: number) => maximumWidths.push(value) },
+			_layoutChatWidget: () => layouts++,
 		}) as ChatView;
 
-		view.setPrimary(false);
-		view.setPrimary(true);
+		view.setPrimary(false, true);
+		view.setPrimary(true, true);
+		view.setPrimary(true, false);
 
-		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+		assert.deepStrictEqual({ bannerSessions, maximumWidths, layouts }, {
+			bannerSessions: [undefined, session],
+			maximumWidths: [Number.POSITIVE_INFINITY, AGENTS_CENTERED_CONTENT_MAX_WIDTH],
+			layouts: 2,
+		});
 	});
 
 	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
@@ -198,12 +939,13 @@ suite('Sessions - Chat View', () => {
 		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.chat-input-picker-item.compact-picker.model-picker-item'));
 		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
-		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
+		const { primaryButton: name, secondaryButton: config } = renderChatInputPickerSplit(picker);
+		name.classList.add('model-picker-section', 'model-picker-name');
+		config.classList.add('model-picker-section', 'model-picker-config');
 		name.style.minWidth = '22px';
 		const icon = dom.append(name, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
-		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
 		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
 		configLabel.textContent = 'High';
 
@@ -324,10 +1066,12 @@ suite('Sessions - Chat View', () => {
 			dom.append(agent, dom.$('span.chat-input-picker-label', undefined, 'Agent'));
 			const modelItem = dom.append(actions, dom.$('li.action-item.chat-input-picker-item.model-picker-item'));
 			const model = dom.append(modelItem, dom.$('div.action-label.model-picker-split'));
-			const modelName = dom.append(model, dom.$('a.model-picker-section.model-picker-name'));
+			const { primaryButton: modelName, secondaryButton: modelConfig } = renderChatInputPickerSplit(model);
+			modelName.classList.add('model-picker-section', 'model-picker-name');
+			modelConfig.classList.add('model-picker-section', 'model-picker-config');
 			const modelIcon = dom.append(modelName, dom.$('span.codicon.codicon-rocket-compact'));
 			dom.append(modelName, dom.$('span.chat-input-picker-label', undefined, 'GPT-5.6 Sol Fast'));
-			const modelConfig = dom.append(model, dom.$('a.model-picker-section.model-picker-config', undefined, 'Max'));
+			modelConfig.textContent = 'Max';
 			const bounds = actions.getBoundingClientRect();
 			states.push({
 				newChatInSession,
@@ -534,6 +1278,7 @@ suite('Sessions - Chat View', () => {
 		}();
 		disposables.add(new NewChatInSessionWidget(
 			{},
+			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
@@ -931,10 +1676,166 @@ suite('Sessions - Chat View', () => {
 			reusedFirstIconWhenExpanded: true,
 			reusedFirstIconWhenShrunk: true,
 			firstIconPositions: [
-				{ left: '125.6px', top: '46.4px' },
-				{ left: '125.6px', top: '46.4px' },
-				{ left: '125.6px', top: '46.4px' },
+				{ left: '272px', top: '15.2px' },
+				{ left: '272px', top: '15.2px' },
+				{ left: '272px', top: '15.2px' },
 			],
+		});
+	});
+
+	for (const interactive of [false, true]) {
+		test(`only writes Codicon opacity when it changes (${interactive ? 'interactive' : 'decorative'})`, async () => {
+			const codicons = { kind: 'codicons' } as const;
+			const { part, source, sourceRenderer } = createBackgroundReplicaHost(codicons, interactive);
+			const icons = [...source.querySelectorAll<HTMLElement>('.codicon')];
+			let opacityWrites = 0;
+			for (const icon of icons) {
+				const style = new Proxy(icon.style, {
+					get(target, property) {
+						return Reflect.get(target, property, target);
+					},
+					set(target, property, value: string) {
+						if (property === 'opacity') {
+							opacityWrites++;
+						}
+						return Reflect.set(target, property, value);
+					},
+				});
+				sinon.stub(icon, 'style').get(() => style);
+			}
+
+			sourceRenderer.setBackground(codicons);
+			const unchangedRefreshWrites = opacityWrites;
+			opacityWrites = 0;
+			part.dispatchEvent(new Event('scroll'));
+			await timeout(40);
+			const unchangedScrollWrites = opacityWrites;
+			const initialOpacities = icons.map(icon => icon.style.opacity);
+
+			opacityWrites = 0;
+			part.style.width = '601px';
+			sourceRenderer.setBackground(codicons);
+			const resizeWrites = opacityWrites;
+			const resizedOpacities = icons.map(icon => icon.style.opacity);
+			opacityWrites = 0;
+			sourceRenderer.setBackground(codicons);
+
+			assert.deepStrictEqual({
+				unchangedRefreshWrites,
+				unchangedScrollWrites,
+				updatedOpacityOnResize: resizeWrites > 0 && resizedOpacities.some((opacity, index) => opacity !== initialOpacities[index]),
+				reusedIcons: [...source.querySelectorAll('.codicon')].every((icon, index) => icon === icons[index]),
+				repeatedResizeWrites: opacityWrites,
+			}, {
+				unchangedRefreshWrites: 0,
+				unchangedScrollWrites: 0,
+				updatedOpacityOnResize: true,
+				reusedIcons: true,
+				repeatedResizeWrites: 0,
+			});
+		});
+	}
+
+	test('keeps static depth layers aligned with sticky replicas and the confetti button', () => {
+		const codicons = { kind: 'codicons' } as const;
+		const { store, part, source, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(codicons, true);
+		part.style.setProperty('--vscode-spacing-size240', '24px');
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(codicons);
+		const replicaElement = getBackgroundReplicaElements(stickyContainer).replica!;
+		const sourceLayers = [...source.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')];
+		const replicaLayers = [...replicaElement.querySelectorAll<HTMLElement>('.sessions-chat-codicon-depth')];
+		const targetWindow = dom.getWindow(part);
+		const getPattern = (layers: readonly HTMLElement[]) => layers.map(layer => [...layer.querySelectorAll<HTMLElement>('.codicon')].map(icon => ({
+			icon: icon.className,
+			opacity: icon.style.opacity,
+		})));
+		const sourcePattern = getPattern(sourceLayers);
+		const replicaPattern = getPattern(replicaLayers);
+		const activeCell = source.querySelector<HTMLElement>('.sessions-chat-codicon-button-active')!;
+		const button = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target')!;
+		const cellBounds = activeCell.getBoundingClientRect();
+		const buttonBounds = button.getBoundingClientRect();
+		const farIconIds = [...sourceLayers[0].querySelectorAll('.codicon')].map(icon => [...icon.classList].find(className => className.startsWith('codicon-'))!.substring('codicon-'.length));
+		const staticState = {
+			fontSizes: sourceLayers.map(layer => [...new Set([...layer.querySelectorAll('.codicon')].map(icon => targetWindow.getComputedStyle(icon).fontSize))]),
+			compactFarGlyphs: farIconIds.some(id => id.endsWith('-compact')) && farIconIds.every(id => getCompactCodicon({ id }).id === id),
+			unscaledGlyphs: [...source.querySelectorAll('.codicon')].every(icon => {
+				const matrix = new DOMMatrix(targetWindow.getComputedStyle(icon).transform);
+				return Math.abs(Math.hypot(matrix.a, matrix.b) - 1) < 0.00001 && Math.abs(Math.hypot(matrix.c, matrix.d) - 1) < 0.00001;
+			}),
+			filters: sourceLayers.map(layer => targetWindow.getComputedStyle(layer).filter),
+			sourceTranslations: getCodiconTranslations(source),
+			replicaTranslations: getCodiconTranslations(replicaElement),
+			buttonTranslation: targetWindow.getComputedStyle(button).translate,
+			animationCount: part.getAnimations({ subtree: true }).length,
+			depthColorsMatch: sourceLayers.every(layer => targetWindow.getComputedStyle(layer.querySelector('.codicon')!).color === targetWindow.getComputedStyle(layer).color),
+			depthColorCount: new Set(sourceLayers.map(layer => targetWindow.getComputedStyle(layer).color)).size,
+			buttonAligned: Math.abs(cellBounds.left - buttonBounds.left) < 0.1 && Math.abs(cellBounds.top - buttonBounds.top) < 0.1,
+		};
+		sourceRenderer.setBackground(undefined);
+		replica.setBackground(undefined);
+
+		assert.deepStrictEqual({
+			replicaPattern,
+			staticState,
+			clearedIconCounts: [source.querySelectorAll('.codicon').length, replicaElement.querySelectorAll('.codicon').length],
+			clearedAnimationCount: part.getAnimations({ subtree: true }).length,
+		}, {
+			replicaPattern: sourcePattern,
+			staticState: {
+				fontSizes: [['12px'], ['16px'], ['16px']],
+				compactFarGlyphs: true,
+				unscaledGlyphs: true,
+				filters: ['blur(0.6px)', 'none', 'none'],
+				sourceTranslations: ['none', 'none', 'none'],
+				replicaTranslations: ['none', 'none', 'none'],
+				buttonTranslation: 'none',
+				animationCount: 0,
+				depthColorsMatch: true,
+				depthColorCount: 3,
+				buttonAligned: true,
+			},
+			clearedIconCounts: [0, 0],
+			clearedAnimationCount: 0,
+		});
+	});
+
+	test('keeps the layered background still at rest, during scrolling, and on pointer input', async () => {
+		const { part, chatView, source } = createBackgroundReplicaHost({ kind: 'codicons' }, true);
+		chatView.style.height = '100px';
+		chatView.style.overflow = 'auto';
+		dom.append(chatView, dom.$('div')).style.height = '1000px';
+		const getIconPositions = () => [...source.querySelectorAll('.codicon')].map(icon => {
+			const bounds = icon.getBoundingClientRect();
+			return { x: bounds.x, y: bounds.y };
+		});
+		const initialPositions = getIconPositions();
+		await timeout(40);
+		const idlePositions = getIconPositions();
+		for (const pointerType of ['mouse', 'touch']) {
+			part.dispatchEvent(new PointerEvent('pointermove', { pointerType, clientX: 0, clientY: 0 }));
+		}
+		part.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+		await timeout(40);
+		const inputPositions = getIconPositions();
+		chatView.scrollTop = 250;
+		await timeout(40);
+
+		assert.deepStrictEqual({
+			idlePositions,
+			inputPositions,
+			scrolledPositions: getIconPositions(),
+			scrollTop: chatView.scrollTop,
+			translations: getCodiconTranslations(source),
+			animationCount: part.getAnimations({ subtree: true }).length,
+		}, {
+			idlePositions: initialPositions,
+			inputPositions: initialPositions,
+			scrolledPositions: initialPositions,
+			scrollTop: 250,
+			translations: ['none', 'none', 'none'],
+			animationCount: 0,
 		});
 	});
 
@@ -1117,6 +2018,60 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const width of [320, 950]) {
+		test(`keeps inline-edit timestamps below the single-row session composer (width: ${width})`, () => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.width = `${width}px`;
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size80', '8px');
+			workbench.style.setProperty('--vscode-fontSize-label3', '10px');
+			const part = dom.append(workbench, dom.$('.part.sessionspart'));
+			const chatView = dom.append(part, dom.$('.chat-view-chat'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
+			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
+			const inputPart = dom.append(editContainer, dom.$('.interactive-input-part'));
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			input.style.height = '96px';
+			const timestampContainer = dom.append(request, dom.$('.chat-request-timestamp-container'));
+			const timestamp = renderChatRequestTimestamp(timestampContainer, Date.now())?.element;
+			assert.ok(timestamp);
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const timestampMargin = () => dom.getWindow(timestampContainer).getComputedStyle(timestampContainer).marginTop;
+			const legacyMargin = timestampMargin();
+			chatView.classList.add('experimental-session-composer');
+			timestamp.focus();
+			const inputBounds = input.getBoundingClientRect();
+			const timestampBounds = timestamp.getBoundingClientRect();
+			const experimental = {
+				margin: timestampMargin(),
+				belowComposer: timestampBounds.top >= inputBounds.bottom,
+				rightAligned: Math.abs(timestampBounds.right - inputBounds.right) <= 1,
+				visible: timestampBounds.height > 0,
+				focused: dom.getActiveElement() === timestamp,
+				hasAccessibleLabel: !!timestamp.ariaLabel,
+			};
+			workbench.classList.add('phone-layout');
+			const phoneMargin = timestampMargin();
+			workbench.classList.remove('phone-layout');
+			chatView.classList.remove('experimental-session-composer');
+
+			assert.deepStrictEqual({
+				legacyMargin,
+				experimental,
+				phoneMargin,
+				restoredMargin: timestampMargin(),
+			}, {
+				legacyMargin: '-22px',
+				experimental: { margin: '0px', belowComposer: true, rightAligned: true, visible: true, focused: true, hasAccessibleLabel: true },
+				phoneMargin: '-22px',
+				restoredMargin: '-22px',
+			});
+		});
+	}
+
 	test('keeps checkpoint and fork row containers transparent over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
@@ -1178,6 +2133,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size80', '8px');
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
@@ -1197,6 +2153,7 @@ suite('Sessions - Chat View', () => {
 			highContrastWorkbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size80', '8px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size120', '12px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size240', '24px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size320', '32px');
 			highContrastWorkbench.style.setProperty('--vscode-strokeThickness', '1px');
 			highContrastWorkbench.style.setProperty('--vscode-contrastBorder', '#ff0000');
@@ -1246,22 +2203,47 @@ suite('Sessions - Chat View', () => {
 			responseBorderStyle: 'none',
 			responseBoxShadow: 'none',
 			responseOverflow: 'visible',
-			responsePadding: '8px 44px',
+			responsePadding: '8px 36px',
 			bubbleBackgroundColor: 'rgb(248, 248, 248)',
 			bubbleBackgroundImage: 'none',
 			bubbleBorderRadius: '6px',
-			bubbleInset: '0px 32px',
-			backgroundContentHorizontalPadding: 88,
-			plainContentHorizontalPadding: 64,
+			bubbleInset: '0px 24px',
+			backgroundContentHorizontalPadding: 72,
+			plainContentHorizontalPadding: 48,
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundImage: 'none',
 			plainResponseBorderStyle: 'none',
-			plainResponsePadding: '0px 32px',
+			plainResponsePadding: '0px 24px',
 			highContrastDarkBubbleBorder: '1px solid rgb(255, 0, 0)',
 			highContrastLightBubbleBorder: '1px solid rgb(255, 0, 0)',
 		});
+	});
+
+	test('matches the empty composer voice gap without changing other windows', () => {
+		const layouts = [
+			{ sessions: true, phone: false, gap: 8 },
+			{ sessions: true, phone: true, gap: 2 },
+			{ sessions: false, phone: false, gap: 2 },
+		];
+		const gaps = layouts.map(({ sessions, phone }) => {
+			const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('agent-sessions-workbench', sessions);
+			workbench.classList.toggle('phone-layout', phone);
+			workbench.style.setProperty('--vscode-spacing-size80', '8px');
+			const session = dom.append(workbench, dom.$('.interactive-session'));
+			const toolbars = dom.append(session, dom.$('.chat-input-toolbars'));
+			toolbars.style.width = '400px';
+			const pickers = dom.append(toolbars, dom.$('.chat-input-toolbar'));
+			const execute = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			execute.style.width = '82px';
+
+			return execute.getBoundingClientRect().left - pickers.getBoundingClientRect().right;
+		});
+
+		assert.deepStrictEqual(gaps, layouts.map(layout => layout.gap));
 	});
 
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
@@ -1272,7 +2254,9 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
+		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(0, 0, 0, 0.2)');
 		workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
@@ -1295,12 +2279,27 @@ suite('Sessions - Chat View', () => {
 		combinedSecondaryAction.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const newSessionView = dom.append(part, dom.$('.session-view'));
+		// The default dark themes make the secondary button background fully transparent.
+		newSessionView.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0)');
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
-		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view-new'));
+		// Unlike the session chat, the new-session view has no chat list to set `--vscode-chat-list-background`.
+		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view.chat-view-new'));
 		const productionNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget'));
 		const productionNewChatContainer = dom.append(productionNewChatWidget, dom.$('.new-chat-widget-container'));
 		const productionBottomContainer = dom.append(productionNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
+		const productionCombinedBottomAction = dom.append(dom.append(productionBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		const productionExperimentalContent = dom.append(productionNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const productionExperimentalOptions = dom.append(productionExperimentalContent, dom.$('.new-chat-session-options'));
+		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalOptions, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const productionExperimentalWorkspaceAction = dom.append(productionExperimentalWorkspaceSlot, dom.$('.action-label'));
+		const productionExperimentalRepository = dom.append(productionExperimentalOptions, dom.$('.new-chat-repo-config-container'));
+		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
+		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
+		const peerNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
+		const peerNewChatContainer = dom.append(peerNewChatWidget, dom.$('.new-chat-widget-container'));
+		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const peerExperimentalOptions = dom.append(peerExperimentalContent, dom.$('.new-chat-session-options'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -1309,12 +2308,15 @@ suite('Sessions - Chat View', () => {
 		const plainContextUsage = dom.append(plainSecondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
 		const plainNewChatContainer = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-container'));
+		const plainExperimentalContent = dom.append(plainNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const plainExperimentalOptions = dom.append(plainExperimentalContent, dom.$('.new-chat-session-options'));
 		const plainBottomContainer = dom.append(plainNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const plainBottomAction = dom.append(plainBottomContainer, dom.$('.action-label'));
 		const plainCombinedBottomAction = dom.append(dom.append(plainBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
 		plainCombinedBottomAction.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
-		const plainCombinedModeAction = dom.append(plainCombinedBottomAction, dom.$('.agent-host-mode-picker-button.agent-host-mode-button'));
-		const plainCombinedPermissionAction = dom.append(plainCombinedBottomAction, dom.$('.agent-host-mode-picker-button.agent-host-permissions-button'));
+		const { primaryButton: plainCombinedModeAction, secondaryButton: plainCombinedPermissionAction } = renderChatInputPickerSplit(plainCombinedBottomAction);
+		plainCombinedModeAction.classList.add('agent-host-mode-picker-button', 'agent-host-mode-button');
+		plainCombinedPermissionAction.classList.add('agent-host-mode-picker-button', 'agent-host-permissions-button');
 		plainCombinedPermissionAction.setAttribute('aria-expanded', 'true');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
@@ -1327,6 +2329,9 @@ suite('Sessions - Chat View', () => {
 		const combinedSecondaryActionStyle = dom.getWindow(combinedSecondaryAction).getComputedStyle(combinedSecondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
+		const productionExperimentalWorkspaceActionStyle = dom.getWindow(productionExperimentalWorkspaceAction).getComputedStyle(productionExperimentalWorkspaceAction);
+		const productionExperimentalRepositoryActionBarStyle = dom.getWindow(productionExperimentalRepositoryActionBar).getComputedStyle(productionExperimentalRepositoryActionBar);
+		const productionExperimentalRepositoryActionStyle = dom.getWindow(productionExperimentalRepositoryAction).getComputedStyle(productionExperimentalRepositoryAction);
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatPadding: newChatStyle.padding,
@@ -1348,12 +2353,30 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBackgroundImage: productionBottomActionStyle.backgroundImage,
 			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
 			productionBottomActionForeground: productionBottomActionStyle.color,
+			productionCombinedBottomActionBackgroundColor: dom.getWindow(productionCombinedBottomAction).getComputedStyle(productionCombinedBottomAction).backgroundColor,
+			productionExperimentalOptionsBackgroundColor: dom.getWindow(productionExperimentalOptions).getComputedStyle(productionExperimentalOptions).backgroundColor,
+			productionExperimentalOptionsBorderRadius: dom.getWindow(productionExperimentalOptions).getComputedStyle(productionExperimentalOptions).borderRadius,
+			productionExperimentalWorkspaceBackgroundColor: productionExperimentalWorkspaceActionStyle.backgroundColor,
+			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
+			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
+			productionExperimentalWorkspaceBorderRadius: productionExperimentalWorkspaceActionStyle.borderRadius,
+			productionExperimentalWorkspaceHeight: productionExperimentalWorkspaceActionStyle.height,
+			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
+			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
+			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
+			productionExperimentalRepositoryBorderRadius: productionExperimentalRepositoryActionBarStyle.borderRadius,
+			productionExperimentalRepositoryHeight: productionExperimentalRepositoryActionBarStyle.height,
+			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
+			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
+			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
+			peerExperimentalOptionsBackgroundColor: dom.getWindow(peerExperimentalOptions).getComputedStyle(peerExperimentalOptions).backgroundColor,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
 			plainBottomActionBackgroundColor: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).backgroundColor,
 			plainBottomActionBorderStyle: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).borderStyle,
+			plainExperimentalOptionsBackgroundColor: dom.getWindow(plainExperimentalOptions).getComputedStyle(plainExperimentalOptions).backgroundColor,
 			plainCombinedBottomActionBackgroundColor: dom.getWindow(plainCombinedBottomAction).getComputedStyle(plainCombinedBottomAction).backgroundColor,
 			plainCombinedModeActionBackgroundColor: dom.getWindow(plainCombinedModeAction).getComputedStyle(plainCombinedModeAction).backgroundColor,
 			plainCombinedPermissionActionBackgroundColor: dom.getWindow(plainCombinedPermissionAction).getComputedStyle(plainCombinedPermissionAction).backgroundColor,
@@ -1375,15 +2398,33 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
 			productionBottomActionBackgroundColor: 'rgb(255, 255, 255)',
-			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
+			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionBottomActionBorderColor: 'rgb(128, 128, 128)',
 			productionBottomActionForeground: 'rgb(32, 32, 32)',
+			productionCombinedBottomActionBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalOptionsBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalOptionsBorderRadius: '8px 8px 0px 0px',
+			productionExperimentalWorkspaceBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalWorkspaceBackgroundImage: 'none',
+			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalWorkspaceBorderRadius: '4px',
+			productionExperimentalWorkspaceHeight: '24px',
+			productionExperimentalRepositoryBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalRepositoryBackgroundImage: 'none',
+			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalRepositoryBorderRadius: '4px',
+			productionExperimentalRepositoryHeight: '24px',
+			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalRepositoryActionBackgroundImage: 'none',
+			productionExperimentalRepositoryActionBorderStyle: 'none',
+			peerExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
 			plainBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			plainBottomActionBorderStyle: 'none',
+			plainExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainCombinedBottomActionBackgroundColor: 'rgba(0, 0, 0, 0.12)',
 			plainCombinedModeActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainCombinedPermissionActionBackgroundColor: 'rgba(0, 0, 0, 0.2)',
@@ -2049,12 +3090,89 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('shows live worktree creation phases for a hidden PR bootstrap before showing its ready message', () => {
+		const resource = URI.parse('test:///pull-request');
+		const response = disposables.add(new ChatResponseModel({
+			responseContent: [], session: createChatModel(resource), requestId: 'bootstrap', codeBlockInfos: undefined,
+		}));
+		const request = new class extends mock<IChatRequestModel>() {
+			override readonly isRequestHiddenFromTranscript = true;
+			override readonly isHiddenFromTranscript = true;
+			override readonly response = response;
+			override readonly variableData = {
+				variables: [{
+					kind: 'transcriptContext' as const, id: 'pr', name: 'PR #42', value: '{}', uri: URI.parse('https://github.com/owner/repo/pull/42'),
+					readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
+				}]
+			};
+		}();
+		const model = new class extends mock<IChatModel>() {
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests() { return [request]; }
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.InProgress);
+			override readonly description = constObservable(undefined);
+		}();
+		const container = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => container.remove()));
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: disposables,
+			container,
+			listContainer: dom.append(container, dom.$('.interactive-list')),
+			instantiationService: workbenchInstantiationService(undefined, disposables),
+			transcriptProgressPart: disposables.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction: observableValue('progressAction', undefined),
+			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			updateChatViewVisibility: () => { },
+		});
+		const renderedProgress = () => {
+			const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+			const status = progress.querySelector<HTMLElement>('[role=status]')!;
+			return {
+				message: status.textContent?.replace(/\u00a0/g, ' '),
+				ariaLabel: status.getAttribute('aria-label'),
+				visible: !progress.hidden,
+				complete: !!progress.querySelector('.show-checkmarks'),
+			};
+		};
+		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResourceObs: constObservable(resource),
+			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
+			_widget: widget,
+		});
+		view._setupTranscriptPreparationProgress(constObservable(model));
+		const snapshots = [renderedProgress()];
+		for (const message of [
+			'Creating isolated worktree (fetching pull request)',
+			'Creating isolated worktree (checking out files, 42%)',
+			'Creating isolated worktree (copying additional files, 100%)',
+		]) {
+			response.updateContent({ kind: 'progressMessage', id: 'agentHostActivity', content: new MarkdownString(message) });
+			snapshots.push(renderedProgress());
+		}
+		response.complete();
+		snapshots.push(renderedProgress());
+
+		assert.deepStrictEqual(snapshots, [
+			{ message: 'Working...', ariaLabel: 'Working...', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (fetching pull request)', ariaLabel: 'Creating isolated worktree (fetching pull request)', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (checking out files, 42%)', ariaLabel: 'Creating isolated worktree (checking out files, 42%)', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (copying additional files, 100%)', ariaLabel: 'Creating isolated worktree (copying additional files, 100%)', visible: true, complete: false },
+			{ message: 'Session ready. Pull request #42 is checked out and attached.', ariaLabel: 'Session ready. Pull request #42 is checked out and attached.', visible: true, complete: true },
+		]);
+	});
+
 	test('shows draft activity with a log link and cancellation before a chat model is loaded', () => {
 		const preparing = observableValue('preparing', true);
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', undefined);
 		const session = new class extends mock<ISession>() {
 			override readonly status = constObservable(SessionStatus.Untitled);
-			override readonly description = constObservable(new MarkdownString('Starting Dev Container...'));
+			override readonly description = constObservable(new MarkdownString('Starting Dev Container'));
 			override readonly isNewSessionRequestInProgress = preparing;
 			override readonly preparationProgress = preparationProgress;
 		}();
@@ -2063,6 +3181,7 @@ suite('Sessions - Chat View', () => {
 			_store: disposables,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
 			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
 			_widget: { setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => calls.push(args) },
 		});
 		view._setupTranscriptPreparationProgress(constObservable(undefined));
@@ -2070,7 +3189,7 @@ suite('Sessions - Chat View', () => {
 		let logOpened = false;
 		const cancel = () => { canceled = true; };
 		const showLog = () => { logOpened = true; };
-		preparationProgress.set({ message: 'Starting Dev Container...', showLog, cancel }, undefined);
+		preparationProgress.set({ message: 'Starting Dev Container', showLog, cancel }, undefined);
 		calls.at(-1)?.[2]?.detail?.run();
 		calls.at(-1)?.[2]?.onCancel?.();
 		transaction(tx => {
@@ -2079,12 +3198,72 @@ suite('Sessions - Chat View', () => {
 		});
 		assert.deepStrictEqual({ calls, canceled, logOpened }, {
 			calls: [
-				['Starting Dev Container...', 'Starting Dev Container...', undefined],
-				['Starting Dev Container...', 'Starting Dev Container...', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel }],
+				['Starting Dev Container', 'Starting Dev Container', undefined],
+				['Starting Dev Container', 'Starting Dev Container', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel, inTranscript: false }],
 				[undefined, undefined, undefined],
 			],
 			canceled: true,
 			logOpened: true,
+		});
+	});
+
+	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+			override getDefaultAgent() { return undefined; }
+		}());
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', { message: 'Preparing worktree', cancel: () => { } });
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly description = constObservable(undefined);
+			override readonly isNewSessionRequestInProgress = constObservable(true);
+			override readonly preparationProgress = preparationProgress;
+		}();
+		const chatModel = observableValue<IChatModel | undefined>('model', undefined);
+		const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
+		const progressCalls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
+		const view: {
+			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void;
+			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
+			_saveCurrentViewState(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			instantiationService,
+			_preparationModel: preparationModel,
+			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_currentSessionObs: constObservable(session),
+			_widget: {
+				setModel: (model: IChatModel) => chatModel.set(model, undefined),
+				setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => progressCalls.push(args),
+			},
+		});
+		view._setupTranscriptPreparationProgress(chatModel);
+		const attachment = { kind: 'file' as const, id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') };
+		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] });
+		const model = preparationModel.value!;
+		const request = model.getRequests()[0];
+		preparationProgress.set({ message: 'Starting Dev Container', cancel: () => { } }, undefined);
+		preparationProgress.set({ message: 'Initializing Agent Host session', cancel: () => { } }, undefined);
+		view._saveCurrentViewState();
+		assert.deepStrictEqual({
+			sameModel: chatModel.get() === model,
+			requests: model.getRequests().length,
+			text: request.message.text,
+			attachments: request.variableData.variables,
+			progress: request.response?.response.value.map(part => part.kind === 'progressMessage' ? part.content.value : part.kind),
+			keepAlive: model.willKeepAlive,
+			readOnly: model.isReadOnly.get(),
+			inTranscript: progressCalls.at(-1)?.[2]?.inTranscript,
+		}, {
+			sameModel: true,
+			requests: 1,
+			text: 'Review this file\nand explain it.',
+			attachments: [attachment],
+			progress: ['Initializing&nbsp;Agent&nbsp;Host&nbsp;session'],
+			keepAlive: false,
+			readOnly: true,
+			inTranscript: true,
 		});
 	});
 

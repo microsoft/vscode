@@ -1,12 +1,15 @@
 parameters:
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-windows-2022-x64
 
 jobs:
   - job: WindowsNodeModules_${{ parameters.VSCODE_ARCH }}
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
-      name: 1es-windows-2022-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows
     timeoutInMinutes: 60
     variables:
@@ -71,11 +74,6 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: prepare
-          onlyOnNodeModulesCacheMiss: true
-
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
@@ -86,14 +84,10 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          FOUNDRY_LOCAL_SKIP_INSTALL: "1"
         retryCountOnTaskFailure: 5
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: install
-          onlyOnNodeModulesCacheMiss: true
 
       - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

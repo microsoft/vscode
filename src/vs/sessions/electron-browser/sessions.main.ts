@@ -65,7 +65,7 @@ import { IDefaultAccountService } from '../../platform/defaultAccount/common/def
 import { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
-import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
+import type { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';

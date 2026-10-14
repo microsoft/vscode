@@ -11,9 +11,11 @@ import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
@@ -23,6 +25,11 @@ type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserP
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
+
+/** The SDK-registered name for a client tool; only the tool-search tool differs. */
+export function toSdkClientToolName(name: string): string {
+	return name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+}
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -79,37 +86,7 @@ function isSupportedMcpServerConfiguration(value: unknown): value is IMcpServerC
 }
 
 function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultCwd?: URI): MCPServerConfig {
-	if (config.type === McpServerType.LOCAL) {
-		const effectiveCwd = resolveMcpServerWorkingDirectory(config.cwd, defaultCwd);
-		return {
-			type: 'local',
-			command: config.command,
-			args: config.args ? [...config.args] : [],
-			tools: ['*'],
-			...(config.env && { env: toStringEnv(config.env) }),
-			...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-		};
-	}
-	return {
-		type: config.transport === 'sse' ? 'sse' : 'http',
-		url: config.url,
-		tools: ['*'],
-		...(config.headers && { headers: { ...config.headers } }),
-		...(config.oauth?.clientId && { oauthClientId: config.oauth.clientId }),
-	};
-}
-
-/**
- * Ensures all env values are strings (the SDK requires `Record<string, string>`).
- */
-function toStringEnv(env: Record<string, string | number | null>): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const [key, value] of Object.entries(env)) {
-		if (value !== null) {
-			result[key] = String(value);
-		}
-	}
-	return result;
+	return toCopilotMcpServerConfiguration(config, config.type === McpServerType.LOCAL ? resolveMcpServerWorkingDirectory(config.cwd, defaultCwd) : undefined);
 }
 
 // ---------------------------------------------------------------------------

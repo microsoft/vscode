@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_CHILD_LIMIT } from '../../node/agentHostCatalogProjection.js';
+import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT } from '../../node/agentHostCatalogProjection.js';
+import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
+import { customChatTitleMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
 const session = URI.parse('agenthost:peer-store');
 const first = URI.parse(buildChatUri(session, 'first'));
@@ -49,7 +54,7 @@ class RecordingLogService extends NullLogService {
 	}
 }
 
-class ConcurrentMetadataWriteDatabase extends TestSessionDatabase {
+class ConcurrentMetadataWriteDatabase extends FailingLegacyMirrorDatabase {
 	private inFlightWrites = 0;
 	maxInFlightWrites = 0;
 	metadataValueWrites = 0;
@@ -82,12 +87,244 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	teardown(async () => {
+		sinon.restore();
 		await orchestrator.close();
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
 	}
+
+	test('normalized metadata batches title and source without touching legacy backing', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Original', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		const writes = sinon.spy(orchestrator, 'updateChatV2Metadata');
+		await store.persistMetadata(session, URI.parse(defaultChat), {
+			[SESSION_CUSTOM_TITLE_KEY]: 'Renamed',
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: 'continuation',
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(['file:///first', 'file:///second']),
+		});
+		await store.persistMetadata(session, URI.parse(defaultChat), {
+			[SESSION_CUSTOM_TITLE_KEY]: '',
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: '',
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: '',
+			[getChatChangesSummaryMetadataKey(defaultChat)]: '',
+		});
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const row = snapshot.chats[0];
+		assert.deepStrictEqual({
+			writes: writes.callCount,
+			legacyWrites: local.setMetadataCalls,
+			metadata: row.metadata,
+			directories: row.workingDirectories,
+			detail: await orchestrator.getChatV2ProviderDetail(defaultChat),
+		}, {
+			writes: 2,
+			legacyWrites: [],
+			metadata: { interactivity: ChatInteractivity.Full, titleSource: 'user' },
+			directories: undefined,
+			detail: {},
+		});
+	});
+
+	test('normalized default title snapshots fill missing titles without legacy writes or later overwrite', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [], privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		await local.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user');
+		local.setMetadataCalls.length = 0;
+		const store = createStore(local);
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Snapshot');
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Later snapshot');
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			metadata: snapshot.chats[0].metadata, metadataRevision: snapshot.chats[0].metadataRevision,
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			metadata: { interactivity: ChatInteractivity.Full, changes: { files: 0 }, summary: 'Snapshot', titleSource: 'user' },
+			metadataRevision: 1, legacyWrites: [],
+		});
+	});
+
+	test('normalized title writes and snapshots use the migration summary bound without splitting surrogate pairs', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		const prefix = 'x'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT - 2);
+		const oversized = `${prefix}😀tail`;
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), oversized);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: oversized, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		const [bounded] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const exact = 'y'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT);
+		await store.persistMetadata(session, session, { [customChatTitleMetadataKey(first.toString())]: exact });
+		const [atLimit] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: '' });
+		assert.deepStrictEqual({
+			bounded: bounded.chats.map(chat => chat.metadata?.summary),
+			atLimit: atLimit.chats.find(chat => chat.chat === first.toString())?.metadata?.summary,
+			cleared: (await store.readNormalizedChat(session, first)).chat?.metadata,
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			bounded: [`${prefix}…`, `${prefix}…`],
+			atLimit: exact,
+			cleared: { titleSource: 'user' },
+			legacyWrites: [],
+		});
+	});
+
+	test('normalized chat hydration reads only one row per peer in a full catalog', async () => {
+		const peers = Array.from({ length: 100 }, (_, index) => ({ chat: buildChatUri(session, `peer-${index}`), order: index + 1, metadata: { summary: `Peer ${index}` } }));
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers,
+			privateDescendants: Array.from({ length: 899 }, (_, index) => ({ chat: buildChatUri(session, `private-${index}`), parentChat: peers[0].chat })),
+		});
+		const snapshots = sinon.spy(orchestrator, 'readCatalogSnapshot');
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Count actual production row decoding without a test-only API.
+		const originalDecoder = orchestrator['_toChatV2'];
+		const decode = sinon.spy(originalDecoder);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Retain the private method's type when installing the recording wrapper.
+		orchestrator['_toChatV2'] = decode;
+		const store = createStore(new TestSessionDatabase());
+		try {
+			const titles = await Promise.all(peers.map(async peer => (await store.readNormalizedChat(session, URI.parse(peer.chat))).chat?.metadata?.summary));
+			assert.deepStrictEqual({
+				titles, snapshotReads: snapshots.callCount, decodedRows: decode.callCount,
+			}, { titles: peers.map(peer => peer.metadata.summary), snapshotReads: 0, decodedRows: peers.length });
+		} finally {
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Restore the production decoder after this test.
+			orchestrator['_toChatV2'] = originalDecoder;
+		}
+	});
+
+	test('normalized default title snapshots preserve a concurrent explicit title after a CAS conflict', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [], privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		sinon.stub(local, 'getMetadata').callsFake(async key => {
+			assert.strictEqual(key, SESSION_CUSTOM_TITLE_SOURCE_KEY);
+			await orchestrator.updateChatV2Metadata(defaultChat, { ownershipRevision: 0, metadataRevision: 0 }, {
+				metadata: { summary: 'Concurrent user title', titleSource: 'user' },
+			});
+			return 'auto';
+		});
+		const writes = sinon.spy(orchestrator, 'updateChatV2Metadata');
+		await createStore(local).persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Stale snapshot');
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			metadata: snapshot.chats[0].metadata, metadataRevision: snapshot.chats[0].metadataRevision,
+			writes: writes.callCount, legacyWrites: local.setMetadataCalls,
+		}, {
+			metadata: { summary: 'Concurrent user title', titleSource: 'user' },
+			metadataRevision: 1, writes: 2, legacyWrites: [],
+		});
+	});
+
+	test('normalized public identity conflicts fail once instead of retrying an unchanged header', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		await store.remove(session, first);
+		const replacements = sinon.spy(orchestrator, 'replaceSessionChatCatalog');
+		await assert.rejects(store.upsert(session, first, 'recreated'), /Normalized peer identity conflicts/);
+		await store.whenIdle();
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			attempts: replacements.callCount,
+			chats: snapshot.chats.map(chat => chat.chat),
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			attempts: 1, chats: [defaultChat], legacyWrites: [],
+		});
+	});
+
+	test('normalized flags and private lifecycle preserve public roles and reject tombstoned reuse', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		await store.setRead(session, URI.parse(defaultChat), true);
+		await store.setArchived(session, first, true);
+		await store.persistPrivateChat(session, {
+			chat: second.toString(), parentChat: first.toString(), providerData: 'private-continuation',
+			metadata: { summary: 'Worker', interactivity: ChatInteractivity.Hidden, changes: { files: 0 } },
+		});
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'updated-continuation', metadata: { interactivity: ChatInteractivity.Hidden } });
+		await store.persistPrivateChat(session, { chat: third.toString(), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		const [before] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await store.remove(session, second);
+		const [after] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }), /Conflicting private chat identity/);
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), parentChat: first.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }, true), /Conflicting private chat identity/);
+		assert.deepStrictEqual({
+			worker: before.chats.find(chat => chat.chat === second.toString())?.metadata,
+			remaining: after.chats.map(chat => ({ chat: chat.chat, order: chat.order, read: chat.isRead, archived: chat.archived })),
+			legacyWrites: local.setMetadataCalls,
+			removed: await orchestrator.getChatV2ProviderDetail(second.toString()),
+		}, {
+			worker: { summary: 'Worker', interactivity: ChatInteractivity.Hidden, changes: { files: 0 } },
+			remaining: [
+				{ chat: defaultChat, order: 0, read: true, archived: false },
+				{ chat: first.toString(), order: 1, read: undefined, archived: true },
+			],
+			legacyWrites: [],
+			removed: undefined,
+		});
+	});
+
+	test('late private lineage survives provider updates and removes descendants with their public parent', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const store = createStore(new TestSessionDatabase());
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'early-continuation', metadata: { interactivity: ChatInteractivity.Hidden } });
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), parentChat: second.toString() }), /parent|lineage|cyclic/i);
+		await store.persistPrivateChat(session, { chat: second.toString(), parentChat: first.toString() });
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'latest-continuation' });
+		await store.persistPrivateChat(session, { chat: third.toString(), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		const [before] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const detail = await orchestrator.getChatV2ProviderDetail(second.toString());
+		await store.remove(session, first);
+		const [after] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			parent: before.chats.find(chat => chat.chat === second.toString())?.parentChat,
+			detail, remaining: after.chats.map(chat => chat.chat),
+			descendants: await Promise.all([second, third].map(chat => orchestrator.getChatV2ProviderDetail(chat.toString()))),
+		}, {
+			parent: first.toString(), detail: { providerData: 'latest-continuation' },
+			remaining: [defaultChat], descendants: [undefined, undefined],
+		});
+	});
 
 	function createPerResourceStore(): {
 		readonly store: AgentHostPeerChatStore;
@@ -95,7 +332,7 @@ suite('AgentHostPeerChatStore', () => {
 	} {
 		const databases = new Map<string, ConcurrentMetadataWriteDatabase>();
 		const databaseFor = (resource: URI) => {
-			const key = resource.toString();
+			const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
 			let database = databases.get(key);
 			if (!database) {
 				database = new ConcurrentMetadataWriteDatabase();
@@ -106,10 +343,14 @@ suite('AgentHostPeerChatStore', () => {
 		const service = {
 			...createSessionDataService(),
 			openDatabase: (resource: URI) => ({ object: databaseFor(resource), dispose: () => { } }),
-			tryOpenDatabase: async (resource: URI) => ({ object: databaseFor(resource), dispose: () => { } }),
+			tryOpenDatabase: async (resource: URI) => {
+				const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
+				const database = databases.get(key);
+				return database ? { object: database, dispose: () => { } } : undefined;
+			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService()),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined)),
 			databaseFor,
 		};
 	}
@@ -125,7 +366,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -193,7 +434,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -235,7 +476,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -320,7 +561,7 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
-	test('filters duplicate, foreign, default, and invalid entries while normalizing origins', async () => {
+	test('filters duplicate, default, and invalid entries while normalizing origins', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
 		const foreignSession = URI.parse('agenthost:foreign');
@@ -343,6 +584,8 @@ suite('AgentHostPeerChatStore', () => {
 
 		assert.deepStrictEqual(await store.tryReadLegacy(session), [
 			{ uri: first.toString(), providerData: 'first', origin },
+			// The containing session owns an entry with no central record, whatever its URI encodes.
+			{ uri: buildChatUri(foreignSession, 'foreign') },
 			{
 				uri: third.toString(),
 				origin: {
@@ -352,6 +595,89 @@ suite('AgentHostPeerChatStore', () => {
 				},
 			},
 		]);
+	});
+
+	test('legacy entries belong to the reading session unless the registry or central catalog records them elsewhere or as deleted', async () => {
+		const database = new TestSessionDatabase();
+		const other = 'agenthost:other-owner';
+		const recordedElsewhere = buildChatUri(session, 'recorded-elsewhere');
+		const tombstoned = buildChatUri(session, 'tombstoned');
+		const liveElsewhere = buildChatUri(session, 'live-elsewhere');
+		// Encodes another session in its URI but has no central record.
+		const encodedElsewhere = buildChatUri('agenthost:encoded-elsewhere', 'unrecorded');
+		await orchestrator.registerRuntimeSession(other, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await orchestrator.registerChatCatalogV2(other, {
+			defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
+			peers: [{ chat: recordedElsewhere, order: 1 }],
+			privateDescendants: [{ chat: tombstoned, metadata: { interactivity: ChatInteractivity.Hidden } }],
+		});
+		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
+		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
+		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			removed: removed.status,
+			tombstoned: tombstonedOwner?.deleted,
+			entries: await store.tryReadLegacy(session),
+			lookups: lookups.callCount,
+		}, {
+			removed: 'applied',
+			tombstoned: true,
+			entries: [{ uri: encodedElsewhere }, { uri: first.toString() }],
+			lookups: 1,
+		});
+	});
+
+	test('a legacy entry recorded under the reading session but tombstoned is skipped', async () => {
+		const database = new TestSessionDatabase();
+		const tombstonedHere = buildChatUri(session, 'tombstoned-here');
+		await orchestrator.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: tombstonedHere, order: 1 }],
+			privateDescendants: [],
+		});
+		// Tombstones the session's chats_v2 rows and drops its normalized header, so the legacy store is read again.
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([tombstonedHere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			central: (await orchestrator.findCentralChatOwners([tombstonedHere])).get(tombstonedHere),
+			entries: await store.tryReadLegacy(session),
+		}, {
+			central: { ownerSession: session.toString(), source: 'normalized', deleted: true },
+			entries: [{ uri: first.toString() }],
+		});
+	});
+
+	test('reading and reconciling a full legacy peer list checks only the central catalogs, never cached catalog payloads', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const peers = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => buildChatUri(session, `legacy-${index}`));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(peers.map(uri => ({ uri }))));
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const read = await store.tryReadLegacy(session);
+		const reconciled = await store.reconcileLegacy(session);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			read: read?.length,
+			reconciled: reconciled?.length,
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN')).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		}, {
+			read: peers.length,
+			reconciled: peers.length,
+			centralLookups: 2,
+			payloadScans: 0,
+		});
 	});
 
 	test('serializes concurrent add, remove, and update operations', async () => {
@@ -470,6 +796,81 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual(await store.tryRead(session), [
 			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/first'] },
 		]);
+	});
+
+	test('updates working directories without dropping provider data', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, 'inherited-turn', ['file:///workspace/first']);
+		await store.setArchived(session, first, true);
+
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), archived: true, providerData: 'backing', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/second'] },
+		]);
+	});
+
+	test('persists archived state across updates and restores', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setArchived(session, first, true);
+		await store.upsert(session, first, 'refreshed');
+		const archived = await store.tryRead(session);
+
+		await store.setArchived(session, first, false);
+		const restored = await store.tryRead(session);
+
+		assert.deepStrictEqual({ archived, restored }, {
+			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
+	test('the recorded default chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
+		const recordedDefault = buildChatUri(session, 'primary');
+		const shapedPeer = URI.parse(buildDefaultChatUri(session));
+		const local = new TestSessionDatabase();
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined));
+		await store.upsert(session, shapedPeer, 'peer-backing');
+		await store.setRead(session, shapedPeer, false);
+		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
+		await store.setRead(session, URI.parse(recordedDefault), true);
+
+		assert.deepStrictEqual({
+			afterPeer,
+			afterDefault: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			peers: (await store.tryRead(session))?.map(entry => ({ uri: entry.uri.toString(), isRead: entry.isRead })),
+		}, {
+			afterPeer: undefined,
+			afterDefault: 'true',
+			peers: [{ uri: shapedPeer.toString(), isRead: false }],
+		});
+	});
+
+	test('persists read state across updates and restores', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'refreshed');
+		const unread = await store.tryRead(session);
+		const centralUnread = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityUnread = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		await store.setRead(session, first, true);
+		const read = await store.tryRead(session);
+		const centralRead = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityRead = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		assert.deepStrictEqual({ unread, centralUnread, compatibilityUnread, read, centralRead, compatibilityRead }, {
+			unread: [{ uri: first.toString(), isRead: false, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralUnread: false,
+			compatibilityUnread: '',
+			read: [{ uri: first.toString(), isRead: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralRead: true,
+			compatibilityRead: 'true',
+		});
 	});
 
 	test('persists and reads the explicit empty sentinel', async () => {

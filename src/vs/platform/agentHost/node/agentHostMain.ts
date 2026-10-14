@@ -25,13 +25,15 @@ import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexSdkPackage } from './codex/codexSdk.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { MissionControlHost } from './missionControl/missionControlHost.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -59,6 +61,7 @@ import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -128,6 +131,8 @@ async function startAgentHost(): Promise<void> {
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
+			// On-device models run only in this local utility-process host, never in agentHostServerMain.
+			localModel: { kind: 'localUtilityProcess' },
 		});
 		disposables.add(runtime);
 		agentService = runtime.agentService;
@@ -146,7 +151,6 @@ async function startAgentHost(): Promise<void> {
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
-		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
@@ -188,6 +192,7 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		disposables.dispose();
@@ -446,15 +451,33 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+	const missionControl = protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
+		hostLaunchKind,
+		clientFileSystemProvider,
+		trackProtocolHandler: handler => {
+			protocolHandlers.push(handler);
+			return toDisposable(() => {
+				protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
+				handler.dispose();
+			});
+		},
+	}));
+	const management = instantiationService.createInstance(
 		AgentHostManagementService,
 		agentService,
 		connectionTrackerService,
 		async () => {
+			try {
+				await missionControl.environment.configure(undefined);
+			} catch (error) {
+				logService.error('[AgentHost] Failed to unregister Mission Control environment', error);
+			}
 			protocolIngressDisposables.dispose();
 			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
 		},
-	), disposables));
+	);
+	management.setMissionControl(missionControl.environment);
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
@@ -479,10 +502,13 @@ async function startAgentHost(): Promise<void> {
 	// Startup is complete once the last ingress has settled — successfully or
 	// not, since a failed WebSocket server is non-fatal. Deferred maintenance
 	// then runs after a client has also been served its first session listing.
+	let startupOutcome: 'success' | 'error' = 'success';
 	void configuredWebSocketServerStart.catch(err => {
+		startupOutcome = 'error';
 		logService.error('Failed to start WebSocket server', err);
 	}).finally(() => {
-		agentService.markStartupComplete();
+		agentService.markStartupComplete(startupOutcome);
+		markNodeCompileCacheReady(message => logService.info(message));
 	});
 
 	process.once('exit', () => {

@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.68.0",
+  "version": "0.71.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.140.0",
+    "vscode": "^1.143.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -120,6 +120,7 @@
     "defaultChatParticipant",
     "contribSourceControlInputBoxMenu",
     "authLearnMore",
+    "authIssuers",
     "testObserver",
     "aiTextSearchProvider",
     "chatParticipantPrivate",
@@ -131,6 +132,7 @@
     "languageModelSystem",
     "languageModelCapabilities",
     "languageModelPricing",
+    "languageModelRateLimit",
     "inlineCompletionsAdditions",
     "chatStatusItem",
     "chatInputNotification",
@@ -1955,7 +1957,7 @@
                   },
                   "supportsReasoningEffort": {
                     "type": "array",
-                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, an `Effort Level` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
                     "items": {
                       "type": "string"
                     }
@@ -2155,9 +2157,14 @@
                     "default": false,
                     "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this endpoint. When `true`, `previous_response_id` will not be sent in requests via Responses API."
                   },
+                  "statefulResponses": {
+                    "type": "boolean",
+                    "default": true,
+                    "markdownDescription": "Whether the Responses API server retains prior responses. When `true`, requests chain via `previous_response_id` and send only new history. Set to `false` for stateless servers that ignore `previous_response_id` (for example DeepSeek), so the full history is sent on every request. Ignored when `zeroDataRetentionEnabled` is `true`."
+                  },
                   "supportsReasoningEffort": {
                     "type": "array",
-                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, an `Effort Level` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
                     "items": {
                       "type": "string"
                     }
@@ -2311,7 +2318,7 @@
                   },
                   "supportsReasoningEffort": {
                     "type": "array",
-                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+                    "markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, an `Effort Level` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
                     "items": {
                       "type": "string"
                     }
@@ -2462,7 +2469,8 @@
         "command": "github.copilot.cli.sessions.rename",
         "title": "%github.copilot.command.cli.sessions.rename%",
         "icon": "$(edit)",
-        "category": "Copilot CLI"
+        "category": "Copilot CLI",
+        "enablement": "!sessionItem.isMultiSelection"
       },
       {
         "command": "github.copilot.cli.sessions.setTitle",
@@ -3201,31 +3209,14 @@
           "github.copilot.chat.backgroundAgent.enabled": {
             "type": "boolean",
             "default": true,
-            "markdownDescription": "%github.copilot.config.backgroundAgent.enabled%"
+            "markdownDescription": "%github.copilot.config.backgroundAgent.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.backgroundAgent.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info"
           },
           "github.copilot.chat.cloudAgent.enabled": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
-          },
-          "github.copilot.chat.cloudAgent.sessionVisibility": {
-            "type": "string",
-            "enum": [
-              "24hours",
-              "7days",
-              "30days",
-              "90days",
-              "all"
-            ],
-            "default": "30days",
-            "markdownDescription": "%github.copilot.config.cloudAgent.sessionVisibility%",
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgent.sessionVisibility.24hours%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.7days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.30days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.90days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.all%"
-            ]
           },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",
@@ -4094,7 +4085,7 @@
           },
           "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
@@ -4150,31 +4141,6 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
-            "type": "string",
-            "default": "",
-            "enum": [
-              "",
-              "low",
-              "medium",
-              "high",
-              "max"
-            ],
-            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
             "tags": [
               "experimental",
               "onExp"
@@ -4379,6 +4345,15 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.readFile.allowLineAdjustments": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.chat.tools.readFile.allowLineAdjustments%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
@@ -4455,6 +4430,10 @@
                 "family": {
                   "type": "string",
                   "description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+                },
+                "thinkingInHistory": {
+                  "type": "boolean",
+                  "description": "%github.copilot.config.thinkingInHistory%"
                 }
               },
               "additionalProperties": false
@@ -4667,23 +4646,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.inlineChat.reasoningEffort": {
-            "type": "string",
-            "default": "low",
-            "enum": [
-              "none",
-              "minimal",
-              "low",
-              "medium",
-              "high"
-            ],
-            "markdownDescription": "%github.copilot.config.inlineChat.reasoningEffort%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineChat.enableThinking": {
             "type": "boolean",
             "default": false,
@@ -4852,7 +4814,7 @@
           },
           "github.copilot.chat.executionSubagent.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
             "tags": [
               "advanced",
@@ -4862,7 +4824,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "gemini-3-flash",
+            "default": "gpt-5.6-luna",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",
@@ -5044,6 +5006,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.mcp.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.mcp.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
@@ -5066,6 +5030,8 @@
             ],
             "default": "off",
             "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sandbox.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
@@ -5075,6 +5041,8 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.branchSupport.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.branchSupport.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5086,6 +5054,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planExitMode.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5094,6 +5064,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.autoModel.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5102,6 +5074,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.chat.agent.modelDetails.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.chat.agent.modelDetails.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5110,6 +5084,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.planCommand.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5118,6 +5094,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.lazyLoadSessionItem.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5129,6 +5107,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.aiGenerateBranchNames.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.aiGenerateBranchNames.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5137,6 +5117,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.forkSessions.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.forkSessions.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5145,6 +5127,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.isolationOption.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.isolationOption.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5156,6 +5140,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoCommit.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.autoCommit.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
@@ -5168,6 +5154,8 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionController.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5176,18 +5164,12 @@
               "readOnly": true
             }
           },
-          "github.copilot.chat.cli.thinkingEffort.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
-            "tags": [
-              "advanced"
-            ]
-          },
           "github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]
@@ -5204,6 +5186,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.remote.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.remote.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5383,6 +5367,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.captureIdentity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureIdentity"
+            },
+            "markdownDescription": "Capture the authenticated Copilot account name, operating system username, and machine hostname in OpenTelemetry. **Contains personally identifying data.** Independent of content capture. `null` means no personal preference (off by default). `COPILOT_OTEL_CAPTURE_IDENTITY` overrides personal settings; explicit enterprise policy overrides both. Enabling requires window reload; an effective denial applies immediately to subsequent exports.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.serviceName": {
             "type": "string",
             "default": "",
@@ -5405,7 +5404,7 @@
             "policyReference": {
               "name": "CopilotOtelResourceAttributes"
             },
-            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES` (env values take precedence, including over enterprise-managed values). Requires window reload.",
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES`: enterprise-managed values take precedence over environment values, which take precedence over personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -6890,6 +6889,14 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
+        "sessionTypes": [
+          "copilotcli",
+          "claude",
+          "codex"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/init/SKILL.md",
         "sessionTypes": [
           "local"
@@ -6923,6 +6930,13 @@
         "path": "./assets/prompts/skills/create-hook/SKILL.md",
         "sessionTypes": [
           "local"
+        ]
+      },
+      {
+        "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
+        "sessionTypes": [
+          "copilotcli"
         ]
       },
       {
@@ -7034,7 +7048,7 @@
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^42.5.0",
+    "electron": "^42.10.0",
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",

@@ -11,13 +11,14 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -133,14 +134,17 @@ export class MockAgent implements IAgent {
 		readonly id: AgentProvider = 'mock',
 		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
 		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
+		autoDiscover = true,
 	) {
-		queueMicrotask(() => {
-			void this.listExternalChats().then(chats => {
-				if (chats) {
-					this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
-				}
-			}, () => { });
-		});
+		if (autoDiscover) {
+			queueMicrotask(() => {
+				void this.listExternalChats().then(chats => {
+					if (chats) {
+						this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
+					}
+				}, () => { });
+			});
+		}
 	}
 
 	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {
@@ -166,8 +170,8 @@ export class MockAgent implements IAgent {
 		this._models.set(models, undefined);
 	}
 
-	async listExternalChats(): Promise<IAgentChatMetadata[]> {
-		return [...this._sessions.values()].map(session => ({ chat: URI.parse(buildDefaultChatUri(session)), startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
+	async listExternalChats(): Promise<IAgentListedChat[]> {
+		return [...this._sessions.values()].map(session => ({ session, chat: URI.parse(buildDefaultChatUri(session)), startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
 	fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void {
@@ -326,7 +330,7 @@ export class MockAgent implements IAgent {
 		if (!parsed) {
 			throw new Error(`Mock agent chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		return { session: URI.parse(requireMintedTestChatOwner(chat)), chat: URI.parse(chat.toString()) };
 	}
 
 	/** Records a host-supplied chat context for later assertion. */
@@ -514,6 +518,7 @@ export class ScriptedMockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
+	private readonly _supportsMultipleChats = process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] === '1';
 
 	/**
 	 * Message history for the pre-existing session: a single user→assistant
@@ -561,7 +566,12 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return {
+			provider: 'mock',
+			displayName: 'Mock Agent',
+			description: 'Scripted test agent',
+			capabilities: this._supportsMultipleChats ? { multipleChats: { fork: true } } : undefined,
+		};
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -572,8 +582,9 @@ export class ScriptedMockAgent implements IAgent {
 		return [];
 	}
 
-	async listExternalChats(): Promise<IAgentChatMetadata[]> {
+	async listExternalChats(): Promise<IAgentListedChat[]> {
 		return [...this._sessions.values()].map(session => ({
+			session,
 			chat: URI.parse(buildDefaultChatUri(session)),
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
@@ -695,6 +706,20 @@ export class ScriptedMockAgent implements IAgent {
 					..._toolStart(chat, sessionStr, tid, 'tc-1', 'echo_tool', 'Echo Tool', 'Running echo tool...'),
 					_toolComplete(chat, sessionStr, tid, 'tc-1', { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true }),
 					_markdown(chat, sessionStr, tid, 'Tool done.'),
+					_idle(chat, sessionStr, tid),
+				]);
+				break;
+
+			case 'question-tool-error':
+				this._fireSequence([
+					..._toolStart(chat, sessionStr, tid, 'tc-question-error', 'ask_user', 'Ask question', 'Waiting for answer...'),
+					_toolComplete(chat, sessionStr, tid, 'tc-question-error', {
+						success: false,
+						pastTenseMessage: 'Failed to ask the question',
+						error: { message: 'Could not read question input' },
+						content: [],
+					}),
+					_markdown(chat, sessionStr, tid, 'The failed question has no input/output details.'),
 					_idle(chat, sessionStr, tid),
 				]);
 				break;
@@ -1067,7 +1092,7 @@ export class ScriptedMockAgent implements IAgent {
 		// Restore addresses the default chat by its channel URI; normalize it
 		// back to the session URI (mirroring the real agents' getSessionMessages).
 		const parsed = parseChatUri(session);
-		const normalized = parsed && isDefaultChatUri(session) ? URI.parse(parsed.session) : session;
+		const normalized = parsed && isMintedTestDefaultChat(session) ? URI.parse(requireMintedTestChatOwner(session)) : session;
 		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
@@ -1098,7 +1123,7 @@ export class ScriptedMockAgent implements IAgent {
 		if (!parsed) {
 			throw new Error(`Scripted mock chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		return { session: URI.parse(requireMintedTestChatOwner(chat)), chat: URI.parse(chat.toString()) };
 	}
 
 	readonly chats: IAgentChats = {
@@ -1107,11 +1132,16 @@ export class ScriptedMockAgent implements IAgent {
 			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}
+			if (this._supportsMultipleChats) {
+				return Promise.resolve({ project: mockProject(this.id) });
+			}
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
-			this._sessions.delete(AgentSession.id(session));
+			if (isMintedTestDefaultChat(chat)) {
+				this._sessions.delete(AgentSession.id(session));
+			}
 			return Promise.resolve();
 		},
 		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {

@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,7 +13,7 @@ import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
@@ -27,6 +26,7 @@ import type { GuardianWarningNotification } from '../../../node/codex/protocol/g
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
+import { requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 
 /**
  * Exactly the state `_resolveConversationSession` reads: the provider id it
@@ -74,6 +74,7 @@ interface ICodexGitHubMcpHarness {
 	_buildSessionMcpServers(session: {
 		readonly sessionId: string;
 		readonly workingDirectory: URI;
+		readonly agentMergeTurn?: boolean;
 	}): Record<string, ICodexMcpServerConfigJson>;
 }
 
@@ -400,6 +401,35 @@ suite('CodexAgent', () => {
 		});
 	});
 
+	test('Agent Merge turns omit only GitHub MCP servers', () => {
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: {
+				getRootValue: () => ({
+					'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+					corp: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
+				}),
+			},
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		const session = { sessionId: 'agent-merge', workingDirectory: URI.file('/work') };
+
+		assert.deepStrictEqual({
+			regularTurn: Object.keys(harness._buildSessionMcpServers(session)),
+			agentMergeTurn: harness._buildSessionMcpServers({ ...session, agentMergeTurn: true }),
+		}, {
+			regularTurn: ['component-explorer', 'corp'],
+			agentMergeTurn: {
+				'component-explorer': { command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+			},
+		});
+	});
+
 	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {
 		const proxyTokens: string[] = [];
 		let modelRefreshes = 0;
@@ -473,6 +503,7 @@ suite('CodexAgent', () => {
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
 			configurationResource: session,
+			subagentChatUriFormat: 'shaped' as const,
 		});
 
 		assert.strictEqual(result, undefined);
@@ -503,7 +534,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat, subagentChatUriFormat: 'shaped' as const })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,
@@ -622,57 +653,6 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('cold native discovery waits for the SDK rather than fetching it, and runs again once it lands', async () => {
-		const onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
-		const discoveredChats: number[] = [];
-		const listener = onDidDiscoverChats.event(chats => discoveredChats.push(chats.length));
-		type DiscoveryHarness = {
-			_activated: boolean;
-			_isShuttingDown: boolean;
-			_store: { isDisposed: boolean };
-			_codexChatDiscovery: Promise<void> | undefined;
-			_isSdkResolvableWithoutDownload(): Promise<boolean>;
-			_emitCodexChats(): Promise<boolean>;
-			_startCodexChatDiscovery(): Promise<void>;
-			_logService: { warn(message: string): void; info(message: string): void };
-		};
-		const discovery = CodexAgent.prototype as unknown as {
-			_startCodexChatDiscovery(this: DiscoveryHarness): Promise<void>;
-			_restartChatDiscovery(this: DiscoveryHarness): void;
-		};
-		let sdkIsLocal = false;
-		const harness: DiscoveryHarness = {
-			_activated: true,
-			_isShuttingDown: false,
-			_store: { isDisposed: false },
-			_logService: { warn: () => { }, info: () => { } },
-			_codexChatDiscovery: undefined,
-			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
-			_startCodexChatDiscovery: () => discovery._startCodexChatDiscovery.call(harness),
-			_emitCodexChats: async () => {
-				onDidDiscoverChats.fire([{
-					chat: URI.parse('agenthost-chat://codex/session/default'),
-					startTime: 1,
-					modifiedTime: 1,
-					external: true,
-				}]);
-				return true;
-			},
-		};
-
-		await discovery._startCodexChatDiscovery.call(harness);
-		const cold = [...discoveredChats];
-
-		// What the explicit download does on its way out.
-		sdkIsLocal = true;
-		discovery._restartChatDiscovery.call(harness);
-		await harness._codexChatDiscovery;
-
-		assert.deepStrictEqual({ cold, after: discoveredChats }, { cold: [], after: [1] });
-		listener.dispose();
-		onDidDiscoverChats.dispose();
-	});
-
 	test('listChatsToMigrate returns only known Codex chats without provenance', async () => {
 		const knownInternal = AgentSession.uri('codex', 'known-internal');
 		const knownExternal = AgentSession.uri('codex', 'known-external');
@@ -685,8 +665,9 @@ suite('CodexAgent', () => {
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
 				_activated: boolean;
-				_isSdkResolvableWithoutDownload(): Promise<boolean>;
-				_listCodexChats(): Promise<typeof chats | undefined>;
+				_isCatalogSdkAvailable(): Promise<boolean>;
+				_markCatalogStartupContext(sdkAvailability: 'available' | 'unavailable' | 'unknown'): void;
+				_listCodexChats(kind: 'migration' | 'discovery'): Promise<typeof chats | undefined>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_logService: { info(message: string): void };
 			}): Promise<typeof chats | undefined | typeof AgentChatMigrationDeferred>;
@@ -697,10 +678,11 @@ suite('CodexAgent', () => {
 		const harness = {
 			_activated: true,
 			_logService: { info: () => { } },
-			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
+			_isCatalogSdkAvailable: async () => sdkIsLocal,
+			_markCatalogStartupContext: () => { },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 		};
@@ -734,30 +716,39 @@ suite('CodexAgent', () => {
 		const emitCodexChats = (CodexAgent.prototype as unknown as {
 			_emitCodexChats(this: {
 				_isShuttingDown: boolean;
+				_connectionGeneration: number;
+				_discoveredCodexChats: Map<string, (typeof chats)[number]>;
 				_store: { isDisposed: boolean };
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(chats: readonly IAgentDiscoveredChat[]): void;
 			}): Promise<boolean>;
 		})._emitCodexChats;
 
-		await emitCodexChats.call({
+		const result = await emitCodexChats.call({
 			_isShuttingDown: false,
+			_connectionGeneration: 0,
+			_discoveredCodexChats: new Map(),
 			_store: { isDisposed: false },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
-		assert.deepStrictEqual(emitted, [
-			{ ...chats[0], external: false },
-			{ ...chats[1], external: false },
-			{ ...chats[2], external: true },
-		]);
+		assert.deepStrictEqual({ result, emitted }, {
+			result: true,
+			emitted: [
+				{ ...chats[0], external: false },
+				{ ...chats[1], external: false },
+				{ ...chats[2], external: true },
+			],
+		});
 	});
 });

@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -17,6 +17,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -27,6 +28,8 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -48,6 +51,8 @@ interface ISessionsSlashCommandData {
 	readonly detail: string;
 	readonly sortText?: string;
 	readonly executeImmediately?: boolean;
+	readonly supportsAgentHost?: boolean;
+	readonly when?: ContextKeyExpression;
 	readonly execute: (args: string) => void;
 }
 
@@ -70,7 +75,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 	private readonly _placeholderDecorations: IEditorDecorationsCollection;
 
 	constructor(
-		private readonly _editor: CodeEditorWidget,
+		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -78,6 +83,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 		@ISessionContext private readonly sessionContext: ISessionContext,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
@@ -147,7 +153,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 
 		const commandName = match[1];
 		const slashCommand = this._slashCommands.find(c => c.command === commandName);
-		if (!slashCommand) {
+		if (!slashCommand || !this._isSlashCommandAvailable(slashCommand)) {
 			return false;
 		}
 
@@ -167,10 +173,19 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			execute: () => this.chatPetService.toggle(),
 		});
 		this._slashCommands.push({
+			command: 'blobby',
+			detail: localize('slashCommand.blobby', "Show Blobby or open its color customization"),
+			sortText: 'z3_blobby',
+			executeImmediately: true,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
+			execute: () => this.commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID),
+		});
+		this._slashCommands.push({
 			command: 'agents',
 			detail: localize('slashCommand.agents', "View and manage custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Agents),
 		});
 		this._slashCommands.push({
@@ -178,6 +193,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.skills', "View and manage skills"),
 			sortText: 'z3_skills',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Skills),
 		});
 		this._slashCommands.push({
@@ -185,6 +201,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.instructions', "View and manage instructions"),
 			sortText: 'z3_instructions',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Instructions),
 		});
 		this._slashCommands.push({
@@ -271,6 +288,9 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			_debugDisplayName: 'sessionsSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const range = this._computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
 					return null;
@@ -283,7 +303,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 				}
 
 				return {
-					suggestions: this._slashCommands.map((c, i): CompletionItem => {
+					suggestions: this._slashCommands.filter(c => this._isSlashCommandAvailable(c)).map((c, i): CompletionItem => {
 						const withSlash = `/${c.command}`;
 						return {
 							label: withSlash,
@@ -305,6 +325,9 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const activeSession = this.sessionContext.session.get();
 				if (!activeSession) {
 					return null;
@@ -347,6 +370,16 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 				};
 			}
 		}));
+	}
+
+	private _isSlashCommandAvailable(command: ISessionsSlashCommandData): boolean {
+		if (command.when && !this.contextKeyService.contextMatchesRules(command.when)) {
+			return false;
+		}
+		const activeSession = this.sessionContext.session.get();
+		return command.supportsAgentHost !== false
+			|| !activeSession
+			|| !isAgentHostTarget(getChatSessionType(activeSession.resource));
 	}
 
 	private _computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range } | undefined {

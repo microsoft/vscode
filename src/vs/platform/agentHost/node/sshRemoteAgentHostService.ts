@@ -11,6 +11,7 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
@@ -47,6 +48,7 @@ import {
 } from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
+import { RelayActivityReporter } from '../common/relayActivity.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import {
@@ -86,6 +88,12 @@ interface SSHChannel extends NodeJS.ReadWriteStream {
 	close(): void;
 }
 
+interface ISSHKnownHostsEvidence {
+	readonly entries: IKnownHostsEntry[];
+	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
+	readonly hostKeyAlias: string | undefined;
+}
+
 /** Minimal subset of ssh2.Client used by this module. */
 interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
@@ -109,7 +117,7 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
 
 /**
  * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
- * to settle on the `replaceRelay` reconnect path before giving up. A silently
+ * to settle while acquiring a relay lease before giving up. A silently
  * dead SSH client (TCP half-open, ssh2 keepalive hasn't fired yet) can leave
  * `forwardOut`'s callback unfired, hanging the whole `connect()` call. Bounding
  * this surfaces a clean failure so the renderer can clear its pending-reconnect
@@ -526,6 +534,7 @@ function createWebSocketOverChannel(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	return new Promise((resolve, reject) => {
 		const WS = nativeRequire('ws') as typeof WebSocket;
@@ -538,20 +547,31 @@ function createWebSocketOverChannel(
 		// with ws's createConnection, but our minimal SSHChannel interface
 		// doesn't carry the full Node Duplex shape.
 		const ws = new WS(url, { createConnection: (() => channel) as unknown as WebSocket.ClientOptions['createConnection'] });
+		const activity = new RelayActivityReporter(onActivity);
 
 		ws.on('open', () => {
 			logService.info(`${LOG_PREFIX} WebSocket relay connected to remote agent host`);
+			// ws subscribed to 'data' before emitting 'open', so this runs after it relays any message the chunk completes.
+			const onChannelData = () => activity.dataReceived();
+			const stopReportingActivity = () => channel.removeListener('data', onChannelData);
+			channel.on('data', onChannelData);
+			ws.once('close', stopReportingActivity);
 			resolve({
 				send: (data: string) => {
 					if (ws.readyState === ws.OPEN) {
 						ws.send(data);
 					}
 				},
-				close: () => ws.close(),
+				close: () => {
+					// Stop now: bytes arrive until the close handshake ends, and a replacement relay reuses this connection ID.
+					stopReportingActivity();
+					ws.close();
+				},
 			});
 		});
 
 		ws.on('message', (data: WebSocket.RawData) => {
+			activity.messageReceived();
 			if (Array.isArray(data)) {
 				onMessage(Buffer.concat(data).toString());
 			} else if (data instanceof ArrayBuffer) {
@@ -589,6 +609,7 @@ async function createWebSocketRelayForEndpoint(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	let channel: SSHChannel;
 	let urlHost: string;
@@ -608,7 +629,7 @@ async function createWebSocketRelayForEndpoint(
 		urlHost = '127.0.0.1';
 		urlPort = 1;
 	}
-	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose);
+	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose, onActivity);
 }
 
 function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitized {
@@ -617,10 +638,8 @@ function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitiz
 }
 
 /**
- * State for a single active SSH relay connection.
- * Immutable and dispose-once — follows the same pattern as TunnelConnection.
- * On reconnect, the old SSHConnection is disposed and a fresh one is created;
- * the SSH client can be detached first so only the WebSocket relay is torn down.
+ * Shared SSH session state. Renderer protocol clients acquire independent relay
+ * leases from this session so no two clients ever share an AHP socket.
  */
 class SSHConnection extends Disposable {
 	private readonly _onDidClose = new Emitter<void>();
@@ -628,19 +647,18 @@ class SSHConnection extends Disposable {
 
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
-	private _sshClientDetached = false;
 	private readonly _sshCloseListener = () => {
-		this._logService.info(`${LOG_PREFIX} SSH client closed for connection ${this.connectionId} (address ${this.address}); disposing connection`);
+		this._logService.info(`${LOG_PREFIX} SSH client closed for ${this.address}; disposing session`);
 		this.dispose();
 	};
 	private readonly _sshErrorListener = (err?: Error) => {
-		this._logService.info(`${LOG_PREFIX} SSH client error for connection ${this.connectionId} (address ${this.address}): ${err instanceof Error ? err.message : String(err)}; disposing connection`);
+		this._logService.info(`${LOG_PREFIX} SSH client error for ${this.address}: ${err instanceof Error ? err.message : String(err)}; disposing session`);
 		this.dispose();
 	};
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
-		readonly connectionId: string,
+		readonly connectionKey: string,
 		readonly address: string,
 		readonly name: string,
 		readonly connectionToken: string | undefined,
@@ -659,7 +677,6 @@ class SSHConnection extends Disposable {
 		/** Remote user-data path the endpoint registry was resolved against; empty for the `remoteAgentHostCommand` override path (not applicable). */
 		readonly userDataPath: string,
 		readonly sshClient: SSHClient,
-		private readonly _relay: { send: (data: string) => void; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
 	) {
@@ -673,11 +690,10 @@ class SSHConnection extends Disposable {
 				return;
 			}
 			this._closed = true;
-			this._relay.close();
-			if (!this._sshClientDetached) {
-				this._remoteStream?.close();
-				sshClient.end();
-			}
+			sshClient.removeListener('close', this._sshCloseListener);
+			sshClient.removeListener('error', this._sshErrorListener);
+			this._remoteStream?.close();
+			sshClient.end();
 			this._onDidClose.fire();
 		}));
 
@@ -686,21 +702,38 @@ class SSHConnection extends Disposable {
 		sshClient.on('close', this._sshCloseListener);
 		sshClient.on('error', this._sshErrorListener);
 	}
+}
 
-	/**
-	 * Detach the SSH client from this connection so that `dispose()`
-	 * only closes the WebSocket relay without ending the SSH session.
-	 * Also removes event listeners from the SSH client so the old
-	 * connection object is not retained by the shared client.
-	 */
-	detachSshClient(): void {
-		this._sshClientDetached = true;
-		this.sshClient.removeListener('close', this._sshCloseListener);
-		this.sshClient.removeListener('error', this._sshErrorListener);
+class SSHRelayLease extends Disposable {
+	private readonly _onDidClose = new Emitter<void>();
+	readonly onDidClose = this._onDidClose.event;
+	private _released = false;
+	private _physicalCloseNotified = false;
+
+	constructor(
+		readonly connectionId: string,
+		readonly session: SSHConnection,
+		private readonly _relay: { send: (data: string) => void; close: () => void },
+	) {
+		super();
+		this._register(toDisposable(() => {
+			this._released = true;
+			this._relay.close();
+			this._onDidClose.fire();
+		}));
+		this._register(this._onDidClose);
 	}
 
 	relaySend(data: string): void {
 		this._relay.send(data);
+	}
+
+	notifyPhysicalClose(): boolean {
+		if (this._released || this._physicalCloseNotified) {
+			return false;
+		}
+		this._physicalCloseNotified = true;
+		return true;
 	}
 }
 
@@ -718,6 +751,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
+
+	private readonly _onDidRelayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity: Event<string> = this._onDidRelayActivity.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
@@ -772,6 +808,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private _hostKeyRequestCounter = 0;
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
+	private readonly _relayLeases = this._register(new DisposableMap<string, SSHRelayLease>());
+	private readonly _pendingSessions = new Map<string, Promise<SSHConnection>>();
+	private readonly _pendingReconnects = new Map<string, Promise<ISSHConnectResult>>();
+	private readonly _pendingRelayAcquisitions = new Map<SSHConnection, number>();
+	private readonly _replacements = new Map<string, string>();
 
 	private _nativeRequire: NodeJS.Require | undefined;
 	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
@@ -779,7 +820,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	/**
 	 * Override hook for tests to shorten the relay-creation timeout used on
-	 * the `replaceRelay` reconnect path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
+	 * relay-acquisition path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
 	 */
 	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
 
@@ -805,7 +846,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * the import, avoiding issues with Electron's ESM loader which cannot
 	 * resolve `node:` specifiers.
 	 */
-	private async _getNativeRequire(): Promise<NodeJS.Require> {
+	protected async _getNativeRequire(): Promise<NodeJS.Require> {
 		if (!this._nativeRequire) {
 			const nodeModule = await import('node:module');
 			this._nativeRequire = nodeModule.createRequire(import.meta.url);
@@ -813,105 +854,40 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._nativeRequire;
 	}
 
-	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
+	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		const connectionKey = computeSSHConnectionKey(config);
+		const existing = this._connections.get(connectionKey);
+		if (existing) {
+			return this._acquireRelay(existing, expectedConnectionId);
+		}
+		const pending = this._pendingSessions.get(connectionKey);
+		if (pending) {
+			return pending.then(session => this._acquireRelay(session, expectedConnectionId));
+		}
+		const connect = this._connect(config);
+		this._pendingSessions.set(connectionKey, connect);
+		void connect.finally(() => {
+			if (this._pendingSessions.get(connectionKey) === connect) {
+				this._pendingSessions.delete(connectionKey);
+			}
+		}).catch(() => { /* The caller observes the original rejection. */ });
+		return connect.then(session => this._acquireRelay(session, expectedConnectionId));
+	}
+
+	private async _connect(config: ISSHAgentHostConfig): Promise<SSHConnection> {
 		const connectionKey = computeSSHConnectionKey(config);
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
-			if (replaceRelay) {
-				// Tear down the old relay and create a fresh one, following
-				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
-				// The SSH client is detached so only the WebSocket relay is closed.
-				// This reconnect path deliberately does NOT rerun endpoint
-				// discovery/selection: it reattaches to the exact same endpoint
-				// this connection was already using, so a dropped SSH tunnel can
-				// never silently promote a different candidate or spawn a
-				// duplicate standalone (requirement 7).
-				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
-				const { sshClient, endpoint, connectionToken, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath } = existing;
-
-				// Remove from map and detach SSH client before disposing so
-				// the old relay's close handler (conn?.dispose()) is a no-op.
-				this._connections.deleteAndLeak(connectionKey);
-				existing.detachSshClient();
-				existing.dispose();
-
-				// Create fresh relay and connection. If relay creation fails,
-				// clean up the detached SSH client so it doesn't leak.
-				const connectionId = connectionKey;
-				try {
-					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-					// Bound the relay creation: a silently dead SSH client
-					// (TCP half-open, ssh2 keepalive hasn't fired yet) can
-					// leave forwardOut's callback unfired, hanging the whole
-					// promise chain. raceTimeout returns undefined on timeout.
-					const timeoutMs = this.relayCreationTimeoutMs;
-					const relay = await raceTimeout(
-						this._createWebSocketRelay(
-							sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
-							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-							() => { conn?.dispose(); },
-						),
-						timeoutMs,
-					);
-					if (!relay) {
-						throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
-					}
-
-					conn = new SSHConnection(
-						config, connectionId, connectionKey, config.name,
-						connectionToken, endpoint, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath,
-						sshClient, relay, undefined,
-						this._logService,
-					);
-
-					Event.once(conn.onDidClose)(() => {
-						if (this._connections.get(connectionKey) === conn) {
-							this._connections.deleteAndDispose(connectionKey);
-							this._onDidRelayClose.fire(connectionId);
-							this._onDidCloseConnection.fire(connectionId);
-							this._onDidChangeConnections.fire();
-						}
-					});
-
-					this._connections.set(connectionKey, conn);
-
-					return {
-						connectionId: conn.connectionId,
-						address: conn.address,
-						name: conn.name,
-						connectionToken: conn.connectionToken,
-						config: conn.config,
-						sshConfigHost: config.sshConfigHost,
-						serverType: conn.serverType,
-						instanceId: conn.instanceId,
-						primary: true,
-						lifecycle: conn.lifecycle,
-					};
-				} catch (err) {
-					sshClient.end();
-					this._onDidRelayClose.fire(connectionId);
-					this._onDidCloseConnection.fire(connectionId);
-					this._onDidChangeConnections.fire();
-					throw err;
-				}
-			}
-
-			return {
-				connectionId: existing.connectionId,
-				address: existing.address,
-				name: existing.name,
-				connectionToken: existing.connectionToken,
-				config: existing.config,
-				sshConfigHost: config.sshConfigHost,
-				serverType: existing.serverType,
-				instanceId: existing.instanceId,
-				primary: true,
-				lifecycle: existing.lifecycle,
-			};
+			return existing;
 		}
 
-		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
+		const pending = this._pendingSessions.get(connectionKey);
+		if (pending) {
+			return pending;
+		}
+
+		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
 
@@ -1093,40 +1069,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				lifecycle = selected.lifecycle;
 			}
 
-			// 4. Connect to the exact selected/spawned endpoint via WebSocket relay.
-			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
-			const connectionId = connectionKey;
-			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-			let relay: { send: (data: string) => void; close: () => void };
-			try {
-				relay = await this._createWebSocketRelay(
-					sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
-					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => { conn?.dispose(); },
-				);
-			} catch (relayErr) {
-				// Never silently promote a different candidate, nor kill/replace
-				// an editor or reused standalone, on failure — reread the
-				// registry once (purely diagnostic) and surface a clear error
-				// so the user can retry connecting against a fresh picker
-				// (requirement 7).
-				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
-				this._logService.warn(`${LOG_PREFIX} Failed to connect to selected agent host endpoint: ${relayErrorMessage}`);
-				if (!config.remoteAgentHostCommand && cliBin && cliDataDir) {
-					try {
-						await runAgentEndpoints(bindSshExec(sshClient), cliBin, cliDataDir, userDataPath);
-					} catch (rereadErr) {
-						this._logService.warn(`${LOG_PREFIX} Failed to reread agent host endpoints after relay failure: ${rereadErr instanceof Error ? rereadErr.message : String(rereadErr)}`);
-					}
-				}
-				throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
-			}
-
-			// 5. Create connection object
+			// 4. Retain the exact selected endpoint in the shared SSH session.
 			const address = connectionKey;
-			conn = new SSHConnection(
+			const conn = new SSHConnection(
 				config,
-				connectionId,
+				connectionKey,
 				address,
 				config.name,
 				connectionToken,
@@ -1138,7 +1085,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cliDataDir,
 				userDataPath,
 				sshClient,
-				relay,
 				agentStream,
 				this._logService,
 			);
@@ -1146,8 +1092,19 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			Event.once(conn.onDidClose)(() => {
 				if (this._connections.get(connectionKey) === conn) {
 					this._connections.deleteAndDispose(connectionKey);
-					this._onDidRelayClose.fire(connectionId);
-					this._onDidCloseConnection.fire(connectionId);
+					for (const [connectionId, lease] of this._relayLeases) {
+						if (lease.session === conn) {
+							this._relayLeases.deleteAndLeak(connectionId);
+							lease.dispose();
+							for (const [supersededId, replacementId] of this._replacements) {
+								if (supersededId === connectionId || replacementId === connectionId) {
+									this._replacements.delete(supersededId);
+								}
+							}
+							this._onDidRelayClose.fire(connectionId);
+							this._onDidCloseConnection.fire(connectionId);
+						}
+					}
 					this._onDidChangeConnections.fire();
 				}
 			});
@@ -1157,18 +1114,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			this._onDidChangeConnections.fire();
 
-			return {
-				connectionId,
-				address,
-				name: config.name,
-				connectionToken,
-				config: conn.config,
-				sshConfigHost: config.sshConfigHost,
-				serverType,
-				instanceId,
-				primary: true,
-				lifecycle,
-			};
+			return conn;
 
 		} catch (err) {
 			sshClient?.end();
@@ -1182,23 +1128,194 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async disconnect(host: string): Promise<void> {
 		for (const [key, conn] of this._connections) {
-			if (key === host || conn.connectionId === host) {
+			if (key === host) {
 				conn.dispose();
 				return;
 			}
 		}
+		await this.releaseRelay(host);
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
-		for (const conn of this._connections.values()) {
-			if (conn.connectionId === connectionId) {
-				conn.relaySend(message);
-				return;
+		this._relayLeases.get(connectionId)?.relaySend(message);
+	}
+
+	async releaseRelay(connectionId: string): Promise<void> {
+		this._releaseRelay(connectionId);
+	}
+
+	private _releaseRelay(connectionId: string, notifyRenderer = true): void {
+		const lease = this._relayLeases.deleteAndLeak(connectionId);
+		if (!lease) {
+			return;
+		}
+		lease.dispose();
+		this._pruneReplacements();
+		if (notifyRenderer) {
+			this._onDidRelayClose.fire(connectionId);
+			this._onDidCloseConnection.fire(connectionId);
+		}
+		if (this._canDisposeSession(lease.session)) {
+			lease.session.dispose();
+		}
+		this._onDidChangeConnections.fire();
+	}
+
+	private async _acquireRelay(session: SSHConnection, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		if (expectedConnectionId) {
+			const pending = this._pendingReconnects.get(expectedConnectionId);
+			if (pending) {
+				return pending;
+			}
+			const previous = this._relayLeases.get(expectedConnectionId);
+			if (previous?.session === session) {
+				const reconnect = this._createRelayLease(session).then(result => {
+					this._replacements.set(expectedConnectionId, result.connectionId);
+					this._releaseRelay(expectedConnectionId, false);
+					return result;
+				});
+				this._pendingReconnects.set(expectedConnectionId, reconnect);
+				void reconnect.finally(() => {
+					if (this._pendingReconnects.get(expectedConnectionId) === reconnect) {
+						this._pendingReconnects.delete(expectedConnectionId);
+					}
+				}).catch(() => { /* The caller observes the original rejection. */ });
+				return reconnect;
+			}
+			const replacement = this._getCurrentLease(expectedConnectionId);
+			if (replacement?.session === session) {
+				return this._toResult(replacement);
+			}
+		}
+		return this._createRelayLease(session);
+	}
+
+	private _getCurrentLease(connectionId: string): SSHRelayLease | undefined {
+		let currentId = connectionId;
+		const visited = new Set<string>();
+		while (!visited.has(currentId)) {
+			visited.add(currentId);
+			const lease = this._relayLeases.get(currentId);
+			if (lease) {
+				return lease;
+			}
+			const replacement = this._replacements.get(currentId);
+			if (!replacement) {
+				return undefined;
+			}
+			currentId = replacement;
+		}
+		return undefined;
+	}
+
+	private _pruneReplacements(): void {
+		for (const connectionId of this._replacements.keys()) {
+			if (!this._getCurrentLease(connectionId)) {
+				this._replacements.delete(connectionId);
 			}
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	private async _createRelayLease(session: SSHConnection): Promise<ISSHConnectResult> {
+		const connectionId = generateUuid();
+		let lease: SSHRelayLease | undefined;
+		const timeoutMs = this.relayCreationTimeoutMs;
+		let timedOut = false;
+		let relay: { send: (data: string) => void; close: () => void } | undefined;
+		this._pendingRelayAcquisitions.set(session, (this._pendingRelayAcquisitions.get(session) ?? 0) + 1);
+		try {
+			let acceptRelay = true;
+			const relayPromise = this._createWebSocketRelay(
+				session.sshClient, session.endpoint, session.cliBin, session.cliDataDir, session.instanceId, session.userDataPath, session.connectionToken,
+				data => this._onDidRelayMessage.fire({ connectionId, data }),
+				() => {
+					if (lease?.notifyPhysicalClose()) {
+						this._onDidRelayClose.fire(connectionId);
+					}
+				},
+				() => this._onDidRelayActivity.fire(connectionId),
+			).then(createdRelay => {
+				if (!acceptRelay) {
+					createdRelay.close();
+					return undefined;
+				}
+				return createdRelay;
+			});
+			relay = await raceTimeout(
+				relayPromise,
+				timeoutMs,
+			);
+			acceptRelay = false;
+			if (!relay) {
+				timedOut = true;
+				throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
+			}
+			if (this._connections.get(session.connectionKey) !== session) {
+				relay.close();
+				throw new Error(`${LOG_PREFIX} SSH session for ${session.connectionKey} was closed while acquiring a relay.`);
+			}
+			lease = new SSHRelayLease(connectionId, session, relay);
+			Event.once(lease.onDidClose)(() => {
+				if (this._relayLeases.get(connectionId) === lease) {
+					void this.releaseRelay(connectionId);
+				}
+			});
+			this._relayLeases.set(connectionId, lease);
+			this._onDidChangeConnections.fire();
+			return this._toResult(lease);
+		} catch (error) {
+			const relayErrorMessage = error instanceof Error ? error.message : String(error);
+			this._logService.warn(`${LOG_PREFIX} Failed to connect to selected agent host endpoint: ${relayErrorMessage}`);
+			if (!timedOut && this._connections.get(session.connectionKey) === session && session.cliBin && session.cliDataDir) {
+				try {
+					const endpoints = await raceTimeout(
+						runAgentEndpoints(bindSshExec(session.sshClient), session.cliBin, session.cliDataDir, session.userDataPath),
+						timeoutMs,
+					);
+					if (!endpoints) {
+						this._logService.warn(`${LOG_PREFIX} Timed out rereading agent host endpoints after relay failure.`);
+					}
+				} catch (rereadError) {
+					this._logService.warn(`${LOG_PREFIX} Failed to reread agent host endpoints after relay failure: ${rereadError instanceof Error ? rereadError.message : String(rereadError)}`);
+				}
+			}
+			session.dispose();
+			throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
+		} finally {
+			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
+			if (remaining > 0) {
+				this._pendingRelayAcquisitions.set(session, remaining);
+			} else {
+				this._pendingRelayAcquisitions.delete(session);
+				if (!lease && this._canDisposeSession(session)) {
+					session.dispose();
+				}
+			}
+		}
+	}
+
+	private _canDisposeSession(session: SSHConnection): boolean {
+		return !this._pendingRelayAcquisitions.has(session)
+			&& ![...this._relayLeases.values()].some(candidate => candidate.session === session);
+	}
+
+	private _toResult(lease: SSHRelayLease): ISSHConnectResult {
+		const session = lease.session;
+		return {
+			connectionId: lease.connectionId,
+			address: session.address,
+			name: session.name,
+			connectionToken: session.connectionToken,
+			config: session.config,
+			sshConfigHost: session.config.sshConfigHost,
+			serverType: session.serverType,
+			instanceId: session.instanceId,
+			primary: true,
+			lifecycle: session.lifecycle,
+		};
+	}
+
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1225,7 +1342,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
-		}, /* replaceRelay */ true);
+		}, expectedConnectionId);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -1412,6 +1529,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			privateKeyPath: config.privateKeyPath ?? resolved?.identityFile[0],
 		};
 		const port = config.port ?? 22;
+		const hostKeyHost = resolved?.hostKeyAlias ?? config.host;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port,
@@ -1635,7 +1753,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// prompting — this is what lets a legitimate key rotation be
 			// learned silently instead of surfacing as a scary mismatch later.
 			client.on('hostkeys', (keys: readonly { getPublicSSH(): Buffer; type: string }[]) => {
-				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, config.host, port, keys);
+				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, hostKeyHost, port, keys);
 			});
 
 			armDeadline(HANDSHAKE_TIMEOUT_MS);
@@ -1861,7 +1979,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * gets the files they actually configured. Command failures use the default
 	 * known-hosts file; failures resolving configured trust files remain fatal.
 	 */
-	protected async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined }> {
+	protected async _readKnownHostsEntries(host: string): Promise<ISSHKnownHostsEvidence> {
 		let resolved: ISSHResolvedConfig | undefined;
 		try {
 			resolved = await this.resolveSSHConfig(host);
@@ -1887,7 +2005,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// systems have no known_hosts2 and no global file).
 			}
 		}
-		return { entries, strictHostKeyChecking: resolved?.strictHostKeyChecking };
+		return {
+			entries,
+			strictHostKeyChecking: resolved?.strictHostKeyChecking,
+			hostKeyAlias: resolved?.hostKeyAlias,
+		};
 	}
 
 	/**
@@ -1936,7 +2058,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const fingerprint = computeHostKeyFingerprint(key);
-			const { entries, strictHostKeyChecking } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+			const { entries, strictHostKeyChecking, hostKeyAlias } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
 
 			// Gathering evidence is asynchronous, so the connect attempt may
 			// have failed while we were reading known_hosts. Registering now
@@ -1948,7 +2070,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 
-			const knownHostsMatch = matchKnownHosts(entries, config.host, port, keyType, key);
+			const hostKeyHost = hostKeyAlias ?? config.host;
+			const knownHostsMatch = matchKnownHosts(entries, hostKeyHost, port, keyType, key);
 			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
@@ -1959,7 +2082,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				requestId,
 				connectionKey,
 				displayHost,
-				host: config.host,
+				host: hostKeyHost,
+				resolvedHost: config.host,
 				port,
 				keyType,
 				fingerprint,
@@ -2140,10 +2264,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		relayInstanceId: string,
 		relayUserDataPath: string,
 		connectionToken: string | undefined,
-		onMessage: (data: string) => void, onClose: () => void,
+		onMessage: (data: string) => void, onClose: () => void, onActivity: () => void,
 	): Promise<{ send: (data: string) => void; close: () => void }> {
 		const nativeRequire = await this._getNativeRequire();
-		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose);
+		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose, onActivity);
 	}
 
 

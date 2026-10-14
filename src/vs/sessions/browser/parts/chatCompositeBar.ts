@@ -37,14 +37,20 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../workbench/browser/parts/editor/connectedTabClipping.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { getSessionToolbarSecondaryActionsPosition } from './sessionHeaderBar.js';
 
 interface IChatTab {
 	readonly chat: IChat;
 	readonly element: HTMLElement;
+	readonly fill: HTMLElement;
 	readonly inputContainer: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 }
@@ -103,6 +109,8 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
 	private readonly _tabsScrollbar: ScrollableElement;
+	private readonly _connectedTabOverflowEdge: HTMLElement;
+	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
@@ -147,6 +155,7 @@ export class ChatCompositeBar extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -156,19 +165,25 @@ export class ChatCompositeBar extends Disposable {
 		this._register(this._editorGroupsService.onDidChangeEditorPartOptions(updateCompactHeight));
 
 		// Tabs row — only shown when the group has multiple chats or is split out.
-		this._tabsRow = $('.chat-composite-bar-tabs-row');
+		this._tabsRow = $('.chat-composite-bar-tabs-row.modern-ui-editor-tab-strip');
 		this._container.appendChild(this._tabsRow);
 
-		this._tabsContainer = $('.chat-composite-bar-tabs');
+		this._tabsContainer = $('.chat-composite-bar-tabs.modern-ui-editor-tab-list');
 		this._tabsContainer.setAttribute('role', 'tablist');
 		this._tabsContainer.setAttribute('aria-label', localize('chatTabsAriaLabel', "Chats"));
 		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: 3,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
+		this._connectedTabOverflowEdge = $('.tab-connected-overflow-edge', { 'aria-hidden': true });
+		const connectedTabOverflowRight = $('.tab-connected-overflow-right');
+		connectedTabOverflowRight.appendChild($('.tab-connected-overflow-right-edge'));
+		this._connectedTabOverflowEdge.appendChild(connectedTabOverflowRight);
+		this._tabsScrollbar.getDomNode().appendChild(this._connectedTabOverflowEdge);
 
 		this._sessionActionsContainer = $('.session-chat-tabs-actions');
 		this._tabsRow.appendChild(this._sessionActionsContainer);
@@ -177,6 +192,7 @@ export class ChatCompositeBar extends Disposable {
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 		}));
 
@@ -194,12 +210,14 @@ export class ChatCompositeBar extends Disposable {
 		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
 		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
 			this._tabsScrollbar.setScrollPosition({ scrollLeft: this._tabsContainer.scrollLeft });
+			this._updateConnectedTabClipping();
 		}));
 
 		// Forward scrollbar changes (e.g. from mouse wheel) back to the native scroll position
 		this._register(this._tabsScrollbar.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				this._tabsContainer.scrollLeft = e.scrollLeft;
+				this._updateConnectedTabClipping();
 			}
 		}));
 
@@ -227,6 +245,11 @@ export class ChatCompositeBar extends Disposable {
 		this._setVisible(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
+	}
+
+	override dispose(): void {
+		this._clearConnectedTabClipping();
+		super.dispose();
 	}
 
 	/**
@@ -284,7 +307,6 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._updateActiveTab(this._delegate?.activeChatResource.get() ?? '');
-		this._updateScrollDimensions();
 	}
 
 	private _updateScrollDimensions(): void {
@@ -292,6 +314,44 @@ export class ChatCompositeBar extends Disposable {
 			width: this._tabsContainer.clientWidth,
 			scrollWidth: this._tabsContainer.scrollWidth,
 		});
+	}
+
+	private _clearConnectedTabClipping(): void {
+		clearConnectedTabClipping(this._connectedTab?.element, this._connectedTabOverflowEdge);
+		this._connectedTabOverflowEdge.classList.remove('chat-tab-right-truncated');
+		this._connectedTab = undefined;
+	}
+
+	private _updateConnectedTabClipping(): void {
+		this._clearConnectedTabClipping();
+		if (!this._container.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
+			return;
+		}
+		const activeTab = this._tabs.find(tab => tab.element.classList.contains('active'));
+		if (!activeTab) {
+			return;
+		}
+		this._connectedTab = activeTab;
+		const tabsBounds = this._tabsContainer.getBoundingClientRect();
+		const fillBounds = activeTab.fill.getBoundingClientRect();
+		const scrollableBounds = this._tabsScrollbar.getDomNode().getBoundingClientRect();
+		const scrollLeft = this._tabsContainer.scrollLeft;
+		const targetWindow = getWindow(activeTab.fill);
+		this._connectedTabOverflowEdge.style.top = `${fillBounds.top - scrollableBounds.top}px`;
+		this._connectedTabOverflowEdge.style.bottom = `${scrollableBounds.bottom - fillBounds.bottom}px`;
+		this._connectedTabOverflowEdge.style.left = '0';
+		this._connectedTabOverflowEdge.style.right = '0';
+		updateConnectedTabClipping({
+			tab: activeTab.element,
+			overflowEdge: this._connectedTabOverflowEdge,
+			fillLeft: fillBounds.left - tabsBounds.left + scrollLeft,
+			fillRight: fillBounds.right - tabsBounds.left + scrollLeft,
+			viewportLeft: 0,
+			viewportRight: this._tabsContainer.clientWidth,
+			shoulderExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill, '::after').width),
+		}, scrollLeft);
+		this._connectedTabOverflowEdge.classList.toggle('chat-tab-right-truncated', activeTab.element.classList.contains('connected-tab-right-clipped') && fillBounds.right > tabsBounds.right);
+		this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', activeTab.element.matches(':hover'));
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
@@ -307,13 +367,16 @@ export class ChatCompositeBar extends Disposable {
 
 		const tabFill = $('.chat-composite-bar-tab-fill.modern-ui-editor-tab-fill', { 'aria-hidden': true });
 		tab.appendChild(tabFill);
+		tab.appendChild($('.tab-connected-edge', { 'aria-hidden': true }));
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			const status = chat.status.read(reader);
+			const isRead = chat.isRead.read(reader);
 			labelEl.textContent = title;
-			tab.setAttribute('aria-label', localize('chatTabAriaLabel', "{0}, {1}", title, getSessionConversationStatusAriaLabel(status)));
+			const label = localize('chatTabAriaLabel', "{0}, {1}", title, getSessionConversationStatusAriaLabel(status));
+			tab.setAttribute('aria-label', isRead ? label : localize('chatTabUnreadAriaLabel', "{0}, unread", label));
 		}));
 
 		// Lock icon shown for read-only (non-interactive) chats.
@@ -338,6 +401,12 @@ export class ChatCompositeBar extends Disposable {
 			tab,
 			() => chat.title.get(),
 		));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
+			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
+		}));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_LEAVE, () => {
+			this._connectedTabOverflowEdge.classList.remove('connected-tab-hovered');
+		}));
 
 		// Track untitled state for styling (dirty dot + close button)
 		this._tabDisposables.add(autorun(reader => {
@@ -382,6 +451,7 @@ export class ChatCompositeBar extends Disposable {
 		// session, so its tab renders no actions toolbar.
 		let tabToolbar: MenuWorkbenchToolBar | undefined;
 		if (!isMainChat && session) {
+			tab.classList.add('has-chat-tab-actions');
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
@@ -394,7 +464,7 @@ export class ChatCompositeBar extends Disposable {
 
 		this._tabsContainer.appendChild(tab);
 
-		const chatTab: IChatTab = { chat, element: tab, inputContainer, toolbar: tabToolbar };
+		const chatTab: IChatTab = { chat, element: tab, fill: tabFill, inputContainer, toolbar: tabToolbar };
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CLICK, () => {
 			// Cancel any in-progress rename before switching to the clicked tab.
@@ -524,6 +594,17 @@ export class ChatCompositeBar extends Disposable {
 				await this._sessionsManagementService.deleteChat(delegate.session, chat.resource);
 			}
 		}));
+		const archivePresentation = getChatSessionArchiveActionPresentation(getChatSessionArchiveActionWording(this._configurationService));
+		const archiveAction = this._tabDisposables.add(new Action(ARCHIVE_CHAT_COMMAND_ID, archivePresentation.archive.title.value, undefined, true, async () => {
+			if (delegate) {
+				await this._commandService.executeCommand(ARCHIVE_CHAT_COMMAND_ID, { session: delegate.session, chat });
+			}
+		}));
+		const unarchiveAction = this._tabDisposables.add(new Action(UNARCHIVE_CHAT_COMMAND_ID, archivePresentation.unarchive.title.value, undefined, true, async () => {
+			if (delegate) {
+				await this._commandService.executeCommand(UNARCHIVE_CHAT_COMMAND_ID, { session: delegate.session, chat });
+			}
+		}));
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
@@ -551,6 +632,7 @@ export class ChatCompositeBar extends Disposable {
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					return Separator.join(
 						capabilities.canRename ? [renameAction] : [],
+						capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);
@@ -684,15 +766,15 @@ export class ChatCompositeBar extends Disposable {
 			tab.element.setAttribute('aria-selected', String(isActive));
 			tab.element.tabIndex = isActive ? 0 : -1;
 			tab.toolbar?.setFocusable(isActive);
-			if (isActive) {
-				tab.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-			}
 		}
+		this._updateScrollDimensions();
+		this._revealActiveTab();
 	}
 
 	private _revealActiveTab(): void {
 		const activeTab = this._tabs.find(t => t.element.classList.contains('active'));
 		activeTab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		this._updateConnectedTabClipping();
 	}
 
 	private _setVisible(visible: boolean): void {

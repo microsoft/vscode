@@ -20,6 +20,8 @@ import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { NullCommandService } from '../../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -83,6 +85,7 @@ suite('ChatEditingService', function () {
 
 	setup(function () {
 		const collection = new ServiceCollection();
+		collection.set(ICommandService, NullCommandService);
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
@@ -297,6 +300,46 @@ suite('ChatEditingService', function () {
 
 		return entry;
 	}
+
+	test('queued edits retain their originating request and tier snapshots', async () => {
+		await runWithFakedTimers({}, async () => {
+			const uri = URI.from({ scheme: 'test', path: 'auto-tier' });
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session);
+			const textModel = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+			const sources: { source: string; modelId: string | undefined; requestId: string | undefined; autoTier: string | undefined }[] = [];
+			store.add(textModel.onDidChangeContent(event => {
+				for (const source of event.detailedReasons) {
+					if (source.metadata.source === 'Chat.applyEdits') {
+						sources.push({ source: source.metadata.source, modelId: source.props.$modelId, requestId: source.props.$$requestId, autoTier: source.props.$autoTier });
+					}
+				}
+			}));
+			const request = model.addRequest(
+				{ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined,
+				undefined, undefined, undefined, 'copilot/auto',
+			);
+			const streaming = waitForState(session.state.map(state => state === ChatEditingSessionState.StreamingEdits), Boolean);
+			for (const autoTier of ['efficiency', 'fast', undefined, 'intelligence', undefined] as const) {
+				model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false, autoTier });
+			}
+			request.response!.complete();
+			const later = model.addRequest({ text: 'later', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/another-model');
+			later.response!.complete();
+
+			await streaming;
+			await waitForState(session.state.map(state => state === ChatEditingSessionState.Idle), Boolean);
+
+			assert.deepStrictEqual(sources, ['efficiency', 'fast', undefined, 'intelligence', undefined].map(autoTier => ({
+				source: 'Chat.applyEdits',
+				modelId: 'copilot|auto',
+				requestId: request.id,
+				autoTier,
+			})));
+		});
+	});
 
 	test('mirror typing outside -> accept', async function () {
 		return runWithFakedTimers({}, async () => {

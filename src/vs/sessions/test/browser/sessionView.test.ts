@@ -15,6 +15,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptio
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
@@ -144,18 +145,66 @@ suite('Sessions - Session View', () => {
 		}, {
 			sessionSize: ['1200px', '800px'],
 			headerHostSize: ['1200px', '35px'],
-			groupsLayout: [1200, 765, 45, 20],
+			groupsLayout: [1200, 765, 45, 20, 0],
+		});
+	});
+
+	test('deduplicates effective child sizes while respecting header and visibility changes', () => {
+		const layouts: number[][] = [];
+		const header = { visible: true, height: 35 };
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_isVisibleObs: observableValue('visible', true),
+			_centeredContentContainer: centeredContentContainer,
+			_header: header,
+			_groupsView: {
+				layout: (...dimensions: number[]) => layouts.push(dimensions),
+				setSessionVisible: () => { },
+			},
+			_standaloneView: { get: () => undefined },
+		});
+		view.layoutContainer(1200, 800, 10, 20);
+		const beforeContents = { calls: layouts.length, headerWidth: centeredContentContainer.style.width };
+		view.layoutContents();
+		view.layout(1200, 800, 10, 20);
+		header.height = 45;
+		view.layoutContents();
+		view.setVisible(false);
+		view.layout(1000, 700, 30, 40);
+		view.setVisible(true);
+		view.layoutContents();
+		header.visible = false;
+		view.layoutContents();
+		view.layout(1000, 0, 30, 40);
+		view.layout(1000, 700, 30, 40);
+		assert.deepStrictEqual({ beforeContents, layouts }, {
+			beforeContents: { calls: 0, headerWidth: '1200px' },
+			layouts: [
+				[1200, 765, 45, 20, 0],
+				[1200, 755, 55, 20, 0],
+				[1000, 655, 75, 40, 0],
+				[1000, 700, 30, 40, 0],
+				[1000, 700, 30, 40, 0],
+			],
 		});
 	});
 
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
 		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
+		const forwardedOptions: IChatViewOptions[] = [];
+		const hostVisible = observableValue('hostVisible', true);
 		const shownSessions: Array<IActiveSession | undefined> = [];
 		const contentContainer = document.createElement('div');
 		mainWindow.document.body.appendChild(contentContainer);
 		disposables.add(toDisposable(() => contentContainer.remove()));
 		const groupsElement = document.createElement('div');
+		const groupsInput = document.createElement('textarea');
+		groupsElement.appendChild(groupsInput);
 		const isCreated = observableValue<boolean>('isCreated', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
@@ -173,11 +222,13 @@ suite('Sessions - Session View', () => {
 			_hasOpenedSession: false,
 			_currentSession: undefined,
 			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
+			_isVisibleObs: hostVisible,
 			_openSessionDisposables: openSessionDisposables,
 			_header: { setSession: () => { } },
 			_groupsView: {
 				element: groupsElement,
 				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
+				focus: () => groupsInput.focus(),
 			},
 			_standaloneView: standaloneView,
 			_scopedInstantiationService: scopedInstantiationService,
@@ -189,7 +240,8 @@ suite('Sessions - Session View', () => {
 					preparationViews.push(created);
 					return created;
 				},
-				createNewChatView: (_isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+				createNewChatView: (_isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+					forwardedOptions.push(options);
 					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
 					createdViews.push(created);
@@ -221,6 +273,7 @@ suite('Sessions - Session View', () => {
 			preparationViewCount: preparationViews.length,
 			composerDisposed: createdViews[0].disposed,
 			focused: mainWindow.document.activeElement === preparationViews[0].element,
+			hostVisible: forwardedOptions[0].hostVisible?.get(),
 		};
 		requestInProgress.set(false, undefined);
 		const afterCancellation = {
@@ -240,19 +293,63 @@ suite('Sessions - Session View', () => {
 			preparationViewsDisposed: preparationViews.every(view => view.disposed),
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
+			focusedAfterCreation: mainWindow.document.activeElement === groupsInput,
 			shownSessions,
 			forwardedInstantiationServices,
+			sameHostVisibility: forwardedOptions[0].hostVisible === hostVisible,
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
 			withoutPreparation: { retainedComposer: true, preparationViewCount: 0, focused: true },
-			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true },
+			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true, hostVisible: true },
 			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
+			focusedAfterCreation: true,
 			shownSessions: [undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
+			sameHostVisibility: true,
+		});
+	});
+
+	test('preserves external focus when creation replaces the preparation view', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, chatViews } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', false);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
+		const session = createTestActiveSession('draft', false, {
+			isNewSessionRequestInProgress: requestInProgress,
+			preparationProgress,
+		});
+		const view = store.add(instantiationService.createInstance(SessionView));
+		const externalControl = document.createElement('button');
+		mainWindow.document.body.append(view.element, externalControl);
+		store.add(toDisposable(() => {
+			view.element.remove();
+			externalControl.remove();
+		}));
+
+		view.openSession(session, {});
+		view.focus();
+		requestInProgress.set(true, undefined);
+		preparationProgress.set({ message: 'Preparing', cancel: () => { } }, undefined);
+		const preparationView = chatViews.at(-1)!;
+		const showedPreparationView = view.element.contains(preparationView.element);
+		externalControl.focus();
+		session.isCreated.set(true, undefined);
+		const createdView = chatViews.at(-1)!;
+
+		assert.deepStrictEqual({
+			showedPreparationView,
+			preparationViewDisposed: preparationView.disposed,
+			showsCreatedSession: createdView !== preparationView && view.element.contains(createdView.element),
+			externalFocusPreserved: mainWindow.document.activeElement === externalControl,
+		}, {
+			showedPreparationView: true,
+			preparationViewDisposed: true,
+			showsCreatedSession: true,
+			externalFocusPreserved: true,
 		});
 	});
 
@@ -300,6 +397,37 @@ suite('Sessions - Session View', () => {
 			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			singleSideBySide: { headerDisplay: 'none', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
+		});
+	});
+
+	test('forwards the session grid gap to split chats', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const session = createTestActiveSession('split-gap', true, { chatCount: 2 });
+		const view = store.add(instantiationService.createInstance(SessionView));
+		mainWindow.document.body.appendChild(view.element);
+		store.add(toDisposable(() => view.element.remove()));
+		view.openSession(session, {});
+		view.layoutContainer(800, 600, 0, 0);
+		view.layoutContents(4);
+
+		const chats = session.chats.get();
+		await view.openChatToSide(chats[1].resource, chats[0].resource);
+
+		const snapshot = () => ({
+			hasGaps: view.element.querySelector('.chat-groups-view')?.classList.contains('chat-groups-view-has-gaps'),
+			independentChatGroups: view.element.classList.contains('independent-chat-groups'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+		});
+		const defaultDensity = snapshot();
+		view.layoutContents(0);
+		const compactDensity = snapshot();
+		view.layoutContents(4);
+
+		assert.deepStrictEqual({ defaultDensity, compactDensity, restoredDefaultDensity: snapshot() }, {
+			defaultDensity: { hasGaps: true, independentChatGroups: true, gapSashes: 1 },
+			compactDensity: { hasGaps: false, independentChatGroups: false, gapSashes: 0 },
+			restoredDefaultDensity: { hasGaps: true, independentChatGroups: true, gapSashes: 1 },
 		});
 	});
 });

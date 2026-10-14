@@ -6,6 +6,7 @@
 import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
@@ -90,9 +91,10 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
-		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
+		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService, authenticationService);
 	}
 
 	protected override createPromptContext(availableTools: LanguageModelToolInformation[], outputStream: ChatResponseStream | undefined): IBuildPromptContext {

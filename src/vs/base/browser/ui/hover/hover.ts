@@ -314,6 +314,13 @@ export interface IHoverPositionOptions {
 	 * position.
 	 */
 	forcePosition?: boolean;
+
+	/**
+	 * An element whose bounds clip the target, for example the viewport of a horizontally
+	 * scrollable list whose rows can be wider than the list. When set, the hover is positioned
+	 * relative to the part of the target that is visible within this element.
+	 */
+	clippingElement?: HTMLElement;
 }
 
 export interface IHoverPersistenceOptions {
@@ -448,7 +455,7 @@ export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedH
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
-export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'additionalClasses' | 'linkHandler' | 'trapFocus'> {
+export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'additionalClasses' | 'linkHandler' | 'trapFocus' | 'onDidShow'> {
 	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
 	position?: Pick<IHoverPositionOptions, 'anchorAlignment'>;
 }

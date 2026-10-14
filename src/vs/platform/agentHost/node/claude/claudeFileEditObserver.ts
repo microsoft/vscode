@@ -10,6 +10,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
 
@@ -55,10 +56,11 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * per-subagent: when a subagent emits the `tool_use`, its model
 	 * (not the parent's) is what we record.
 	 */
-	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined; readonly clientContext?: IAgentHostClientTelemetryContext }>();
+	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined; readonly clientContext?: IAgentHostClientTelemetryContext; readonly chatUri?: string }>();
 
 	constructor(
 		sessionUri: string,
+		ownerSessionUri: string,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -73,7 +75,9 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._editTracker = instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
+			ownerSessionUri,
 			dbRef.object,
+			CLAUDE_AGENT_PROVIDER_ID,
 		);
 	}
 
@@ -83,7 +87,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * the SDK yields a canonical `'assistant'` message (full
 	 * `tool_use.input` available).
 	 */
-	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>, mode?: PermissionMode, clientContext?: IAgentHostClientTelemetryContext): void {
+	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>, mode?: PermissionMode, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string): void {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
 			return;
@@ -97,7 +101,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
+			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext, chatUri });
 			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
@@ -115,6 +119,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		message: Extract<SDKMessage, { type: 'user' }>,
 		turnId: string,
 		mapperState: ClaudeMapperState,
+		chat?: { readonly uri: string; readonly isSubagent: boolean },
 	): Promise<void> {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
@@ -131,7 +136,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext);
+				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}

@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { getSessionRelatedPullRequestUrls, isSessionStatusArchived, readSessionGitHubState, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
+import { getAllSessionRelatedPullRequestUrls, isSessionStatusArchived, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
@@ -215,7 +215,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 						&& isSessionStatusArchived(latestSummary.status)
 						&& !isSessionStatusActive(latestSummary.status)
 						&& samePullRequestUrls(
-							getSessionRelatedPullRequestUrls(readSessionGitHubState(latestSummary._meta)),
+							getAllSessionRelatedPullRequestUrls(latestSummary._meta),
 							candidate.pullRequestUrls,
 						);
 				});
@@ -247,7 +247,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			|| isSessionStatusActive(summary.status)) {
 			return undefined;
 		}
-		const pullRequestUrls = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
+		const pullRequestUrls = getAllSessionRelatedPullRequestUrls(summary._meta);
 		if (pullRequestUrls.length === 0) {
 			return undefined;
 		}
@@ -276,7 +276,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			|| modifiedTime > archiveCutoff) {
 			return undefined;
 		}
-		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
+		return getAllSessionRelatedPullRequestUrls(summary._meta);
 	}
 }
 

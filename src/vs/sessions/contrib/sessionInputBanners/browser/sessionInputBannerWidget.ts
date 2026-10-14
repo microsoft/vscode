@@ -5,6 +5,7 @@
 
 import './media/sessionInputBanners.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -12,6 +13,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -47,7 +49,7 @@ export interface ISessionInputBanner {
 	readonly icon: ThemeIcon;
 	/** Use the orange accent (border + icon) reserved for CI failures. */
 	readonly accent: boolean;
-	/** Single-line text; ellipsized when it does not fit next to the actions. */
+	/** Text shown beside the icon and actions. */
 	readonly text: string;
 	readonly ariaLabel: string;
 	readonly actions: readonly ISessionInputBannerAction[];
@@ -97,6 +99,15 @@ export class SessionInputBannerWidget extends Disposable {
 
 		this.domNode = dom.$('.session-input-banner');
 		this.domNode.setAttribute('role', 'status');
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const banner = this._banners[this._activeIndex];
+			if (keyboardEvent.equals(KeyCode.Escape) && banner?.dismiss) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				banner.dismiss();
+			}
+		}, true));
 		this.setBanners(Array.isArray(banner) ? banner : [banner]);
 	}
 

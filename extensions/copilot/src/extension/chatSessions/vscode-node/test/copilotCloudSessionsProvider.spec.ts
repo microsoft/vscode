@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
-import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
@@ -17,43 +16,46 @@ import { IFileSystemService } from '../../../../platform/filesystem/common/fileS
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
-import { IGithubRepositoryService } from '../../../../platform/github/common/githubService';
-import { IOTelService } from '../../../../platform/otel/common/otelService';
+import { IGithubRepositoryService, IOctoKitService } from '../../../../platform/github/common/githubService';
+import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { CopilotCloudSessionsProvider, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRepositoryQuickPickItems, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
-import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRecentInternalActivityCutoff, ICloudSessionVisibilityOptions, normalizeInitialSessionOptions, parseGitHubContextUrl, readExternalSessionsMode, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, SHOW_EXTERNAL_SESSIONS_SETTING, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { CloudTaskOwnership } from '../cloudTaskOwnership';
+import { TaskApiBackend, TaskApiError, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { CloudSessionData } from '../../vscode/cloudAgentBackend';
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
+import { MockChatResponseStream } from '../../../test/node/testHelpers';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
 	return {
 		...actual,
 		workspace: {
-			workspaceFolders: [],
+			get workspaceFolders() { return []; },
 			get isAgentSessionsWorkspace() { return false; },
 		},
 		chat: {
-			createChatParticipant: () => ({ dispose() { } }),
+			createChatParticipant: vi.fn(() => ({ dispose() { } })),
 		},
 		commands: {
-			registerCommand: () => ({ dispose() { } }),
+			registerCommand: vi.fn(() => ({ dispose() { } })),
 			executeCommand: vi.fn(async () => undefined),
 		},
 	};
@@ -73,33 +75,6 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
-	it('lists GitHub repositories directly and optionally accepts a pasted clone URL', () => {
-		const repositories = [
-			{ id: 'microsoft/vscode', name: 'microsoft/vscode' },
-			{ id: 'microsoft/vscode-docs', name: 'microsoft/vscode-docs' },
-		];
-
-		expect({
-			search: getRepositoryQuickPickItems(repositories, 'vscode', true),
-			url: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', true),
-			cloud: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', false),
-		}).toEqual({
-			search: [
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-			url: [
-				{ label: 'Clone from URL', description: 'https://gitlab.com/example/project.git', cloneUrl: 'https://gitlab.com/example/project.git' },
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-			cloud: [
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-		});
-	});
-
 	it('formats every redesigned new-session context pill for the cloud request', () => {
 		const references = [
 			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },
@@ -285,33 +260,81 @@ describe('cloud session visibility', () => {
 		createdAt: new Date(now - 120 * day).toISOString(),
 		updatedAt: new Date(lastActivity).toISOString(),
 	});
+	const ownedTasks = (...taskIds: string[]) => (taskId: string) => !taskIds.includes(taskId);
+	const visibility = (mode: ExternalSessionsMode, isExternal = ownedTasks(), recentInternalActivityCutoff?: number): ICloudSessionVisibilityOptions => ({ mode, isExternal, recentInternalActivityCutoff });
 
-	it('defaults to sessions active in the last 30 days', () => {
-		const sessions = [session('recent', now - day), session('old', now - 31 * day)];
-		expect({
-			defaultValue: ConfigKey.CloudSessionVisibility.defaultValue,
-			visible: filterCloudSessions(sessions, ConfigKey.CloudSessionVisibility.defaultValue, logService, now).sessions.map(s => s.taskId),
-		}).toEqual({ defaultValue: '30days', visible: ['recent'] });
+	it('reads the shared external sessions setting and defaults to recent', () => {
+		expect(['none', 'recent', 'last24Hours', 'last7Days', 'last30Days', 'all', undefined, 'invalid'].map(readExternalSessionsMode))
+			.toEqual(['none', 'recent', 'last24Hours', 'last7Days', 'last30Days', 'last30Days', 'recent', 'recent']);
 	});
 
 	it.each([
-		['24hours', 1],
-		['7days', 7],
-		['30days', 30],
-		['90days', 90],
-	] satisfies [ConfigKey.CloudSessionVisibilityValue, number][])('uses an inclusive most-recent-activity cutoff for %s', (visibility, days) => {
+		['last24Hours', 1],
+		['last7Days', 7],
+		['last30Days', 30],
+	] satisfies [ExternalSessionsMode, number][])('uses an inclusive most-recent-activity cutoff for external sessions under %s', (mode, days) => {
 		const cutoff = now - days * day;
 		const sessions = [session('older', cutoff - 1), session('boundary', cutoff), session('newer', cutoff + 1)];
-		const result = filterCloudSessions(sessions, visibility, logService, now);
+		const result = filterCloudSessions(sessions, visibility(mode), logService, now);
 		expect({
 			visible: result.sessions.map(s => s.taskId),
 			expiresAt: result.expiresAt,
 		}).toEqual({ visible: ['boundary', 'newer'], expiresAt: now });
 	});
 
-	it('disables the age limit with all', () => {
-		const sessions = [session('recent', now), session('old', now - 365 * day)];
-		expect(filterCloudSessions(sessions, 'all', logService, now)).toEqual({ sessions, expiresAt: Infinity });
+	it('always shows sessions started or adopted from VS Code and hides external ones under none', () => {
+		const sessions = [session('owned-old', now - 365 * day), session('external', now)];
+		expect(filterCloudSessions(sessions, visibility('none', ownedTasks('owned-old')), logService, now))
+			.toEqual({ sessions: [sessions[0]], expiresAt: Infinity });
+	});
+
+	it('shows only the two most recent external sessions of the last 7 days under recent', () => {
+		const sessions = [
+			session('third', now - 3 * day),
+			session('first', now - day),
+			session('tied-b', now - 2 * day),
+			session('tied-a', now - 2 * day),
+			session('stale', now - 7 * day - 1),
+			session('owned', now - 30 * day),
+		];
+		expect(filterCloudSessions(sessions, visibility('recent', ownedTasks('owned')), logService, now).sessions.map(s => s.taskId))
+			.toEqual(['first', 'tied-a', 'owned']);
+	});
+
+	it('hides external sessions superseded by the two most recent sessions started from VS Code under recent', () => {
+		const sessions = [session('newest-owned', now), session('second-owned', now - 2 * day), session('superseded', now - 3 * day), session('recent', now - day)];
+		const isExternal = ownedTasks('newest-owned', 'second-owned');
+		const cutoff = getRecentInternalActivityCutoff(sessions, isExternal);
+		expect({
+			cutoff,
+			cutoffWithOneOwnedSession: getRecentInternalActivityCutoff(sessions, ownedTasks('newest-owned')),
+			visible: filterCloudSessions(sessions, visibility('recent', isExternal, cutoff), logService, now).sessions.map(s => s.taskId),
+		}).toEqual({
+			cutoff: now - 2 * day,
+			cutoffWithOneOwnedSession: undefined,
+			visible: ['newest-owned', 'second-owned', 'recent'],
+		});
+	});
+
+	it('records tasks started or adopted from VS Code and evicts the least recently recorded ones', async () => {
+		const ownership = new CloudTaskOwnership(new MockExtensionContext().globalState, 2);
+		const results = [
+			await ownership.record('oldest', 1),
+			await ownership.record('touched', 2),
+			await ownership.record('newer', 3),
+			await ownership.record('touched', 4),
+			await ownership.record('newest', 5),
+		];
+		expect({ results, owned: [...ownership.getOwnedTaskIds()] })
+			.toEqual({ results: [true, true, true, false, true], owned: ['newest', 'touched'] });
+	});
+
+	it('retains an adopted task application across reload and repeated adoption', async () => {
+		const state = new MockExtensionContext().globalState;
+		const ownership = new CloudTaskOwnership(state);
+		await ownership.record('cli', 1, 'github/cli');
+		await new CloudTaskOwnership(state).record('cli', 2, 'vscode');
+		expect(new CloudTaskOwnership(state).getApplication('cli')).toBe('github/cli');
 	});
 
 	describe('CopilotCloudSessionsProvider discovery', () => {
@@ -321,8 +344,11 @@ describe('cloud session visibility', () => {
 		const day = 24 * 60 * 60 * 1000;
 		let store: DisposableStore;
 		let configurationService: InMemoryConfigurationService;
+		let extensionContext: IVSCodeExtensionContext;
 		let fetchSessionList: MockInstance<TaskApiBackend['fetchSessionList']>;
 		let getComparisonChangedFiles: ReturnType<typeof vi.fn<IPullRequestFileChangesService['getComparisonChangedFiles']>>;
+		let authenticationChanged: Emitter<void>;
+		let logService: RecordingLogService;
 
 		const session = (taskId: string, lastActivity = now): CloudSessionData => ({
 			taskId,
@@ -334,11 +360,22 @@ describe('cloud session visibility', () => {
 			diffRefs: { owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: taskId },
 		});
 
-		beforeEach(() => {
+		beforeEach(async () => {
+			vi.mocked(vscode.commands.registerCommand).mockClear();
+			vi.mocked(vscode.commands.executeCommand).mockReset();
 			vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			vi.setSystemTime(now);
 			store = new DisposableStore();
+			authenticationChanged = store.add(new Emitter<void>());
+			logService = new RecordingLogService();
 			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last30Days');
+			extensionContext = new class extends mock<IVSCodeExtensionContext>() {
+				override readonly globalState = {
+					...new MockExtensionContext().globalState,
+					setKeysForSync: () => { },
+				};
+			}();
 			fetchSessionList = vi.spyOn(TaskApiBackend.prototype, 'fetchSessionList').mockResolvedValue([]);
 			getComparisonChangedFiles = vi.fn(async () => []);
 		});
@@ -350,20 +387,20 @@ describe('cloud session visibility', () => {
 			vi.restoreAllMocks();
 		});
 
-		function createProvider(): CopilotCloudSessionsProvider {
+		function createProvider(octoKitService: IOctoKitService = new MockOctoKitService(), context: IVSCodeExtensionContext = extensionContext): CopilotCloudSessionsProvider {
 			return store.add(new CopilotCloudSessionsProvider(
-				new MockOctoKitService(),
+				octoKitService,
 				new TestGitService(),
 				new NullTelemetryService(),
-				new TestLogService(),
+				logService,
 				new class extends mock<IGitExtensionService>() { }(),
 				new class extends mock<IPullRequestFileChangesService>() {
 					override getComparisonChangedFiles = getComparisonChangedFiles;
 				}(),
 				new class extends mock<IAuthenticationService>() {
-					override readonly onDidAuthenticationChange = Event.None;
+					override readonly onDidAuthenticationChange = authenticationChanged.event;
 				}(),
-				new class extends mock<IVSCodeExtensionContext>() { }(),
+				context,
 				new class extends mock<IInstantiationService>() { }(),
 				new class extends mock<IGithubRepositoryService>() { }(),
 				new class extends mock<IChatDelegationSummaryService>() { }(),
@@ -371,41 +408,474 @@ describe('cloud session visibility', () => {
 				new class extends mock<IDomainService>() {
 					override readonly onDidChangeDomains = Event.None;
 				}(),
-				new class extends mock<IOTelService>() { }(),
+				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 				new class extends mock<IFileSystemService>() { }(),
 				new class extends mock<ICAPIClientService>() { }(),
 				configurationService,
 			));
 		}
 
-		it('filters before fetching changes and refreshes when visibility changes', async () => {
-			fetchSessionList.mockResolvedValue([session('recent', now - 2 * day), session('old', now - 31 * day)]);
+		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
+			createProvider();
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');
+			expect(registration).toBeDefined();
+			const openRepository = registration![1];
+			vi.mocked(vscode.commands.executeCommand)
+				.mockResolvedValueOnce({ repository: 'microsoft/vscode' })
+				.mockResolvedValueOnce({ cloneUrl: 'https://gitlab.com/example/project.git' })
+				.mockResolvedValueOnce(undefined);
+
+			const results = [
+				await openRepository(undefined, { allowRepositoryUrl: false }),
+				await openRepository(undefined, { allowRepositoryUrl: true }),
+				await openRepository(),
+			];
+
+			expect({
+				results,
+				commands: vi.mocked(vscode.commands.executeCommand).mock.calls,
+			}).toEqual({
+				results: ['microsoft/vscode', 'https://gitlab.com/example/project.git', undefined],
+				commands: [
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', { allowRepositoryUrl: false }],
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', { allowRepositoryUrl: true }],
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', undefined],
+				],
+			});
+		});
+
+		it('preserves automation provenance and hydrates an exact unlisted task without replacing discovery', async () => {
+			fetchSessionList.mockResolvedValue([{ ...session('listed'), automationId: 'automation' }]);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue({ ...session('unlisted', now - 120 * day), automationId: 'automation' });
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/unlisted'));
+			provider.refresh();
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				fetched: fetchSession.mock.calls,
+				items: items.map(item => ({ path: item.resource.path, automation: item.metadata?.isAutomation })),
+			}).toEqual({
+				fetched: [['unlisted'], ['unlisted']],
+				items: [{ path: '/task/listed', automation: true }, { path: '/task/unlisted', automation: true }],
+			});
+		});
+
+		it('bounds published exact tasks to the LRU while preserving ordinary discovery', async () => {
+			fetchSessionList.mockResolvedValue([session('ordinary')]);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const sizes: number[] = [];
+			for (let i = 0; i < 52; i++) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/exact-${i}`));
+				sizes.push((await provider.provideChatSessionItems(CancellationToken.None)).length);
+			}
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				sizes,
+				labels: items.map(item => item.label),
+			}).toEqual({
+				sizes: Array.from({ length: 52 }, (_, i) => 1 + Math.min(i + 1, 50)),
+				labels: ['ordinary', ...Array.from({ length: 50 }, (_, i) => `exact-${i + 2}`)],
+			});
+		});
+
+		it('publishes exact resolutions without refetching them or older retained tasks', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			fetchSessionList.mockResolvedValue([session('ordinary')]);
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/older'));
+			await provider.provideChatSessionItems(CancellationToken.None);
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/current'));
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				exactFetches: fetchSession.mock.calls,
+				discoveries: fetchSessionList.mock.calls.length,
+				items: items.map(item => item.label),
+			}).toEqual({ exactFetches: [['older'], ['current']], discoveries: 1, items: ['ordinary', 'older', 'current'] });
+		});
+
+		it('keeps an evicted exact task published when ordinary discovery also returned it', async () => {
+			fetchSessionList.mockResolvedValue([session('exact-0'), session('ordinary')]);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			for (let i = 0; i < 52; i++) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/exact-${i}`));
+			}
+			expect({
+				labels: (await provider.provideChatSessionItems(CancellationToken.None)).map(item => item.label),
+				fetches: fetchSession.mock.calls.length,
+			}).toEqual({ labels: ['ordinary', 'exact-0', ...Array.from({ length: 50 }, (_, i) => `exact-${i + 2}`)], fetches: 52 });
+
+			fetchSessionList.mockResolvedValue([session('ordinary')]);
+			provider.refresh();
+			expect((await provider.provideChatSessionItems(CancellationToken.None)).some(item => item.label === 'exact-0')).toBe(false);
+		});
+
+		it.each([false, true])('publishes and refreshes exact tasks in a non-GitHub workspace without ordinary discovery (warm: %s)', async warm => {
+			vi.spyOn(vscode.workspace, 'workspaceFolders', 'get').mockReturnValue([{ uri: vscode.Uri.file('/local-folder'), name: 'local-folder', index: 0 }]);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			if (warm) {
+				expect(await provider.provideChatSessionItems(CancellationToken.None)).toEqual([]);
+			}
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			const initial = await provider.provideChatSessionItems(CancellationToken.None);
+			const afterOpenFetches = fetchSession.mock.calls.length;
+			provider.refresh();
+			const refreshed = await provider.provideChatSessionItems(CancellationToken.None);
+			authenticationChanged.fire();
+			expect({
+				initial: initial.map(item => item.label), refreshed: refreshed.map(item => item.label),
+				afterOpenFetches, fetches: fetchSession.mock.calls.length, discoveryCalls: fetchSessionList.mock.calls.length,
+				afterAccountChange: await provider.provideChatSessionItems(CancellationToken.None),
+			}).toEqual({ initial: ['exact'], refreshed: ['exact'], afterOpenFetches: 1, fetches: 2, discoveryCalls: 0, afterAccountChange: [] });
+		});
+
+		it('updates the empty-catalogue context when exact resolution populates a warm cache', async () => {
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			expect(vi.mocked(vscode.commands.executeCommand).mock.calls.filter(args => args[1] === 'github.copilot.chat.cloudSessionsEmpty')).toEqual([
+				['setContext', 'github.copilot.chat.cloudSessionsEmpty', true],
+				['setContext', 'github.copilot.chat.cloudSessionsEmpty', false],
+			]);
+		});
+
+		it('rejects malformed task resources and discards hydration after an account change', async () => {
+			const pending = new DeferredPromise<CloudSessionData>();
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockReturnValue(pending.p);
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await expect(resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact/other'))).rejects.toThrow('Invalid Copilot cloud task resource');
+			const resolving = resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			authenticationChanged.fire();
+			await pending.complete(session('exact'));
+			await expect(resolving).rejects.toThrow();
+			expect({ fetched: fetchSession.mock.calls, items: await provider.provideChatSessionItems(CancellationToken.None) }).toEqual({ fetched: [['exact']], items: [] });
+		});
+
+		it('merges exact resolution racing initial discovery without losing ordinary sessions', async () => {
+			const discovery = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockReturnValueOnce(discovery.p).mockResolvedValue([session('ordinary')]);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const provider = createProvider();
+			const listing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSessionList).toHaveBeenCalled());
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			await discovery.complete([session('ordinary')]);
+			const items = await listing;
+			expect(items.map(item => ({ path: item.resource.path, external: item.metadata?.external }))).toEqual([
+				{ path: '/task/ordinary', external: true }, { path: '/task/exact', external: true },
+			]);
+			expect(fetchSession.mock.calls).toEqual([['exact']]);
+		});
+
+		it('keeps a fresh exact result when an older in-flight discovery contains the same task', async () => {
+			const discovery = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockReturnValueOnce(discovery.p);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue({ ...session('exact'), title: 'Fresh title' });
+			const provider = createProvider();
+			const listing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSessionList).toHaveBeenCalled());
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			await discovery.complete([session('ordinary'), { ...session('exact'), title: 'Old title' }]);
+			expect({ labels: (await listing).map(item => item.label), requests: fetchSession.mock.calls }).toEqual({
+				labels: ['ordinary', 'Fresh title'], requests: [['exact']],
+			});
+		});
+
+		it('preserves a fresh discovered task resolved while another exact task refresh is pending', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/slow'));
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const pending = new DeferredPromise<CloudSessionData>();
+			fetchSession.mockImplementation(async taskId => taskId === 'slow' ? pending.p : { ...session(taskId), title: 'Fresh title' });
+			fetchSessionList.mockResolvedValue([{ ...session('exact'), title: 'Old title' }]);
+			provider.refresh();
+			const listing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(2));
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			await pending.complete(session('slow'));
+			expect({ labels: (await listing).map(item => item.label), calls: fetchSession.mock.calls }).toEqual({
+				labels: ['Fresh title', 'slow'], calls: [['slow'], ['slow'], ['exact']],
+			});
+		});
+
+		it('refreshes unlisted exact tasks and removes deleted tasks rather than replaying stale snapshots', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue({ ...session('exact'), state: 'in_progress' });
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			const running = await provider.provideChatSessionItems(CancellationToken.None);
+			fetchSession.mockResolvedValue({ ...session('exact'), state: 'idle', completedAt: new Date(now).toISOString() });
+			provider.refresh();
+			const completed = await provider.provideChatSessionItems(CancellationToken.None);
+			fetchSession.mockRejectedValue(new TaskApiError('Gone', 404, 'getTask'));
+			provider.refresh();
+			const removed = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({ running: running[0].status, completed: completed[0].status, end: completed[0].timing?.endTime, removed }).toEqual({
+				running: vscode.ChatSessionStatus.InProgress, completed: vscode.ChatSessionStatus.Completed, end: now, removed: [],
+			});
+		});
+
+		it('isolates exact-task failures while retaining its latest item and publishing ordinary updates', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			fetchSessionList.mockResolvedValue([{ ...session('exact'), title: 'Latest known exact task' }, session('ordinary')]);
+			provider.refresh();
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			const failure = new TaskApiError('Unavailable', 503, 'getTask');
+			fetchSession.mockRejectedValue(failure);
+			fetchSessionList.mockResolvedValue([{ ...session('ordinary'), title: 'Ordinary update' }, session('new')]);
+			provider.refresh();
+			const first = await provider.provideChatSessionItems(CancellationToken.None);
+			provider.refresh();
+			const second = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				first: first.map(item => item.label),
+				second: second.map(item => item.label),
+				warnings: logService.warn.mock.calls.filter(([message]) => String(message).includes('explicitly resolved cloud task')).length,
+			}).toEqual({
+				first: ['Ordinary update', 'new', 'Latest known exact task'],
+				second: ['Ordinary update', 'new', 'Latest known exact task'],
+				warnings: 2,
+			});
+			fetchSession.mockRejectedValue(new TaskApiError('Gone', 404, 'getTask'));
+			provider.refresh();
+			expect((await provider.provideChatSessionItems(CancellationToken.None)).map(item => item.label)).toEqual(['Ordinary update', 'new']);
+		});
+
+		it('refreshes exact tasks with four concurrent slots including metadata and publishes in stable order', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const ids = Array.from({ length: 6 }, (_, i) => `exact-${i}`);
+			for (const id of ids) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/${id}`));
+			}
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const pending = ids.map(() => new DeferredPromise<CloudSessionData>());
+			const metadata = new DeferredPromise<vscode.ChatSessionChangedFile[]>();
+			const started: string[] = [];
+			let active = 0;
+			let maximum = 0;
+			fetchSession.mockImplementation(taskId => {
+				started.push(taskId);
+				maximum = Math.max(maximum, ++active);
+				return pending[ids.indexOf(taskId)].p;
+			});
+			getComparisonChangedFiles.mockImplementation(async refs => {
+				const changes = refs.headRef === ids[3] ? await metadata.p : [];
+				active--;
+				return changes;
+			});
+			provider.refresh();
+			const refreshing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(started).toHaveLength(4));
+			await pending[3].complete({ ...session(ids[3]), title: 'Updated 3' });
+			await vi.waitFor(() => expect(getComparisonChangedFiles).toHaveBeenLastCalledWith(expect.objectContaining({ headRef: ids[3] })));
+			expect(started).toEqual(ids.slice(0, 4));
+			await metadata.complete([]);
+			await vi.waitFor(() => expect(started).toHaveLength(5));
+			await pending[4].complete({ ...session(ids[4]), title: 'Updated 4' });
+			await vi.waitFor(() => expect(started).toHaveLength(6));
+			for (const i of [5, 2, 1, 0]) {
+				await pending[i].complete({ ...session(ids[i]), title: `Updated ${i}` });
+			}
+			expect({
+				labels: (await refreshing).map(item => item.label),
+				maximum, active, started,
+			}).toEqual({ labels: ids.map((_, i) => `Updated ${i}`), maximum: 4, active: 0, started: ids });
+		});
+
+		it('account invalidation prevents queued exact-task reads and discards in-flight results', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const ids = Array.from({ length: 6 }, (_, i) => `exact-${i}`);
+			for (const id of ids) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/${id}`));
+			}
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const pending = new DeferredPromise<CloudSessionData>();
+			fetchSession.mockClear().mockReturnValue(pending.p);
+			provider.refresh();
+			const refreshing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(4));
+			authenticationChanged.fire();
+			await pending.complete(session('old-account'));
+			expect({ items: await refreshing, requests: fetchSession.mock.calls }).toEqual({
+				items: [], requests: ids.slice(0, 4).map(id => [id]),
+			});
+		});
+
+		it('does not retain an exact item from a refresh invalidated by an account change', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			const pending = new DeferredPromise<CloudSessionData>();
+			fetchSession.mockReturnValue(pending.p);
+			provider.refresh();
+			const refresh = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(2));
+			authenticationChanged.fire();
+			await pending.error(new TaskApiError('Unavailable', 503, 'getTask'));
+			expect(await refresh).toEqual([]);
+		});
+
+		it('supplies the existing repository search to the shared picker', async () => {
+			const octoKitService: IOctoKitService = new MockOctoKitService();
+			const search = vi.spyOn(octoKitService, 'getUserRepositories').mockResolvedValue([{ owner: 'microsoft', name: 'vscode' }]);
+			createProvider(octoKitService);
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === '_github.copilot.chat.cloudSessions.searchRepositories');
+			expect(registration).toBeDefined();
+			const repositories = await registration![1]('vscode');
+
+			expect({ repositories, searches: search.mock.calls }).toEqual({
+				repositories: ['microsoft/vscode'],
+				searches: [[{}, 'vscode']],
+			});
+		});
+
+		it('keeps session-option updates in the extension and does not apply clone URLs or cancelled picks', async () => {
+			const extensionContext = new class extends mock<IVSCodeExtensionContext>() {
+				override readonly globalState = {
+					...new MockExtensionContext().globalState,
+					setKeysForSync: () => { },
+				};
+			}();
+			const updates = vi.spyOn(extensionContext.globalState, 'update');
+			const provider = createProvider(new MockOctoKitService(), extensionContext);
+			const changes: vscode.ChatSessionOptionChangeEvent[] = [];
+			store.add(provider.onDidChangeChatSessionOptions(event => changes.push(event)));
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');
+			expect(registration).toBeDefined();
+			const resource = vscode.Uri.parse('copilot-cloud-agent:/untitled-repository-test');
+			vi.mocked(vscode.commands.executeCommand)
+				.mockResolvedValueOnce({ repository: 'microsoft/vscode' })
+				.mockResolvedValueOnce({ cloneUrl: 'https://gitlab.com/example/project.git' })
+				.mockResolvedValueOnce(undefined);
+
+			await registration![1](resource);
+			await registration![1](resource, { allowRepositoryUrl: true });
+			await registration![1](resource);
+
+			expect({
+				changes,
+				storedValues: updates.mock.calls.map(([, value]) => value),
+			}).toEqual({
+				changes: [{
+					resource,
+					updates: [{
+						optionId: 'repositories',
+						value: { id: 'microsoft/vscode', name: 'microsoft/vscode', icon: new vscode.ThemeIcon('repo') },
+					}],
+				}],
+				storedValues: [[{ name: 'microsoft/vscode', timestamp: now }]],
+			});
+		});
+
+		it('filters external sessions before fetching changes and refreshes when visibility changes', async () => {
+			await new CloudTaskOwnership(extensionContext.globalState).record('owned');
+			fetchSessionList.mockResolvedValue([session('recent', now - 2 * day), session('old', now - 31 * day), session('owned', now - 90 * day)]);
 			const provider = createProvider();
 			const changes = vi.fn();
 			store.add(provider.onDidChangeChatSessionItems(changes));
 
-			const defaultItems = await provider.provideChatSessionItems(CancellationToken.None);
-			const defaultChangeRequests = getComparisonChangedFiles.mock.calls.length;
-			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, '24hours');
+			const last30DaysItems = await provider.provideChatSessionItems(CancellationToken.None);
+			const last30DaysChangeRequests = getComparisonChangedFiles.mock.calls.length;
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last24Hours');
 			const lastDayItems = await provider.provideChatSessionItems(CancellationToken.None);
 			const fetchesWithLastDayFilter = fetchSessionList.mock.calls.length;
-			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
-			const allItems = await provider.provideChatSessionItems(CancellationToken.None);
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'none');
+			const noneItems = await provider.provideChatSessionItems(CancellationToken.None);
 
 			expect({
-				defaultItems: defaultItems.map(item => item.label),
-				defaultChangeRequests,
-				lastDayItems,
+				last30DaysItems: last30DaysItems.map(item => item.label),
+				last30DaysChangeRequests,
+				lastDayItems: lastDayItems.map(item => item.label),
 				fetchesWithLastDayFilter,
-				allItems: allItems.map(item => item.label),
+				noneItems: noneItems.map(item => item.label),
 				changeEvents: changes.mock.calls.length,
 			}).toEqual({
-				defaultItems: ['recent'],
-				defaultChangeRequests: 1,
-				lastDayItems: [],
+				last30DaysItems: ['recent', 'owned'],
+				last30DaysChangeRequests: 2,
+				lastDayItems: ['owned'],
 				fetchesWithLastDayFilter: 2,
-				allItems: ['recent', 'old'],
+				noneItems: ['owned'],
 				changeEvents: 2,
+			});
+		});
+
+		it('publishes raw application event types for each discovered cloud session', async () => {
+			fetchSessionList.mockResolvedValue(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT'].map(eventType => ({ ...session(eventType), eventType })));
+			const items = await createProvider().provideChatSessionItems(CancellationToken.None);
+			expect(items.map(item => item.metadata?.event_type)).toEqual(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT']);
+		});
+
+		it('marks unrecorded tasks as external until a message adopts them, even when the message fails', async () => {
+			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
+			fetchSessionList.mockResolvedValue([session('started-here'), session('external')]);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue(undefined);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockResolvedValue([]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			const externalByLabel = (items: vscode.ChatSessionItem[]) => items.map(item => [item.label, item.metadata?.external, item.metadata?.event_type]);
+			const before = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
+
+			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
+			const { resource } = getCloudSessionResources('external', undefined);
+			const stream = new MockChatResponseStream();
+			await handler(
+				{ prompt: 'Continue', sessionResource: resource } as vscode.ChatRequest,
+				{ history: [], chatSessionContext: { chatSessionItem: { resource, label: 'external' }, isUntitled: false } } as unknown as vscode.ChatContext,
+				stream,
+				CancellationToken.None,
+			);
+			const after = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
+
+			expect({ before, after, changeEvents: changes.mock.calls.length, output: stream.output }).toEqual({
+				before: [['started-here', undefined, 'vscode'], ['external', true, 'github/autopilot']],
+				after: [['started-here', undefined, 'vscode'], ['external', undefined, 'github/autopilot']],
+				changeEvents: 1,
+				output: ['Could not find the task for this chat session.'],
+			});
+		});
+
+		it('keeps the recent superseding cutoff from the first listing', async () => {
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'recent');
+			const ownership = new CloudTaskOwnership(extensionContext.globalState);
+			await ownership.record('owned-a');
+			await ownership.record('owned-b');
+			fetchSessionList.mockResolvedValue([session('owned-a', now - 3 * day), session('owned-b', now - 3 * day), session('external', now - 2 * day)]);
+			const provider = createProvider();
+			const first = await provider.provideChatSessionItems(CancellationToken.None);
+			fetchSessionList.mockResolvedValue([session('owned-a', now), session('owned-b', now), session('external', now - 2 * day)]);
+			provider.refresh();
+			const afterNewActivity = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({ first: first.map(item => item.label), afterNewActivity: afterNewActivity.map(item => item.label) }).toEqual({
+				first: ['owned-a', 'owned-b', 'external'],
+				afterNewActivity: ['owned-a', 'owned-b', 'external'],
 			});
 		});
 
@@ -442,11 +912,7 @@ describe('cloud session visibility', () => {
 			});
 		});
 
-		it.each([
-			['30days', 30],
-			['90days', 90],
-		] satisfies [ConfigKey.CloudSessionVisibilityValue, number][])('handles %s expiry beyond the native timeout limit', async (visibility, days) => {
-			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, visibility);
+		it('handles last30Days expiry beyond the native timeout limit', async () => {
 			fetchSessionList.mockResolvedValue([session('recent')]);
 			const provider = createProvider();
 			const changes = vi.fn();
@@ -456,7 +922,7 @@ describe('cloud session visibility', () => {
 			const maxTimeoutDelay = 2 ** 31 - 1;
 			await vi.advanceTimersByTimeAsync(maxTimeoutDelay);
 			const afterFirstChunk = { events: changes.mock.calls.length, timers: vi.getTimerCount() };
-			await vi.advanceTimersByTimeAsync(days * day - maxTimeoutDelay);
+			await vi.advanceTimersByTimeAsync(30 * day - maxTimeoutDelay);
 			const eventsAtCutoff = changes.mock.calls.length;
 			await vi.advanceTimersByTimeAsync(1);
 
@@ -491,7 +957,7 @@ describe('cloud session visibility', () => {
 			});
 		});
 
-		it('cancels expiry when the age limit is disabled', async () => {
+		it('cancels expiry when external sessions are hidden', async () => {
 			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
 			const provider = createProvider();
 			const changes = vi.fn();
@@ -499,7 +965,7 @@ describe('cloud session visibility', () => {
 			await provider.provideChatSessionItems(CancellationToken.None);
 			const timersBeforeChange = vi.getTimerCount();
 
-			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'none');
 			const timersAfterChange = vi.getTimerCount();
 			await provider.provideChatSessionItems(CancellationToken.None);
 			changes.mockClear();
@@ -553,7 +1019,7 @@ describe('cloud session visibility', () => {
 			const provider = createProvider();
 			const obsolete = provider.provideChatSessionItems(CancellationToken.None);
 			await started.p;
-			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last7Days');
 			fetchSessionList.mockResolvedValue([session('fresh')]);
 			const current = await provider.provideChatSessionItems(CancellationToken.None);
 			pending.complete([session('stale')]);
@@ -575,36 +1041,24 @@ describe('cloud session visibility', () => {
 			{ ...session('created-recently', now), updatedAt: undefined, createdAt: new Date(now - day).toISOString() },
 			{ ...session('created-long-ago', now), updatedAt: undefined },
 		];
-		expect(filterCloudSessions(sessions, '30days', logService, now).sessions.map(s => s.taskId))
+		expect(filterCloudSessions(sessions, visibility('last30Days'), logService, now).sessions.map(s => s.taskId))
 			.toEqual(['completed-recently', 'created-recently']);
 	});
 
-	it('expires the cache when the oldest visible session ages out', () => {
+	it('expires the cache when the oldest visible external session ages out', () => {
 		const sessions = [session('recent', now), session('expiring', now - 30 * day + 1), session('old', now - 31 * day)];
-		const result = filterCloudSessions(sessions, '30days', logService, now);
+		const result = filterCloudSessions(sessions, visibility('last30Days'), logService, now);
 		expect({
 			expiresAt: result.expiresAt,
-			visibleAfterExpiry: filterCloudSessions(result.sessions, '30days', logService, result.expiresAt + 1).sessions.map(s => s.taskId),
+			visibleAfterExpiry: filterCloudSessions(result.sessions, visibility('last30Days'), logService, result.expiresAt + 1).sessions.map(s => s.taskId),
 		}).toEqual({ expiresAt: now + 1, visibleAfterExpiry: ['recent'] });
 	});
 
-	it('keeps sessions with unparseable activity visible and logs the missing age information', () => {
+	it('keeps external sessions with unparseable activity visible and logs the missing age information', () => {
 		const log = new RecordingLogService();
 		const sessions = [{ ...session('invalid-date', now), updatedAt: 'not a timestamp' }];
-		expect(filterCloudSessions(sessions, '30days', log, now)).toEqual({ sessions, expiresAt: Infinity });
+		expect(filterCloudSessions(sessions, visibility('last30Days'), log, now)).toEqual({ sessions, expiresAt: Infinity });
 		expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Cannot determine the last activity'));
-	});
-
-	it('validates the supported setting values', () => {
-		expect({
-			schema: ConfigKey.CloudSessionVisibility.validator?.toSchema(),
-			rejectsNone: ConfigKey.CloudSessionVisibility.validator?.validate('none').error !== undefined,
-			rejectsInvalidValue: ConfigKey.CloudSessionVisibility.validator?.validate('invalid').error !== undefined,
-		}).toEqual({
-			schema: { enum: ['24hours', '7days', '30days', '90days', 'all'] },
-			rejectsNone: true,
-			rejectsInvalidValue: true,
-		});
 	});
 });
 
@@ -920,6 +1374,90 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it.each([['completed', '2026-04-01T00:00:00Z'], ['idle', undefined], ['failed', undefined], ['timed_out', undefined], ['cancelled', undefined]] as const)('lists and resolves %s with the same completion time', async (state, completedAt) => {
+		const task = { ...makeTask([], state), updated_at: '2026-04-01T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }] };
+		const client = new FakeTaskApiClient({ globalTasks: [task] });
+		vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		expect({ listed: (await backend.fetchSessionList(undefined, true))[0].completedAt, resolved: (await backend.fetchSession(task.id)).completedAt }).toEqual({
+			listed: completedAt, resolved: completedAt,
+		});
+	});
+
+	it('preserves automation IDs in discovery and exact reads outside the discovery page', async () => {
+		const task = { ...makeTask([], 'completed'), id: 'exact', automation_id: 'automation', html_url: 'https://github.com/owner/private/tasks/exact', agent_collaborators: [{ slug: 'copilot-developer' }] };
+		const client = new FakeTaskApiClient({ globalTasks: [task] });
+		const getTask = vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const listed = await backend.fetchSessionList(undefined, true);
+		const resolved = await backend.fetchSession('exact');
+		expect({ listed: listed[0].automationId, resolved: resolved.automationId, id: resolved.taskId, repo: resolved.repo, requested: getTask.mock.calls }).toEqual({
+			listed: 'automation', resolved: 'automation', id: 'exact', repo: { owner: 'owner', name: 'private', host: 'github.com' }, requested: [['exact']],
+		});
+	});
+
+	it('rejects mismatched and non-cloud task identities without searching by title', async () => {
+		const client = new FakeTaskApiClient();
+		const getTask = vi.spyOn(client, 'getTask');
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		getTask.mockResolvedValue({ ...makeTask([]), id: 'different', agent_collaborators: [{ slug: 'copilot-developer' }] });
+		await expect(backend.fetchSession('requested')).rejects.toThrow('not a Copilot cloud session');
+		getTask.mockResolvedValue({ ...makeTask([]), id: 'requested', agent_collaborators: [{ slug: 'copilot-developer-cli' }] });
+		await expect(backend.fetchSession('requested')).rejects.toThrow('not a Copilot cloud session');
+		expect(client.listCalls).toEqual([]);
+	});
+
+	it('resolves an exact task without repository details when the repository lookup fails', async () => {
+		const client = new FakeTaskApiClient();
+		const task = { ...makeTask([]), id: 'exact', repository: { id: 42 }, agent_collaborators: [{ slug: 'copilot-developer' }] };
+		vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getRepositoryById = async () => { throw new Error('rate limited'); };
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+		const resolved = await backend.fetchSession('exact');
+		expect({ id: resolved.taskId, repo: resolved.repo }).toEqual({ id: 'exact', repo: undefined });
+	});
+
+	it.each([true, false])('fetchSessionList excludes sandbox and local environments when isAgentSessionsWorkspace=%s', async isAgentSessionsWorkspace => {
+		const task = {
+			...makeTask([], 'in_progress'),
+			name: 'New task',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		};
+		const tasks = [
+			{ ...task, id: 'cloud', compute: { provider: 'actions' } },
+			{ ...task, id: 'legacy' },
+			{ ...task, id: 'sandbox', current_environment: { id: 'sandbox-env', kind: 'managed-sandbox' } },
+			{ ...task, id: 'local', current_environment: { id: 'local-env', kind: 'user-local' } },
+			{ ...task, id: 'sandbox-compute', compute: { provider: 'sandboxes' } },
+		];
+		const client = new FakeTaskApiClient({ globalTasks: tasks, repoTasks: tasks });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], isAgentSessionsWorkspace);
+
+		expect(result.map(({ taskId, title, state }) => ({ taskId, title, state }))).toEqual([
+			{ taskId: 'cloud', title: 'New task', state: 'in_progress' },
+			{ taskId: 'legacy', title: 'New task', state: 'in_progress' },
+		]);
+	});
+
+	it('maps event_type from task responses into session application metadata', async () => {
+		const eventTypes = ['github/cli', 'github/autopilot', 'slack', 'teams', 'CUSTOM_EVENT', undefined];
+		const tasks = eventTypes.map((event_type, index) => ({
+			...makeTask([], 'idle'),
+			id: `task-${index}`,
+			event_type,
+			html_url: `https://github.com/microsoft/vscode/agents/tasks/task-${index}`,
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		}));
+		const backend = new TaskApiBackend(new FakeTaskApiClient({ globalTasks: tasks }), new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const sessions = await backend.fetchSessionList(undefined, true);
+		expect(sessions.map(session => session.eventType)).toEqual(eventTypes);
+	});
+
 	it('preserves most recent activity for every task lifecycle state', async () => {
 		const states: AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'cancelled', 'timed_out'];
 		const tasks = states.map(state => ({
@@ -1087,6 +1625,29 @@ describe('TaskApiBackend', () => {
 });
 
 describe('isCloudCodingAgentTask', () => {
+	it.each(['copilot-developer', 'copilot-swe-agent'])('rejects sandbox and local environments even with the %s slug', slug => {
+		const task = {
+			...makeTask(),
+			agent_collaborators: [{ slug }],
+		};
+
+		expect({
+			'missing-environment': isCloudCodingAgentTask(task),
+			'null-environment': isCloudCodingAgentTask({ ...task, current_environment: null }),
+			'unknown-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'future-environment' } }),
+			'sandbox-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'managed-sandbox' } }),
+			'local-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'user-local' } }),
+			'sandbox-compute': isCloudCodingAgentTask({ ...task, compute: { provider: 'sandboxes' } }),
+		}).toEqual({
+			'missing-environment': true,
+			'null-environment': true,
+			'unknown-environment': true,
+			'sandbox-environment': false,
+			'local-environment': false,
+			'sandbox-compute': false,
+		});
+	});
+
 	it('keeps cloud coding agent slugs and rejects local-client / missing / malformed slugs', () => {
 		const classify = (agent_collaborators?: Array<{ slug?: unknown }>) =>
 			isCloudCodingAgentTask({ id: 't', state: 'idle', created_at: '2026-03-27T00:00:00Z', ...(agent_collaborators && { agent_collaborators }) } as unknown as AgentTask);

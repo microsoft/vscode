@@ -464,7 +464,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getPlaceholder(): string {
 		const model = this._editor.getModel();
-		const hasChanges = !!model && (this._agentFeedbackService.getSessionForFile(model.uri)?.changes.get().length ?? 0) > 0;
+		const session = model ? this._agentFeedbackService.getSessionForFile(model.uri) : undefined;
+		const hasChanges = !!session && this._agentFeedbackService.getChatChanges(session.resource).length > 0;
 		return hasChanges
 			? localize('agentFeedback.addFeedback', "Add Feedback")
 			: localize('agentFeedback.addComment', "Add Comment");

@@ -649,6 +649,7 @@ export class FileService extends Disposable implements IFileService {
 				value: fileStream
 			};
 		} catch (error) {
+			cancellableSource.dispose(true);
 
 			// Await the stream to finish so that we exit this method
 			// in a consistent state with file handles closed

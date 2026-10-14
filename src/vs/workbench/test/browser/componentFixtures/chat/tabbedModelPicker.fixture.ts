@@ -4,28 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventHelper, EventType } from '../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../../../../platform/agentHost/common/autoModeTiers.js';
+import { ILocalModelContextV1, ILocalModelFamilyV1, ILocalModelStatusV1, LOCAL_MODEL_SENTINEL_PROVIDER_NAME, LocalModelEnabledSettingId } from '../../../../../platform/agentHost/common/localModel.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../platform/agentHost/common/reasoningEffort.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IContextViewDelegate, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
-import { StateType } from '../../../../../platform/update/common/update.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
+import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
+import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
-import { IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ModelPickerAutoRow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerAutoRow.js';
+import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { IModelConfigPropertySchema, IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { ModelPickerActionItem } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { createLocalModelPickerPresentation } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IModelPickerWorkflow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
+import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -38,6 +63,7 @@ interface IFixtureModelOptions {
 	readonly category?: string;
 	readonly priceCategory?: string;
 	readonly detail?: string;
+	readonly tooltip?: string;
 	readonly effortValues?: readonly string[];
 	readonly effortLabels?: readonly string[];
 	readonly effortDescriptions?: readonly string[];
@@ -50,6 +76,7 @@ interface IFixtureModelOptions {
 	readonly retiring?: boolean;
 	readonly byokModelIdentifier?: string;
 	readonly modelGroupId?: string;
+	readonly targetChatSessionType?: string;
 }
 
 function createModel(id: string, name: string, options: IFixtureModelOptions = {}): ILanguageModelChatMetadataAndIdentifier {
@@ -90,11 +117,13 @@ function createModel(id: string, name: string, options: IFixtureModelOptions = {
 			version: '1.0',
 			family: id,
 			detail: options.detail,
+			tooltip: options.tooltip,
 			category: options.category,
 			priceCategory: options.priceCategory,
 			isBYOK: options.isBYOK,
 			byokModelIdentifier: options.byokModelIdentifier,
 			modelGroup: options.modelGroupId ? { id: options.modelGroupId } : undefined,
+			targetChatSessionType: options.targetChatSessionType,
 			promo: options.promoDiscount ? { id: 'promo', discountPercent: options.promoDiscount, message: 'Discounted for a limited time.' } : undefined,
 			warningText: options.retiring ? { model_pending_deprecation: 'This model is retiring soon.' } : undefined,
 			maxInputTokens: 264000,
@@ -135,7 +164,7 @@ const COPILOT_MODELS = [
 		effortValues: ['low', 'medium', 'xhigh'], effortLabels: ['Low', 'Medium', 'Extra high'],
 		contextLabels: ['264K', '1M'],
 	}),
-	createModel('claude-sonnet-5', 'Claude Sonnet 5', { category: 'powerful', priceCategory: 'medium', costs: true }),
+	createModel('claude-sonnet-5', 'Claude Sonnet 5', { category: 'powerful', priceCategory: 'medium', costs: true, tooltip: 'A capable model for coding, analysis, and careful reasoning.' }),
 	createModel('gpt-5-3-codex', 'GPT-5.3-Codex', { category: 'versatile', priceCategory: 'low' }),
 	createModel('gemini-3-5-flash', 'Gemini 3.5 Flash', { category: 'lightweight', priceCategory: 'low' }),
 ];
@@ -184,12 +213,117 @@ const COPILOT_ONLY_MODELS = [AUTO_MODEL, ...COPILOT_MODELS];
 
 /** How the Copilot agent host relays models: its own vendor, BYOK stamped on everything. */
 const RELAYED_MODELS = [
-	createModel('auto', 'Auto', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', detail: '10% off', effortValues: [...autoModeTiers], effortLabels: autoModeTiers.map(getAutoModeTierLabel), effortDefault: defaultAutoModeTier }),
+	createModel('auto', 'Auto', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', detail: '10% off', effortValues: [...autoModeTiers], effortLabels: autoModeTiers.map(getAutoModeTierLabel), effortDescriptions: autoModeTiers.map(tier => getAutoModeTierDescription(tier) ?? ''), effortDefault: defaultAutoModeTier }),
 	createModel('gpt-5-5', 'GPT-5.5', { vendor: 'agent-host-copilotcli', isBYOK: true, byokModelIdentifier: 'copilot/gpt-5-5', modelGroupId: 'copilot', category: 'powerful', priceCategory: 'high' }),
 	createModel('claude-sonnet-5', 'Claude Sonnet 5', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'powerful' }),
 	createModel('llama-3-70b', 'Llama 3 70B', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'ollama' }),
 ];
+/**
+ * A relayed Copilot list as long as a typical one. Copilot's tab sets the popup's
+ * height, so this leaves room for every on-device family's row.
+ */
+const ON_DEVICE_RELAYED_MODELS = [
+	...RELAYED_MODELS,
+	createModel('gemini-3-1-pro', 'Gemini 3.1 Pro', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'powerful' }),
+	createModel('gpt-5-3-codex', 'GPT-5.3-Codex', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'versatile' }),
+	createModel('gemini-3-5-flash', 'Gemini 3.5 Flash', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'lightweight' }),
+];
+/** The research preview the Copilot agent host adds when enabled, offered as a model of its own beside Auto. */
+const HYDRA_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
+	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
+	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
+})();
+/** HydraFusion v2's Max, which makes Default and Max HydraFusion's tiers. */
+const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
+	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
+	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
+})();
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
+
+const GB = 1024 ** 3;
+const MiB = 1024 ** 2;
+
+/** How an on-device model's chat template controls thinking: Example Flash's reasoning effort, or Qwen's on/off switch. */
+export type OnDeviceThinking = 'effort' | 'toggle';
+
+/** The `thinkingLevel` property the Copilot agent host advertises on a direct row whose chat template supports thinking. */
+const ON_DEVICE_THINKING: Record<OnDeviceThinking, IModelConfigPropertySchema> = {
+	effort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['low', 'medium', 'high'].map(getReasoningEffortLabel), enumDescriptions: ['low', 'medium', 'high'].map(level => getReasoningEffortDescription(level) ?? ''), default: 'medium' },
+	toggle: { type: 'string', group: 'navigation', enum: ['none', 'medium'], enumItemLabels: ['Off', 'On'], enumDescriptions: ['Answers without thinking first', 'Thinks before answering'], default: 'medium' },
+};
+
+/**
+ * The context sizes of an installed family, with the GPU memory llama.cpp
+ * projects for each on a measured device (`llama-fit-params`).
+ */
+export const ON_DEVICE_CONTEXT = {
+	exampleFlash: { tokens: 131072, options: [{ tokens: 65536, gpuBytes: 57242 * MiB }, { tokens: 131072, gpuBytes: 59034 * MiB }, { tokens: 262144, gpuBytes: 62618 * MiB }] },
+	qwen: { tokens: 131072, options: [{ tokens: 65536, gpuBytes: 6917 * MiB }, { tokens: 131072, gpuBytes: 8729 * MiB }, { tokens: 262144, gpuBytes: 12825 * MiB }] },
+} satisfies Record<string, ILocalModelContextV1>;
+
+/**
+ * The direct-selection row the Copilot agent host publishes for an installed
+ * on-device model, named after its family, with its thinking level when its
+ * chat template supports one.
+ */
+function createOnDeviceModel(family: ILocalModelFamilyV1, thinking?: OnDeviceThinking): ILanguageModelChatMetadataAndIdentifier | undefined {
+	if (!family.install) {
+		return undefined;
+	}
+	const alias = family.install.modelId.replace(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`, '');
+	const model = createModel(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/${alias}`, family.displayName, {
+		vendor: SessionType.AgentHostCopilot, isBYOK: true, modelGroupId: LOCAL_MODEL_SENTINEL_PROVIDER_NAME, targetChatSessionType: SessionType.AgentHostCopilot,
+	});
+	return thinking ? { ...model, metadata: { ...model.metadata, configurationSchema: { properties: { thinkingLevel: ON_DEVICE_THINKING[thinking] } } } } : model;
+}
+
+/** One on-device model family; the rest of the fields are filled in for a model that fits this device. */
+function createOnDeviceFamily(familyId: string, displayName: string, overrides: Partial<ILocalModelFamilyV1> = {}): ILocalModelFamilyV1 {
+	return { familyId, capiId: familyId, autoCapable: true, displayName, usage: { runningStreams: 0, boundDirectChats: 0, liveAutoRoutes: 0 }, consentGiven: true, ...overrides };
+}
+
+/** An on-device model status for a device with room for the offered models. */
+function createOnDeviceStatus(families: readonly ILocalModelFamilyV1[], active?: ILocalModelStatusV1['active'], overrides: Partial<ILocalModelStatusV1> = {}): ILocalModelStatusV1 {
+	return { schemaVersion: 1, device: { capacityBytes: 102 * GB, confidence: 'measured' }, runtime: { version: 'b11459' }, catalog: { state: 'ready', registries: { azureml: 'ready' } }, families, active, useInAuto: true, ...overrides };
+}
+
+/** The serving state of the loaded on-device model. */
+function createOnDeviceActive(familyId: string, overrides: Partial<NonNullable<ILocalModelStatusV1['active']>> = {}): NonNullable<ILocalModelStatusV1['active']> {
+	return { familyId, contentId: 'c1', servingGeneration: 1, server: 'ready', profile: 'full-gpu', autoEligible: true, ...overrides };
+}
+
+const ON_DEVICE_OFFER = { fit: 'full', requiredGpuBytes: 60 * GB, downloadBytes: 56.7 * GB, peakDiskBytes: 60 * GB, licenseName: 'MIT', licenseUrl: 'https://example.com/license' } as const;
+
+function createOnDeviceInstall(modelId: string, overrides: Partial<NonNullable<ILocalModelFamilyV1['install']>> = {}): NonNullable<ILocalModelFamilyV1['install']> {
+	return { contentId: modelId, adopted: false, owned: true, modelId: `${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/${modelId}`, ...overrides };
+}
+
+/** One family in each state a user meets: loaded and ready, installed but not loaded, downloading, failed, and offered. */
+const ON_DEVICE_STATUS = createOnDeviceStatus([
+	createOnDeviceFamily('example-flash', 'Example Flash 1.0', { install: createOnDeviceInstall('Example-Flash', { update: { contentId: 'example-flash-2', downloadBytes: 2.1 * GB } }), offer: ON_DEVICE_OFFER, context: ON_DEVICE_CONTEXT.exampleFlash }),
+	createOnDeviceFamily('example-coder', 'Example Coder 14B', { install: createOnDeviceInstall('Example-Coder'), offer: ON_DEVICE_OFFER, context: ON_DEVICE_CONTEXT.qwen }),
+	createOnDeviceFamily('example-vision', 'Example Vision 7B', { offer: ON_DEVICE_OFFER, operation: { id: 'op1', kind: 'setup', state: 'running', resumeOnStartup: true, phase: 'downloading', completedBytes: 23.8 * GB, totalBytes: 56.7 * GB } }),
+	createOnDeviceFamily('example-reasoner', 'Example Reasoner 32B', { offer: ON_DEVICE_OFFER, operation: { id: 'op2', kind: 'setup', state: 'error', resumeOnStartup: false, error: { code: 'network', message: 'The download was interrupted. Select Retry to resume.', actions: ['retry'] } } }),
+	createOnDeviceFamily('example-mini', 'Example Mini 3B', { offer: { ...ON_DEVICE_OFFER, downloadBytes: 2.4 * GB, requiredGpuBytes: 4 * GB } }),
+], createOnDeviceActive('example-flash'));
+/** Example Flash sets a reasoning effort; the coder model has no thinking control, so its summary is its context size. */
+const ON_DEVICE_THINKING_BY_FAMILY: IStringDictionary<OnDeviceThinking> = { 'example-flash': 'effort' };
+const ON_DEVICE_SELECTED_MODEL = createOnDeviceModel(ON_DEVICE_STATUS.families[0], 'effort')!;
+const ON_DEVICE_PICKER = { models: ON_DEVICE_RELAYED_MODELS, localModels: ON_DEVICE_STATUS, onDeviceThinking: ON_DEVICE_THINKING_BY_FAMILY } as const;
+
+/** Example Flash selected in the chat input: swapped in and loading for the first time at its context size, and once ready. */
+const ON_DEVICE_INPUT_FAMILY = createOnDeviceFamily('example-flash', 'Example Flash 1.0', { install: createOnDeviceInstall('Example-Flash'), context: ON_DEVICE_CONTEXT.exampleFlash });
+const ON_DEVICE_INPUT_MODEL = createOnDeviceModel(ON_DEVICE_INPUT_FAMILY, 'effort')!;
+const ON_DEVICE_INPUT_LOADING = createOnDeviceStatus(
+	[{ ...ON_DEVICE_INPUT_FAMILY, operation: { id: 'swap-1', kind: 'swap', state: 'running', resumeOnStartup: false, phase: 'loading' } }],
+	createOnDeviceActive('example-flash', { server: 'starting', load: { step: 'loading', startedAt: 0 } }),
+);
+/** The selected model reloads for a new context size: the host swaps it to itself. */
+const ON_DEVICE_INPUT_RELOADING = createOnDeviceStatus(
+	[{ ...ON_DEVICE_INPUT_FAMILY, operation: { id: 'reload-1', kind: 'swap', state: 'running', resumeOnStartup: false, phase: 'loading' } }],
+	createOnDeviceActive('example-flash', { server: 'starting', swapTo: 'example-flash', load: { step: 'loading', startedAt: 0 } }),
+);
+const ON_DEVICE_INPUT_READY = createOnDeviceStatus([ON_DEVICE_INPUT_FAMILY], createOnDeviceActive('example-flash', { contextTokens: ON_DEVICE_CONTEXT.exampleFlash.tokens }));
 
 const CONTROL_MODELS: IStringDictionary<IModelControlEntry> = {
 	'gemini-3-1-pro': { label: 'Gemini 3.1 Pro', featured: true, exists: true },
@@ -201,6 +335,14 @@ const CONTROL_MODELS_WITH_LOCKED: IStringDictionary<IModelControlEntry> = {
 	...CONTROL_MODELS,
 	'example-locked-5': { label: 'Example Locked 5', featured: true, exists: false },
 	'gpt-6': { label: 'GPT-6', featured: true, exists: false, minVSCodeVersion: '99.0.0' },
+};
+
+/** The curated list a Free or Student account sees, none of which it can select. */
+const FREE_PLAN_CONTROL_MODELS: IStringDictionary<IModelControlEntry> = {
+	'claude-haiku-4.5': { label: 'Claude Haiku 4.5', featured: true, exists: false },
+	'gpt-5.6-terra': { label: 'GPT-5.6 Terra', featured: true, exists: false },
+	'claude-sonnet-4.6': { label: 'Claude Sonnet 4.6', featured: true, exists: false },
+	'gpt-5-mini': { label: 'GPT-5 mini', demoted: true, exists: false },
 };
 
 /** In-memory model configuration so the fixture's cards and tiers are interactive. */
@@ -277,9 +419,12 @@ interface IPickerFixtureOptions {
 	readonly anchored?: boolean;
 	readonly anchorRight?: boolean;
 	readonly selectedModelId?: string;
+	readonly managedDefaultModel?: string;
 	readonly pinnedModelIds?: readonly string[];
-	/** Opens the detail card for the model whose row label matches, as hovering the row would. */
-	readonly openCardFor?: string;
+	/** Opens details through the model row's configuration action. */
+	readonly openDetailsFor?: string;
+	readonly openSelectedDetails?: boolean;
+	readonly cacheWarm?: boolean;
 	readonly pricingExpanded?: boolean;
 	readonly motionReduced?: boolean;
 	/** Providers with no models, which show a welcome body instead of a list. */
@@ -290,6 +435,8 @@ interface IPickerFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Opens search, which replaces the tab strip with the filter field. */
 	readonly search?: boolean;
+	/** Opens search with this query already typed. */
+	readonly searchQuery?: string;
 	/** Expands the collapsed "Other Models" section. */
 	readonly expandOther?: boolean;
 	/** Curated models the account cannot select, which offer an unlock path instead. */
@@ -298,11 +445,20 @@ interface IPickerFixtureOptions {
 	readonly entitlement?: ChatEntitlement;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
+	readonly workflow?: IModelPickerWorkflow;
+	/** On-device models, listed in their own tab; installed families also get their direct-selection model. */
+	readonly localModels?: ILocalModelStatusV1;
+	/** How the direct model of each on-device family, by family id, controls thinking; none when omitted. */
+	readonly onDeviceThinking?: IStringDictionary<OnDeviceThinking>;
+	/** Operations whose stop was just sent, which show as in progress. */
+	readonly pendingStops?: readonly string[];
+	/** Opens the "On This Device" tab at this family's detail page, as the show-details command does. */
+	readonly openLocalModelDetails?: string;
 }
 
-async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
+export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	setupContainer(container, options.selectedModelId === AUTO_MODEL.identifier ? 360 : 700);
+	setupContainer(container, 360);
 	if (options.anchored) {
 		container.style.position = 'relative';
 		container.style.height = 'min(560px, calc(100vh - 32px))';
@@ -310,12 +466,24 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 	} else if (options.selectedModelId !== AUTO_MODEL.identifier) {
 		container.style.minHeight = '400px';
 	}
-	const layoutContainer = options.anchored ? container : container.ownerDocument.body;
+	const layoutContainer = options.anchored || options.managedDefaultModel !== undefined ? container : container.ownerDocument.body;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			if (options.managedDefaultModel !== undefined) {
+				const configurationService = new class extends TestConfigurationService {
+					override inspect<T>(key: string): IConfigurationValue<T> {
+						const result = super.inspect<T>(key);
+						return key === ChatConfiguration.DefaultModel ? { ...result, policyValue: result.value } : result;
+					}
+				}({ [ChatConfiguration.DefaultModel]: options.managedDefaultModel, 'workbench.hover.delay': 200 });
+				disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
+				registration.defineInstance(IConfigurationService, configurationService);
+				registration.define(IHoverService, HoverService);
+				registration.define(IMarkdownRendererService, MarkdownRendererService);
+			}
 			const motionReduced = options.motionReduced;
 			if (motionReduced !== undefined) {
 				registration.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -338,7 +506,10 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 				registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			}
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
-			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Free }));
+			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+				entitlement: options.entitlement ?? ChatEntitlement.Free,
+				onDidChangeEntitlement: Event.None,
+			}));
 			// The shared harness discards writes, so the picker cannot remember anything.
 			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
@@ -364,7 +535,8 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		void configurationAccess.setModelConfiguration(modelId, values);
 	}
 	let pickerContext: ITabbedModelPickerContext = {
-		models: options.models ?? ALL_MODELS,
+		workflow: options.workflow,
+		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
@@ -381,6 +553,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		},
 		onManageModels: () => { },
 		onDidToggleOtherModels: () => { },
+		onDidSearch: () => { },
 		onConfigurationChanged: () => { },
 		unavailableContext: {
 			show: true,
@@ -390,7 +563,9 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		},
 		onUnavailableLinkClick: () => { },
 		providerPlaceholders: options.providerPlaceholders ?? [],
-		cacheBreakHint: undefined,
+		cacheBreakHint: options.cacheWarm ? { text: 'Switching models mid-session resets the prompt cache and may increase cost.', link: undefined, dismiss: () => { } } : undefined,
+		configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing these options mid-session resets the prompt cache and may increase cost.', link: undefined, dismiss: () => { } } : undefined,
+		localModels: options.localModels && createLocalModelPickerPresentation(options.localModels, { run: () => { } }, new Set(options.pendingStops)),
 	};
 	if (options.anchored) {
 		disposableStore.add(addDisposableListener(anchor, EventType.CLICK, event => {
@@ -398,11 +573,11 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			if (picker.isVisible) {
 				picker.hide();
 			} else {
-				picker.show(anchor, pickerContext);
+				picker.show(anchor, pickerContext, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
 			}
 		}));
 	}
-	picker.show(anchor, pickerContext);
+	picker.show(anchor, pickerContext, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
 
 	if (options.expandOther) {
 		[...container.querySelectorAll<HTMLElement>('.monaco-list-row.action')]
@@ -415,6 +590,11 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
+	if (options.searchQuery !== undefined) {
+		picker.openWithFilter({ initialFilterValue: options.searchQuery });
+		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+
 	if (options.initialTabLabel) {
 		const tab = [...container.querySelectorAll<HTMLElement>('.chat-model-picker-tabbar .monaco-button')]
 			.find(candidate => candidate.ariaLabel === options.initialTabLabel);
@@ -422,14 +602,24 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
-	if (options.openCardFor) {
-		const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row.action')]
-			.find(candidate => candidate.textContent?.includes(options.openCardFor!));
-		if (!row) {
-			throw new Error(`Model row not found: ${options.openCardFor}`);
+	if (options.openLocalModelDetails) {
+		picker.openWithFilter({ localModelFamilyId: options.openLocalModelDetails });
+		if (!container.querySelector('.chat-local-model-card')) {
+			throw new Error(`On-device model details not found: ${options.openLocalModelDetails}`);
 		}
-		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+
+	const detailsFor = options.openDetailsFor ?? (options.pricingExpanded ? pickerContext.models.find(model => model.identifier === pickerContext.selectedModelId)?.metadata.name : undefined);
+	if (detailsFor) {
+		const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row.action')]
+			.find(candidate => candidate.querySelector('.title')?.textContent === detailsFor);
+		const details = row?.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')
+			?? [...container.querySelectorAll<HTMLElement>('.chat-model-picker-tabbed .action-label')].find(action => action.ariaLabel?.startsWith(`${detailsFor} Details`));
+		if (!details) {
+			throw new Error(`Model details action not found: ${detailsFor}`);
+		}
+		details.click();
 		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 	if (options.pricingExpanded) {
@@ -464,28 +654,115 @@ function renderCard(context: ComponentFixtureContext, model: ILanguageModelChatM
 	container.appendChild(wrapper);
 }
 
-function renderAutoRow(context: ComponentFixtureContext, enabled: boolean): void {
+/** An on-device model selected in the chat input, and the status of its family. */
+interface IInputPickerOnDevice {
+	readonly model: ILanguageModelChatMetadataAndIdentifier;
+	readonly status: ILocalModelStatusV1;
+}
+
+/** A context key service whose rules see its keys, with chat enabled. */
+class ChatEnabledContextKeyService extends MockContextKeyService {
+	constructor() {
+		super();
+		this.createKey(ChatContextKeys.enabled.key, true);
+	}
+
+	override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return rules.evaluate({ getValue: <T>(key: string) => this.getContextKeyValue(key) as T | undefined });
+	}
+}
+
+function renderInputPicker(context: ComponentFixtureContext, initialModel = COPILOT_MODELS[1], onDevice?: IInputPickerOnDevice): void {
 	const { container, disposableStore } = context;
-	setupContainer(container, 320);
-	let autoEnabled = enabled;
-
-	const row = disposableStore.add(new ModelPickerAutoRow({
-		autoModel: AUTO_MODEL,
-		configurationAccess: createConfigurationAccess(),
-		isEnabled: () => autoEnabled,
-		onToggle: next => {
-			autoEnabled = next;
-			row.render();
+	setupContainer(container, 720);
+	container.style.position = 'relative';
+	container.style.height = '560px';
+	const configuration = createConfigurationAccess();
+	const models = onDevice ? [...COPILOT_ONLY_MODELS, onDevice.model] : COPILOT_ONLY_MODELS;
+	const selected = observableValue('fixtureModel', onDevice?.model ?? initialModel);
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: registration => {
+			registerWorkbenchServices(registration);
+			registration.defineInstance(IConfigurationService, new TestConfigurationService(onDevice ? { [LocalModelEnabledSettingId]: true } : undefined));
+			if (onDevice) {
+				// The readout of an on-device model reads its family's status from the local agent host.
+				registration.defineInstance(ILocalModelService, upcastPartial<ILocalModelService>({
+					getStatus: () => constObservable(onDevice.status),
+					getPendingStops: () => constObservable<ReadonlySet<string>>(new Set()),
+				}));
+				registration.defineInstance(IAgentHostService, upcastPartial<IAgentHostService>({}));
+				registration.defineInstance(ITerminalService, upcastPartial<ITerminalService>({}));
+				registration.defineInstance(IContextKeyService, new ChatEnabledContextKeyService());
+			}
+			registration.defineInstance(ILayoutService, upcastPartial<ILayoutService>({
+				getContainer: () => container, mainContainer: container, activeContainer: container,
+				onDidChangeActiveContainer: Event.None, onDidAddContainer: Event.None,
+				onDidLayoutMainContainer: Event.None, onDidLayoutActiveContainer: Event.None, onDidLayoutContainer: Event.None,
+			}));
+			registration.define(IContextViewService, ContextViewService);
+			registration.defineInstance(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override getLanguageModelIds() { return models.map(model => model.identifier); }
+				override getVendors() { return createLanguageModelsService().getVendors(); }
+			}());
+			const entitlement = new class extends TestChatEntitlementService {
+				override readonly quotas = { usageBasedBilling: true };
+			}();
+			entitlement.entitlement = ChatEntitlement.Pro;
+			registration.defineInstance(IChatEntitlementService, entitlement);
+			registration.defineInstance(IProductService, upcastPartial<IProductService>({ version: '1.140.0' }));
+			registration.defineInstance(IUpdateService, upcastPartial<IUpdateService>({ state: { type: StateType.Uninitialized } }));
+			registration.defineInstance(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
-	}));
-
-	const wrapper = document.createElement('div');
-	wrapper.classList.add('action-widget');
-	wrapper.appendChild(row.element);
-	container.appendChild(wrapper);
+	});
+	const session = container.appendChild(document.createElement('div'));
+	session.className = 'interactive-session';
+	const toolbar = session.appendChild(document.createElement('div'));
+	toolbar.className = 'chat-input-toolbar';
+	toolbar.style.cssText = 'position: absolute; bottom: 8px; left: 8px;';
+	const item = toolbar.appendChild(document.createElement('div'));
+	const picker = disposableStore.add(instantiationService.createInstance(ModelPickerActionItem,
+		toAction({ id: 'fixture.modelPicker', label: 'Models', run: () => { } }),
+		{
+			currentModel: selected,
+			setModel: model => selected.set(model, undefined),
+			setModelProgrammatically: model => selected.set(model, undefined),
+			getModels: () => models,
+			getPresentationOptions: () => ({
+				showManageModelsAction: false, showUnavailableFeatured: false,
+				showAutoModel: true, showModelIcon: false,
+			}),
+			modelConfiguration: configuration,
+			...(onDevice ? { getSessionType: () => SessionType.AgentHostCopilot } : {}),
+		},
+		{ compact: constObservable(false) },
+	));
+	picker.render(item);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }, {
+	InputPicker: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: renderInputPicker,
+	}),
+	InputPickerAuto: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderInputPicker(context, AUTO_MODEL),
+	}),
+	// An on-device model that loads: the readout shows only its state, keeping the toolbar narrow.
+	InputPickerOnDeviceLoading: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderInputPicker(context, undefined, { model: ON_DEVICE_INPUT_MODEL, status: ON_DEVICE_INPUT_LOADING }),
+	}),
+	// Once it is ready, the readout shows its thinking level and context size.
+	InputPickerOnDeviceReady: defineComponentFixture({
+		render: context => renderInputPicker(context, undefined, { model: ON_DEVICE_INPUT_MODEL, status: ON_DEVICE_INPUT_READY }),
+	}),
+	// A new context size reloads the selected model: the readout says so.
+	InputPickerOnDeviceReloading: defineComponentFixture({
+		render: context => renderInputPicker(context, undefined, { model: ON_DEVICE_INPUT_MODEL, status: ON_DEVICE_INPUT_RELOADING }),
+	}),
 	PickerAnchored: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		render: context => renderPicker(context, { anchored: true }),
@@ -516,10 +793,34 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerAnchoredAutoSelected: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { anchored: true, selectedModelId: AUTO_MODEL.identifier }),
+	}),
+	PickerAutoDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { selectedModelId: AUTO_MODEL.identifier, openDetailsFor: 'Auto' }),
 	}),
 	Picker: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS }) }),
 	PickerWithAddedModels: defineComponentFixture({ render: context => renderPicker(context) }),
+	...Object.fromEntries(Object.entries({
+		PickerWithManagedDefault: { managedDefaultModel: 'gpt-5-5' },
+		PickerWithManagedDefaultOverride: { managedDefaultModel: 'gpt-5-5', selectedModelId: 'copilot/claude-sonnet-5' },
+		PickerWithManagedDefaultAndDiscount: {
+			managedDefaultModel: 'gemini-3-1-pro',
+			selectedModelId: 'copilot/gemini-3-1-pro',
+			models: ALL_MODELS.map(model => model.metadata.id === 'gemini-3-1-pro' ? {
+				...model,
+				metadata: { ...model.metadata, promo: { id: 'promo', discountPercent: 25, message: 'Discounted for a limited time.' } },
+			} : model),
+		},
+		PickerWithManagedDefaultAndRetirement: { models: [...COPILOT_NOTICE_MODELS, AUTO_MODEL], managedDefaultModel: 'gpt-4-turbo' },
+		PickerWithManagedDefaultDetails: { managedDefaultModel: 'gpt-5-5', openSelectedDetails: true },
+		PickerWithManagedAutoDefault: { managedDefaultModel: 'auto', selectedModelId: AUTO_MODEL.identifier },
+		PickerWithManagedDefaultAndAutoSelected: { managedDefaultModel: 'gpt-5-5', selectedModelId: AUTO_MODEL.identifier },
+	} satisfies Record<string, IPickerFixtureOptions>).map(([name, options]) => [name, defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, options),
+	})])),
 	PickerAddedModelsTab: defineComponentFixture({
 		render: context => renderPicker(context, { initialTabLabel: 'Ollama' }),
 	}),
@@ -544,6 +845,13 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerWithAutoSelected: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, selectedModelId: 'copilot/auto' }) }),
+	PickerAutoSelectedOtherProvider: defineComponentFixture({
+		render: context => renderPicker(context, { selectedModelId: AUTO_MODEL.identifier, initialTabLabel: 'Ollama' }),
+	}),
+	PickerAutoSelectedWithManyProviders: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: [...ALL_MODELS, ...OPENAI_MODELS, ...ANTHROPIC_MODELS, ...GOOGLE_MODELS], selectedModelId: AUTO_MODEL.identifier }),
+	}),
 	PickerAutoOnlyPlan: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [AUTO_MODEL],
@@ -551,8 +859,69 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			controlModels: CONTROL_MODELS_WITH_LOCKED,
 		}),
 	}),
+	PickerFreePlan: defineComponentFixture({
+		render: context => renderPicker(context, { models: [AUTO_MODEL], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	PickerFreePlanWithAddedModels: defineComponentFixture({
+		render: context => renderPicker(context, { models: [AUTO_MODEL, ...OLLAMA_MODELS, ...OPENAI_MODELS], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	/** Copilot relays nothing selectable here, but the plan's upgrades still have a tab. */
+	PickerFreePlanWithoutCopilotModels: defineComponentFixture({
+		render: context => renderPicker(context, { models: [...OLLAMA_MODELS, ...OPENAI_MODELS], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	/** A Student account in the Copilot harness: Auto, with HydraFusion offered only as an upgrade. */
+	PickerEduPlanCopilotHarness: defineComponentFixture({
+		render: context => renderPicker(context, { models: [RELAYED_MODELS[0], HYDRA_FUSION_MODEL], selectedModelId: RELAYED_MODELS[0].identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.EDU }),
+	}),
 	PickerRelayedByHost: defineComponentFixture({
 		render: context => renderPicker(context, { models: RELAYED_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
+	}),
+	/** Opened on its own tab because an on-device model is selected: one row per family, in every state. */
+	PickerOnDeviceTab: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier }),
+	}),
+	/** The selected on-device model's detail page, as its readout in the chat input opens it, with its thinking level and context size. */
+	PickerOnDeviceDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: ON_DEVICE_SELECTED_MODEL.identifier, openSelectedDetails: true }),
+	}),
+	/** The Copilot tab is unchanged by on-device models, which only add a tab. */
+	PickerOnDeviceCopilotTab: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
+	}),
+	/** With Auto selected, the Copilot tab leads with its Auto row, and on-device models stay in their own tab. */
+	PickerOnDeviceCopilotAutoSelected: defineComponentFixture({
+		render: context => renderPicker(context, { anchored: true, ...ON_DEVICE_PICKER, selectedModelId: 'agent-host-copilotcli/auto' }),
+	}),
+	/** Search names each on-device model after its tab, beside a Copilot model of a similar name. */
+	PickerOnDeviceSearch: defineComponentFixture({
+		render: context => renderPicker(context, { ...ON_DEVICE_PICKER, searchQuery: 'Flash' }),
+	}),
+	PickerWithHydraFusion: defineComponentFixture({
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
+	}),
+	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
+	PickerHydraFusionDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro, openDetailsFor: 'HydraFusion' }),
+	}),
+	/** HydraFusion's row stands for its Max tier once chosen. */
+	PickerHydraFusionMaxSelected: defineComponentFixture({
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: HYDRA_FUSION_MAX_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	}),
+	PickerHydraFusionMaxSelectedDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: HYDRA_FUSION_MAX_MODEL.identifier, entitlement: ChatEntitlement.Pro, openDetailsFor: 'HydraFusion' }),
+	}),
+	PickerHydraFusionNeedsUpdate: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL],
+			selectedModelId: 'agent-host-copilotcli/gpt-5-5',
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+			entitlement: ChatEntitlement.Pro,
+		}),
 	}),
 	PickerLockedModels: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED }),
@@ -586,14 +955,21 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerSearch: defineComponentFixture({ render: context => renderPicker(context, { search: true }) }),
-	PickerWithCard: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5' }) }),
+	PickerWithCard: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openDetailsFor: 'GPT-5.5' }) }),
+	PickerInformationOnly: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openDetailsFor: 'Claude Sonnet 5' }),
+	}),
+	PickerDirectDetails: defineComponentFixture({
+		render: context => renderPicker(context, { anchored: true, openSelectedDetails: true, cacheWarm: true }),
+	}),
 	PickerPinning: defineComponentFixture({
-		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5', motionReduced: false }),
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openDetailsFor: 'GPT-5.5', motionReduced: false }),
 	}),
 	PickerPinningReducedMotion: defineComponentFixture({
 		render: context => {
 			context.container.classList.add('monaco-reduce-motion');
-			return renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5', motionReduced: true });
+			return renderPicker(context, { models: COPILOT_ONLY_MODELS, openDetailsFor: 'GPT-5.5', motionReduced: true });
 		},
 	}),
 	PickerConfiguredModelCard: defineComponentFixture({
@@ -602,7 +978,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			models: COPILOT_ONLY_MODELS,
 			pinnedModelIds: ['copilot/gpt-5-5'],
 			configured: { 'copilot/gpt-5-5': { reasoningEffort: 'xhigh', contextSize: 1000000 } },
-			openCardFor: 'GPT-5.5',
+			openDetailsFor: 'GPT-5.5',
 		}),
 	}),
 	PickerReducedMotion: defineComponentFixture({
@@ -611,7 +987,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			return renderPicker(context, {
 				models: COPILOT_ONLY_MODELS,
 				configured: { 'copilot/gpt-5-5': { reasoningEffort: 'xhigh', contextSize: 1000000 } },
-				openCardFor: 'GPT-5.5',
+				openDetailsFor: 'GPT-5.5',
 			});
 		},
 	}),
@@ -630,7 +1006,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderPicker(context, {
 			models: [...COPILOT_ONLY_MODELS, ...SPEED_VARIANT_MODELS],
 			expandOther: true,
-			openCardFor: 'Example 2.5',
+			openDetailsFor: 'Example 2.5',
 		}),
 	}),
 	/** The faster twin selected outright, as `chat.defaultModel` set to its id does. */
@@ -638,7 +1014,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderPicker(context, {
 			models: [...COPILOT_ONLY_MODELS, ...SPEED_VARIANT_MODELS],
 			selectedModelId: 'copilot/example-2.5-fast',
-			openCardFor: 'Example 2.5 (fast mode)',
+			openDetailsFor: 'Example 2.5 (fast mode)',
 		}),
 	}),
 	CardExtendedContext: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[0], true) }),
@@ -647,12 +1023,4 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderCard(context, MANY_EFFORT_MODEL, false),
 	}),
 	CardWithoutConfiguration: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[2], false) }),
-	AutoRowOff: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderAutoRow(context, false),
-	}),
-	AutoRowOn: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderAutoRow(context, true),
-	}),
 });

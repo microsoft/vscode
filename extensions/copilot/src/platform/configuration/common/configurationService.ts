@@ -753,7 +753,6 @@ export namespace ConfigKey {
 		export const CLIIsolationOption = defineSetting<boolean>('chat.cli.isolationOption.enabled', ConfigType.Simple, true);
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
 		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, false);
-		export const CLIThinkingEffortEnabled = defineSetting<boolean>('chat.cli.thinkingEffort.enabled', ConfigType.Simple, true);
 		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, true);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
@@ -774,7 +773,6 @@ export namespace ConfigKey {
 		export const NotebookAlternativeDocumentFormat = defineAndMigrateExpSetting<AlternativeNotebookFormat>('chat.advanced.notebook.alternativeFormat', 'chat.notebook.alternativeFormat', AlternativeNotebookFormat.xml);
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
 
-		export const InlineChatReasoningEffort = defineSetting<string>('chat.inlineChat.reasoningEffort', ConfigType.ExperimentBased, 'low');
 		export const InlineChatEnableThinking = defineSetting<boolean>('chat.inlineChat.enableThinking', ConfigType.ExperimentBased, false);
 
 		export const InstantApplyShortModelName = defineAndMigrateExpSetting<string>('chat.advanced.instantApply.shortContextModelName', 'chat.instantApply.shortContextModelName', CHAT_MODEL.SHORT_INSTANT_APPLY);
@@ -794,7 +792,7 @@ export namespace ConfigKey {
 		/** Enable semantic search for the search subagent */
 		export const SubagentSemanticSearchEnabled = defineSetting<boolean>('chat.searchSubagent.subagentSemanticSearchEnabled', ConfigType.ExperimentBased, true);
 
-		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
+		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, true);
 		export const SkillToolEnabled = defineSetting<boolean>('chat.skillTool.enabled', ConfigType.ExperimentBased, false);
 		/** When enabled, the get_changed_files tool is available to the agent. */
 		export const GetChangedFilesToolEnabled = defineSetting<boolean>('chat.getChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
@@ -802,7 +800,7 @@ export namespace ConfigKey {
 		/** Use the agentic proxy for the execution subagent */
 		export const ExecutionSubagentUseAgenticProxy = defineSetting<boolean>('chat.executionSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
 		/** Model to use for the execution subagent. When useAgenticProxy is true, defaults to 'exec-subagent-router-a'. When false, defaults to Gemini-3-Flash. */
-		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gemini-3-flash');
+		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gpt-5.6-luna');
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 		/** Show the execution subagent its remaining iterations on every turn */
@@ -853,6 +851,7 @@ export namespace ConfigKey {
 		export const OTelProtocol = defineSetting<string>('chat.otel.protocol', ConfigType.Simple, '');
 		export const OTelOtlpEndpoint = defineSetting<string>('chat.otel.otlpEndpoint', ConfigType.Simple, 'http://localhost:4318');
 		export const OTelCaptureContent = defineSetting<boolean>('chat.otel.captureContent', ConfigType.Simple, false);
+		export const OTelCaptureIdentity = defineSetting<boolean | null>('chat.otel.captureIdentity', ConfigType.Simple, null);
 		export const OTelServiceName = defineSetting<string>('chat.otel.serviceName', ConfigType.Simple, '');
 		export const OTelResourceAttributes = defineSetting<Record<string, string>>('chat.otel.resourceAttributes', ConfigType.Simple, {});
 		export const OTelHeaders = defineSetting<Record<string, string>>('chat.otel.headers', ConfigType.Simple, {});
@@ -983,6 +982,8 @@ export namespace ConfigKey {
 		export const InlineEditsNextCursorPredictionMaxResponseTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.maxResponseTokens', ConfigType.ExperimentBased, 40);
 		export const InlineEditsNextCursorPredictionLintOptionsString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.nextCursorPrediction.lintOptionsString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.modelConfigurationString', ConfigType.ExperimentBased, undefined);
+		/** Whether to send the endpoint's default max_tokens limit when prediction is disabled. */
+		export const InlineEditsXtabProviderUseMaxTokens = defineSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.useMaxTokens', ConfigType.ExperimentBased, true, vBoolean());
 		export const InlineEditsXtabProviderDefaultModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderUseVaryingLinesAbove = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.xtabProvider.useVaryingLinesAbove', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderNLinesAbove = defineSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesAbove', ConfigType.ExperimentBased, undefined);
@@ -1090,8 +1091,8 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
-	/** Enable Responses prompt cache markers: up to two agent-prefix anchors and twenty conversation boundaries. */
-	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, true);
+	/** Enable Responses prompt cache markers: up to two agent-prefix anchors and twenty conversation boundaries. BYOK endpoints require an explicit user opt-in. */
+	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 5 model */
@@ -1104,10 +1105,6 @@ export namespace ConfigKey {
 	export const EnableGpt56Verbosity = defineSetting<boolean>('chat.gpt56Verbosity.enabled', ConfigType.ExperimentBased, true);
 	/** Enable get_changed_files tool for Gemini 3 models */
 	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
-	/** When enabled, sends `reasoning_effort: 'low'` to Gemini 3 models. */
-	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
-	/** Default thinking effort for Claude Opus models in the model picker. Empty keeps the built-in default ('high'). */
-	export const ClaudeOpusDefaultReasoningEffort = defineSetting<string>('chat.claudeOpusDefaultReasoningEffort', ConfigType.ExperimentBased, '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
@@ -1193,8 +1190,6 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
-	export type CloudSessionVisibilityValue = '24hours' | '7days' | '30days' | '90days' | 'all';
-	export const CloudSessionVisibility = defineSetting<CloudSessionVisibilityValue>('chat.cloudAgent.sessionVisibility', ConfigType.Simple, '30days', vEnum('24hours', '7days', '30days', '90days', 'all'));
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 
@@ -1223,6 +1218,9 @@ export namespace ConfigKey {
 	export const GrepSearchOutputFormat = defineSetting<'grep' | 'tag'>('chat.tools.grepSearch.outputFormat', ConfigType.ExperimentBased, 'grep');
 	export const GrepSearchDefaultMaxResults = defineSetting<number>('chat.tools.grepSearch.defaultMaxResults', ConfigType.ExperimentBased, 100);
 	export const GrepSearchMaxResultsCap = defineSetting<number>('chat.tools.grepSearch.maxResultsCap', ConfigType.ExperimentBased, 200);
+
+	/** Read file tool. Allow line adjustments at the beginning or the end of the read region */
+	export const ReadFileToolAllowLineAdjustments = defineSetting<boolean>('chat.tools.readFile.allowLineAdjustments', ConfigType.ExperimentBased, false);
 }
 
 export function getAllConfigKeys(): string[] {

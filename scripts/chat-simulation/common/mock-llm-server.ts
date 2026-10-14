@@ -19,6 +19,7 @@
  */
 
 const http: typeof import('http') = require('http');
+const https: typeof import('https') = require('https');
 const path: typeof import('path') = require('path');
 const { EventEmitter }: typeof import('events') = require('events');
 
@@ -646,7 +647,7 @@ function makeThinkingIdChunk(cotId: string) {
 
 // -- Request handler ---------------------------------------------------------
 
-function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse): void {
+function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse, protocol: 'http' | 'https'): void {
 	const contentLength = req.headers['content-length'] || '0';
 	const ts = new Date().toISOString().slice(11, -1); // HH:MM:SS.mmm
 	_log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
@@ -657,7 +658,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	res.setHeader('Access-Control-Allow-Headers', '*');
 	if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-	const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+	const reqUrl = new URL(req.url || '/', `${protocol}://${req.headers.host}`);
 	const path = reqUrl.pathname;
 	const json = (status: number, data: any) => {
 		res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -684,8 +685,8 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 				individual: true,
 				copilot_plan: 'free',
 				endpoints: {
-					api: `http://${req.headers.host}`,
-					proxy: `http://${req.headers.host}`,
+					api: reqUrl.origin,
+					proxy: reqUrl.origin,
 				},
 			});
 		} else {
@@ -1122,7 +1123,9 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 				: Array.isArray(item.content)
 					? item.content.map((c: any) => c.text || '').join('')
 					: '';
-			const match = content.match(/\[scenario:([^\]]+)\]/);
+			// Codex reviews can include the earlier conversation and the planned
+			// action in one message. The final tag selects the current review.
+			const match = [...content.matchAll(/\[scenario:([^\]]+)\]/g)].at(-1);
 			if (match && SCENARIOS[match[1]]) {
 				scenarioId = match[1];
 				isScenarioRequest = true;
@@ -1969,6 +1972,7 @@ interface StartServerOptions {
 	verbose?: boolean;
 	/** Address to listen on. Defaults to loopback. */
 	host?: string;
+	tls?: { cert: string; key: string };
 	/** Reject requests that do not carry this exact header. */
 	requiredRequestHeader?: {
 		name: string;
@@ -2006,7 +2010,6 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			completions++;
 			completionWaiters = completionWaiters.filter(fn => !fn());
 		};
-		serverEvents.on('scenarioCompletion', onCompletion);
 
 		// Accumulate the parsed bodies of chat requests so tests can assert what
 		// the client forwarded (see MockLlmServerHandle.getRequests). Off by default
@@ -2023,11 +2026,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
 		};
-		if (captureRequests) {
-			serverEvents.on('capturedRequest', onCapturedRequest);
-		}
-
-		const server = http.createServer((req, res) => {
+		const listener: import('http').RequestListener = (req, res) => {
 			const requiredRequestHeader = options?.requiredRequestHeader;
 			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
 			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
@@ -2038,12 +2037,17 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
-			handleRequest(req, res);
-		});
+			handleRequest(req, res, options?.tls ? 'https' : 'http');
+		};
+		const server = options?.tls ? https.createServer(options.tls, listener) : http.createServer(listener);
+		serverEvents.on('scenarioCompletion', onCompletion);
+		if (captureRequests) {
+			serverEvents.on('capturedRequest', onCapturedRequest);
+		}
 		server.listen(port, options?.host ?? '127.0.0.1', () => {
 			const addr = server.address();
 			const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-			const url = `http://127.0.0.1:${actualPort}`;
+			const url = `${options?.tls ? 'https' : 'http'}://127.0.0.1:${actualPort}`;
 			resolve({
 				port: actualPort,
 				url,

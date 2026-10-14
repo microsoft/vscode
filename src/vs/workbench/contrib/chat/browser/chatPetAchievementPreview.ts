@@ -9,7 +9,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ChatPetVariant } from './chatPetService.js';
+import { ChatPetColor, getChatPetColorVariant, setChatPetImageSource } from './chatPetColors.js';
 import { IChatPetAccessory } from './chatPetAchievements.js';
 import { drawChatPetAccessory, drawChatPetComposite, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from './widget/chatPetAccessoryRenderer.js';
 
@@ -19,7 +19,7 @@ export function renderChatPetAchievementPreview(
 	canvas: HTMLCanvasElement,
 	accessory: IChatPetAccessory | undefined,
 	unlocked: boolean,
-	variant: ChatPetVariant,
+	color: ChatPetColor,
 	themeService: IThemeService,
 	logService: ILogService,
 ): IDisposable {
@@ -27,8 +27,9 @@ export function renderChatPetAchievementPreview(
 	const bodyImage = DOM.$('img') as HTMLImageElement;
 	const accessoryImage = accessory ? DOM.$('img') as HTMLImageElement : undefined;
 	const accessorySource = accessory ? getChatPetAccessoryImageSource(accessory) : undefined;
-	const bodySource = FileAccess.asBrowserUri(`vs/workbench/contrib/chat/browser/widget/media/chatPet/buddy-idle-${variant}-96.png`).toString(true);
-	let bodyLoaded = !unlocked;
+	const bodySource = FileAccess.asBrowserUri(`vs/workbench/contrib/chat/browser/widget/media/chatPet/buddy-idle-${getChatPetColorVariant(color)}-96.png`).toString(true);
+	const showBody = unlocked || accessory === undefined;
+	let bodyLoaded = !showBody;
 	let accessoryLoaded = accessory === undefined;
 	const draw = () => {
 		if (!bodyLoaded || !accessoryLoaded) {
@@ -54,14 +55,16 @@ export function renderChatPetAchievementPreview(
 				true,
 				accessory?.eyeAccessoryMirrorsWithFacing !== false,
 				accessory?.coversAntennae === true,
+				color,
 			);
 			return;
 		}
 		context.clearRect(0, 0, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE);
-		if (!accessoryImage) {
-			return;
+		if (accessoryImage) {
+			drawChatPetAccessory(context, accessoryImage, 'idle', 0, 'right');
+		} else {
+			context.drawImage(bodyImage, 0, 0);
 		}
-		drawChatPetAccessory(context, accessoryImage, 'idle', 0, 'right');
 		context.globalCompositeOperation = 'source-in';
 		const silhouetteColor = themeService.getColorTheme().getColor(foreground);
 		if (!silhouetteColor) {
@@ -74,7 +77,7 @@ export function renderChatPetAchievementPreview(
 		context.globalCompositeOperation = 'source-over';
 	};
 
-	if (unlocked) {
+	if (showBody) {
 		store.add(DOM.addDisposableListener(bodyImage, 'load', () => {
 			if (!hasChatPetBodyImageDimensions(bodyImage, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, 1)) {
 				logService.error(`[ChatPetAchievementPreview] Invalid preview body dimensions: ${bodySource}`);
@@ -86,7 +89,7 @@ export function renderChatPetAchievementPreview(
 		store.add(DOM.addDisposableListener(bodyImage, 'error', () => {
 			logService.error(`[ChatPetAchievementPreview] Failed to load preview body: ${bodySource}`);
 		}));
-		bodyImage.src = bodySource;
+		setChatPetImageSource(bodyImage, bodySource);
 	}
 	if (accessoryImage && accessorySource) {
 		store.add(DOM.addDisposableListener(accessoryImage, 'load', () => {
@@ -100,7 +103,7 @@ export function renderChatPetAchievementPreview(
 		store.add(DOM.addDisposableListener(accessoryImage, 'error', () => {
 			logService.error(`[ChatPetAchievementPreview] Failed to load preview accessory: ${accessorySource.url}`);
 		}));
-		accessoryImage.src = accessorySource.url;
+		setChatPetImageSource(accessoryImage, accessorySource.url);
 	}
 
 	return store;

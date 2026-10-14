@@ -12,12 +12,13 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
-import { getModelConfigSummary, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -44,6 +45,36 @@ function createModel(metadata: Partial<ILanguageModelChatMetadata> = {}): ILangu
 	};
 }
 
+function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		...createModel({
+			id: 'auto',
+			name: 'Auto',
+			detail: '10% discount',
+			autoModelDiscountPercent: 10,
+			tooltip: ILanguageModelChatMetadata.getAutoModelDescription(),
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string', title: 'Optimize for', group: 'navigation',
+						enum: ['efficiency', 'balance', 'intelligence'],
+						enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
+						default: 'balance',
+					},
+				},
+			},
+		}),
+		identifier: 'copilot/auto',
+	};
+}
+
+/** Drops the time a change was requested, which is only checked for being reported. */
+function withoutRequestTime([group, key, fromValue, toValue, requestedAt]: Parameters<ModelConfigChangeListener>): unknown[] {
+	assert.strictEqual(typeof requestedAt, 'number');
+	return [group, key, fromValue, toValue];
+}
+
 suite('ModelCard', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -59,7 +90,7 @@ suite('ModelCard', () => {
 	function createCard(configuration: IStringDictionary<unknown> = {}, options: Partial<IModelCardOptions> = {}) {
 		const values = { ...configuration };
 		const writes: IStringDictionary<unknown>[] = [];
-		const changes: Parameters<NonNullable<IModelCardOptions['onDidChangeConfiguration']>>[] = [];
+		const changes: unknown[][] = [];
 		const selectedModels: string[] = [];
 		let accepted = 0;
 		const configurationAccess: IModelConfigurationAccess = options.configurationAccess ?? {
@@ -76,7 +107,7 @@ suite('ModelCard', () => {
 			isUBB: true,
 			openerService: NullOpenerService,
 			pricingDisclosure: createDisclosure(),
-			onDidChangeConfiguration: (...change) => changes.push(change),
+			onDidChangeConfiguration: (...change) => changes.push(withoutRequestTime(change)),
 			onSelect: model => selectedModels.push(model.identifier),
 			onDidAccept: () => accepted++,
 			...options,
@@ -122,6 +153,341 @@ suite('ModelCard', () => {
 	function selectedOptions(card: ModelCard): string[] {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
+
+	/** The option labels of the first segmented control, split where a row break sits. */
+	function segmentRows(card: ModelCard): string[][] {
+		const rows: string[][] = [[]];
+		for (const child of card.element.querySelector('.monaco-custom-radio')?.children ?? []) {
+			if (child.classList.contains('monaco-radio-row-break')) {
+				rows.push([]);
+			} else if (child.getAttribute('role') === 'radio') {
+				rows[rows.length - 1].push(child.textContent ?? '');
+			}
+		}
+		return rows;
+	}
+
+	for (const [tier, label] of [['efficiency', 'Efficiency'], ['balance', 'Balance'], ['intelligence', 'Intelligence']]) {
+		test(`Auto's ${tier} tier explains its discount below the picker without repeating it above`, () => {
+			const { card } = createCard({ tier }, { model: createAutoModel() });
+			const description = element(card.element, '.chat-model-card-discount-description');
+			const control = element(card.element, '.monaco-custom-radio');
+			assert.deepStrictEqual({
+				above: card.element.querySelector(':scope > .chat-model-card-description')?.textContent,
+				below: description.textContent,
+				hidden: description.hidden,
+				afterControl: !!(control.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING),
+				badge: card.headerElement.querySelector('.chat-model-card-badge')?.textContent,
+			}, {
+				above: 'Auto routes based on your task and real-time system health and model performance. Learn More',
+				below: `Models routed via Auto ${label} receive a 10% discount.`,
+				hidden: false,
+				afterControl: true,
+				badge: '10% discount',
+			});
+		});
+	}
+
+	test('Auto without tiers explains its discount below its description', () => {
+		const auto = createAutoModel();
+		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, configurationSchema: undefined } } });
+		assert.deepStrictEqual(Array.from(card.element.querySelectorAll(':scope > .chat-model-card-description'), description => description.textContent), [
+			'Auto routes based on your task and real-time system health and model performance. Learn More',
+			'Models routed via auto receive a 10% discount.',
+		]);
+	});
+
+	for (const activation of ['pointer', 'Enter', 'Space'] as const) {
+		for (const [index, tier] of [[0, 'efficiency'], [1, 'balance']] as const) {
+			test(`Auto details accept the ${tier} tier via ${activation}, including its current value`, async () => {
+				const result = createCard({ tier: 'balance' }, { model: createAutoModel() });
+				const choice = result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[index];
+				choice.focus();
+				if (activation === 'pointer') {
+					choice.click();
+				} else {
+					choice.dispatchEvent(new KeyboardEvent('keydown', { key: activation === 'Space' ? ' ' : 'Enter', keyCode: activation === 'Space' ? 32 : 13, bubbles: true }));
+				}
+				await timeout(0);
+				assert.deepStrictEqual({
+					writes: result.writes,
+					values: result.values,
+					changes: result.changes,
+					selectedModels: result.selectedModels,
+					selected: selectedOptions(result.card),
+					focused: document.activeElement?.textContent,
+				}, {
+					writes: [{ tier }],
+					values: { tier },
+					changes: tier === 'balance' ? [] : [['navigation', 'tier', 'balance', 'efficiency']],
+					selectedModels: ['copilot/auto'],
+					selected: [index === 0 ? 'Efficiency' : 'Balance'],
+					focused: index === 0 ? 'Efficiency' : 'Balance',
+				});
+			});
+		}
+	}
+
+	test('Auto details preserve arrow focus without activating a tier', async () => {
+		const result = createCard({ tier: 'balance' }, { model: createAutoModel() });
+		const choices = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+		choices()[1].focus();
+		const focused: number[] = [];
+		for (const [key, keyCode] of [['ArrowRight', 39], ['ArrowDown', 40], ['ArrowLeft', 37], ['ArrowUp', 38]] as const) {
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			result.card.refresh();
+			focused.push(choices().findIndex(choice => document.activeElement === choice));
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ focused, writes: result.writes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
+			focused: [2, 0, 2, 1], writes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('Auto details end with routing alternatives that are selected and described rather than saved', async () => {
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const hydraFusionMax = { ...createModel({ id: 'hydrafusion-max', name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion-max' };
+		const alternatives = (selected?: ILanguageModelChatMetadataAndIdentifier): IModelCardOptions['routingAlternatives'] => [hydraFusion, hydraFusionMax].map(model => ({
+			model,
+			description: `${model.metadata.name} is a research preview.`,
+			tooltip: 'It picks a workflow per task, using one or more models to draft, review, or escalate.',
+			learnMoreUrl: URI.parse('https://example.com/hydrafusion'),
+			selected: model === selected,
+		}));
+		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternatives: alternatives() });
+		const choices = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+		const descriptions = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('.chat-model-card-alternative-description, .chat-model-card-discount-description'))
+			.filter(element => !element.hidden).map(element => element.textContent);
+		const initial = { options: choices().map(choice => choice.textContent), rows: segmentRows(result.card), selected: selectedOptions(result.card), descriptions: descriptions() };
+		choices()[3].focus();
+		choices()[3].click();
+		const onClick = descriptions();
+		await timeout(0);
+		// The picker marks the alternative selected once it accepts the choice.
+		result.update({ routingAlternatives: alternatives(hydraFusion) });
+		const chosen = {
+			selected: selectedOptions(result.card),
+			descriptions: descriptions(),
+			ariaLabel: choices()[3].getAttribute('aria-label'),
+			focused: document.activeElement?.textContent,
+			badge: result.card.headerElement.querySelector('.chat-model-card-badge')?.textContent,
+		};
+		choices()[4].click();
+		const onMax = descriptions();
+		await timeout(0);
+		result.update({ routingAlternatives: alternatives(hydraFusionMax) });
+		const chosenMax = { selected: selectedOptions(result.card), descriptions: descriptions() };
+		choices()[0].click();
+		const onTier = descriptions();
+		await timeout(0);
+		const restoredBadge = result.card.headerElement.querySelector('.chat-model-card-badge')?.textContent;
+		assert.deepStrictEqual({ initial, onClick, chosen, onMax, chosenMax, onTier, restoredBadge, writes: result.writes, selectedModels: result.selectedModels }, {
+			initial: {
+				options: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion', 'HydraFusion Max'],
+				rows: [['Efficiency', 'Balance', 'Intelligence'], ['HydraFusion', 'HydraFusion Max']],
+				selected: ['Balance'],
+				descriptions: ['Models routed via Auto Balance receive a 10% discount.'],
+			},
+			onClick: ['HydraFusion is a research preview. Learn more'],
+			chosen: {
+				selected: ['HydraFusion'],
+				descriptions: ['HydraFusion is a research preview. Learn more'],
+				ariaLabel: 'HydraFusion, HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.',
+				focused: 'HydraFusion',
+				badge: 'Research preview',
+			},
+			onMax: ['HydraFusion Max is a research preview. Learn more'],
+			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview. Learn more'] },
+			onTier: ['Models routed via Auto Efficiency receive a 10% discount.'],
+			restoredBadge: '10% discount',
+			writes: [{ tier: 'efficiency' }],
+			selectedModels: ['copilot/hydrafusion', 'copilot/hydrafusion-max', 'copilot/auto'],
+		});
+	});
+
+	test('a tier saved before an alternative took its place describes that tier until the alternative is chosen', () => {
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const alternative = (selected: boolean): IModelCardOptions['routingAlternatives'] => [{
+			model: hydraFusion, label: 'Intelligence', replacesTier: 'intelligence',
+			description: 'Intelligence uses HydraFusion, a research preview.', tooltip: 'It picks a workflow per task.', selected,
+		}];
+		const result = createCard({ tier: 'intelligence' }, { model: createAutoModel(), routingAlternatives: alternative(false) });
+		const intelligence = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === 'Intelligence');
+		const saved = { checked: intelligence()?.getAttribute('aria-checked'), label: intelligence()?.getAttribute('aria-label') };
+		result.update({ routingAlternatives: alternative(true) });
+		assert.deepStrictEqual({ saved, chosen: { checked: intelligence()?.getAttribute('aria-checked'), label: intelligence()?.getAttribute('aria-label') } }, {
+			saved: { checked: 'true', label: 'Intelligence, Most capable models' },
+			chosen: { checked: 'true', label: 'Intelligence, Intelligence uses HydraFusion, a research preview. It picks a workflow per task.' },
+		});
+	});
+
+	test('Auto\'s discount names the tier shown as selected while its save is pending', async () => {
+		const pending = new DeferredPromise<void>();
+		const values = { tier: 'balance' };
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => { await pending.p; Object.assign(values, next); },
+			},
+		});
+		const discount = () => element(result.card.element, '.chat-model-card-discount-description').textContent;
+		result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
+		await timeout(0);
+		const beforeSave = { selected: selectedOptions(result.card), discount: discount() };
+		pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ beforeSave, afterSave: { selected: selectedOptions(result.card), discount: discount() } }, {
+			beforeSave: { selected: ['Intelligence'], discount: 'Models routed via Auto Intelligence receive a 10% discount.' },
+			afterSave: { selected: ['Intelligence'], discount: 'Models routed via Auto Intelligence receive a 10% discount.' },
+		});
+	});
+
+	test('Auto is selected only after its tier saves without stealing focus moved elsewhere', async () => {
+		const pending = new DeferredPromise<void>();
+		const values = { tier: 'balance' };
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => { await pending.p; Object.assign(values, next); },
+			},
+		});
+		const outside = mainWindow.document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add(toDisposable(() => outside.remove()));
+		result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
+		await timeout(0);
+		const beforeSave = { values: { ...values }, selectedModels: [...result.selectedModels] };
+		outside.focus();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ beforeSave, values, selectedModels: result.selectedModels, outsideFocused: document.activeElement === outside }, {
+			beforeSave: { values: { tier: 'balance' }, selectedModels: [] },
+			values: { tier: 'intelligence' }, selectedModels: ['copilot/auto'], outsideFocused: true,
+		});
+	});
+
+	test('failed Auto tier saves report the error and restore the remembered tier without selecting Auto', async () => {
+		const failure = new Error('Cannot save tier');
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => ({ tier: 'balance' }),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async () => { throw failure; },
+			},
+		});
+		const reported: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error));
+		try {
+			result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual({ reported, changes: result.changes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
+			reported: [failure], changes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('rapid Auto tier activations save in order and select Auto once', async () => {
+		const pending = new DeferredPromise<void>();
+		const values = { tier: 'balance' };
+		const writes: unknown[] = [];
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => {
+					writes.push(next.tier);
+					if (writes.length === 1) {
+						await pending.p;
+					}
+					Object.assign(values, next);
+				},
+			},
+		});
+		const choices = result.card.element.querySelectorAll<HTMLElement>('[role="radio"]');
+		choices[0].click();
+		choices[2].click();
+		await timeout(0);
+		const pendingWrites = [...writes];
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ pendingWrites, writes, values, selectedModels: result.selectedModels, changes: result.changes, selected: selectedOptions(result.card) }, {
+			pendingWrites: ['efficiency'], writes: ['efficiency', 'intelligence'], values: { tier: 'intelligence' },
+			selectedModels: ['copilot/auto'],
+			changes: [['navigation', 'tier', 'balance', 'efficiency'], ['navigation', 'tier', 'efficiency', 'intelligence']],
+			selected: ['Intelligence'],
+		});
+	});
+
+	for (const menuFirst of [false, true]) {
+		test(`configuration writes from ${menuFirst ? 'a menu then Details' : 'Details then a menu'} share one transaction`, async () => {
+			const model = createModel();
+			const pending = new DeferredPromise<void>();
+			const values = { effort: 'medium' };
+			const writes: IStringDictionary<unknown>[] = [];
+			const result = createCard({}, {
+				model,
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					getModelConfigurationActions: () => [],
+					setModelConfiguration: async (_id, next) => {
+						writes.push(next);
+						await pending.p;
+						Object.assign(values, next);
+					},
+				},
+			});
+			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
+				(...change) => result.changes.push(withoutRequestTime(change)));
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Effort Level"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			let menuSave: Promise<void>;
+			if (menuFirst) {
+				menuSave = menuEdit();
+				cardEdit();
+			} else {
+				cardEdit();
+				menuSave = menuEdit();
+			}
+			await timeout(0);
+			const before = [...writes];
+			await pending.complete();
+			await menuSave;
+			await timeout(0);
+			assert.deepStrictEqual({ before, writes, values, changes: result.changes }, {
+				before: [{ effort: 'high' }], writes: [{ effort: 'high' }, { effort: 'low' }], values: { effort: 'low' },
+				changes: [['navigation', 'effort', 'medium', 'high'], ['navigation', 'effort', 'high', 'low']],
+			});
+		});
+	}
+
+	test('an external header retains its actions and focus through updates and reset', async () => {
+		const result = createCard({ effort: 'high' }, { externalHeader: true, onTogglePin: () => { } });
+		const header = result.card.headerElement;
+		document.body.appendChild(header);
+		disposables.add(toDisposable(() => header.remove()));
+		element(header, '[aria-label="Pin Model"]').focus();
+		result.update({ isPinned: true });
+		const focusedAfterPin = document.activeElement?.getAttribute('aria-label');
+		element(header, '[aria-label="Reset to Default"]').focus();
+		element(header, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			external: !result.card.element.contains(header),
+			sameHeader: result.card.headerElement === header,
+			focusedAfterPin,
+			focusedAfterReset: document.activeElement?.getAttribute('aria-label'),
+			reset: !!header.querySelector('[aria-label="Reset to Default"]'),
+			selected: selectedOptions(result.card),
+		}, { external: true, sameHeader: true, focusedAfterPin: 'Unpin Model', focusedAfterReset: 'Unpin Model', reset: false, selected: ['Medium', '264K'] });
+	});
 
 	async function createAnimatedCard(options: Partial<IModelCardOptions> = {}) {
 		const result = createCard({}, options);
@@ -619,11 +985,33 @@ suite('ModelCard', () => {
 			accepted: 1,
 			selectedModels: ['copilot/test-model'],
 			selected: ['Medium', '264K'],
-			summary: undefined,
+			summary: 'Medium · 264K',
 			reset: false,
 			pinned: 'true',
 			focused: true,
 		});
+	});
+
+	test('model descriptions are available without configurable settings', () => {
+		const result = createCard({}, { model: createModel({ configurationSchema: undefined, tooltip: 'A model for **careful reasoning**.', maxContextWindowTokens: 200000 }) });
+		assert.deepStrictEqual({
+			description: result.card.element.querySelector('.chat-model-card-description')?.textContent?.trim(),
+			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
+			settings: result.card.element.querySelectorAll('[role="radiogroup"]').length,
+		}, { description: 'A model for careful reasoning.', context: '200K', settings: 0 });
+	});
+
+	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
+		const result = createCard({}, {
+			model: createModel({
+				id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview',
+				configurationSchema: undefined, maxContextWindowTokens: 200000,
+			})
+		});
+		assert.deepStrictEqual({
+			badge: result.card.element.querySelector('.chat-model-card-header .chat-model-card-badge')?.textContent,
+			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
+		}, { badge: 'Research preview', context: undefined });
 	});
 
 	test('reset uses the provider defaults and returns focus to a setting when pinning is unavailable', async () => {

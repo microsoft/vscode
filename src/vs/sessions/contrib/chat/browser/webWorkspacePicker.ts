@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -23,7 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -48,6 +52,7 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
  * surfaced).
  */
 export class WebWorkspacePicker extends WorkspacePicker {
+	private readonly _mobilePicker = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		options: IWorkspacePickerOptions,
@@ -75,7 +80,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
+				sessionWorkspaceProviderFilter: providerId => {
+					const host = _agentHostFilterService.selectedHost;
+					return host?.sessionCreationProviderId ? providerId === host.sessionCreationProviderId : host?.providerIds.includes(providerId) === true;
+				},
 			},
 			actionWidgetService,
 			uriIdentityService,
@@ -95,12 +103,24 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			contextMenuService,
 			fileService,
 			dialogService,
+			_agentHostFilterService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
 		// belongs to the selected host, reset it: prefer the most recent
 		// workspace for the new host, otherwise clear the selection.
-		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
+		let scopedHost = this._agentHostFilterService.selectedHost;
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			const nextHost = this._agentHostFilterService.selectedHost;
+			// Connection status updates must not reset the workspace and steal
+			// focus from an open host picker through onDidSelectWorkspace.
+			if (nextHost?.id === scopedHost?.id && equals(nextHost?.providerIds ?? [], scopedHost?.providerIds ?? [])) {
+				return;
+			}
+			scopedHost = nextHost;
+			this._mobilePicker.clear();
+			this._onScopedHostChanged();
+		}));
 	}
 
 	protected override _showTabs(): boolean {
@@ -119,30 +139,52 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// phone viewports so a single instance handles both desktop
 		// browsers and rotation across the phone breakpoint.
 		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
+			this._mobilePicker.clear();
 			super.showPicker(force, trigger, preferredGroup, attachesContext);
 			return;
 		}
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		const items = this._buildItems();
-		showMobileWorkspacePickerSheet(
+		const resources = new DisposableStore();
+		this._mobilePicker.value = resources;
+		const cancellation = new CancellationTokenSource();
+		resources.add(toDisposable(() => cancellation.dispose(true)));
+		void showMobileWorkspacePickerSheet(
 			this._layoutService,
 			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
 			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
-		);
+			cancellation.token,
+		).finally(() => {
+			if (this._mobilePicker.value === resources) {
+				this._mobilePicker.clear();
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	protected override _refreshPickerItems(): void {
+		this._mobilePicker?.clear();
+		super._refreshPickerItems();
 	}
 
 	private _onScopedHostChanged(): void {
 		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
+		if (currentResolved && (scoped?.sessionCreationProviderId
+			? currentResolved.providerId === scoped.sessionCreationProviderId
+			: scoped?.providerIds.includes(currentResolved.providerId))) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
 
 		this._resetAutomaticSelection();
+	}
+
+	protected override _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
+		const providerId = this._agentHostFilterService?.selectedHost?.sessionCreationProviderId;
+		return super._getAllBrowseActions().filter(action => !providerId || action.providerId === providerId);
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
@@ -161,12 +203,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
 			&& this._directPickerGroup === undefined
 			&& this._directPickerAttachesContext !== true;
-		const includeGitHub = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
-		const gitHubGroupAction = isConsolidatedWorkspacePicker
+		const includeGitHub = !!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
+		const gitHubGroupAction = isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId
 			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
 			: undefined;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
+			(scoped.sessionCreationProviderId
+				? w.providerId === scoped.sessionCreationProviderId
+				: scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -193,7 +237,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId))
+			.filter(({ action }) => scoped.sessionCreationProviderId
+				? action.providerId === scoped.sessionCreationProviderId
+				: (!scoped.grouped && scopedProviderIds.has(action.providerId))
 				|| (includeGitHub && action.group === SESSION_WORKSPACE_GROUP_GITHUB));
 		if (gitHubGroupAction || browseActions.length > 0) {
 			if (items.length > 0) {
