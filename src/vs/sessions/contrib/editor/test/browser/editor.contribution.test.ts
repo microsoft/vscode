@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -58,6 +59,12 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+class TestResourceEditorInput extends EditorInput {
+	override readonly typeId = 'test.sessions.resourceEditor';
+	constructor(private readonly _resource: URI) { super(); }
+	override get resource(): URI { return this._resource; }
 }
 
 suite('Sessions - Editor Contribution', () => {
@@ -412,13 +419,20 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	}
 
-	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
+	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number, editors: readonly EditorInput[] = []): void {
+		const activeGroup = {
+			count,
+			editors,
+			findEditors: (resource: URI) => editors.filter(editor => isEqual(editor.resource, resource)),
+		} as Partial<IEditorGroup> as IEditorGroup;
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get mainPart(): IEditorGroupsService['mainPart'] {
-				return { activeGroup: { count } as IEditorGroup } as IEditorGroupsService['mainPart'];
+				return { activeGroup } as IEditorGroupsService['mainPart'];
 			}
 		});
 	}
+
+	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
 	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -730,6 +744,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -750,6 +767,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -778,6 +798,47 @@ suite('Sessions - Editor Contribution', () => {
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
+	});
+
+	test('changes and files tab actions activate an existing tab in place instead of moving it', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const resource = URI.parse('session:1');
+		const workspace = createWorkspace(URI.file('/repo'));
+		stubEditorVisibility(instantiationService, true);
+		const existingChanges = store.add(new TestResourceEditorInput(changesEditorResource(resource)));
+		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
+		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({
+				resource,
+				isCreated: constObservable(true),
+				activeChat: constObservable({ workspace: constObservable(workspace) }),
+			} as unknown as IActiveSession);
+		});
+		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
+			override async openChangesEditor(_sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
+				opened.push({ kind: 'changes', index: options?.index });
+				return undefined;
+			}
+		});
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				if (args[0] instanceof EditorInput) {
+					store.add(args[0]);
+				}
+				opened.push({ kind: 'files', index: (args[1] as IEditorOptions | undefined)?.index });
+				return undefined;
+			}
+		});
+
+		await new NewChangesTabAction().run(instantiationService);
+		await new NewFileTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened, [{ kind: 'changes', index: undefined }, { kind: 'files', index: undefined }]);
 	});
 
 	test('maximize editor hides the terminal panel before maximizing', async () => {
