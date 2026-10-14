@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTestChatRows } from './chatMetadataTestHelpers.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -273,7 +272,7 @@ export function createTestAgentService(
 		utilityModelService,
 		getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 	})));
-	const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService);
+	const localTurns = new AgentHostLocalTurns(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)).chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,

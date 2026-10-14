@@ -471,15 +471,16 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			snapshot: undefined,
 			mirrorFailureLogged: false,
 		};
+		let mirrorEdited = false;
 		try {
-			await this._reconcileLocked(record, reads);
+			mirrorEdited = await this._reconcileLocked(record, reads);
 		} catch (error) {
 			record.scheduler.dispose();
 			throw error;
 		}
 		this._records.set(key, record);
 		try {
-			await this.chatRows.moveRows(session, this._snapshot(record), state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision);
+			await this.chatRows.moveRows(session, this._snapshot(record), state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited);
 		} catch (error) {
 			this._logService.warn(`[AgentHostSessionStateStore] Failed to move the chat rows of ${key}`, error);
 		}
@@ -617,7 +618,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	 * per entry, a mirror that differs from the merge base was edited after this
 	 * build last wrote it, so it wins; otherwise central state wins.
 	 */
-	private async _reconcileLocked(record: ISessionRecord, observedReads: MirrorReads | undefined): Promise<void> {
+	/** Returns whether an old build edited any mirrored entry since the recorded merge base. */
+	private async _reconcileLocked(record: ISessionRecord, observedReads: MirrorReads | undefined): Promise<boolean> {
 		const model = record.model;
 		const chats = model.authority === 1 ? [...model.chats.values()].map(chat => ({ chat: chat.chat, isDefault: chat.isDefault })) : [];
 		const baseBranchStorages = [...model.folders.values()].flatMap(folder => folder.kind === 'baseBranch' && folder.storage !== undefined ? [folder.storage] : []);
@@ -650,6 +652,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(base));
 		}
 		await this._flushLocked(record);
+		return patches.length > 0;
 	}
 
 	private async _observe(session: string, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], baseBranchStorages: readonly string[]): Promise<MirrorReads> {

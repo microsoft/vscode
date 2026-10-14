@@ -23842,8 +23842,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				// The one extra read is the session state store's first load, which the chat rows are now read through.
-				snapshotReads: 13,
+				snapshotReads: 12,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
@@ -26701,14 +26700,13 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: buildDefaultChatUri(session), title: 'Session' },
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
-				// Restoring now loads the session's central state once (the chat rows are read through it), which reads the legacy catalog key a single time; accessing the peer adds none.
 				beforeAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 0,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 0,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
@@ -27374,7 +27372,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const db = new TestSessionDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
+			let localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
@@ -27385,7 +27383,9 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata(`customChatTitle:${peerUri.toString()}`, 'Persisted Peer Title');
 			await db.setChatDraft(peerUri, { text: 'Persisted draft', origin: { kind: MessageKind.User } });
 
-			getStateManager(localService).deleteSession(session.toString());
+			// The rows above were written by an older build that knows no central state, so the restore imports them from scratch.
+			localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
+			registerTestAgentProvider(localService, agent);
 			await localService.restoreSession(session);
 
 			const state = getStateManager(localService).getSessionState(session.toString());
@@ -32597,6 +32597,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'agent-turn', duration: 1 });
 			await timeout(0);
+			await getTestSessionStateStore(localService).whenIdle(undefined);
 
 			const notice = turnsOf()[turnsOf().length - 1];
 			assert.deepStrictEqual({

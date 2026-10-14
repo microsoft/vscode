@@ -27,6 +27,12 @@ function resolveStorage(session: URI, snapshot: ISessionStateSnapshot, chat: str
 	return { storage: URI.parse(storage), mirrored: storage !== sessionKey };
 }
 
+/** The turn row watermark recorded with the moved marker (`rows@<max rowid>`). */
+function parseWatermark(progress: string | undefined): number | undefined {
+	const match = /^rows@(?<rowid>\d+)$/.exec(progress ?? '');
+	return match?.groups ? Number(match.groups.rowid) : undefined;
+}
+
 function turnIdsBase(records: readonly IPersistedTurnRecord[]): string {
 	return JSON.stringify(records.map(record => record.turnId).sort());
 }
@@ -136,10 +142,12 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * outside the session database into its own database — originals stay for
 	 * older builds — and repairs mirrors a crash left stale.
 	 */
-	async moveRows(session: URI, snapshot: ISessionStateSnapshot, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number): Promise<void> {
+	async moveRows(session: URI, snapshot: ISessionStateSnapshot, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean): Promise<void> {
 		const sessionKey = session.toString();
 		const peers = [...snapshot.chats].filter(([, entry]) => !entry.isDefault && entry.storage !== undefined && entry.storage !== sessionKey);
-		if (progress === ROWS_MOVED_PROGRESS && rowsRevision === rowsMirroredRevision) {
+		const moved = progress?.startsWith(ROWS_MOVED_PROGRESS) ?? false;
+		const watermark = parseWatermark(progress);
+		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._maxTurnRowid(session) <= watermark)) {
 			return;
 		}
 		const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
@@ -147,17 +155,23 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 			await this._database.markSessionStateRowsMoved(sessionKey, ROWS_MOVED_PROGRESS);
 			return;
 		}
+		let maxRowid = 0;
 		try {
+			maxRowid = await sessionRef.object.getMaxTurnRowid();
+			// An old build writing after a downgrade is only visible as an edited mirror entry or as turn rows above the watermark.
+			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark);
 			for (const [chat, entry] of peers) {
 				const lagging = rowsRevision > rowsMirroredRevision;
-				if (!lagging && !await this._hasRows(sessionRef.object, chat)) {
+				if (!lagging && !importEdits && !await this._hasRows(sessionRef.object, chat)) {
 					continue;
 				}
 				const storage = URI.parse(entry.storage!);
 				const ownRef = this._sessionDataService.openDatabase(storage);
 				try {
-					if (progress !== ROWS_MOVED_PROGRESS) {
+					if (!moved) {
 						await this._copyRows(sessionRef.object, ownRef.object, chat);
+					} else if (importEdits) {
+						await this._importEdits(sessionRef.object, ownRef.object, sessionKey, chat);
 					}
 					await this._repairMirror(sessionRef.object, ownRef.object, sessionKey, chat);
 				} finally {
@@ -170,8 +184,52 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		if (rowsRevision > rowsMirroredRevision) {
 			await this._database.markSessionStateRowsMirrored(sessionKey, rowsRevision);
 		}
-		if (progress !== ROWS_MOVED_PROGRESS) {
-			await this._database.markSessionStateRowsMoved(sessionKey, ROWS_MOVED_PROGRESS);
+		const marker = `${ROWS_MOVED_PROGRESS}@${maxRowid}`;
+		if (progress !== marker) {
+			await this._database.markSessionStateRowsMoved(sessionKey, marker);
+		}
+	}
+
+	private async _maxTurnRowid(session: URI): Promise<number> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return 0;
+		}
+		try {
+			return await ref.object.getMaxTurnRowid();
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
+	 * Imports what an older build edited in the session database mirror since
+	 * the recorded merge base: a changed (or cleared) draft wins, rows added
+	 * to the mirror are added to the chat's database. Deletions are never
+	 * imported — older builds delete peer mirror rows as a side effect of
+	 * truncating the default chat.
+	 */
+	private async _importEdits(sessionDb: ISessionDatabase, ownDb: ISessionDatabase, session: string, chat: string): Promise<void> {
+		const chatUri = URI.parse(chat);
+		const mirrorDraft = await sessionDb.getChatDraft(chatUri);
+		const mirrorDraftBase = mirrorDraft ? JSON.stringify(mirrorDraft) : undefined;
+		if (mirrorDraftBase !== await this._database.readChatRowMirror(session, chat, 'draft')) {
+			await ownDb.setChatDraft(chatUri, mirrorDraft);
+			await this._database.writeChatRowMirror(session, chat, 'draft', mirrorDraftBase);
+		}
+		const baseIds = new Set<string>(JSON.parse(await this._database.readChatRowMirror(session, chat, 'localTurns') ?? '[]'));
+		const ownTurns = await ownDb.getPersistedTurnsForChat(chat);
+		const known = new Set([...baseIds, ...ownTurns.map(record => record.turnId)]);
+		let added = false;
+		for (const record of await sessionDb.getPersistedTurnsForChat(chat)) {
+			if (!known.has(record.turnId)) {
+				await ownDb.insertPersistedTurn(record);
+				baseIds.add(record.turnId);
+				added = true;
+			}
+		}
+		if (added) {
+			await this._database.writeChatRowMirror(session, chat, 'localTurns', JSON.stringify([...baseIds].sort()));
 		}
 	}
 

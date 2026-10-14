@@ -9502,6 +9502,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const [chatSnapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
+		// Loaded with the snapshot just read, before anything reads chat rows through the store, so it is not read again.
+		await this._sessionStateStore.loadWithCatalog(session, chatSnapshot);
 		const normalizedCatalog = chatSnapshot?.authorityVersion === 2 ? chatSnapshot : undefined;
 		const normalizedDefault = normalizedCatalog?.chats.find(chat => chat.chat === normalizedCatalog.header?.defaultChatUri);
 		if (normalizedCatalog && !normalizedDefault) {
@@ -9559,7 +9561,6 @@ export class AgentService extends Disposable implements IAgentService {
 		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr
 			? Promise.resolve(undefined)
 			: this._loadWorkspaceTransitions(URI.parse(defaultChatStorage));
-		await this._sessionStateStore.loadWithCatalog(session, chatSnapshot);
 		const restoreKeys: Record<string, true> = {
 			customTitle: true,
 			[SESSION_WORKING_DIRECTORIES_KEY]: true,

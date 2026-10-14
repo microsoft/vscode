@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
-import type { ISessionDataService } from '../../common/sessionDataService.js';
+import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
@@ -766,6 +766,66 @@ suite('AgentHostSessionStateStore', () => {
 				defaultDraft: 'New default draft',
 				defaultOwn: { draft: undefined, turns: [] },
 				acknowledged: true,
+			});
+		});
+
+		/** Edits the session database mirror the way an older build does after a downgrade, then signals it with a new turn row. */
+		async function oldBuildEdits(fixtureSession: string, edit: (db: ISessionDatabase) => Promise<void>): Promise<void> {
+			const reference = sessionData.createService().openDatabase(URI.parse(fixtureSession));
+			try {
+				await edit(reference.object);
+				await reference.object.createTurn('old-build-turn');
+			} finally {
+				reference.dispose();
+			}
+		}
+
+		test('rows an older build added to the mirror are imported, a changed draft wins and deletions are not imported', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[1];
+			await createStore().load(session);
+			await oldBuildEdits(fixture.session, async db => {
+				await db.setChatDraft(URI.parse(peer.runtimeUri), { text: 'Edited by an old build', origin: { kind: MessageKind.User } });
+				await db.insertPersistedTurn({ kind: 'failed', turnId: 'old-build-failed', chatUri: peer.runtimeUri, anchorTurnId: undefined, payload: '{}' });
+				await db.deletePersistedTurns(['same-folder-local-1']);
+			});
+
+			await createStore().load(session);
+
+			assert.deepStrictEqual(await rowsIn(peer.uri, peer.uri), {
+				draft: 'Edited by an old build',
+				turns: ['local:same-folder-local-1', 'failed:same-folder-failed-1', 'failed:old-build-failed'],
+			});
+		});
+
+		test('a draft an older build cleared is cleared in the chat\'s own database', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[1];
+			await createStore().load(session);
+			await oldBuildEdits(fixture.session, db => db.setChatDraft(URI.parse(peer.runtimeUri), undefined));
+
+			await createStore().load(session);
+
+			assert.strictEqual((await rowsIn(peer.uri, peer.uri)).draft, undefined);
+		});
+
+		test('mirror rows are only imported on an old-build signal', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[1];
+			await createStore().load(session);
+			await createStore().load(session);
+			const mirror = sessionData.createService().openDatabase(URI.parse(fixture.session));
+			await mirror.object.insertPersistedTurn({ kind: 'local', turnId: 'unsignalled', chatUri: peer.runtimeUri, anchorTurnId: undefined, payload: '{}' });
+			mirror.dispose();
+
+			await createStore().load(session);
+			const unsignalled = (await rowsIn(peer.uri, peer.uri)).turns;
+			await oldBuildEdits(fixture.session, async () => { });
+			await createStore().load(session);
+
+			assert.deepStrictEqual({ unsignalled, signalled: (await rowsIn(peer.uri, peer.uri)).turns }, {
+				unsignalled: ['local:same-folder-local-1', 'failed:same-folder-failed-1'],
+				signalled: ['local:same-folder-local-1', 'failed:same-folder-failed-1', 'local:unsignalled'],
 			});
 		});
 
