@@ -9,8 +9,13 @@ import {
 	ICustomizationMigrationDashboardOverview,
 } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationDashboard.js';
 import { PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 function overview(): ICustomizationMigrationDashboardOverview {
 	return {
@@ -82,13 +87,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 360, 'overview'),
 	}),
+	MigrationsTooltip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The prompt migration Migrate button shows its action tooltip.'],
+		render: ctx => renderDashboard(ctx, 860, 'tooltip'),
+	}),
 	MigrationsPartialSelection: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'partial'),
 	}),
+	MigrationsDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'disabled'),
+	}),
 	MigrationsIgnored: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'ignored'),
+	}),
+	MigrationsLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'loading'),
+	}),
+	MigrationsError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'error'),
 	}),
 	MigrationsZero: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -102,23 +124,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 });
 
-function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'partial' | 'ignored' | 'zero' | 'marketplaceError'): void {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
-	container.style.width = `${width}px`;
+	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
+	container.style.width = `${state === 'tooltip' ? width + 300 : width}px`;
 	const height = width < 500 ? 1000 : 740;
 	container.style.height = `${height}px`;
 	container.style.overflow = 'hidden';
 	container.style.background = 'var(--vscode-editor-background)';
+	if (state === 'tooltip') {
+		dashboardContainer.style.width = `${width}px`;
+		dashboardContainer.style.height = `${height}px`;
+		dashboardContainer.style.overflow = 'hidden';
+	}
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			if (state === 'tooltip') {
+				reg.definePartialInstance(ILayoutService, { getContainer: () => container });
+				reg.define(IHoverService, class extends HoverService {
+					override showDelayedHover(options: Parameters<IHoverService['showDelayedHover']>[0]) {
+						const hover = this.showInstantHover({ ...options, container }, false);
+						if (hover) {
+							disposableStore.add(hover);
+						}
+						return hover;
+					}
+				});
+				reg.define(IMarkdownRendererService, MarkdownRendererService);
+			}
 		},
 	});
 	let model = overview();
 	if (state === 'zero') {
-		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })) };
+		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })), manualReviewItems: [] };
 	} else if (state === 'partial') {
 		model = {
 			...model,
@@ -128,6 +169,19 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 					...category,
 					selectedCount: 1,
 					items: category.items.map((item, index) => ({ ...item, selected: index !== 0 })),
+				} : category),
+			} : scope),
+		};
+	} else if (state === 'disabled') {
+		model = {
+			...model,
+			scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? {
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PromptFiles ? {
+					...category,
+					migrateDisabled: true,
+					selectedCount: 0,
+					items: category.items.map(item => ({ ...item, selected: false })),
 				} : category),
 			} : scope),
 		};
@@ -150,7 +204,7 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 			}],
 		};
 	}
-	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, container, {
+	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, dashboardContainer, {
 		actionClicked: () => { },
 		configureLocations: () => { },
 		migrateWithAgent: () => { },
@@ -162,6 +216,28 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 		retryCategory: () => { },
 		openCustomization: () => { },
 	}));
+	if (state === 'loading') {
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.layout(height);
+		return;
+	}
+	if (state === 'error') {
+		dashboard.showLoading('Migrations unavailable', 'Try again.', () => { });
+		dashboard.layout(height);
+		return;
+	}
 	dashboard.showOverview(model);
 	dashboard.layout(height);
+	if (state === 'tooltip') {
+		const migrateButton = [...dashboardContainer.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+			.find(element => element.textContent === 'Migrate');
+		if (!migrateButton) {
+			throw new Error('Prompt migration button was not rendered');
+		}
+		migrateButton.dispatchEvent(new (DOM.getWindow(migrateButton).MouseEvent)('mouseover', { bubbles: true }));
+		await waitForFixtureCondition(
+			() => Boolean(container.querySelector('.monaco-hover')?.textContent?.trim()),
+			'Prompt migration tooltip did not render',
+		);
+	}
 }
