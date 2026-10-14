@@ -1248,14 +1248,6 @@ export class TabbedModelPicker extends Disposable {
 			}),
 			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
 			onSelect: next => {
-				if (context.workflow) {
-					// There is no single "selected" model to swap while a workflow is active;
-					// a configuration change here (e.g. reasoning effort) applies to the model
-					// itself and is picked up when the comparison starts. Refresh in place so
-					// the row stays put and the popup keeps its size, matching a checkbox toggle.
-					this._widget.refreshActiveList({ focusItemId: next.identifier, preserveScrollPosition: true, preserveSize: true });
-					return;
-				}
 				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
 					this._rememberSpeedVariant(next.identifier);
 					// HydraFusion is chosen from Auto's tiers, so Auto's details stay open.

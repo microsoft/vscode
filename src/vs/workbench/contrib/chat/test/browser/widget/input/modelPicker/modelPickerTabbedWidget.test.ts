@@ -562,6 +562,23 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('Details still select their model while comparing is available but not started', async () => {
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), label: 'Compare Models',
+			state: observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined),
+			start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const result = createPicker({ workflow });
+		openDetails(result.popup, 'Second');
+		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
+		await timeout(0);
+		assert.deepStrictEqual({ selections: result.selections, values: result.values.get(models[1].identifier) }, {
+			selections: [models[1].identifier], values: { effort: 'high' },
+		});
+	});
+
 	test('a checked compare-mode row reconciles effort variants and renders a keyboard-native remove control', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
