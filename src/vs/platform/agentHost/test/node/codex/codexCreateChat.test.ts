@@ -26,7 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, chatStorageUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -43,7 +43,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../../
 import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
@@ -58,6 +58,14 @@ import { createSessionDataService, TestSessionDatabase } from '../../common/sess
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
+import { mintedTestChatStorage } from '../../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from '../chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwnershipService.js';
+
+/** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
+function hostChatContext(session: URI, chat: URI): IAgentChatContext {
+	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
+}
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
@@ -217,6 +225,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
@@ -459,7 +468,7 @@ suite('CodexAgent createChat', () => {
 		const initialFolder = URI.file('/workspace/initial');
 		const replacementFolder = URI.file('/workspace/replacement');
 		await agent['_fileService'].createFolder(replacementFolder);
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [initialFolder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -498,7 +507,7 @@ suite('CodexAgent createChat', () => {
 		const peerChat = URI.parse(buildChatUri(session, 'peer'));
 		const replacementFolder = URI.file('/workspace/replacement');
 		await agent['_fileService'].createFolder(replacementFolder);
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [URI.file('/workspace/initial')],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -526,7 +535,7 @@ suite('CodexAgent createChat', () => {
 		const initialFolder = URI.file('/workspace/initial');
 		const replacementFolder = URI.file('/workspace/replacement');
 		await agent['_fileService'].createFolder(replacementFolder);
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [initialFolder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -558,7 +567,7 @@ suite('CodexAgent createChat', () => {
 		const folder = URI.file('/repo/hook-trust-start');
 		setWorkspaceTrust(agent, [folder]);
 
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -688,7 +697,7 @@ suite('CodexAgent createChat', () => {
 			const session = AgentSession.uri('codex', 'hook-trust-resume');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/hook-trust-resume');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -747,7 +756,7 @@ suite('CodexAgent createChat', () => {
 			const session = AgentSession.uri('codex', 'hook-trust-late-resume');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/hook-trust-late-resume');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -817,7 +826,7 @@ suite('CodexAgent createChat', () => {
 		const folder = URI.file('/repo/hook-trust-failure');
 		setWorkspaceTrust(agent, [folder]);
 
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -850,7 +859,7 @@ suite('CodexAgent createChat', () => {
 			const session = AgentSession.uri('codex', 'hook-trust-untrusted');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/untrusted');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 				config: { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } },
@@ -963,7 +972,7 @@ suite('CodexAgent createChat', () => {
 		const session = AgentSession.uri('codex', 'hook-trust-prewarm');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const prewarm = await readNextRequest(peer.outbound);
 		peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
@@ -1002,7 +1011,7 @@ suite('CodexAgent createChat', () => {
 			const folder = URI.file('/repo/hooks');
 			const sourceFolder = revokeSourceOnly ? URI.file('/repo/shared-hooks') : folder;
 			const hook = projectHook(sourceFolder.fsPath);
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			setWorkspaceTrust(agent, revokeSourceOnly ? [folder, sourceFolder] : [folder]);
 			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 			const initialHooks = await readNextRequest(peer.outbound);
@@ -1048,7 +1057,7 @@ suite('CodexAgent createChat', () => {
 		const session = AgentSession.uri('codex', 'hook-trust-failed-replacement');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		setWorkspaceTrust(agent, [folder]);
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const initialHooks = await readNextRequest(peer.outbound);
@@ -1097,7 +1106,7 @@ suite('CodexAgent createChat', () => {
 		const session = AgentSession.uri('codex', 'hook-trust-post-start-failure');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		setWorkspaceTrust(agent, [folder]);
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const initialHooks = await readNextRequest(peer.outbound);
@@ -1152,14 +1161,14 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'legacy-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [URI.file('/repo/legacy')],
 			model: { id: COPILOT_TEST_MODEL },
 		});
 		agent['_sessionIdByChatUri'].delete(chat.toString());
 		agent['_sessions'].get('legacy-session')!.chatChannel = undefined;
 
-		const recovered = await agent.recoverLegacyChat(chat, { configurationResource: session, resource: chat });
+		const recovered = await agent.recoverLegacyChat(chat, hostChatContext(session, chat));
 
 		assert.deepStrictEqual({
 			providerData: recovered?.providerData ? JSON.parse(recovered.providerData) : undefined,
@@ -2211,7 +2220,7 @@ suite('CodexAgent workspace conversion', () => {
 		const threadId = `live-${id}`;
 		await agent['_fileService'].createFolder(scratch);
 		await agent['_fileService'].createFolder(folder);
-		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [scratch], model: { id: COPILOT_TEST_MODEL },
 		});
 		const sending = agent.chats.sendMessage(chat, 'Add a welcome paragraph to the README', [scratch], undefined, 'host-turn-1', undefined, undefined, session);
@@ -3069,7 +3078,7 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'paginated-truncate');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/paginated-truncate');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3077,7 +3086,7 @@ suite('CodexAgent exact chat routing', () => {
 			peer.push({ id: start.id, result: { thread: { id: 'paginated-truncate-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('paginated-truncate')!.materializePromise;
 
-			const truncating = agent.truncateChat(chat, 'turn-2', { configurationResource: session, resource: chat });
+			const truncating = agent.truncateChat(chat, 'turn-2', hostChatContext(session, chat));
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
@@ -3116,19 +3125,19 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'legacy-truncate');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/legacy-truncate');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('legacy-truncate')!.materializePromise;
-			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const database = sessionStore.databaseFor(mintedTestChatStorage(chat));
 			const output = VSBuffer.fromString('retained output').buffer;
 			await database.createTurn('drop-turn');
 			await database.storeTerminalOutput('drop-turn', 'cmd-legacy', output);
 
-			const truncating = assert.rejects(agent.truncateChat(chat, 'keep-turn', { configurationResource: session, resource: chat }), /cannot remove messages from legacy chats/);
+			const truncating = assert.rejects(agent.truncateChat(chat, 'keep-turn', hostChatContext(session, chat)), /cannot remove messages from legacy chats/);
 			const read = await readNextRequest(peer.outbound);
 			peer.push({ id: read.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
 			const historyRead = await readNextRequest(peer.outbound);
@@ -3165,14 +3174,14 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'retained-truncate');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/retained-truncate');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('retained-truncate')!.materializePromise;
-			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const database = sessionStore.databaseFor(mintedTestChatStorage(chat));
 			const output = VSBuffer.fromString('full output').buffer;
 			for (const [turnId, toolCallId] of [['turn-1', 'cmd-kept'], ['turn-2', 'cmd-reverted']]) {
 				await database.createTurn(turnId);
@@ -3185,7 +3194,7 @@ suite('CodexAgent exact chat routing', () => {
 				commandActions: [], aggregatedOutput: 'full output', exitCode: 0, durationMs: 5,
 			});
 
-			const truncating = agent.truncateChat(chat, 'turn-1', { configurationResource: session, resource: chat });
+			const truncating = agent.truncateChat(chat, 'turn-1', hostChatContext(session, chat));
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
@@ -3221,7 +3230,7 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'resume-before-truncate');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/resume-before-truncate');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3230,7 +3239,7 @@ suite('CodexAgent exact chat routing', () => {
 			entry.needsResume = true;
 			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
 
-			const truncating = agent.truncateChat(chat, 'keep-turn', { configurationResource: session, resource: chat });
+			const truncating = agent.truncateChat(chat, 'keep-turn', hostChatContext(session, chat));
 			const resume = await readNextRequest(peer.outbound);
 			peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 			const inventory = await readNextRequest(peer.outbound);
@@ -3270,7 +3279,7 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'resume-before-mcp');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/resume-before-mcp');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3318,7 +3327,7 @@ suite('CodexAgent exact chat routing', () => {
 			const session = AgentSession.uri('codex', 'replace-during-mcp-resume');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const folder = URI.file('/repo/replace-during-mcp-resume');
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3444,7 +3453,7 @@ suite('CodexAgent exact chat routing', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'session-eager-customizations');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		const plugin = {
 			type: CustomizationType.Plugin,
 			id: 'plugin-eager',
@@ -3488,6 +3497,7 @@ suite('CodexAgent exact chat routing', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 		let enabled = true;
 		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
@@ -3630,7 +3640,7 @@ suite('CodexAgent chat backing durability', () => {
 		const receipts: IAgentMaterializeChatEvent[] = [];
 		const listener = agent.onDidMaterializeChat(e => receipts.push(e));
 		try {
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3638,7 +3648,7 @@ suite('CodexAgent chat backing durability', () => {
 			peer.push({ id: start.id, result: { thread: { id: threadId, cwd: folder.fsPath } } });
 			await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
 
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, { configurationResource: session, resource: chat });
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, hostChatContext(session, chat));
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
@@ -3663,7 +3673,7 @@ suite('CodexAgent chat backing durability', () => {
 		const folder = URI.file('/repo/start-response-reconnect');
 
 		try {
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3679,7 +3689,7 @@ suite('CodexAgent chat backing durability', () => {
 			await materializing;
 			assert.strictEqual(entry.needsResume, true);
 
-			const sending = agent.chats.sendMessage(chat, 'first turn', [folder], undefined, 'turn-1', undefined, undefined, { configurationResource: session, resource: chat });
+			const sending = agent.chats.sendMessage(chat, 'first turn', [folder], undefined, 'turn-1', undefined, undefined, hostChatContext(session, chat));
 			const resume = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			secondPeer.push({ id: resume.id, result: { thread: { id: 'start-response-reconnect-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
@@ -3736,7 +3746,7 @@ suite('CodexAgent chat backing durability', () => {
 			});
 
 			connect(agent, secondPeer);
-			const sending = agent.chats.sendMessage(chat, 'after reconnect', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+			const sending = agent.chats.sendMessage(chat, 'after reconnect', [folder], undefined, 'turn-2', undefined, undefined, hostChatContext(session, chat));
 			const resume = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			secondPeer.push({ id: resume.id, result: { thread: { id: 'reconnect-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
@@ -3774,7 +3784,7 @@ suite('CodexAgent chat backing durability', () => {
 		const folder = URI.file('/repo/stale-history');
 
 		try {
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3837,7 +3847,7 @@ suite('CodexAgent chat backing durability', () => {
 			agent['_handleConnectionLost'](firstConnection as never, agent['_connectionGeneration']);
 			connect(agent, secondPeer);
 
-			const sending = agent.chats.sendMessage(chat, 'retry resume', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+			const sending = agent.chats.sendMessage(chat, 'retry resume', [folder], undefined, 'turn-2', undefined, undefined, hostChatContext(session, chat));
 			const interruptedResume = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(interruptedResume.method, 'thread/resume');
 			const secondConnection = agent['_connection'];
@@ -3897,7 +3907,7 @@ suite('CodexAgent chat backing durability', () => {
 				return result;
 			};
 
-			const sending = agent.chats.sendMessage(chat, 'after mid-send reconnect', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+			const sending = agent.chats.sendMessage(chat, 'after mid-send reconnect', [folder], undefined, 'turn-2', undefined, undefined, hostChatContext(session, chat));
 			const resume = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			secondPeer.push({ id: resume.id, result: { thread: { id: 'mid-send-reconnect-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
@@ -3933,7 +3943,7 @@ suite('CodexAgent chat backing durability', () => {
 			const signals: AgentSignal[] = [];
 			const listener = agent.onDidChatProgress(signal => signals.push(signal));
 			try {
-				const sending = agent.chats.sendMessage(chat, 'disconnect now', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+				const sending = agent.chats.sendMessage(chat, 'disconnect now', [folder], undefined, 'turn-2', undefined, undefined, hostChatContext(session, chat));
 				const turn = await readNextRequest(peer.outbound);
 				assert.strictEqual(turn.method, 'turn/start');
 				const lostConnection = agent['_connection'];
@@ -4007,7 +4017,7 @@ suite('CodexAgent chat backing durability', () => {
 		try {
 			const session = AgentSession.uri('codex', 'idle-archive-session');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 				workingDirectories: [URI.file('/repo/idle-archive')],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -4104,7 +4114,7 @@ suite('CodexAgent chat backing durability', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'existing-restore-advertise');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		const created = await createSessionBackedChat(agent, chat, context);
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		assert.strictEqual(entry.serverToolsAdvertisement, undefined);
@@ -4153,7 +4163,7 @@ suite('CodexAgent chat backing durability', () => {
 			connect(agent, peer);
 			const session = AgentSession.uri('codex', 'resume-error-session');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			const folder = URI.file('/repo/resume-error');
 			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
@@ -4213,7 +4223,7 @@ suite('CodexAgent chat backing durability', () => {
 			connect(agent, peer);
 			const session = AgentSession.uri('codex', 'prepare-archived-session');
 			const chat = URI.parse(peerChat ? buildChatUri(session, 'peer') : buildDefaultChatUri(session));
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(agent['_sessionIdByChatUri'].get(chat.toString())!)!;
 			entry.threadId = 'archived-thread';
@@ -4268,7 +4278,7 @@ suite('CodexAgent chat backing durability', () => {
 			connect(agent, peer);
 			const session = AgentSession.uri('codex', 'prepare-archive-error');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			entry.threadId = 'archived-thread';
@@ -4298,7 +4308,7 @@ suite('CodexAgent chat backing durability', () => {
 		connect(agent, peer);
 		const session = AgentSession.uri('codex', 'prepare-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.threadId = 'locked-thread';
@@ -4333,7 +4343,7 @@ suite('CodexAgent chat backing durability', () => {
 			connect(agent, peer);
 			const session = AgentSession.uri('codex', 'prepare-pending-customizations');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			entry.threadId = 'existing-thread';
@@ -4369,7 +4379,7 @@ suite('CodexAgent chat backing durability', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'prepare-new-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		await createSessionBackedChat(agent, chat, context);
 		const result = await agent.chats.prepareChat!(chat, context);
 		assert.deepStrictEqual({ result, threadId: agent['_sessions'].get(AgentSession.id(session))?.threadId }, { result: {}, threadId: undefined });
@@ -4381,7 +4391,7 @@ suite('CodexAgent chat backing durability', () => {
 		connect(agent, peer);
 		const session = AgentSession.uri('codex', 'handoff-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		const folder = URI.file('/repo/handoff');
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
@@ -4553,7 +4563,7 @@ suite('CodexAgent chat backing durability', () => {
 			const session = AgentSession.uri('codex', 'lazy-model-restore');
 			const chat = URI.parse(buildDefaultChatUri(session));
 
-			await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+			await agent.materializeChat(chat, hostChatContext(session, chat), undefined);
 
 			assert.deepStrictEqual({
 				connection: agent['_connection'].kind,
@@ -4577,7 +4587,7 @@ suite('CodexAgent chat backing durability', () => {
 		peer.push({ id: list.id, result: { data: [{ id: 'discovered-model', cwd: '/repo/discovered', modelProvider: 'openai', model: 'gpt-test' }], nextCursor: null } });
 		await listing;
 
-		await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+		await agent.materializeChat(chat, hostChatContext(session, chat), undefined);
 
 		assert.deepStrictEqual({
 			model: agent['_sessions'].get('discovered-model')?.model?.id,
@@ -4594,7 +4604,7 @@ suite('CodexAgent chat backing durability', () => {
 		connect(agent, peer);
 		const session = AgentSession.uri('codex', 'external-model');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		// The host reads authoritative metadata before materializing the backing.
 		const restoring = agent.getChatMetadata(chat, context, undefined, { activation: 'restore' });
 		const read = await readNextRequest(peer.outbound);
@@ -4620,7 +4630,7 @@ suite('CodexAgent chat backing durability', () => {
 		agent.setServerToolHost(createThrowingAdvertiseServerToolHost('restore advertise boom'));
 
 		await assert.rejects(
-			agent.materializeChat(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'restored-backing', model: { id: 'gpt-test' } })),
+			agent.materializeChat(chat, hostChatContext(session, chat), JSON.stringify({ sessionId: 'restored-backing', model: { id: 'gpt-test' } })),
 			/restore advertise boom/,
 		);
 
@@ -4642,7 +4652,7 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'database-unavailable');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/source');
-		const created = await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+		const created = await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
 			workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL },
 		});
 		const restoredChat = URI.parse(buildChatUri(session, 'restored'));
@@ -4670,7 +4680,7 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'native-metadata');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/native');
-		const reading = agent.getChatMetadata(chat, { configurationResource: session, resource: chat }, undefined, { activation: 'restore' });
+		const reading = agent.getChatMetadata(chat, hostChatContext(session, chat), undefined, { activation: 'restore' });
 		const request = await readNextRequest(peer.outbound);
 		peer.push({ id: request.id, result: { thread: { id: 'native-thread', cwd: folder.fsPath, name: 'Native title', turns: [] } } });
 		const metadata = await reading;
@@ -4708,7 +4718,7 @@ suite('CodexAgent chat backing durability', () => {
 			const signals: AgentSignal[] = [];
 			disposables.add(second.onDidChatProgress(signal => signals.push(signal)));
 
-			const restoring = second.getChatMetadata(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
+			const restoring = second.getChatMetadata(chat, hostChatContext(session, chat), receipt.result?.providerData);
 			const originalProbe = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(originalProbe.params.threadId, 'host-session');
 			assert.strictEqual(originalProbe.params.includeTurns, false);
@@ -4719,7 +4729,7 @@ suite('CodexAgent chat backing durability', () => {
 			secondPeer.push({ id: read.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await restoring;
 			assert.strictEqual(secondPeer.outbound.readableLength, 0);
-			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
+			await second.materializeChat(chat, hostChatContext(session, chat), receipt.result?.providerData);
 
 			// Ambient discovery can finish after the registered session restore and
 			// describe the same Codex thread through its native session id. It must
@@ -4748,7 +4758,7 @@ suite('CodexAgent chat backing durability', () => {
 
 			// Drive a turn on the restored chat and fail it at `turn/start`, so
 			// the runtime also has to route the resulting actions to its bound chat.
-			const resending = second.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+			const resending = second.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2', undefined, undefined, hostChatContext(session, chat));
 			const unsubscribe = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(secondPeer.outbound);
@@ -4868,7 +4878,7 @@ suite('CodexAgent chat backing durability', () => {
 			// `thread/read` for a thread of its own that is blocked waiting on a
 			// dynamic tool call, which is exactly the state a session server
 			// tool runs in.
-			const metadata = await agent.getChatMetadata(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'live-session' }));
+			const metadata = await agent.getChatMetadata(chat, hostChatContext(session, chat), JSON.stringify({ sessionId: 'live-session' }));
 
 			assert.deepStrictEqual({
 				chat: metadata?.chat.toString(),
@@ -4892,7 +4902,7 @@ suite('CodexAgent chat backing durability', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'live-provisional-metadata');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const context = { configurationResource: session, resource: chat };
+		const context = hostChatContext(session, chat);
 		const before = Date.now();
 		const created = await createSessionBackedChat(agent, chat, context);
 		let reads = 0;
@@ -4926,7 +4936,7 @@ suite('CodexAgent chat backing durability', () => {
 		try {
 			const session = AgentSession.uri('codex', 'named-session');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			const context = { configurationResource: session, resource: chat };
+			const context = hostChatContext(session, chat);
 			const providerData = JSON.stringify({ sessionId: 'named-session' });
 			const restoring = agent.getChatMetadata(chat, context, providerData);
 			const read = await readNextRequest(peer.outbound);

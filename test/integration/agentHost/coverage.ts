@@ -59,6 +59,8 @@ function main(): void {
 
 	const testEnvironment = {
 		...environment,
+		AGENT_HOST_TEST_PROFILE: 'full',
+		AGENT_HOST_TEST_PROFILE_REASON: 'Coverage requires the full profile',
 		AGENT_HOST_E2E_COVERAGE: '1',
 		AGENT_HOST_RECORD_PROTOCOL_SURFACE: '1',
 		AGENT_HOST_PROTOCOL_SURFACE_OUT: observedSurfacePath,

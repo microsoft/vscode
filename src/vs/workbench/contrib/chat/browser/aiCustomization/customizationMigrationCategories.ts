@@ -451,7 +451,20 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 };
 
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
-	return mcpServerCustomizationMigrationRemovableProperties
+	const inputWarnings = server.environmentVariables?.length
+		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
+		: [];
+	const settingWarnings = server.settingVariables?.length
+		? [localize('mcpMigrationSettingsToEnvironmentVariables', "Configs will become environment variables. Later changes won't apply.")]
+		: [];
+	const oauthWarnings = server.oauth
+		? [localize('mcpMigrationOAuthSignIn', "You may need to sign in again after migration.")]
+		: [];
+	// Copilot user servers are trusted per configuration, and the migrated server is a new configuration.
+	const trustWarnings = server.storage === PromptsStorage.user
+		? [localize('mcpMigrationTrustAgain', "VS Code will ask you to trust this server again after migration.")]
+		: [];
+	return [...inputWarnings, ...settingWarnings, ...oauthWarnings, ...trustWarnings, ...mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
 		.flatMap(property => {
 			switch (property) {
@@ -468,7 +481,7 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 				case 'sandboxEnabled':
 					return [localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel)];
 			}
-		});
+		})];
 }
 
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [

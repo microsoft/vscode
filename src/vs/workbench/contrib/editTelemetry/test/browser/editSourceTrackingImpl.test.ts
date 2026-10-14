@@ -191,6 +191,58 @@ suite('Edit Source Tracking Windows', () => {
 		}
 	}));
 
+	test('Chat.applyEdits reports HydraFusion models as separate rows after applying the source cap', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const models = Array.from({ length: 16 }, (_, index) => `model-${index}`);
+			const fusionModels = ['hydrafusion', 'hydrafusion-max'];
+			let index = 0;
+			for (const modelId of models) {
+				for (const fusionModel of fusionModels) {
+					context.document.applyEdit(StringEditWithReason.replace(
+						OffsetRange.emptyAt(context.document.value.get().value.length),
+						'x',
+						EditSources.chatApplyEdits({
+							modelId,
+							fusionModel,
+							sessionId: 'session',
+							requestId: `request-${index++}`,
+							languageId: 'typescript',
+							mode: 'agent',
+							extensionId: undefined,
+							codeBlockSuggestionId: undefined,
+							origin: 'agentHost',
+							harness: 'copilotcli',
+						}),
+					));
+					await timeout(1500);
+				}
+			}
+			context.document.dispose();
+			await timeout(10);
+
+			const rows = context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits'));
+			assert.deepStrictEqual({
+				count: rows.length,
+				sample: rows.filter(event => event.modelId === 'model-0').map(event => ({
+					sourceKey: event.sourceKey,
+					sourceKeyCleaned: event.sourceKeyCleaned,
+					fusionModel: event.fusionModel,
+				})).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey)),
+			}, {
+				count: models.length * fusionModels.length,
+				sample: fusionModels.map(fusionModel => ({
+					sourceKey: `source:Chat.applyEdits-$modelId:model-0-$fusionModel:${fusionModel}-$harness:copilotcli-$origin:agentHost`,
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+					fusionModel,
+				})),
+			});
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
 	test('starts after first visibility and keeps only the long-term tracker while hidden', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', false);
 		const context = setup(visible);
@@ -1036,6 +1088,7 @@ function setup(
 		provider: string | undefined;
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		conversationId: string | undefined;
 		chatSessionId?: string;
 		agentSessionId?: string;

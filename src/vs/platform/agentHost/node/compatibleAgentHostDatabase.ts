@@ -370,6 +370,37 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	async getRegistrationGeneration(...[]: Parameters<IAgentHostDatabase['getRegistrationGeneration']>): ReturnType<IAgentHostDatabase['getRegistrationGeneration']> {
+		return this.raw.getRegistrationGeneration();
+	}
+
+	async readSessionRegistrations(...[]: Parameters<IAgentHostDatabase['readSessionRegistrations']>): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
+		const result = await this.raw.readSessionRegistrations();
+		return this.identity.record(result, 'runtime');
+	}
+
+	async findCentralChatOwners(...[chats]: Parameters<IAgentHostDatabase['findCentralChatOwners']>): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+		return this._findChatOwners(chats, storageChats => this.raw.findCentralChatOwners(storageChats));
+	}
+
+	async findCatalogPayloadChatOwners(...[chats]: Parameters<IAgentHostDatabase['findCatalogPayloadChatOwners']>): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+		return this._findChatOwners(chats, storageChats => this.raw.findCatalogPayloadChatOwners(storageChats));
+	}
+
+	/** Looks up owners by storage chat and returns them keyed by the caller's runtime chat. */
+	private async _findChatOwners(chats: readonly string[], find: (storageChats: readonly string[]) => ReturnType<IAgentHostDatabase['findCentralChatOwners']>): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
+		const storageChats = chats.map(chat => this.identity.toStorage(chat));
+		const found = await find(storageChats);
+		const owners = new Map<string, NonNullable<ReturnType<typeof found.get>>>();
+		chats.forEach((chat, index) => {
+			const owner = found.get(storageChats[index]);
+			if (owner) {
+				owners.set(chat, this.identity.record(owner, 'runtime'));
+			}
+		});
+		return owners;
+	}
+
 	async getChatV2ProviderDetail(...[chat]: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> {
 		const result = await this.raw.getChatV2ProviderDetail(this.identity.toStorage(chat));
 		return this.identity.record(result, 'runtime');

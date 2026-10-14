@@ -51,7 +51,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 	readonly entries: IObservable<readonly ICloudAutomationEntry[]> = this.cachedEntries;
 	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
 	readonly catalogueState: IObservable<AutomationCatalogueState> = this.state;
-	readonly isRefreshing = observableValue(this, false);
 	private lifetime = new AbortController();
 	private readonly clientStore = this._register(new DisposableStore());
 	private clientPromise: Promise<IGitHubClient> | undefined;
@@ -184,7 +183,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 		this.clearTargetEligibility();
 		const signal = this.lifetime.signal;
-		this.isRefreshing.set(true, undefined);
 		if (this.state.get() !== 'ready') {
 			this.state.set('loading', undefined);
 		}
@@ -205,7 +203,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 		} finally {
 			if (this.refreshPromise === refresh) {
 				this.refreshPromise = undefined;
-				this.isRefreshing.set(false, undefined);
 			}
 		}
 	}
@@ -486,7 +483,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedHistory.set([], tx);
 			this.uncertain.set(false, tx);
 			this.cachedTools.set(undefined, tx);
-			this.isRefreshing.set(false, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
 	}
@@ -499,7 +495,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
 			this.state.set('unavailable', tx);
-			this.isRefreshing.set(false, tx);
 		});
 	}
 

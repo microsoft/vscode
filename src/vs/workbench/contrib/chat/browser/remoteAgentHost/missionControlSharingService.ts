@@ -9,7 +9,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, joinPath } from '../../../../../base/common/resources.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -17,7 +18,6 @@ import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId,
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -38,11 +38,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 	private _accountId: string | undefined;
 	private _accountSessionIds = new Set<string>();
 	private _projectFolders: readonly URI[] | undefined;
+	protected get isWindowsPlatform(): boolean { return isWindows; }
 	private readonly _updates = this._register(new Throttler());
 	private readonly _update = this._register(new RunOnceScheduler(() => {
 		void this._updates.queue(() => this._configure()).catch(error => {
 			this._logService.error('Mission Control configuration failed', error);
-			this._notificationService.error(error);
 		});
 	}, 0));
 
@@ -55,7 +55,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IProductService private readonly _product: IProductService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storage: IStorageService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
@@ -159,7 +158,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private _reportWithdrawalError(error: Error): void {
 		this._logService.error('Mission Control withdrawal failed', error);
-		this._notificationService.error(error);
 	}
 
 	private async _withdraw(): Promise<void> {
@@ -174,6 +172,32 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private _getScopes(): readonly string[] {
 		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
+	}
+
+	private async _getFileSystemRoots(): Promise<URI[]> {
+		if (!this.isWindowsPlatform) {
+			return [URI.file('/')];
+		}
+		const drives = Array.from({ length: 26 }, (_, index) => URI.from({ scheme: Schemas.file, path: `/${String.fromCharCode(65 + index)}:/` }));
+		const roots = await Promise.all(drives.map(async drive => {
+			try {
+				if (!(await this._fileService.stat(drive)).isDirectory) {
+					return undefined;
+				}
+				const canonical = await this._fileService.realpath(drive);
+				if (canonical?.fsPath.replace(/\\/g, '/').startsWith('//')) {
+					this._logService.info('[Mission Control] Excluding a network-backed drive from local filesystem sharing', drive.toString());
+					return undefined;
+				}
+				return drive;
+			} catch (error) {
+				if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+				return undefined;
+			}
+		}));
+		return roots.filter(root => root !== undefined);
 	}
 
 	private async _configure(interactive = false): Promise<void> {
@@ -198,8 +222,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				throw new Error(localize('missionControlSharing.accountRequired', "Mission Control requires exactly one local GitHub account with Copilot scopes."));
 			}
 			const home = this._pathService.userHome({ preferLocal: true });
-			const defaultDirectory = joinPath(home, '.copilot');
-			await this._fileService.createFolder(defaultDirectory);
+			const fileSystemRoots = await this._getFileSystemRoots();
 			const folders = this._projectFolders ?? this._workspace.getWorkspace().folders.map(folder => folder.uri);
 			const projects = (await Promise.all(folders.filter(folder => folder.scheme === Schemas.file).map(async folder => {
 				try {
@@ -239,9 +262,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
 				credential: sessions[0].accessToken,
-				roots: [...new Set([home.fsPath, ...projects])],
+				roots: [...new Set([...fileSystemRoots.map(root => root.fsPath), home.fsPath, ...projects])],
 				projects,
-				defaultDirectory: defaultDirectory.fsPath,
+				defaultDirectory: home.fsPath,
 				live: true,
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),

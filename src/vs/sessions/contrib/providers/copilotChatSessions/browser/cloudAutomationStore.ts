@@ -30,6 +30,7 @@ import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalo
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
@@ -41,7 +42,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	private readonly pendingRefreshes = observableValue(this, 0);
 	readonly isRefreshing = derived(this, reader =>
-		this.pendingRefreshes.read(reader) > 0 || this.store.read(reader)?.isRefreshing.read(reader) === true || this.historyState.read(reader) === 'loading');
+		this.pendingRefreshes.read(reader) > 0 || this.historyState.read(reader) === 'loading');
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
@@ -230,6 +231,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.automations.get().find(automation => automation.id === id);
+	}
+
+	observeLocalRequest(resource: URI): void {
+		if (!this.store.get() || !this.enabled.get() || resource.scheme !== AgentSessionProviders.Cloud) {
+			return;
+		}
+		this.discoveryAttempts = 4;
+		this.refreshHistoryInBackground();
 	}
 
 	runsFor(id: string): IObservable<readonly IAutomationRun[]> {
@@ -427,8 +436,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			startedAt: task.created_at, updatedAt: task.updated_at,
 			...(status === 'completed' || status === 'failed' ? { completedAt: task.updated_at } : {}),
 			...(status === 'failed' ? { errorMessage: task.status || task.state } : {}),
+			...(task.state === 'cancelled' || (task.state as string) === 'canceled' ? { statusDescription: localize('cloudAutomations.cancelled', "Cancelled") } : {}),
 			...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.name}/tasks/${task.id}` }),
+			sessionResource: URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${task.id}` }),
 		};
 	}
 }
@@ -516,8 +527,8 @@ function cloudTaskStatus(task: Task): IAutomationRun['status'] | undefined {
 	switch (state) {
 		case 'queued': return 'pending';
 		case 'in_progress': case 'running': case 'waiting_for_user': return 'running';
-		case 'completed': case 'idle': return 'completed';
-		case 'failed': case 'timed_out': case 'cancelled': case 'canceled': case 'error': return 'failed';
+		case 'completed': case 'idle': case 'cancelled': case 'canceled': return 'completed';
+		case 'failed': case 'timed_out': case 'error': return 'failed';
 		default: return undefined;
 	}
 }

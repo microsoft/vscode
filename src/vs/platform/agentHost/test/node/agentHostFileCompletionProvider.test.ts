@@ -127,7 +127,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 	suite('provideCompletionItems', () => {
 
-		function makeSummary(resource: string, workingDirectories: readonly string[] | undefined): SessionSummary {
+		function makeSummary(resource: string, workingDirectories: readonly string[] | undefined): SessionSummary & { readonly defaultChat: string } {
 			return {
 				resource,
 				provider: 'copilot',
@@ -137,6 +137,7 @@ suite('AgentHostFileCompletionProvider', () => {
 				modifiedAt: new Date(0).toISOString(),
 				project: { uri: 'file:///project', displayName: 'Project' },
 				workingDirectories: workingDirectories ? [...workingDirectories] : undefined,
+				defaultChat: buildDefaultChatUri(resource),
 			};
 		}
 

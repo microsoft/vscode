@@ -645,7 +645,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
-		this.policyRequiresAgentHost = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
+		this.policyRequiresAgentHost = observableFromEvent(this, Event.any(
+			managedSettingsService.onDidChangeManagedSettings,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.TemporaryDefaultToLocalHarness)),
+		), () => requiresCopilotAgentHost(managedSettingsService, configurationService));
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -1619,6 +1622,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (context) {
 			this.transcriptContextPart.value = this.instantiationService.createInstance(ChatAttachmentsContentPart, {
 				variables: [context],
+				sessionResource: this.viewModel?.sessionResource,
 				domNode: this.transcriptContext,
 			});
 		} else {

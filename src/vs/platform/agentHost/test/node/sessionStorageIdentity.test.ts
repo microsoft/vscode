@@ -32,6 +32,7 @@ import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentHostCatalogSyncService, matchesAcknowledgedCatalogReceipt } from '../../node/agentHostCatalogSyncService.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
 suite('Session storage identity compatibility', () => {
 	const store = new DisposableStore();
@@ -81,6 +82,31 @@ suite('Session storage identity compatibility', () => {
 			decoded: resources,
 			opaque: ['ahp-session://tenant/new?revision=1', 'conversation://tenant/chat', 'codex:/new', 'copilotcli:/historical'],
 			message: { text: 'ahp-session:/new', providerData: '{"uri":"ahp-session:/new"}' },
+		});
+	});
+
+	test('translates the session a chat URI was minted for and keeps its chat id and suffix', () => {
+		const codec = new SessionStorageIdentity();
+		codec.add({ runtime: 'ahp-session:/translated', storage: 'claude:/translated', provider: 'claude' });
+		const chats = (session: string) => [
+			buildDefaultChatUri(session),
+			buildChatUri(session, 'peer'),
+			buildSubagentChatUri(session, 'call/1'),
+			`${buildChatUri(session, 'peer')}?revision=2#turn-1`,
+		];
+		const unknown = [buildChatUri('ahp-session:/unregistered', 'peer'), buildSubagentChatUri('claude:/unregistered', 'call/1')];
+		const storage = chats('ahp-session:/translated').map(chat => codec.toStorage(chat));
+
+		assert.deepStrictEqual({
+			storage,
+			runtime: storage.map(chat => codec.toRuntime(chat)),
+			roundTrip: storage.map(chat => codec.toStorage(codec.toRuntime(chat))),
+			unknown: unknown.map(chat => [codec.toStorage(chat), codec.toRuntime(chat)]),
+		}, {
+			storage: chats('claude:/translated'),
+			runtime: chats('ahp-session:/translated'),
+			roundTrip: chats('claude:/translated'),
+			unknown: unknown.map(chat => [chat, chat]),
 		});
 	});
 
@@ -222,7 +248,7 @@ suite('Session storage identity compatibility', () => {
 		await raw.close();
 		const db = await database();
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService());
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const peer = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: peer }]);
 		const normalized = await db.registerChatCatalogV2(session.toString(), {
@@ -256,6 +282,23 @@ suite('Session storage identity compatibility', () => {
 			deleted: await next.isSessionTombstoned('ahp-session:/new'),
 			sessions: (await next.listSessionV2Registrations()).map(entry => entry.session),
 		}, { deleted: true, sessions: ['copilotcli:/created-by-old'] });
+	});
+
+	test('normalized catalogs read their session and default chat in runtime spelling', async () => {
+		const db = await database();
+		const session = 'ahp-session:/normalized-compat';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const recordedDefault = `${buildDefaultChatUri(session)}?generation=1`;
+		// The compatibility format keeps this session's catalog in its storage spelling.
+		await db.raw.registerChatCatalogV2('copilotcli:/normalized-compat', { defaultChat: { chat: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1`, order: 0 }, peers: [], privateDescendants: [] });
+		assert.deepStrictEqual({
+			runtime: (await db.readSessionRegistrations()).normalizedCatalogs,
+			storage: (await db.raw.readSessionRegistrations()).normalizedCatalogs,
+		}, {
+			runtime: [{ session, defaultChatUri: recordedDefault }],
+			storage: [{ session: 'copilotcli:/normalized-compat', defaultChatUri: `${buildDefaultChatUri('copilotcli:/normalized-compat')}?generation=1` }],
+		});
 	});
 
 	test('catalog payload checksums and per-session receipts round-trip through storage encoding', async () => {
@@ -487,7 +530,7 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
 		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService());
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const first = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: first, providerData: 'sdk-first' }]);
 		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
