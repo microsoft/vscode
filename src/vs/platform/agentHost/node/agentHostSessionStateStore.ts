@@ -787,6 +787,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	private _scheduledFlush(record: ISessionRecord): void {
+		if (this._deleting.has(record.key)) {
+			return;
+		}
 		// The timer was armed inside an exclusive section; the flush runs in its own.
 		this._held.exit(() => this._sequencer.queue(record.sequencerKey, () => this._flushLocked(record))).catch(error => {
 			this._logService.error(error, `[AgentHostSessionStateStore] Failed to write the session state mirrors of ${record.key}`);
@@ -796,8 +799,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/**
 	 * Writes the dirty entries' old format, then acknowledges the revision once nothing is dirty.
 	 * Resolves to the first mirror write failure of this flush, which stays dirty and is retried.
+	 * A session being deleted is not mirrored, and a mirror flush never creates a chat's database.
 	 */
 	private async _flushLocked(record: ISessionRecord): Promise<unknown> {
+		if (this._deleting.has(record.key)) {
+			return undefined;
+		}
 		let failure: unknown;
 		if (record.dirty.size > 0) {
 			const entries = [...record.dirty].map(parseMirrorEntryId);
@@ -810,7 +817,17 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault);
 			for (const [resource, write] of writes) {
-				const reference = this._sessionDataService.openDatabase(URI.parse(resource));
+				const reference = resource === record.key
+					? this._sessionDataService.openDatabase(record.session)
+					: record.model.chats.has(resource) ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
+				if (!reference) {
+					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.
+					for (const id of write.entries) {
+						record.dirty.delete(id);
+						record.base.delete(id);
+					}
+					continue;
+				}
 				try {
 					await reference.object.applyMetadataChanges(write.set, write.remove);
 					for (const id of write.entries) {

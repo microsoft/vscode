@@ -534,6 +534,12 @@ export class InMemorySessionDataService extends Disposable {
 		};
 	}
 
+	/** Deletes the database of a storage resource, as deleting its data directory does. */
+	remove(storage: string): void {
+		this._databases.get(storage)?.dispose();
+		this._databases.delete(storage);
+	}
+
 	/** Storage resources that have a database, sorted. */
 	get resources(): readonly string[] {
 		return [...this._databases.keys()].sort();

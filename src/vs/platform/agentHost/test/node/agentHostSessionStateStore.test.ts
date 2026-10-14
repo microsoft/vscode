@@ -557,9 +557,21 @@ suite('AgentHostSessionStateStore', () => {
 			const { fixture, session } = await oldBuildSession();
 			const opened: string[] = [];
 			const base = sessionData.createService();
-			const writer = createStore(MANUAL_FLUSH, { ...base, openDatabase: resource => { opened.push(resource.toString()); return base.openDatabase(resource); } });
+			const writer = createStore(MANUAL_FLUSH, {
+				...base,
+				openDatabase: resource => { opened.push(resource.toString()); return base.openDatabase(resource); },
+				tryOpenDatabase: async resource => {
+					const reference = await base.tryOpenDatabase(resource);
+					if (reference) {
+						opened.push(resource.toString());
+					}
+					return reference;
+				},
+			});
 			const peer = fixture.chats[2];
 			const next = `${fixture.session}#next-peer`.replace('#', '/');
+			// The next peer already has its own database, as a peer that has run does.
+			await oldBuildEdit(next, { 'copilot.model': 'model' });
 			await writer.write(session, sessionStatePatch({ chats: [{ chat: next, isDefault: false, fields: { storage: next, workingDirectories: peer.workingDirectories } }] }), SessionStateMirrorFlush.Immediate);
 			await writer.writeMetadata(session, URI.parse(peer.uri), { [baseBranchKey]: 'peer-base' }, SessionStateMirrorFlush.Immediate);
 			return { fixture, session, writer, opened, peer: peer.uri, next, folderKey: getWorkingDirectoryScopeId(peer.workingDirectories!) };
@@ -578,7 +590,7 @@ suite('AgentHostSessionStateStore', () => {
 
 			const folder = (await writer.load(session)).folders.get(folderKey);
 			assert.deepStrictEqual({
-				// Only the next chat's database is written by the delete: the folder's value lands there at once.
+				// The delete opens the session database (row copies) and the next chat's database: the folder's value lands there at once.
 				afterDelete,
 				redirected: [redirected?.value, redirected?.storageResource],
 				nextDbAfterDelete,
@@ -586,7 +598,7 @@ suite('AgentHostSessionStateStore', () => {
 				nextDb: (await sessionDb(URI.parse(next), [baseBranchKey]))[baseBranchKey],
 				deletedChatOpened: opened.includes(peer),
 			}, {
-				afterDelete: [next],
+				afterDelete: [session.toString(), next],
 				redirected: ['peer-base', next],
 				nextDbAfterDelete: 'peer-base',
 				baseBranch: ['next-base', next],
@@ -614,7 +626,8 @@ suite('AgentHostSessionStateStore', () => {
 				baseBranch: [undefined, undefined],
 				centralRow: false,
 				reloaded: undefined,
-				opened: [session.toString()],
+				// The delete's row-copy cleanup and the later session write; never the deleted chat's database.
+				opened: [session.toString(), session.toString()],
 			});
 		});
 
@@ -674,6 +687,38 @@ suite('AgentHostSessionStateStore', () => {
 				central: [],
 			});
 		});
+	});
+
+	test('a mirror flush never creates a chat database: a chat whose storage was deleted outside the store gets no database back', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const peer = fixture.chats[2];
+		const writer = createStore();
+		await writer.load(session);
+		await writer.write(session, sessionStatePatch({ chats: [{ chat: peer.uri, isDefault: false, fields: { title: 'Renamed', workingDirectories: ['file:///workspace/moved'] } }] }), SessionStateMirrorFlush.Coalesced);
+		sessionData.remove(peer.uri);
+
+		await writer.whenIdle(session);
+
+		assert.deepStrictEqual({
+			peerDb: sessionData.resources.includes(peer.uri),
+			sessionTitle: (await sessionDb(session, [`customChatTitle:${peer.uri}`]))[`customChatTitle:${peer.uri}`],
+		}, { peerDb: false, sessionTitle: 'Renamed' });
+	});
+
+	test('a session being deleted is not mirrored, also by a scheduled flush', async () => {
+		const { session } = await oldBuildSession();
+		const writer = createStore(1);
+		await writer.load(session);
+		const before = (await sessionDb(session, ['configValues'])).configValues;
+		await writer.write(session, sessionStatePatch({ values: { configValues: 'pending' } }), SessionStateMirrorFlush.Coalesced);
+		const deletion = writer.beginDeletion(session);
+
+		await deletion.whenDrained;
+		await timeout(10);
+		const after = (await sessionDb(session, ['configValues'])).configValues;
+		deletion.dispose();
+
+		assert.deepStrictEqual({ unchanged: after === before, pendingNotWritten: after !== 'pending' }, { unchanged: true, pendingNotWritten: true });
 	});
 
 	test('an Immediate write whose section then throws still reaches session.db, and the error propagates', async () => {
