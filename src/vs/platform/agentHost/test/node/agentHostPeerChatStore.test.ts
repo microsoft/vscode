@@ -16,7 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
-import { customChatTitleMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
@@ -128,7 +128,14 @@ suite('AgentHostPeerChatStore', () => {
 			detail: await orchestrator.getChatV2ProviderDetail(defaultChat),
 		}, {
 			writes: 2,
-			legacyWrites: [],
+			legacyWrites: [
+				{ key: 'peerChats', value: '[]' },
+				{ key: customChatTitleMetadataKey(defaultChat), value: 'Renamed' },
+				{ key: customChatTitleSourceMetadataKey(defaultChat), value: 'user' },
+				{ key: getChatChangesSummaryMetadataKey(defaultChat), value: '{"files":0}' },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: 'Renamed' },
+				{ key: SESSION_CUSTOM_TITLE_SOURCE_KEY, value: 'user' },
+			],
 			metadata: { interactivity: ChatInteractivity.Full, titleSource: 'user' },
 			directories: undefined,
 			detail: {},
@@ -184,7 +191,17 @@ suite('AgentHostPeerChatStore', () => {
 			bounded: [`${prefix}…`, `${prefix}…`],
 			atLimit: exact,
 			cleared: { titleSource: 'user' },
-			legacyWrites: [],
+			legacyWrites: [
+				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: false }]) },
+				{ key: customChatTitleMetadataKey(defaultChat), value: `${prefix}…` },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: `${prefix}…` },
+				{ key: customChatTitleMetadataKey(first.toString()), value: `${prefix}…` },
+				{ key: customChatTitleSourceMetadataKey(first.toString()), value: 'user' },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: `${prefix}…` },
+				{ key: SESSION_CUSTOM_TITLE_SOURCE_KEY, value: 'user' },
+				{ key: customChatTitleMetadataKey(first.toString()), value: exact },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: exact },
+			],
 		});
 	});
 
@@ -258,7 +275,7 @@ suite('AgentHostPeerChatStore', () => {
 			chats: snapshot.chats.map(chat => chat.chat),
 			legacyWrites: local.setMetadataCalls,
 		}, {
-			attempts: 1, chats: [defaultChat], legacyWrites: [],
+			attempts: 1, chats: [defaultChat], legacyWrites: [{ key: 'peerChats', value: '[]' }],
 		});
 	});
 
@@ -295,7 +312,11 @@ suite('AgentHostPeerChatStore', () => {
 				{ chat: defaultChat, order: 0, read: true, archived: false },
 				{ chat: first.toString(), order: 1, read: undefined, archived: true },
 			],
-			legacyWrites: [],
+			legacyWrites: [
+				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: false }]) },
+				{ key: 'defaultChatIsRead', value: 'true' },
+				{ key: 'peerChats', value: JSON.stringify([{ uri: first.toString(), archived: true }]) },
+			],
 			removed: undefined,
 		});
 	});

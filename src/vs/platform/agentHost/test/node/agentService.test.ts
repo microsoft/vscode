@@ -25022,7 +25022,7 @@ suite('AgentService (node dispatcher)', () => {
 				centralOrigin: central?.chats.find(chat => chat.uri === chatUri.toString())?.origin,
 			}, {
 				liveSelectionMatches: true,
-				legacySelectionMatches: false,
+				legacySelectionMatches: true,
 				peerCatalogSelectionMatches: true,
 				chatMetadataSelectionMatches: false,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
@@ -26264,7 +26264,7 @@ suite('AgentService (node dispatcher)', () => {
 				],
 				legacy: [],
 				stateTitleAfterCreate: 'Central Peer',
-				legacyTitleAfterCreate: undefined,
+				legacyTitleAfterCreate: 'Central Peer',
 				draft: undefined,
 				changesSummary: JSON.stringify({ additions: 1, deletions: 0, files: 1 }),
 			});
@@ -26758,7 +26758,7 @@ suite('AgentService (node dispatcher)', () => {
 				disposedPeers: agent.disposedPeers,
 				deleted,
 			}, {
-				titleWasPersisted: undefined,
+				titleWasPersisted: 'Temporary Title',
 				orphanExists: false,
 				normalizedPeerAfterFailure: undefined,
 				disposedPeers: [peer.toString(), buildDefaultChatUri(session)],
@@ -29086,10 +29086,10 @@ suite('AgentService (node dispatcher)', () => {
 				liveChatTitle: 'Complete replacement peer chat title',
 				persistedSessionTitle: 'Complete replacement default chat title',
 				persistedSessionSource: 'agent',
-				persistedDefaultChatTitle: undefined,
-				persistedDefaultChatSource: undefined,
-				persistedChatTitle: 'Previous peer title',
-				persistedChatSource: 'user',
+				persistedDefaultChatTitle: 'Complete replacement default chat title',
+				persistedDefaultChatSource: 'agent',
+				persistedChatTitle: 'Complete replacement peer chat title',
+				persistedChatSource: 'agent',
 				centralChats: [
 					{ uri: defaultChat, title: 'Complete replacement default chat title', titleSource: 'agent' },
 					{ uri: peerChat, title: 'Complete replacement peer chat title', titleSource: 'agent' },
@@ -29223,7 +29223,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				persisted: [{ title: 'Renamed default', source: 'user' }, { title: 'Renamed peer', source: 'user' }],
 				restored: ['Renamed default', 'Renamed peer'],
-				legacyPeerTitle: undefined,
+				legacyPeerTitle: 'Renamed peer',
 			});
 		});
 
@@ -29266,7 +29266,7 @@ suite('AgentService (node dispatcher)', () => {
 				live: [clientTitle, localTitle],
 				persisted: summaries.map(title => ({ title, source: 'user' })),
 				restored: summaries,
-				legacyPeerTitle: undefined,
+				legacyPeerTitle: summaries[1],
 			});
 		});
 

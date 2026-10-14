@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
@@ -116,4 +117,58 @@ suite('Session state compatibility fixtures', () => {
 			});
 		});
 	}
+	test('a normalized session keeps the keys an old build reads current, and never imports its edits', async () => {
+		const sessionData = store.add(new InMemorySessionDataService());
+		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+		await today.initialize();
+		const service = sessionData.createService(today.identity);
+		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const sessionKey = 'ahp-session:/normalized';
+		const defaultChat = 'ahp-chat://default/c2Vzc2lvbjovL2Vsc2V3aGVyZQ';
+		const peerChat = 'ahp-chat://peer/c2Vzc2lvbjovL2Vsc2V3aGVyZQ';
+		await today.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await today.registerChatCatalogV2(sessionKey, {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default title' } },
+			peers: [{ chat: peerChat, order: 1, origin: '{"kind":"subagent"}', inheritedTurnId: 'turn-1', providerData: 'sdk-peer', workingDirectories: ['file:///workspace/lib'], metadata: { summary: 'Peer title', titleSource: 'user' } }],
+			privateDescendants: [],
+		});
+		assert.strictEqual(registered.status, 'applied');
+		const session = URI.parse(sessionKey);
+		const read = async (resource: string, keys: readonly string[]) => {
+			const reference = service.openDatabase(URI.parse(resource));
+			try {
+				return await reference.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+			} finally {
+				reference.dispose();
+			}
+		};
+		const peerKeys = [SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, 'agentHost.chatWorkingDirectories'];
+
+		await peers.persistMetadata(session, URI.parse(peerChat), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed peer' });
+		await peers.persistMetadata(session, session, { defaultChatIsRead: 'true' });
+
+		const sessionView = await read(sessionKey, ['peerChats', 'defaultChatIsRead', SESSION_CUSTOM_TITLE_KEY]);
+		assert.deepStrictEqual({
+			peerChats: JSON.parse(sessionView.peerChats!).map((entry: { uri: string }) => entry.uri),
+			defaultChatIsRead: sessionView.defaultChatIsRead,
+			defaultTitle: sessionView[SESSION_CUSTOM_TITLE_KEY],
+			peerDb: await read(peerChat, peerKeys),
+		}, {
+			peerChats: [peerChat],
+			defaultChatIsRead: 'true',
+			defaultTitle: 'Default title',
+			peerDb: {
+				[SESSION_CUSTOM_TITLE_KEY]: 'Renamed peer',
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+				'agentHost.chatWorkingDirectories': '["file:///workspace/lib"]',
+			},
+		});
+
+		// An old build's edit of a mirrored key is not imported over the normalized catalog.
+		const reference = service.openDatabase(URI.parse(peerChat));
+		await reference.object.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Old build title');
+		reference.dispose();
+		const [snapshot] = await today.readCatalogSnapshot([sessionKey]);
+		assert.strictEqual(snapshot.chats.find(chat => chat.chat === peerChat)?.metadata?.summary, 'Renamed peer');
+	});
 });

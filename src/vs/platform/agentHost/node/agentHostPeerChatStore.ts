@@ -255,6 +255,82 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}));
 	}
 
+	/**
+	 * Renders the normalized chats of a session in the format older builds read: the peer
+	 * membership, chat titles, the default chat's read state, changes summaries and working
+	 * directories. Write-only: the normalized catalog stays the authority, so older builds'
+	 * edits of these keys are never imported. Provider, origin and inherited-turn keys are
+	 * written when a peer is created and are not rewritten here.
+	 */
+	/** Last value mirrored per resource and key, so unchanged values are not rewritten. */
+	private readonly _mirroredValues = new Map<string, string | null>();
+
+	private async _mirrorNormalizedChatsBestEffort(session: URI): Promise<void> {
+		try {
+			await this._mirrorNormalizedChats(session);
+		} catch (error) {
+			this._logService.error(error, `[AgentHostPeerChatStore] Failed to mirror normalized chats for ${session.toString()}`);
+		}
+	}
+
+	private async _mirrorNormalizedChats(session: URI): Promise<void> {
+		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
+		if (snapshot?.authorityVersion !== 2 || !snapshot.header?.defaultChatUri) {
+			return;
+		}
+		const defaultChat = snapshot.header.defaultChatUri;
+		const sessionKeys: Record<string, string | null> = {
+			[PEER_CHATS_METADATA_KEY]: JSON.stringify(await this._normalizedEntries(snapshot)),
+		};
+		const chatKeys = new Map<string, Record<string, string | null>>();
+		for (const row of snapshot.chats) {
+			const isDefault = row.chat === defaultChat;
+			if (!isDefault && row.order === undefined) {
+				continue;
+			}
+			const title = row.metadata?.summary ?? null;
+			const titleSource = row.metadata?.titleSource || null;
+			sessionKeys[customChatTitleMetadataKey(row.chat)] = title;
+			sessionKeys[customChatTitleSourceMetadataKey(row.chat)] = titleSource;
+			sessionKeys[getChatChangesSummaryMetadataKey(row.chat)] = row.metadata?.changes === undefined ? null : JSON.stringify(row.metadata.changes);
+			if (isDefault) {
+				sessionKeys[SESSION_CUSTOM_TITLE_KEY] = title;
+				sessionKeys[SESSION_CUSTOM_TITLE_SOURCE_KEY] = titleSource;
+				sessionKeys[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY] = row.isRead === undefined ? null : row.isRead ? 'true' : '';
+				continue;
+			}
+			chatKeys.set(row.chat, {
+				[SESSION_CUSTOM_TITLE_KEY]: title,
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
+				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: row.workingDirectories === undefined ? null : JSON.stringify(row.workingDirectories),
+			});
+		}
+		await this._writeMirrorKeys(session, sessionKeys);
+		for (const [chat, keys] of chatKeys) {
+			await this._writeMirrorKeys(URI.parse(chat), keys);
+		}
+	}
+
+	private async _writeMirrorKeys(resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
+		const reference = this._sessionDataService.openDatabase(resource);
+		try {
+			for (const [key, value] of Object.entries(keys)) {
+				const mirrorKey = `${resource.toString()}\n${key}`;
+				if (this._mirroredValues.get(mirrorKey) === value) {
+					continue;
+				}
+				this._mirroredValues.set(mirrorKey, value);
+				if (value === null) {
+					await reference.object.deleteMetadata([key]);
+				} else {
+					await reference.object.setMetadata(key, value);
+				}
+			}
+		} finally {
+			reference.dispose();
+		}
+	}
+
 	private async _persistMetadata(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<void> {
 		values = await this._metadataMigration?.(session, resource, values) ?? values;
 		if (!Object.keys(values).length) {
@@ -303,6 +379,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 				if (Object.keys(legacy).length) {
 					await this._sessionStateStore.writeMetadata(session, resource, legacy, SessionStateMirrorFlush.Immediate);
+				}
+				if (patches.size) {
+					await this._mirrorNormalizedChatsBestEffort(session);
 				}
 				return;
 			}
@@ -701,6 +780,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			if (result.status !== 'applied' && result.status !== 'replayed') {
 				throw new Error(`Failed to update normalized chat ${chat.toString()}: ${result.status}`);
 			}
+			await this._mirrorNormalizedChatsBestEffort(session);
 			return true;
 		}
 	}
@@ -802,6 +882,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (result.status !== 'applied') {
 					throw new Error(`Failed to update normalized peers for ${session.toString()}: ${result.status}`);
 				}
+				await this._mirrorNormalizedChatsBestEffort(session);
 				return;
 			}
 			let catalog = await this._database.getSessionChatCatalog(session.toString());
