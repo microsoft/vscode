@@ -25,10 +25,10 @@ const OWNED_IDENTIFIERS: readonly string[] = [
 	'AH_META_EHCLI_ADOPTED_DB_KEY', 'AH_META_EHCLI_LAST_TURN_DB_KEY', 'AH_META_IS_DONE_DB_KEY', 'AH_META_DEV_CONTAINER_WORKTREE_DB_KEY',
 	'SESSION_WORKING_DIRECTORIES_KEY', 'SESSION_ARTIFACTS_KEY', 'SESSION_CUSTOM_TITLE_KEY', 'SESSION_CUSTOM_TITLE_SOURCE_KEY',
 	'customChatTitleMetadataKey', 'customChatTitleSourceMetadataKey',
-	'META_SOURCE_CONTROL_STATE', 'META_PENDING_RECORDED_PULL_REQUESTS', 'META_CHANGES_SUMMARY', 'META_CHANGESET_BRANCH',
-	'META_CHANGESET_SESSION', 'META_GIT_STATE', 'META_GIT_DATA_STATE', 'META_GITHUB_STATE', 'META_GITHUB_DATA_STATE', 'META_DIFF_BASE_BRANCH',
+	'META_SOURCE_CONTROL_STATE', 'META_PENDING_RECORDED_PULL_REQUESTS', 'META_CHANGES_SUMMARY',
+	'META_GIT_STATE', 'META_GIT_DATA_STATE', 'META_GITHUB_STATE', 'META_GITHUB_DATA_STATE', 'META_DIFF_BASE_BRANCH',
 	'REMOTE_SESSION_ORIGIN_METADATA_KEY', 'SESSION_INITIATOR_METADATA_KEY', 'SESSION_META_MULTI_ROOT_KEY', 'SESSION_META_FOLDER_PICKER_KEY',
-	'CHAT_WORKING_DIRECTORIES_MIRROR_KEY', 'getChatChangesSummaryMetadataKey', 'getScopedBranchChangesetMetadataKey',
+	'CHAT_WORKING_DIRECTORIES_MIRROR_KEY', 'getChatChangesSummaryMetadataKey',
 ];
 
 const OWNED_LITERALS: readonly string[] = [
@@ -59,11 +59,9 @@ interface IAllowance {
 	readonly reason: string;
 }
 
-const CHANGESET_BLOBS = 'changeset blobs move to the store with the per-folder state';
 const TITLES = 'title strategy/seed reads and writes still go to the db that older builds read';
 
 const ALLOWLIST: readonly IAllowance[] = [
-	{ file: 'agentHostChangesetService.ts', key: 'getScopedBranchChangesetMetadataKey', count: 1, removedBy: 'C4', reason: CHANGESET_BLOBS },
 	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
 	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 2, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
 	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
@@ -75,7 +73,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'agentHostSessionTitleController.ts', key: 'customChatTitleSourceMetadataKey', count: 1, removedBy: 'C4', reason: TITLES },
 	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
 	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentService.ts', key: 'configValues', count: 2, removedBy: 'C4', reason: 'changeset-summary migration reads the legacy aggregate from the session db' },
+	{ file: 'agentService.ts', key: 'configValues', count: 1, removedBy: 'C4', reason: 'changeset-summary migration reads the legacy aggregate from the session db' },
 	{ file: 'agentService.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
 	{ file: 'agentServiceComposition.ts', key: 'AH_META_AUTO_ARCHIVED_AT_DB_KEY', count: 1, removedBy: 'C4', reason: 'auto-archive sweep still reads the session db marker' },
 	{ file: 'claude/claudeSessionMetadataStore.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 1, removedBy: 'permanent', reason: 'provider hasKnownSession reads its own default-chat db (design §4.5)' },

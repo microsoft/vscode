@@ -10,7 +10,7 @@
  * on-disk format; renaming one breaks downgrades.
  */
 
-import { META_CHANGESET_BRANCH, META_CHANGES_SUMMARY, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey } from '../common/agentHostChangesetService.js';
+import { META_CHANGES_SUMMARY, getChatChangesSummaryMetadataKey } from '../common/agentHostChangesetService.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { baseBranchFolderKey, type ISessionStateChatPatch, ISessionStateFolderPatch, ISessionStatePatch, SessionStateFolderKind, SessionStateTitleSource } from '../common/agentHostSessionStateStore.js';
@@ -18,7 +18,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../common/meta/agentDevCo
 import { REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY } from '../common/state/sessionState.js';
-import { hashBranchChangeset, type IAgentHostSessionChatState, type IAgentHostSessionState } from './agentHostSessionStateDatabase.js';
+import { type IAgentHostSessionChatState, type IAgentHostSessionState } from './agentHostSessionStateDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 
 // ---- Registry --------------------------------------------------------------
@@ -100,8 +100,7 @@ const MIRRORED_CHAT_FIELDS: readonly MirroredChatField[] = ['title', 'titleSourc
 export type SessionStateMirrorEntry =
 	| { readonly kind: 'value'; readonly key: string }
 	| { readonly kind: 'folder'; readonly folderKind: SessionStateFolderKind; readonly folderKey: string }
-	| { readonly kind: 'chat'; readonly field: MirroredChatField; readonly chat: string }
-	| { readonly kind: 'blob'; readonly scopeKey: string };
+	| { readonly kind: 'chat'; readonly field: MirroredChatField; readonly chat: string };
 
 /** Stable identity of an entry, used in merge bases and dirty sets. */
 export function mirrorEntryId(entry: SessionStateMirrorEntry): string {
@@ -109,7 +108,6 @@ export function mirrorEntryId(entry: SessionStateMirrorEntry): string {
 		case 'value': return JSON.stringify(['value', entry.key]);
 		case 'folder': return JSON.stringify(['folder', entry.folderKind, entry.folderKey]);
 		case 'chat': return JSON.stringify(['chat', entry.field, entry.chat]);
-		case 'blob': return JSON.stringify(['blob', entry.scopeKey]);
 	}
 }
 
@@ -122,7 +120,6 @@ export function parseMirrorEntryId(id: string): SessionStateMirrorEntry {
 		case 'value': return { kind: 'value', key: parts[1] };
 		case 'folder': return { kind: 'folder', folderKind: parts[1] as SessionStateFolderKind, folderKey: parts[2] };
 		case 'chat': return { kind: 'chat', field: parts[1] as MirroredChatField, chat: parts[2] };
-		case 'blob': return { kind: 'blob', scopeKey: parts[1] };
 	}
 	throw new Error(`Invalid session state mirror entry ${id}`);
 }
@@ -133,7 +130,6 @@ export function isProjectedMirrorEntry(entry: SessionStateMirrorEntry): boolean 
 		case 'value': return getSessionStateValueKey(entry.key)?.projected ?? false;
 		case 'folder': return entry.folderKind !== 'baseBranch';
 		case 'chat': return true;
-		case 'blob': return false;
 	}
 }
 
@@ -143,7 +139,6 @@ export function patchMirrorEntries(patch: ISessionStatePatch): SessionStateMirro
 		...Object.keys(patch.values).map((key): SessionStateMirrorEntry => ({ kind: 'value', key })),
 		...patch.folders.map((folder): SessionStateMirrorEntry => ({ kind: 'folder', folderKind: folder.kind, folderKey: folder.folderKey })),
 		...patch.chats.flatMap(chat => MIRRORED_CHAT_FIELDS.filter(field => chat.fields[field] !== undefined).map((field): SessionStateMirrorEntry => ({ kind: 'chat', field, chat: chat.chat }))),
-		...patch.branchChangesets.map((blob): SessionStateMirrorEntry => ({ kind: 'blob', scopeKey: blob.scopeKey })),
 	];
 }
 
@@ -158,7 +153,6 @@ export class SessionStateModel {
 	readonly values = new Map<string, { readonly value: string | undefined; readonly revision: number }>();
 	readonly folders = new Map<string, { readonly kind: SessionStateFolderKind; readonly folderKey: string; readonly value: string | undefined; readonly storage: string | undefined; readonly revision: number }>();
 	readonly chats = new Map<string, IAgentHostSessionChatState>();
-	readonly blobs = new Map<string, { readonly contentHash: string; readonly revision: number }>();
 	revision: number;
 	legacyMirroredRevision: number;
 
@@ -173,9 +167,6 @@ export class SessionStateModel {
 		}
 		for (const chat of state.chats) {
 			this.chats.set(chat.chat, chat);
-		}
-		for (const blob of state.branchChangesets) {
-			this.blobs.set(blob.scopeKey, blob);
 		}
 	}
 
@@ -195,16 +186,6 @@ export class SessionStateModel {
 		for (const chat of patch.chats) {
 			this.chats.set(chat.chat, applyChatPatch(this.chats.get(chat.chat), chat, revision));
 		}
-		for (const blob of patch.branchChangesets) {
-			if (blob.diffs === null) {
-				this.blobs.delete(blob.scopeKey);
-			} else {
-				const contentHash = hashBranchChangeset(blob.diffs);
-				if (this.blobs.get(blob.scopeKey)?.contentHash !== contentHash) {
-					this.blobs.set(blob.scopeKey, { contentHash, revision });
-				}
-			}
-		}
 	}
 
 	/** Central revision of an entry; `0` when it has no central row. */
@@ -213,7 +194,6 @@ export class SessionStateModel {
 			case 'value': return this.values.get(entry.key)?.revision ?? 0;
 			case 'folder': return this.folder(entry.folderKind, entry.folderKey)?.revision ?? 0;
 			case 'chat': return this.chats.get(entry.chat)?.revision ?? 0;
-			case 'blob': return this.blobs.get(entry.scopeKey)?.revision ?? 0;
 		}
 	}
 
@@ -223,7 +203,6 @@ export class SessionStateModel {
 			...[...this.values.keys()].map((key): SessionStateMirrorEntry => ({ kind: 'value', key })),
 			...[...this.folders.values()].map((folder): SessionStateMirrorEntry => ({ kind: 'folder', folderKind: folder.kind, folderKey: folder.folderKey })),
 			...(this.authority === 1 ? [...this.chats.values()].flatMap(chat => mirroredChatFields(chat.isDefault).map((field): SessionStateMirrorEntry => ({ kind: 'chat', field, chat: chat.chat }))) : []),
-			...[...this.blobs.keys()].map((scopeKey): SessionStateMirrorEntry => ({ kind: 'blob', scopeKey })),
 		];
 	}
 }
@@ -273,7 +252,6 @@ function entryLocation(session: string, model: SessionStateModel | undefined, en
 		case 'value': return { kind: 'key', targets: [{ resource: session, key: entry.key }] };
 		case 'folder': return folderLocation(session, model, entry.folderKind, entry.folderKey);
 		case 'chat': return { kind: 'key', targets: chatTargets(session, entry.chat, entry.field, isDefaultChat(entry.chat)) };
-		case 'blob': return { kind: 'key', targets: [{ resource: session, key: entry.scopeKey === '' ? META_CHANGESET_BRANCH : getScopedBranchChangesetMetadataKey(entry.scopeKey) }] };
 	}
 }
 
@@ -316,7 +294,6 @@ export function renderMirrorEntry(model: SessionStateModel, entry: SessionStateM
 	switch (entry.kind) {
 		case 'value': return model.values.get(entry.key)?.value;
 		case 'folder': return model.folder(entry.folderKind, entry.folderKey)?.value;
-		case 'blob': return model.blobs.get(entry.scopeKey)?.contentHash;
 		case 'chat': {
 			const chat = model.chats.get(entry.chat);
 			if (!chat) {
@@ -343,8 +320,7 @@ function parseDirectories(value: string): readonly string[] | undefined {
 }
 
 /**
- * The central change that adopts an observed old-format value. Blobs are
- * observed by hash; `content` carries the blob itself.
+ * The central change that adopts an observed old-format value.
  */
 export function patchFromMirror(model: SessionStateModel | undefined, entry: SessionStateMirrorEntry, observed: IObservedEntry | undefined, isDefaultChat: (chat: string) => boolean): Partial<ISessionStatePatch> {
 	const raw = observed?.content;
@@ -355,8 +331,6 @@ export function patchFromMirror(model: SessionStateModel | undefined, entry: Ses
 			const folder: ISessionStateFolderPatch = { folderKey: entry.folderKey, kind: entry.folderKind, value: raw ?? null, storage: model?.folder(entry.folderKind, entry.folderKey)?.storage ?? null };
 			return { folders: [folder] };
 		}
-		case 'blob':
-			return { branchChangesets: [{ scopeKey: entry.scopeKey, diffs: raw ?? null }] };
 		case 'chat': {
 			const fields: ISessionStateChatPatch['fields'] = (() => {
 				switch (entry.field) {
@@ -377,7 +351,6 @@ export function mergePatches(parts: readonly Partial<ISessionStatePatch>[]): ISe
 	const values: Record<string, string | null> = {};
 	const folders = new Map<string, ISessionStateFolderPatch>();
 	const chats = new Map<string, ISessionStateChatPatch>();
-	const blobs = new Map<string, { readonly scopeKey: string; readonly diffs: string | null }>();
 	for (const part of parts) {
 		Object.assign(values, part.values);
 		for (const folder of part.folders ?? []) {
@@ -387,16 +360,13 @@ export function mergePatches(parts: readonly Partial<ISessionStatePatch>[]): ISe
 			const existing = chats.get(chat.chat);
 			chats.set(chat.chat, { chat: chat.chat, isDefault: chat.isDefault, fields: { ...existing?.fields, ...chat.fields } });
 		}
-		for (const blob of part.branchChangesets ?? []) {
-			blobs.set(blob.scopeKey, blob);
-		}
 	}
-	return { values, folders: [...folders.values()], chats: [...chats.values()], branchChangesets: [...blobs.values()] };
+	return { values, folders: [...folders.values()], chats: [...chats.values()] };
 }
 
 // ---- Observation ---------------------------------------------------------------
 
-/** An observed old-format value: `compare` is what merge bases record (a hash for blobs). */
+/** An observed old-format value: `compare` is what merge bases record . */
 export interface IObservedEntry {
 	readonly compare: string;
 	readonly content: string;
@@ -413,7 +383,7 @@ export type MirrorReads = ReadonlyMap<string, Readonly<Record<string, string | u
 
 /**
  * The reads that observe every entry older builds can have written for the
- * session: registered values and prefixes, folder maps, blobs, and the given
+ * session: registered values and prefixes, folder maps, and the given
  * chats' keys (legacy-catalog sessions only) and base-branch databases.
  */
 export function planMirrorReads(session: string, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], baseBranchStorages: readonly string[]): Map<string, IMirrorReadPlan> {
@@ -436,7 +406,6 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	for (const key of [LEGACY_IS_DONE_KEY, META_GIT_STATE, META_GIT_DATA_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, BASE_BRANCH_MIRROR_KEY]) {
 		sessionPlan.keys.add(key);
 	}
-	sessionPlan.prefixes.add(META_CHANGESET_BRANCH);
 	for (const key of COPILOT_LAUNCH_DIRECTORY_KEYS) {
 		sessionPlan.keys.add(key);
 	}
@@ -493,7 +462,7 @@ export function observeMirrorEntry(session: string, model: SessionStateModel | u
 	if (content === undefined || (entry.kind === 'chat' && entry.field === 'workingDirectories' && content === '')) {
 		return undefined;
 	}
-	return { compare: entry.kind === 'blob' ? hashBranchChangeset(content) : content, content };
+	return { compare: content, content };
 }
 
 /** Every entry an observation found a value for, besides the given chats' entries. */
@@ -510,10 +479,6 @@ export function observedMirrorEntries(session: string, reads: MirrorReads): Sess
 			entries.push({ kind: 'folder', folderKind: 'git', folderKey: '' });
 		} else if (key === BASE_BRANCH_MIRROR_KEY) {
 			entries.push({ kind: 'folder', folderKind: 'baseBranch', folderKey: '' });
-		} else if (key === META_CHANGESET_BRANCH) {
-			entries.push({ kind: 'blob', scopeKey: '' });
-		} else if (key.startsWith(`${META_CHANGESET_BRANCH}.`)) {
-			entries.push({ kind: 'blob', scopeKey: key.slice(META_CHANGESET_BRANCH.length + 1) });
 		}
 	}
 	for (const folderKey of Object.keys(readMap(reads, { resource: session, key: META_GIT_DATA_STATE }) ?? {})) {
@@ -529,15 +494,6 @@ export function observedMirrorEntries(session: string, reads: MirrorReads): Sess
 export function observeLegacyArchived(session: string, reads: MirrorReads): string | undefined {
 	const sessionReads = reads.get(session) ?? {};
 	return sessionReads[AH_META_IS_ARCHIVED_DB_KEY] ?? sessionReads[LEGACY_IS_DONE_KEY];
-}
-
-/** The branch-changes blob a session.db key of the old format holds, or `undefined` when the key is not one. */
-function legacyBlobEntry(key: string): SessionStateMirrorEntry | undefined {
-	if (key === META_CHANGESET_BRANCH) {
-		return { kind: 'blob', scopeKey: '' };
-	}
-	const prefix = `${META_CHANGESET_BRANCH}.`;
-	return key.startsWith(prefix) ? { kind: 'blob', scopeKey: key.slice(prefix.length) } : undefined;
 }
 
 function mapFolderKind(mapKey: MirrorMapKey): SessionStateFolderKind {
@@ -595,10 +551,6 @@ function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirr
 		case META_GIT_DATA_STATE: return META_GIT_DATA_STATE;
 		case META_GITHUB_DATA_STATE: return META_GITHUB_DATA_STATE;
 		case BASE_BRANCH_MIRROR_KEY: return { kind: 'folder', folderKind: 'baseBranch', folderKey: '' };
-	}
-	const blob = legacyBlobEntry(key);
-	if (blob) {
-		return blob;
 	}
 	if (model.authority !== 1) {
 		return undefined;
@@ -679,8 +631,7 @@ export interface ILegacyMetadata {
 }
 
 /**
- * What session.db would hold for `keys` if every mirror were current. Branch
- * blobs are not rendered (they are read lazily); keys the store does not own
+ * What session.db would hold for `keys` if every mirror were current. Keys the store does not own
  * are listed in `unowned` for the caller to read from the database.
  */
 export function renderLegacyMetadata(model: SessionStateModel, keys: readonly string[]): ILegacyMetadata {
@@ -698,7 +649,7 @@ export function renderLegacyMetadata(model: SessionStateModel, keys: readonly st
 			}
 		} else if (entry === undefined) {
 			unowned.push(key);
-		} else if (entry === 'retired' || (typeof entry === 'object' && entry.kind === 'blob')) {
+		} else if (entry === 'retired') {
 			values[key] = undefined;
 		} else if (entry === META_GIT_DATA_STATE || entry === META_GITHUB_DATA_STATE) {
 			const map = renderFolderMap(model, mapFolderKind(entry));
@@ -727,7 +678,7 @@ export interface IMirrorWrite {
  * rewrites the whole map from central state, so every entry of that map
  * becomes current.
  */
-export function renderMirrorWrites(session: string, model: SessionStateModel, entries: readonly SessionStateMirrorEntry[], isDefaultChat: (chat: string) => boolean, blobContent: (scopeKey: string) => string | undefined): Map<string, IMirrorWrite> {
+export function renderMirrorWrites(session: string, model: SessionStateModel, entries: readonly SessionStateMirrorEntry[], isDefaultChat: (chat: string) => boolean): Map<string, IMirrorWrite> {
 	const writes = new Map<string, IMirrorWrite>();
 	const write = (resource: string) => {
 		let result = writes.get(resource);
@@ -766,8 +717,7 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 			}
 			continue;
 		}
-		const rendered = entry.kind === 'blob' ? blobContent(entry.scopeKey) : renderMirrorEntry(model, entry);
-		const compare = entry.kind === 'blob' ? renderMirrorEntry(model, entry) : rendered;
+		const rendered = renderMirrorEntry(model, entry);
 		for (const target of location.targets) {
 			const targetWrite = write(target.resource);
 			if (rendered === undefined) {
@@ -778,7 +728,7 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 		}
 		const primary = write(location.targets[0].resource);
 		primary.entries.push(id);
-		primary.written.set(id, compare);
+		primary.written.set(id, rendered);
 	}
 	return writes;
 }

@@ -102,8 +102,6 @@ export interface ISessionStatePatch {
 	readonly values: Readonly<Record<string, string | null>>;
 	readonly folders: readonly ISessionStateFolderPatch[];
 	readonly chats: readonly ISessionStateChatPatch[];
-	/** `null` removes a branch-changes blob. */
-	readonly branchChangesets: readonly { readonly scopeKey: string; readonly diffs: string | null }[];
 }
 
 /** Builds a {@link ISessionStatePatch}, leaving omitted parts empty. */
@@ -112,7 +110,6 @@ export function sessionStatePatch(patch: Partial<ISessionStatePatch>): ISessionS
 		values: patch.values ?? {},
 		folders: patch.folders ?? [],
 		chats: patch.chats ?? [],
-		branchChangesets: patch.branchChangesets ?? [],
 	};
 }
 
@@ -275,10 +272,6 @@ export interface IAgentHostSessionStateStore {
 	readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>>;
 	/** Imports session values a provider wrote to session.db itself; differing mirror values win. */
 	refreshFromMirror(session: URI, keys: readonly string[]): Promise<void>;
-	/** Reads one branch-changes blob; `''` is the session folder's. */
-	readBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined>;
-	/** Reads a branch-changes blob only when the session is already imported; never imports, never opens a session.db. */
-	readImportedBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined>;
 	/** Writes pending mirrors of `session`, or of every session. */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */

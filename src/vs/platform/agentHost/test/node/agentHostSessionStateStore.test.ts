@@ -87,7 +87,7 @@ suite('AgentHostSessionStateStore', () => {
 			missionControl: snapshot.values.get(`missionControl.sdkSequence.${fixture.missionControlEnvironment}`),
 			folders: [...snapshot.folders.keys()].sort(),
 			chats: fixture.chats.map(({ uri }) => snapshot.chats.get(uri)).map(entry => entry && [entry.isDefault, entry.storage, entry.title, entry.isRead, entry.workingDirectories, entry.changes]),
-			blob: (await first.readBranchChangeset(session, getWorkingDirectoryScopeId(otherFolder.workingDirectories)))?.length,
+			blobs: (await database.readSessionState(fixture.session))?.branchChangesets,
 			oldBuildViewUnchanged: JSON.stringify(await readOldBuildView(sessionData.createService(), database, fixture)) === JSON.stringify(before),
 			header: (await database.readSessionState(fixture.session))?.header,
 		}, {
@@ -102,7 +102,7 @@ suite('AgentHostSessionStateStore', () => {
 				[false, sameFolder.uri, sameFolder.title, undefined, undefined, JSON.stringify(sameFolder.changes)],
 				[false, otherFolder.uri, otherFolder.title, undefined, otherFolder.workingDirectories, JSON.stringify(otherFolder.changes)],
 			],
-			blob: legacySessionMetadata(fixture)[`agentHost.changeset.branch.${getWorkingDirectoryScopeId(otherFolder.workingDirectories)}`].length,
+			blobs: [],
 			oldBuildViewUnchanged: true,
 			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1, checkpointSequence: 4 },
 		});
@@ -293,11 +293,11 @@ suite('AgentHostSessionStateStore', () => {
 		const written = legacySessionMetadata(fixture);
 		const rendered = sessionStore.legacyMetadata(session, [...Object.keys(written), 'isDone', 'agentHost.github']);
 		const blobKeys = ['agentHost.changeset.branch', `agentHost.changeset.branch.${getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories)}`];
-		const owned = Object.fromEntries(Object.entries(written).filter(([key]) => !rendered.unowned.includes(key) && !blobKeys.includes(key)));
+		const owned = Object.fromEntries(Object.entries(written).filter(([key]) => !rendered.unowned.includes(key)));
 		assert.deepStrictEqual({
 			matches: Object.fromEntries(Object.entries(owned).map(([key, value]) => [key, rendered.values[key] === value])),
 			retired: rendered.values.isDone,
-			// Branch-changes blobs are never rendered by a restore; they are read lazily from the blob table.
+			// Branch-changes blobs are not owned any more: nothing renders them.
 			blobsRendered: blobKeys.map(key => rendered.values[key]),
 			unowned: [...rendered.unowned].sort(),
 		}, {
@@ -305,7 +305,7 @@ suite('AgentHostSessionStateStore', () => {
 			retired: undefined,
 			blobsRendered: [undefined, undefined],
 			// Provider-owned keys of the default chat, membership, and the retained legacy GitHub key.
-			unowned: ['agentHost.changeset.session',
+			unowned: ['agentHost.changeset.session', ...blobKeys,
 				'copilot.model',
 				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
 		});
@@ -580,26 +580,18 @@ suite('AgentHostSessionStateStore', () => {
 			}, { rendered: state, oldBuild: state });
 		});
 
-		test('branch-changes blobs are imported but never rendered by a restore, and a written blob reaches the old keys', async () => {
+		test('branch-changes blob keys are not owned: a write goes to session.db only and nothing is imported or rendered', async () => {
 			const { fixture, session } = await oldBuildSession();
-			const scope = getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories);
-			const scopedKey = `agentHost.changeset.branch.${scope}`;
+			const scopedKey = `agentHost.changeset.branch.${getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories)}`;
 			const writer = createStore();
 			await writer.load(session);
-			const rendered = writer.legacyMetadata(session, ['agentHost.changeset.branch', scopedKey]);
 			await writer.writeMetadata(session, session, { [scopedKey]: '[]', 'agentHost.changeset.branch': '[1]' }, SessionStateMirrorFlush.Immediate);
 			assert.deepStrictEqual({
-				rendered: ['agentHost.changeset.branch', scopedKey].map(key => rendered.values[key]),
-				unowned: rendered.unowned,
-				scoped: await writer.readBranchChangeset(session, scope),
-				session: await writer.readBranchChangeset(session, ''),
-				mirrored: await sessionDb(session, [scopedKey, 'agentHost.changeset.branch']),
+				unowned: writer.legacyMetadata(session, ['agentHost.changeset.branch', scopedKey]).unowned,
+				central: (await database.readSessionState(fixture.session))?.branchChangesets,
 			}, {
-				rendered: [undefined, undefined],
-				unowned: [],
-				scoped: '[]',
-				session: '[1]',
-				mirrored: { [scopedKey]: '[]', 'agentHost.changeset.branch': '[1]' },
+				unowned: ['agentHost.changeset.branch', scopedKey],
+				central: [],
 			});
 		});
 	});

@@ -118,7 +118,7 @@ function toDatabasePatch(patch: ISessionStatePatch, markPayloadDirty: boolean): 
 			const databaseFields: IAgentHostSessionChatStateFields = { ...fields, ...(storage !== undefined ? { storageResource: storage } : {}) };
 			return { chat: chat.chat, isDefault: chat.isDefault, fields: databaseFields };
 		}),
-		branchChangesets: patch.branchChangesets,
+		branchChangesets: [],
 		markPayloadDirty,
 	};
 }
@@ -390,17 +390,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
-	async readBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined> {
-		await this.load(session);
-		return this._database.readBranchChangeset(session.toString(), scopeKey);
-	}
-
-	async readImportedBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined> {
-		const key = session.toString();
-		const imported = this._records.has(key) || (await this._database.readSessionStateValues([key], [])).get(key)?.imported;
-		return imported ? this._database.readBranchChangeset(key, scopeKey) : undefined;
-	}
-
 	async whenIdle(session: URI | undefined): Promise<void> {
 		const records = session ? [this._records.get(session.toString())].filter(record => record !== undefined) : [...this._records.values()];
 		await Promise.all(records.map(record => {
@@ -635,7 +624,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const observe = (entry: SessionStateMirrorEntry) => observeMirrorEntry(session, undefined, entry, reads, isDefault);
 		const values: Record<string, string> = {};
 		const folders: IAgentHostSessionStateImport['folders'][number][] = [];
-		const branchChangesets: { scopeKey: string; diffs: string }[] = [];
 		const base = new Map<string, string>();
 		for (const entry of observedMirrorEntries(session, reads)) {
 			const observed = observe(entry);
@@ -646,7 +634,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			switch (entry.kind) {
 				case 'value': values[entry.key] = observed.content; break;
 				case 'folder': folders.push({ folderKey: entry.folderKey, kind: entry.folderKind, value: observed.content, storageResource: undefined }); break;
-				case 'blob': branchChangesets.push({ scopeKey: entry.scopeKey, diffs: observed.content }); break;
 			}
 		}
 		const archived = observeLegacyArchived(session, reads);
@@ -699,7 +686,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			values,
 			folders,
 			chats: importedChats,
-			branchChangesets,
+			branchChangesets: [],
 			legacyMirrorBase: serializeBase(base),
 			launchDirsBackfilled: true,
 			checkpoints: [],
@@ -785,7 +772,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (this._deleting.has(record.key)) {
 			throw new SessionStateDeletedError(record.key);
 		}
-		if (Object.keys(patch.values).length + patch.folders.length + patch.chats.length + patch.branchChangesets.length === 0) {
+		if (Object.keys(patch.values).length + patch.folders.length + patch.chats.length === 0) {
 			return record.model.revision;
 		}
 		const entries = patchMirrorEntries(patch);
@@ -850,14 +837,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		let failure: unknown;
 		if (record.dirty.size > 0) {
 			const entries = [...record.dirty].map(parseMirrorEntryId);
-			const blobs = new Map<string, string | undefined>();
-			for (const entry of entries) {
-				if (entry.kind === 'blob') {
-					blobs.set(entry.scopeKey, await this._database.readBranchChangeset(record.key, entry.scopeKey));
-				}
-			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
-			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, scopeKey => blobs.get(scopeKey));
+			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault);
 			for (const [resource, write] of writes) {
 				const reference = this._sessionDataService.openDatabase(URI.parse(resource));
 				try {

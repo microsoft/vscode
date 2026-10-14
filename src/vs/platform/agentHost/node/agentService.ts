@@ -136,7 +136,7 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
-import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
@@ -2412,10 +2412,6 @@ export class AgentService extends Disposable implements IAgentService {
 			if (worktreeProject) {
 				updated = { ...updated, project: worktreeProject };
 			}
-			// An imported session keeps its branch blob in the central blob table; the legacy summary migration reads it here, in the maintenance pass only.
-			if (changesetKeys && persisted[META_CHANGES_SUMMARY] === undefined && persisted[META_CHANGESET_BRANCH] === undefined) {
-				persisted[META_CHANGESET_BRANCH] = await this._sessionStateStore.readImportedBranchChangeset(metadata.session, '');
-			}
 			return {
 				metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>, true),
 				persistedTitle,
@@ -3036,21 +3032,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return metadata.changes;
 		}
 		try {
-			// The persisted diff blobs are large (hundreds of KB, occasionally
-			// megabytes) while the modern aggregate is a few dozen bytes, and
-			// `computeListEntryChanges` returns the aggregate verbatim whenever it
-			// is present. Read the cheap key first so the common already-migrated
-			// session never pays to load and parse a blob it does not need; only a
-			// session still lacking the aggregate falls back to the full set.
-			const summaryOnly = await database.object.getMetadataObject({ configValues: true, ...CHANGES_SUMMARY_METADATA_KEYS }) as Record<string, string | undefined>;
-			if (summaryOnly[META_CHANGES_SUMMARY] !== undefined || changesetKeys === CHANGES_SUMMARY_METADATA_KEYS) {
-				return this._changesetCoordinator.decorateListEntry(metadata, summaryOnly, false).changes;
-			}
-			const persisted: Record<string, string | undefined> = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
-			// The catalog reference renders from the central state, where the branch blob lives in the blob table.
-			if (persisted[META_CHANGES_SUMMARY] === undefined && persisted[META_CHANGESET_BRANCH] === undefined) {
-				persisted[META_CHANGESET_BRANCH] = await this._sessionStateStore.readImportedBranchChangeset(session, '');
-			}
+			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys }) as Record<string, string | undefined>;
 			return this._changesetCoordinator.decorateListEntry(metadata, persisted, false).changes;
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);
@@ -9554,7 +9536,6 @@ export class AgentService extends Disposable implements IAgentService {
 		let persistedConfigValues: Record<string, unknown> | undefined;
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;
-		let changesetMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
 		let persistedWorkingDirectories: string | undefined;
 		// A default chat stored outside its session database keeps its workspace transitions in its own storage.
@@ -9581,7 +9562,7 @@ export class AgentService extends Disposable implements IAgentService {
 			[SESSION_ARTIFACTS_KEY]: true,
 			[SESSION_META_FOLDER_PICKER_KEY]: true,
 			...GIT_DB_METADATA_KEYS,
-			...CHANGESET_DB_METADATA_KEYS,
+			...CHANGES_SUMMARY_METADATA_KEYS,
 		};
 		const centralMetadata = this._sessionStateStore.legacyMetadata(session, Object.keys(restoreKeys));
 		const unownedKeys = Object.fromEntries(centralMetadata.unowned.map(key => [key, true] as const));
@@ -9612,10 +9593,10 @@ export class AgentService extends Disposable implements IAgentService {
 							isArchived = persistedArchived === 'true';
 						}
 
-						changesetMetadata = m as Record<string, string | undefined>;
-						if (changesetMetadata[META_CHANGES_SUMMARY]) {
+						const persistedChangesSummary = m[META_CHANGES_SUMMARY];
+						if (persistedChangesSummary) {
 							try {
-								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
+								changes = JSON.parse(persistedChangesSummary);
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
@@ -9854,8 +9835,8 @@ export class AgentService extends Disposable implements IAgentService {
 		// and histories are restored when a peer chat is first requested.
 		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
 
-		// Register the static changeset URIs and reseed them from any
-		// persisted file lists in the batched metadata read. The coordinator
+		// Register the static changeset URIs; their contents are computed live.
+		// The coordinator
 		// publishes the selectable catalogue on chat state and drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
@@ -9863,7 +9844,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// active-session autorun subscribing in parallel with the
 		// chat-view); now that `summary.workingDirectory` is populated,
 		// re-triggering the refresh dispatches to the compute path.
-		this._changesetCoordinator.onSessionRestored(sessionStr, changesetMetadata ?? {});
+		this._changesetCoordinator.onSessionRestored(sessionStr);
 
 		// Restore persisted `_meta` (e.g. git state) onto the new session
 		// state. This dispatches a SessionMetaChanged action.

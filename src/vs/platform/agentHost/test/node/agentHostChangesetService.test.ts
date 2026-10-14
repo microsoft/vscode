@@ -19,10 +19,10 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
+import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -786,128 +786,6 @@ suite.skip('AgentHostChangesetService', () => {
 
 	});
 
-	suite('restorePersistedStaticChangesets', () => {
-
-		const aDiff = { after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 1, removed: 0 } };
-		const bDiff = { after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 0 } };
-		const sessionStr = sessionUri.toString();
-
-		test('parsePersistedStaticChangesets parses without mutating state', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-
-			const result = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			assert.deepStrictEqual({
-				session: result.session?.map(d => d.after?.uri),
-				sessionState: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)),
-			}, {
-				session: ['file:///wd/b.ts'],
-				sessionState: { status: 'computing', files: [] },
-			});
-		});
-
-		test('applyPersistedStaticChangesets seeds parsed diffs', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-			const parsed = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				branchRaw: JSON.stringify([aDiff]),
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			changesetService.applyPersistedStaticChangesets(sessionStr, parsed);
-
-			const branch = stateManager.getChangesetState(buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///wd']))));
-			const session = stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-			assert.deepStrictEqual({
-				branch: branch && { status: branch.status, files: branch.files.map(f => f.id) },
-				session: session && { status: session.status, files: session.files.map(f => f.id) },
-			}, {
-				branch: { status: 'ready', files: ['file:///wd/a.ts'] },
-				session: { status: 'ready', files: ['file:///wd/b.ts'] },
-			});
-		});
-
-		test('new sessionRaw beats legacyRaw when both are present', () => {
-			setupSession();
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([aDiff]),
-				legacyRaw: JSON.stringify([bDiff]), // would lose
-			});
-
-			assert.deepStrictEqual(result.session?.map(d => d.after?.uri), ['file:///wd/a.ts'], 'new key wins over legacy');
-		});
-
-		test('legacyRaw still restores session state when sessionRaw is absent', () => {
-			setupSession();
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				legacyRaw: JSON.stringify([bDiff]),
-			});
-
-			assert.deepStrictEqual(result.session?.map(d => d.after?.uri), ['file:///wd/b.ts']);
-			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.strictEqual((session?.state as { status: string }).status, 'ready');
-		});
-
-		test('malformed JSON logs and returns undefined for that slot', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: '{ not valid json',
-			});
-
-			assert.strictEqual(result.session, undefined, 'malformed slot returns undefined');
-			// Session snapshot stayed in `computing` because malformed input
-			// was discarded — not seeded with garbage.
-			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.strictEqual((session?.state as { status: string }).status, 'computing');
-		});
-
-		test('seedIfEmpty honoured: live state with files is not overwritten', () => {
-			setupSession();
-
-			// Seed live session state via restoreStaticChangeset to mimic
-			// a fresh refresh that landed before the persisted-overlay call.
-			changesetService.restoreStaticChangeset(sessionStr, 'session', [aDiff]);
-			const before = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.deepStrictEqual((before?.state as { files: Array<{ id: string }> }).files.map(f => f.id), ['file:///wd/a.ts']);
-
-			// Persisted blob points at a DIFFERENT file; without the guard it
-			// would clobber the live state.
-			changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			const after = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.deepStrictEqual(
-				(after?.state as { files: Array<{ id: string }> }).files.map(f => f.id),
-				['file:///wd/a.ts'],
-				'live state must be preserved when persisted overlay tries to overwrite it',
-			);
-		});
-
-		test('with live session state, restored diffs publish ready + catalogue counts', () => {
-			setupSession();
-
-			changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([aDiff, bDiff]),
-			});
-
-			const catalogue = stateManager.getSessionState(sessionStr)?.changesets;
-			const sessionEntry = catalogue?.find((c: Changeset) => c.uriTemplate === `${sessionStr}/changeset/session`);
-			assert.deepStrictEqual(sessionEntry, {
-				label: 'Branch Changes',
-				uriTemplate: `${sessionStr}/changeset/session`,
-				changeKind: 'session',
-			}, 'catalogue counts must reflect restored files');
-		});
-	});
-
 	suite('idle changeset LRU eviction', () => {
 
 		const sessionStr = sessionUri.toString();
@@ -1320,6 +1198,11 @@ suite.skip('AgentHostChangesetService', () => {
 	});
 });
 
+/** Keys that held diff blobs in older builds; nothing reads or writes them any more. */
+const LEGACY_BRANCH_BLOB_KEY = 'agentHost.changeset.branch';
+const LEGACY_SESSION_BLOB_KEY = 'agentHost.changeset.session';
+const LEGACY_DIFFS_BLOB_KEY = 'diffs';
+
 suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 	const disposables = new DisposableStore();
@@ -1384,7 +1267,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		return {
 			branchChangeset,
 			computeCount: () => computeCount,
-			metadataKey: getScopedBranchChangesetMetadataKey(scopeId),
+			metadataKey: `${LEGACY_BRANCH_BLOB_KEY}.${scopeId}`,
 			peer,
 			service,
 			session,
@@ -1402,7 +1285,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		assert.fail(`changeset ${changeset} never reached Ready`);
 	}
 
-	test('persists the same folder scope independently in each containing session database', async () => {
+	test('writes no folder-scoped branch blob into any session database', async () => {
 		const firstSessionDatabase = new TestSessionDatabase();
 		const secondSessionDatabase = new TestSessionDatabase();
 		const firstPeerDatabase = new TestSessionDatabase();
@@ -1421,21 +1304,19 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			sameMetadataKey: first.metadataKey === second.metadataKey,
-			first: JSON.parse((await firstSessionDatabase.getMetadata(first.metadataKey))!)[0].after.uri,
-			second: JSON.parse((await secondSessionDatabase.getMetadata(second.metadataKey))!)[0].after.uri,
+			first: await firstSessionDatabase.getMetadata(first.metadataKey),
+			second: await secondSessionDatabase.getMetadata(second.metadataKey),
 			firstPeer: await firstPeerDatabase.getMetadata(first.metadataKey),
 			secondPeer: await secondPeerDatabase.getMetadata(second.metadataKey),
 		}, {
-			sameMetadataKey: true,
-			first: URI.file('/shared/first.ts').toString(),
-			second: URI.file('/shared/second.ts').toString(),
+			first: undefined,
+			second: undefined,
 			firstPeer: undefined,
 			secondPeer: undefined,
 		});
 	});
 
-	test('restores one folder-scoped cache for every peer chat sharing that folder', async () => {
+	test('never restores a persisted folder-scoped cache: peer chats sharing the folder compute once', async () => {
 		const sessionDatabase = new TestSessionDatabase();
 		const peerDatabase = new TestSessionDatabase();
 		const harness = createFolderCacheHarness('folder-cache-restore', sessionDatabase, peerDatabase, '/shared/recomputed.ts');
@@ -1448,6 +1329,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 		harness.service.registerStaticChangesets(harness.peer);
 		harness.service.registerStaticChangesets(secondPeer);
+		harness.service.refreshBranchChangeset(harness.peer);
+		harness.service.refreshBranchChangeset(secondPeer);
 		await waitForBranchChangeset(harness.stateManager, harness.branchChangeset);
 
 		assert.deepStrictEqual({
@@ -1455,8 +1338,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			files: harness.stateManager.getChangesetState(harness.branchChangeset)?.files.map(file => file.id),
 			peerDatabaseCache: await peerDatabase.getMetadata(harness.metadataKey),
 		}, {
-			computeCount: 0,
-			files: [cachedUri],
+			computeCount: 1,
+			files: [URI.file('/shared/recomputed.ts').toString()],
 			peerDatabaseCache: undefined,
 		});
 	});
@@ -1896,17 +1779,6 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		}
 	}
-
-	test('persisted diffs do not overwrite a completed empty changeset', () => {
-		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
-		svc.restoreStaticChangeset(sessionStr, 'session', []);
-		svc.applyPersistedStaticChangesets(sessionStr, { session: [gitDiff('/repo/stale.ts')] });
-
-		assert.deepStrictEqual(stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)), {
-			status: ChangesetStatus.Ready,
-			files: [],
-		});
-	});
 
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
@@ -2814,13 +2686,13 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			}, { live: sessionSummary, mirroredBeforeFlush: oldSummary, listed: sessionSummary });
 		});
 
-		test('unopened sessions keep cached summary counts ahead of persisted session and branch diffs', async () => {
+		test('unopened sessions use the cached summary even when stale diff blobs exist', async () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 			stateManager.deleteSession(sessionStr);
 			assert.deepStrictEqual(svc.computeListEntryChanges(sessionStr, {
 				[META_CHANGES_SUMMARY]: JSON.stringify(oldSummary),
-				[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-				[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 40, 10)]),
+				[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
+				[LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 40, 10)]),
 			}, true), oldSummary);
 		});
 
@@ -2848,7 +2720,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 
 		for (const empty of [false, true]) {
-			test(`ready Session Changes ${empty ? 'with no files ' : ''}supply a missing cached summary before persisted diffs`, async () => {
+			test(`ready Session Changes ${empty ? 'with no files ' : ''}supply a missing cached summary, never persisted diffs`, async () => {
 				const db = new TestSessionDatabase();
 				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 				svc.restoreStaticChangeset(sessionStr, 'session', empty ? [] : [gitDiff('/wd/session.ts', 3, 1)]);
@@ -2856,8 +2728,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				stateManager.removeSession(sessionStr);
 
 				const listed = svc.computeListEntryChanges(sessionStr, {
-					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/old-session.ts', 50, 10)]),
-					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
+					[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/old-session.ts', 50, 10)]),
+					[LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
 				}, true);
 				const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
 				assert.deepStrictEqual({
@@ -2867,39 +2739,32 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		}
 
-		for (const key of [META_CHANGESET_SESSION, META_LEGACY_DIFFS]) {
-			for (const empty of [false, true]) {
-				test(`unopened sessions derive a summary from ${empty ? 'empty ' : ''}${key}, not branch diffs`, async () => {
-					const db = new TestSessionDatabase();
-					const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
-					stateManager.deleteSession(sessionStr);
-					const listed = svc.computeListEntryChanges(sessionStr, {
-						[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-						[META_LEGACY_DIFFS]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
-						[key]: JSON.stringify(empty ? [] : [gitDiff('/wd/session.ts', 3, 1)]),
-					}, true);
-					const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
+		for (const key of [LEGACY_SESSION_BLOB_KEY, LEGACY_DIFFS_BLOB_KEY, LEGACY_BRANCH_BLOB_KEY]) {
+			test(`unopened sessions never derive a summary from ${key}`, async () => {
+				const db = new TestSessionDatabase();
+				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
+				stateManager.deleteSession(sessionStr);
+				const listed = svc.computeListEntryChanges(sessionStr, { [key]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]) }, true);
 
-					assert.deepStrictEqual({
-						listed,
-						persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
-						sessionState: stateManager.getChangesetState(sessionChangeset),
-						branchState: stateManager.getChangesetState(branchChangeset(stateManager)),
-					}, {
-						listed: expected,
-						persisted: expected,
-						sessionState: undefined,
-						branchState: undefined,
-					});
+				assert.deepStrictEqual({
+					listed,
+					persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
+					sessionState: stateManager.getChangesetState(sessionChangeset),
+					branchState: stateManager.getChangesetState(branchChangeset(stateManager)),
+				}, {
+					listed: undefined,
+					persisted: undefined,
+					sessionState: undefined,
+					branchState: undefined,
 				});
-			}
+			});
 		}
 
 		test('ready branch state and branch-only persisted diffs do not supply a missing summary', async () => {
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 			stateManager.deleteSession(sessionStr);
-			const metadata = { [META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]) };
+			const metadata = { [LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]) };
 			const cold = svc.computeListEntryChanges(sessionStr, metadata, true);
 			svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/wd/branch.ts', 100, 20)]);
 
@@ -2910,7 +2775,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			}, { cold: undefined, warm: undefined, persisted: undefined });
 		});
 
-		for (const source of ['cached', 'live', 'persisted', 'missing'] as const) {
+		for (const source of ['cached', 'live', 'missing'] as const) {
 			for (const empty of [false, true]) {
 				test(`unopened worktree summary uses ${source} branch counts (empty: ${empty})`, async () => {
 					const db = new TestSessionDatabase();
@@ -2924,9 +2789,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					const metadata: Record<string, string | undefined> = {
 						configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'worktree' }),
 						[META_CHANGES_SUMMARY]: source === 'cached' ? JSON.stringify(oldSummary) : undefined,
-						[META_CHANGESET_BRANCH]: source === 'missing' ? undefined : JSON.stringify(source === 'live' ? [gitDiff('/wd/old.ts', 40, 10)] : branchDiffs),
-						[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-						[META_LEGACY_DIFFS]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
+						[LEGACY_BRANCH_BLOB_KEY]: source === 'missing' ? undefined : JSON.stringify(source === 'live' ? [gitDiff('/wd/old.ts', 40, 10)] : branchDiffs),
+						[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
+						[LEGACY_DIFFS_BLOB_KEY]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
 					};
 					const keys = svc.getListMetadataKeys(sessionStr)!;
 					const listed = svc.computeListEntryChanges(sessionStr, {
@@ -2953,10 +2818,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			test(`malformed persisted isolation is logged (${configValues})`, () => {
 				const { svc, stateManager, log } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 				stateManager.deleteSession(sessionStr);
+				svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/wd/session.ts', 3, 1)]);
 				const changes = svc.computeListEntryChanges(sessionStr, {
 					configValues,
-					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
 				}, true);
 				assert.deepStrictEqual({ changes, logged: log.warnings.some(warning => warning.includes('Failed to parse persisted isolation')) }, {
 					changes: sessionSummary, logged: true,
@@ -2987,26 +2851,32 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
-		test('a main branch refresh persists both legacy and folder-scoped caches', async () => {
+		test('a worktree branch refresh writes no diff blob and still mirrors the summary', async () => {
 			const db = new TestSessionDatabase();
 			const git = createNoopGitService();
 			const diffs = [gitDiff('/wd/branch.ts', 3, 1)];
 			git.computeSessionFileDiffs = async () => diffs;
-			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'worktree', git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
-			await timeout(0);
+			const summary = await settledMetadata(db, META_CHANGES_SUMMARY);
 
-			const scopedKey = getScopedBranchChangesetMetadataKey(getWorkingDirectoryScopeId(['file:///wd']));
+			const scopedKey = `${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///wd'])}`;
 			assert.deepStrictEqual({
-				branch: JSON.parse((await db.getMetadata(META_CHANGESET_BRANCH))!),
-				legacy: JSON.parse((await db.getMetadata(META_LEGACY_DIFFS))!),
-				scoped: JSON.parse((await db.getMetadata(scopedKey))!),
+				branch: await db.getMetadata(LEGACY_BRANCH_BLOB_KEY),
+				session: await db.getMetadata(LEGACY_SESSION_BLOB_KEY),
+				legacy: await db.getMetadata(LEGACY_DIFFS_BLOB_KEY),
+				scoped: await db.getMetadata(scopedKey),
+				summary: JSON.parse(summary!),
+				blobWrites: db.setMetadataCalls.map(call => call.key).filter(key => key.startsWith('agentHost.changeset') || key === LEGACY_DIFFS_BLOB_KEY),
 			}, {
-				branch: diffs,
-				legacy: diffs,
-				scoped: diffs,
+				branch: undefined,
+				session: undefined,
+				legacy: undefined,
+				scoped: undefined,
+				summary: { additions: 3, deletions: 1, files: 1 },
+				blobWrites: [],
 			});
 		});
 
@@ -3540,7 +3410,6 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				const previous = [gitDiff('/repoA/cached.ts', 100, 20)];
 				svc.restoreStaticChangeset(sessionStr, 'session', previous);
 				stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
-				await db.setMetadata(META_CHANGESET_SESSION, JSON.stringify(previous));
 				await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(oldSummary));
 				svc.refreshSessionChangeset(sessionStr);
 				for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.status !== ChangesetStatus.Error; i++) {
@@ -3550,11 +3419,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					status: stateManager.getChangesetState(sessionChangeset)?.status,
 					files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.edit),
 					summary: stateManager.getSessionSummary(sessionStr)?.changes,
-					persistedFiles: JSON.parse((await db.getMetadata(META_CHANGESET_SESSION))!),
 					persistedSummary: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				}, {
 					status: ChangesetStatus.Error, files: previous, summary: oldSummary,
-					persistedFiles: previous, persistedSummary: oldSummary,
+					persistedSummary: oldSummary,
 				});
 			});
 		}

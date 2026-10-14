@@ -52,7 +52,7 @@ import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { GitRefType, META_DIFF_BASE_BRANCH, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -14371,32 +14371,27 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('import aggregates a legacy changeset blob into the catalog chip', async () => {
+			test('import ignores a legacy changeset blob: no aggregate is derived from it', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'legacy-changeset-blob');
 				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
-				// An older build persisted the diff blob but never the modern
-				// aggregate, so the provider has no counts to offer and the
-				// session database is the only source for the chip.
+				// Diff blobs are never read any more: an older build's blob must not become a chip.
 				await perSession.database(session).setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }));
-				await perSession.database(session).setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 504, removed: 1 } }]));
+				await perSession.database(session).setMetadata('agentHost.changeset.session', JSON.stringify([{ diff: { added: 504, removed: 1 } }]));
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				agent.catalog = [metadata(session)];
 
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
-				for (let i = 0; i < 100 && !await perSession.database(session).getMetadata(META_CHANGES_SUMMARY); i++) {
-					await timeout(5);
-				}
+				await timeout(50);
 
-				const expected = { additions: 504, deletions: 1, files: 1 };
 				assert.deepStrictEqual({
 					catalogChanges: catalogDataOf(await database.getSessionV2(session.toString()))?.changes,
-					migratedSummary: JSON.parse((await perSession.database(session).getMetadata(META_CHANGES_SUMMARY))!),
+					migratedSummary: await perSession.database(session).getMetadata(META_CHANGES_SUMMARY),
 				}, {
-					catalogChanges: expected,
-					migratedSummary: expected,
+					catalogChanges: undefined,
+					migratedSummary: undefined,
 				});
 			});
 
@@ -14408,7 +14403,7 @@ suite('AgentService (node dispatcher)', () => {
 				const local = perSession.database(session);
 				await local.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }));
 				await local.setMetadata(META_CHANGES_SUMMARY, JSON.stringify({ additions: 7, deletions: 2, files: 1 }));
-				await local.setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 7, removed: 2 } }]));
+				await local.setMetadata('agentHost.changeset.session', JSON.stringify([{ diff: { added: 7, removed: 2 } }]));
 				const requestedKeys: string[][] = [];
 				const originalGetMetadataObject = local.getMetadataObject.bind(local);
 				local.getMetadataObject = async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
@@ -14423,7 +14418,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.deepStrictEqual({
 					catalogChanges: catalogDataOf(await database.getSessionV2(session.toString()))?.changes,
-					readAnyDiffBlob: requestedKeys.some(keys => keys.includes(META_CHANGESET_SESSION) || keys.includes(META_CHANGESET_BRANCH)),
+					readAnyDiffBlob: requestedKeys.some(keys => keys.includes('agentHost.changeset.session') || keys.includes('agentHost.changeset.branch')),
 				}, {
 					catalogChanges: { additions: 7, deletions: 2, files: 1 },
 					readAnyDiffBlob: false,
@@ -17722,7 +17717,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		for (const isolation of ['folder', 'worktree']) {
-			test(`listSessions reads session config alongside changeset metadata for an unopened ${isolation} session`, async () => {
+			test(`listSessions reads the durable changes summary for an unopened ${isolation} session`, async () => {
 				const db = new TestSessionDatabase();
 				const agent = disposables.add(new MockAgent('copilot'));
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -17730,17 +17725,12 @@ suite('AgentService (node dispatcher)', () => {
 				const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
 				await getTestSessionStateStore(svc).writeMetadata(session, session, {
 					configValues: JSON.stringify({ [SessionConfigKey.Isolation]: isolation }),
-					[META_CHANGESET_BRANCH]: JSON.stringify([
-						{ diff: { added: 7, removed: 2 } },
-						{ diff: { added: 4, removed: 1 } },
-					]),
-					[META_CHANGESET_SESSION]: JSON.stringify([{ diff: { added: 3, removed: 1 } }]),
+					[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 11, deletions: 3, files: 2 }),
 				}, SessionStateMirrorFlush.Immediate);
 				const stateManager = getStateManager(svc);
 				stateManager.deleteSession(session.toString());
 
-				// Listing is served from the catalog and never reads session storage, so the
-				// legacy blob migration runs in the catalog's maintenance pass instead.
+				// Listing is served from the catalog and the durable summary; no diff blob is involved.
 				await svc.listSessions();
 				svc.markStartupComplete();
 				await svc.whenDeferredWorkSettled();
@@ -17748,7 +17738,7 @@ suite('AgentService (node dispatcher)', () => {
 				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 
 				const listed = await svc.listSessions();
-				const expected = isolation === 'worktree' ? { additions: 11, deletions: 3, files: 2 } : { additions: 3, deletions: 1, files: 1 };
+				const expected = { additions: 11, deletions: 3, files: 2 };
 				await getTestSessionStateStore(svc).whenIdle(undefined);
 				assert.deepStrictEqual({
 					changes: listed.find(entry => entry.session.toString() === session.toString())?.changes,
