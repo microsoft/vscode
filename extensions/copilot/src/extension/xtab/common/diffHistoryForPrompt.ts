@@ -20,19 +20,30 @@ export const REJECTED_EDIT_TAG = '<|rejected/|>';
 export const APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE = 1;
 
 /** In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, each rejection is written as this many "applied, then undone" pairs. */
-export const APPLIED_THEN_UNDONE_REPETITIONS = 2;
+export const APPLIED_THEN_UNDONE_REPETITIONS = 1;
+
+/**
+ * In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, a rejection is dropped once the developer has made more than
+ * this many edits after it (counted as edit-history entries in any document).
+ */
+export const APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION = 2;
 
 /**
  * Picks the rejections that go into the prompt.
  *
- * {@link RejectedEditsMemoryMode.AppliedThenUndone} keeps only rejections in the active document whose lines are within
- * {@link APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE} lines of the cursor, so requests elsewhere keep an unchanged prompt.
- * Other modes keep all rejections.
+ * {@link RejectedEditsMemoryMode.AppliedThenUndone} keeps only rejections that
+ * - are in the active document,
+ * - still apply: the current document still has each hunk's original lines at the recorded line number
+ *   (so rejections whose lines have moved or been edited since are dropped),
+ * - have lines within {@link APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE} lines of the cursor, and
+ * - are followed by at most {@link APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION} edits in `xtabHistory`,
+ * so all other requests keep an unchanged prompt. Other modes keep all rejections.
  */
 export function selectRejectedEditsForPrompt(
 	mode: RejectedEditsMemoryMode | undefined,
 	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
-	activeDocId: DocumentId,
+	xtabHistory: readonly IXtabHistoryEntry[],
+	activeDoc: StatelessNextEditDocument,
 	cursorLineOffset: number,
 ): readonly IXtabHistoryRejectedEditEntry[] {
 	if (mode === undefined) {
@@ -41,10 +52,22 @@ export function selectRejectedEditsForPrompt(
 	if (mode !== RejectedEditsMemoryMode.AppliedThenUndone) {
 		return rejectedEditHistory;
 	}
+	const currentLines = activeDoc.documentAfterEditsLines;
 	return rejectedEditHistory.filter(entry =>
-		entry.docId === activeDocId
+		entry.docId === activeDoc.id
+		&& entry.hunks.every(hunk => hunkStillApplies(hunk, currentLines))
 		&& entry.hunks.some(hunk => distanceToHunk(hunk, cursorLineOffset) <= APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE)
+		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION
 	);
+}
+
+/** Whether the document still has the hunk's original lines at the hunk's (0-based) start line. */
+function hunkStillApplies(hunk: IXtabHistoryDiffHunk, currentLines: readonly string[]): boolean {
+	const start = hunk.startLineNumber;
+	if (start < 0 || start + hunk.oldLines.length > currentLines.length) {
+		return false;
+	}
+	return hunk.oldLines.every((line, i) => currentLines[start + i] === line);
 }
 
 /** Line distance from `lineOffset` (0-based) to the lines a hunk replaces; 0 when inside. */
@@ -78,7 +101,7 @@ interface IDiffHistoryItem {
  * - {@link RejectedEditsMemoryMode.DiffWithTags}: one tagged entry per rejection, at the rejection's position.
  * - {@link RejectedEditsMemoryMode.AppliedThenUndone}: untagged "applied, then undone" entries (repeated
  *   {@link APPLIED_THEN_UNDONE_REPETITIONS} times) at the rejection's position, plus one more "undone" entry as the
- *   newest history entry. The repeated pairs count as a single entry towards `nEntries`.
+ *   newest history entry. The applied/undone pairs count as a single entry towards `nEntries`.
  */
 export function getEditDiffHistory(
 	activeDoc: StatelessNextEditDocument,

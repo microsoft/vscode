@@ -748,8 +748,8 @@ describe('getUserPrompt', () => {
 
 		const applied = '@@ -1,1 +1,1 @@\n-  const x = 1;\n+  const x = 2;';
 		const undone = '@@ -1,1 +1,1 @@\n-  const x = 2;\n+  const x = 1;';
-		expect(prompt.split(applied).length - 1).toBe(2);
-		expect(prompt.split(undone).length - 1).toBe(3);
+		expect(prompt.split(applied).length - 1).toBe(1);
+		expect(prompt.split(undone).length - 1).toBe(2);
 		expect(prompt).not.toContain('<|rejected/|>');
 		expect(prompt).not.toContain('previous suggestions the developer rejected');
 		expect(prompt).toContain('developer was working on a section of code');
