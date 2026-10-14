@@ -679,12 +679,7 @@ function executeTests(build: IBuild, options: IOptions, environment: NodeJS.Proc
 			const log = readFileSync(output, 'utf8');
 			const labels: Record<string, SuiteId> = { Conformance: 'conformance', Claude: 'claude', Codex: 'codex', Copilot: 'copilot' };
 			for (const [label, suite] of Object.entries(labels)) {
-				const section = log.split(`===== Agent Host E2E — ${label} =====`)[1]?.split('=====')[0];
-				const suiteCode = new RegExp(`^\\s*PASS ${label}:`, 'm').test(log) ? 0 : 1;
-				if (!section) {
-					throw new Error(`Missing ${label} output; full suite failed with ${code}`);
-				}
-				results.push(parseSuiteOutput(suite, section, suiteCode));
+				results.push(parseRunnerSuiteOutput(log, suite, suite === 'copilot' ? [label, 'Copilot runtime'] : [label]));
 			}
 			if (code !== 0 && results.every(item => item.exitCode === 0)) {
 				throw new Error('Full suite runner failed despite per-suite success');
@@ -694,6 +689,26 @@ function executeTests(build: IBuild, options: IOptions, environment: NodeJS.Proc
 	});
 	const status = results.some(item => item.exitCode !== 0 || item.failing !== 0) ? 'failed' : options.mode === 'collect' ? 'incomplete' : 'passed';
 	return validateStatus({ status, selection: options.mode === 'collect' ? 'focused' : 'full', suites: results });
+}
+
+function parseRunnerSuiteOutput(log: string, suite: SuiteId, labels: readonly string[]): ISuiteResult {
+	const combined: ISuiteResult = { suite, exitCode: 0, passing: 0, pending: 0, failing: 0, auxiliaryPassing: 0 };
+	return labels.reduce((result, label) => {
+		const section = log.split(`===== Agent Host E2E — ${label} =====`)[1]?.split('=====')[0];
+		if (!section) {
+			throw new Error(`Missing ${label} output from the full suite runner`);
+		}
+		const suiteCode = new RegExp(`^\\s*PASS ${label}:`, 'm').test(log) ? 0 : 1;
+		const parsed = parseSuiteOutput(suite, section, suiteCode);
+		return {
+			suite,
+			exitCode: Math.max(result.exitCode, parsed.exitCode),
+			passing: result.passing + parsed.passing,
+			pending: result.pending + parsed.pending,
+			failing: result.failing + parsed.failing,
+			auxiliaryPassing: result.auxiliaryPassing + parsed.auxiliaryPassing,
+		};
+	}, combined);
 }
 
 function main(): void {
@@ -792,4 +807,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { normalizeNative, validateStatus, canWriteMeasurement, parseArguments, withEntrypointOverride, parseSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment, cleanEnvironment };
+module.exports = { normalizeNative, validateStatus, canWriteMeasurement, parseArguments, withEntrypointOverride, parseSuiteOutput, parseRunnerSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment, cleanEnvironment };

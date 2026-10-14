@@ -13,7 +13,8 @@ const { availableParallelism, cpus, tmpdir } = os;
 const { basename, dirname, extname, join, resolve } = path;
 
 const repoRoot = resolve(__dirname, '../../..');
-const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
+// Windows workers already select a node suite; preserve regex filters outside the general integration batch parser.
+const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test.bat' : 'test-integration.sh');
 const windowsTestWrapper = join(__dirname, 'child.ps1');
 const incompatibleFlags = [
 	'AGENT_HOST_REPLAY_RECORD',
@@ -73,6 +74,11 @@ const suites: readonly ISuite[] = [
 	{
 		id: 'copilot',
 		label: 'Copilot',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+	},
+	{
+		id: 'copilot-runtime',
+		label: 'Copilot runtime',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 	},
 	{
@@ -383,7 +389,30 @@ function printFailureDetails(failures: readonly IRunResult[]): void {
 }
 
 function suiteArguments(args: readonly string[], suite: ISuite): readonly string[] {
-	const result = [...args];
+	let result = [...args];
+	if (suite.id === 'copilot' || suite.id === 'copilot-runtime') {
+		let requestedGrep: string | undefined;
+		let inverted = false;
+		result = [];
+		for (let index = 0; index < args.length; index++) {
+			const argument = args[index];
+			if (['--grep', '-g', '-f'].includes(argument)) {
+				requestedGrep = args[++index];
+				if (requestedGrep === undefined) {
+					throw new Error(`${argument} requires a pattern`);
+				}
+			} else if (argument.startsWith('--grep=')) {
+				requestedGrep = argument.slice('--grep='.length);
+			} else if (argument === '--invert') {
+				inverted = true;
+			} else {
+				result.push(argument);
+			}
+		}
+		const partition = suite.id === 'copilot' ? '(?!.*runtime coverage )' : '(?=.*runtime coverage )';
+		const filter = requestedGrep === undefined && !inverted ? '' : `(?${inverted ? '!' : '='}.*(?:${requestedGrep ?? '.*'}))`;
+		result.push('--grep', `^${partition}${filter}`);
+	}
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
 		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
@@ -467,7 +496,11 @@ function elapsedSeconds(startedAt: bigint): number {
 	return Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
 }
 
-main().catch(error => {
-	console.error(error);
-	process.exitCode = 1;
-});
+if (require.main === module) {
+	main().catch(error => {
+		console.error(error);
+		process.exitCode = 1;
+	});
+}
+
+module.exports = { suiteArguments, suites };

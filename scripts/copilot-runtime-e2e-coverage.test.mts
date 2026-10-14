@@ -16,6 +16,7 @@ const coverage: {
 	canWriteMeasurement(status: object, acceptFailed: boolean): boolean;
 	parseArguments(args: readonly string[]): { mode: string };
 	parseSuiteOutput(suite: string, output: string, exitCode: number, focused?: boolean): object;
+	parseRunnerSuiteOutput(log: string, suite: string, labels: readonly string[]): object;
 	withEntrypointOverride(file: string, replacement: string, callback: () => void): void;
 	sameIdentity(metadata: object, build: object, label: string): void;
 	wrapperSummary(summary: object): object;
@@ -142,6 +143,21 @@ test('known-issue diagnostics are rejected before runtime validation or entrypoi
 test('Mocha summaries preserve failure codes, pending tests and supplemental-only counts', () => {
 	assert.deepStrictEqual(coverage.parseSuiteOutput('prompts', '  3 passing (12ms)\n  20 pending\n', 0), {
 		suite: 'prompts', exitCode: 0, passing: 0, pending: 20, failing: 0, auxiliaryPassing: 3,
+	});
+
+	test('native coverage accounts for both mandatory Copilot workers and retains either failure', () => {
+		const log = [
+			'===== Agent Host E2E — Copilot =====',
+			'  100 passing\n  3 pending',
+			'===== Agent Host E2E — Copilot runtime =====',
+			'  179 passing\n  12 pending\n  1 failing',
+			'PASS Copilot: 10s',
+			'FAIL Copilot runtime: 20s',
+		].join('\n');
+		assert.deepStrictEqual(coverage.parseRunnerSuiteOutput(log, 'copilot', ['Copilot', 'Copilot runtime']), {
+			suite: 'copilot', exitCode: 1, passing: 279, pending: 15, failing: 1, auxiliaryPassing: 0,
+		});
+		assert.throws(() => coverage.parseRunnerSuiteOutput(log, 'copilot', ['Copilot', 'Missing worker']), /Missing worker output/);
 	});
 	assert.deepStrictEqual(coverage.parseSuiteOutput('copilot', '  176 passing\n  37 pending\n  1 failing\n', 1), {
 		suite: 'copilot', exitCode: 1, passing: 176, pending: 37, failing: 1, auxiliaryPassing: 0,

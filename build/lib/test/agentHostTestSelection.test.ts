@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -14,6 +15,71 @@ import { detectAgentHostE2EChanges } from '../../../.github/actions/detect-agent
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const profilePath = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
+const nodeRequire = createRequire(import.meta.url);
+const runner: {
+	suites: readonly { id: string; label: string; file: string }[];
+	suiteArguments(args: readonly string[], suite: { id: string; label: string; file: string }): readonly string[];
+} = nodeRequire('../../../test/integration/agentHost/runner.ts');
+
+suite('Copilot E2E worker partitions', () => {
+	const workers = runner.suites.filter(item => item.id === 'copilot' || item.id === 'copilot-runtime');
+	const titles = [
+		'Agent Host E2E — Copilot retains context across consecutive turns',
+		'Agent Host E2E — Copilot managed settings: read denial',
+		'Agent Host E2E — Copilot runtime coverage shell: verifies exact command',
+		'Agent Host E2E — Copilot MCP runtime coverage mcp: preserves resources',
+	];
+
+	test('the two mandatory workers select disjoint and exhaustive cases without changing the entrypoint', () => {
+		assert.deepStrictEqual({
+			workers: workers.map(item => ({ id: item.id, file: item.file })),
+			selections: titles.map(title => workers.map(worker => {
+				const args = runner.suiteArguments([], worker);
+				return new RegExp(args[args.indexOf('--grep') + 1]).test(title);
+			})),
+		}, {
+			workers: ['copilot', 'copilot-runtime'].map(id => ({
+				id, file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+			})),
+			selections: [[true, false], [true, false], [false, true], [false, true]],
+		});
+	});
+
+	test('focused and inverted selections intersect each worker rather than escaping its partition', () => {
+		for (const option of ['--grep', '-g', '-f', '--grep=']) {
+			for (const pattern of ['', 'context', '^Agent Host', 'runtime coverage', 'managed settings', 'shell:.*command$']) {
+				for (const inverted of [false, true]) {
+					const original = new RegExp(pattern);
+					for (const worker of workers) {
+						const forwarded = option.endsWith('=') ? [`${option}${pattern}`] : [option, pattern];
+						if (inverted) {
+							forwarded.push('--invert');
+						}
+						const args = runner.suiteArguments(forwarded, worker);
+						const selected = new RegExp(args[args.indexOf('--grep') + 1]);
+						assert.deepStrictEqual(titles.map(title => selected.test(title)), titles.map(title =>
+							original.test(title) !== inverted
+							&& title.includes('runtime coverage ') === (worker.id === 'copilot-runtime')
+						), JSON.stringify({ option, pattern, inverted, worker: worker.id }));
+					}
+				}
+			}
+		}
+	});
+
+	test('other providers retain their filters, and reporting identifies each partition', () => {
+		const forwarded = ['--grep', 'context', '--invert'];
+		const other = runner.suites.find(item => item.id === 'claude')!;
+		assert.deepStrictEqual(runner.suiteArguments(forwarded, other), forwarded);
+		for (const worker of workers) {
+			const args = runner.suiteArguments(['--tfs', 'Integration'], worker);
+			assert.ok(args[args.indexOf('--tfs') + 1].startsWith(`Integration ${worker.label} `));
+			assert.throws(() => runner.suiteArguments(['--grep'], worker), /requires a pattern/);
+			const inverted = runner.suiteArguments(['--invert'], worker);
+			assert.ok(titles.every(title => !new RegExp(inverted[inverted.indexOf('--grep') + 1]).test(title)));
+		}
+	});
+});
 
 async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
