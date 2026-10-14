@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -21,7 +23,9 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 import { ChatAgentService, IChatAgentNameService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestQueueKind, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
-import { ChatModel, ChatResponseModelChangeReason, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { MockChatEditingSession } from '../mockChatEditingSession.js';
+import { ChatModel, ChatResponseModelChangeReason, IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 
 interface ITestChatViewModelItem {
@@ -119,7 +123,8 @@ suite('ChatViewModel', () => {
 
 			const added = add(model, 'b');
 			const afterAdd = ids();
-			const lastIsResponse = (viewModel.getItems().at(-1) as { isLast?: boolean }).isLast;
+			const lastItem = viewModel.getItems().at(-1);
+			const lastIsResponse = !!lastItem && isResponseVM(lastItem) && lastItem.isLast;
 			model.removeRequest('a');
 			const afterRemove = ids();
 			model.removeRequest(added.id);
@@ -136,18 +141,23 @@ suite('ChatViewModel', () => {
 		});
 
 		test('getItems cache is invalidated by disablement and pending request changes', () => {
+			const requestDisablement = observableValue<IChatRequestDisablement[]>('requestDisablement', []);
+			instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({
+				createEditingSession: () => new class extends MockChatEditingSession {
+					override readonly requestDisablement = requestDisablement;
+				}([]),
+			}));
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-			const a = add(model, 'a');
+			model.startEditingSession();
+			add(model, 'a');
 			add(model, 'b');
 			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 			const count = () => viewModel.getItems().length;
 			const before = count();
 
-			a.shouldBeRemovedOnSend = { requestId: 'a' };
-			a.response!.shouldBeRemovedOnSend = { requestId: 'a' };
+			requestDisablement.set([{ requestId: 'a' }], undefined);
 			const disabled = count();
-			a.response!.shouldBeRemovedOnSend = undefined;
-			a.shouldBeRemovedOnSend = undefined;
+			requestDisablement.set([], undefined);
 			const reenabled = count();
 
 			const queuedRequest = add(model, 'q');
@@ -166,6 +176,23 @@ suite('ChatViewModel', () => {
 				queued: [ChatRequestQueueKind.Queued],
 				steering: [ChatRequestQueueKind.Steering],
 				none: [],
+			});
+		});
+
+		test('getItems cache is invalidated by streaming response changes', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = add(model, 'a');
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const before = viewModel.getItems();
+			const idle = viewModel.getItems();
+
+			request.response!.updateContent({ kind: 'markdownContent', content: new MarkdownString('streamed') });
+			const streaming = viewModel.getItems();
+
+			assert.deepStrictEqual({ stableWhenIdle: idle === before, rebuiltOnResponseChange: streaming !== before, sameItems: streaming.map(item => item.id) }, {
+				stableWhenIdle: true,
+				rebuiltOnResponseChange: true,
+				sameItems: before.map(item => item.id),
 			});
 		});
 

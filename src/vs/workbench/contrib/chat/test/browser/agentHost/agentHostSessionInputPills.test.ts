@@ -8,7 +8,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -26,7 +26,7 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, Customization, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -290,9 +290,11 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const sessionResolutionChanged = store.add(new Emitter<void>());
+		let currentAuthority = connectionAuthority;
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
-			onDidChangeSessionResolution: Event.None,
-			resolveSessionResource: () => transcript?.local ? undefined : ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42') }),
+			onDidChangeSessionResolution: sessionResolutionChanged.event,
+			resolveSessionResource: () => transcript?.local ? undefined : ({ connection, connectionAuthority: currentAuthority, backendSession: URI.parse('vendor:/sessions/42') }),
 		}));
 		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
 			onDidChangeBrowserViews: Event.None,
@@ -357,6 +359,11 @@ suite('AgentHostSessionInputPills', () => {
 		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills, openedImages,
+			switchHost: (authority: string) => {
+				currentAuthority = authority;
+				connection.resourceUris = createAgentHostResourceUriMapper(authority);
+				sessionResolutionChanged.fire();
+			},
 			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
 			dropdownItems: () => dropdownItems,
 			dropdown: (label: string) => {
@@ -767,9 +774,11 @@ suite('AgentHostSessionInputPills', () => {
 			customizations,
 			roots,
 			constObservable(uri => uri),
-			(items, workspaceRoots, mapHostUri, previous) => {
-				indexCreations++;
-				return new CountingCustomizationIndex(items, workspaceRoots, mapHostUri, previous);
+			{
+				createIndex: (items, workspaceRoots, mapHostUri, previous) => {
+					indexCreations++;
+					return new CountingCustomizationIndex(items, workspaceRoots, mapHostUri, previous);
+				},
 			},
 		);
 		const observed: Array<string | undefined> = [];
@@ -795,6 +804,190 @@ suite('AgentHostSessionInputPills', () => {
 			uncachedPathResolutions: 2,
 			observed: ['hook', 'hook', 'hook', undefined],
 		});
+	});
+
+	function createCustomizationIndexHarness(scope?: ISettableObservable<string>) {
+		const createCustomizations = (reverse: boolean): readonly Customization[] => {
+			const hooks: ChildCustomization[] = [
+				{ id: 'hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/pre.md').toString(), name: 'pre-commit' },
+				{ id: 'other-hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/post.md').toString(), name: 'post-commit' },
+			];
+			return [{
+				id: 'directory',
+				type: CustomizationType.Directory,
+				uri: URI.file('/repo/.github').toString(),
+				name: 'Customizations',
+				enabled: true,
+				contents: CustomizationType.Hook,
+				writable: true,
+				children: reverse ? [...hooks].reverse() : hooks,
+			}];
+		};
+		const customizations = observableValue<readonly Customization[] | undefined>('customizations', createCustomizations(false));
+		let uncachedPathResolutions = 0;
+		class CountingCustomizationIndex extends CustomizationIndex {
+			protected override _resolvePathUncached(token: string) {
+				uncachedPathResolutions++;
+				return super._resolvePathUncached(token);
+			}
+		}
+		const index = createCustomizationIndexObservable(
+			undefined,
+			customizations,
+			constObservable([URI.file('/repo')]),
+			constObservable(uri => uri),
+			{
+				createIndex: (items, workspaceRoots, mapHostUri, previous) => new CountingCustomizationIndex(items, workspaceRoots, mapHostUri, previous),
+				scope,
+			},
+		);
+		let reversed = false;
+		let tokens: readonly string[] = [];
+		store.add(autorun(reader => {
+			const current = index.read(reader);
+			for (const token of tokens) {
+				current.resolve({ kind: CustomizationRefKind.Path, value: token });
+			}
+		}));
+		return {
+			/** Rebuilds the index with equivalent entries and looks up the given tokens. */
+			rebuild: (...lookups: string[]) => {
+				tokens = lookups;
+				reversed = !reversed;
+				customizations.set(createCustomizations(reversed), undefined);
+			},
+			uncachedPathResolutions: () => uncachedPathResolutions,
+		};
+	}
+
+	test('carries only recently looked up customization paths across index rebuilds', () => {
+		const harness = createCustomizationIndexHarness();
+		harness.rebuild('.github/hooks/pre.md');
+		harness.rebuild('.github/hooks/post.md');
+		const afterCarry = harness.uncachedPathResolutions();
+		harness.rebuild('.github/hooks/pre.md');
+
+		// `pre.md` was not looked up on the second index, so the third one resolves it again.
+		assert.deepStrictEqual({ afterCarry, final: harness.uncachedPathResolutions() }, { afterCarry: 2, final: 3 });
+	});
+
+	test('reuses customization path resolutions across rebuilds while they keep being looked up', () => {
+		const harness = createCustomizationIndexHarness();
+		for (let i = 0; i < 4; i++) {
+			harness.rebuild('.github/hooks/pre.md');
+		}
+
+		assert.strictEqual(harness.uncachedPathResolutions(), 1);
+	});
+
+	test('drops customization path resolutions when the scope changes', () => {
+		const scope = observableValue('scope', 'session-a');
+		const harness = createCustomizationIndexHarness(scope);
+		harness.rebuild('.github/hooks/pre.md');
+		harness.rebuild('.github/hooks/pre.md');
+		const sameScope = harness.uncachedPathResolutions();
+		scope.set('session-b', undefined);
+		harness.rebuild('.github/hooks/pre.md');
+
+		assert.deepStrictEqual({ sameScope, afterScopeChange: harness.uncachedPathResolutions() }, { sameScope: 1, afterScopeChange: 2 });
+	});
+
+	test('pills pick up customizations added after a path was already resolved as unknown', async () => {
+		const chatResource = 'vendor-chat:/conversations/main';
+		const hookUri = URI.file('/repo/.github/instructions/late.instructions.md');
+		const customizations = (items: ChildCustomization[]): SessionState => upcastPartial<SessionState>({
+			defaultChat: chatResource,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: [{
+				id: 'rules',
+				type: CustomizationType.Directory,
+				name: 'Rules',
+				uri: URI.file('/repo/.github').toString(),
+				enabled: true,
+				contents: CustomizationType.Rule,
+				writable: true,
+				children: items,
+			}],
+		});
+		const chat = upcastPartial<ChatState>({
+			resource: chatResource,
+			turns: [upcastPartial<Turn>({
+				id: 'turn',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool',
+						toolName: 'read',
+						displayName: 'read',
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: 'read',
+						pastTenseMessage: 'read',
+						success: true,
+						toolInput: '{"path":".github/instructions/late.instructions.md"}',
+					},
+				}],
+			})],
+		});
+		const harness = createActivityPills(customizations([]), chat);
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const before = harness.labels();
+		harness.connection.setState(StateComponents.Session, customizations([{ id: 'late', type: CustomizationType.Rule, name: 'late', uri: hookUri.toString() }]));
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, after: harness.labels() }, { before: [], after: ['1 Customization'] });
+	});
+
+	test('pills drop cached customization paths when the host URI mapping changes', async () => {
+		const chatResource = 'vendor-chat:/conversations/main';
+		const skillUri = URI.file('/repo/.github/skills/host/SKILL.md');
+		const session = upcastPartial<SessionState>({
+			defaultChat: chatResource,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: [{
+				id: 'skills',
+				type: CustomizationType.Directory,
+				name: 'Skills',
+				uri: dirname(dirname(skillUri)).toString(),
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: false,
+				children: [{ id: 'host', type: CustomizationType.Skill, name: 'host', uri: skillUri.toString() }],
+			}],
+		});
+		const chat = upcastPartial<ChatState>({
+			resource: chatResource,
+			turns: [upcastPartial<Turn>({
+				id: 'turn',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool',
+						toolName: 'view',
+						displayName: 'view',
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: 'view',
+						pastTenseMessage: 'view',
+						success: true,
+						toolInput: '{"path":".github/skills/host/SKILL.md"}',
+					},
+				}],
+			})],
+		});
+		const harness = createActivityPills(session, chat, undefined, 'host-a');
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		harness.dropdown('1 Customization').find(item => item.label === 'host')?.select();
+		harness.switchHost('host-b');
+		harness.dropdown('1 Customization').find(item => item.label === 'host')?.select();
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.commands.map(command => (command.args[0] as { revealUri: string }).revealUri), [
+			toAgentHostUri(skillUri, 'host-a').toString(),
+			toAgentHostUri(skillUri, 'host-b').toString(),
+		]);
 	});
 
 	test('shows only used customizations and resets parsing when navigating between chats', async () => {

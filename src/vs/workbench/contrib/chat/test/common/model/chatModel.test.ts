@@ -238,27 +238,50 @@ suite('ChatModel', () => {
 	});
 
 	test('response.request does not scan the transcript and stays correct across removal and insertion', () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-		const requests = Array.from({ length: 200 }, (_, i) => model.addRequest({ text: `r${i}`, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, `id${i}`));
-		let idReads = 0;
-		for (const request of requests) {
-			const id = request.id;
-			Object.defineProperty(request, 'id', { get: () => { idReads++; return id; } });
-		}
+		const addRequests = (count: number) => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const requests = Array.from({ length: count }, (_, i) => model.addRequest({ text: `r${i}`, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, `id${i}`));
+			const counter = { idReads: 0 };
+			for (const request of requests) {
+				const id = request.id;
+				Object.defineProperty(request, 'id', { get: () => { counter.idReads++; return id; } });
+			}
+			return { model, requests, counter };
+		};
+		const lookups = 50;
+		const readsForTranscript = (count: number) => {
+			const { requests, counter } = addRequests(count);
+			const last = requests[count - 1].response!;
+			assert.strictEqual(last.request, requests[count - 1]);
+			counter.idReads = 0;
+			for (let i = 0; i < lookups; i++) {
+				void last.request;
+			}
+			return counter.idReads;
+		};
+		const small = readsForTranscript(20);
+		const large = readsForTranscript(400);
+
+		const { model, requests } = addRequests(200);
 		const last = requests[199].response!;
 		const first = requests[0].response!;
 		assert.strictEqual(last.request, requests[199]);
-		idReads = 0;
-		for (let i = 0; i < 50; i++) {
-			void last.request;
-		}
-		const repeatedReads = idReads;
-
 		model.removeRequest('id0');
 		const afterRemoval = { last: last.request === requests[199], first: first.request };
 		model.addRequest({ text: 'inserted', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'inserted', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { index: 1 });
 
-		assert.deepStrictEqual({ repeatedReads, afterRemoval, afterInsertion: last.request === requests[199] }, { repeatedReads: 50, afterRemoval: { last: true, first: undefined }, afterInsertion: true });
+		// A scan would read ids in proportion to the transcript size; a hinted lookup reads a small constant per call.
+		assert.deepStrictEqual({
+			boundedPerCall: [small, large].every(reads => reads <= lookups * 2),
+			independentOfTranscriptSize: small === large,
+			afterRemoval,
+			afterInsertion: last.request === requests[199],
+		}, {
+			boundedPerCall: true,
+			independentOfTranscriptSize: true,
+			afterRemoval: { last: true, first: undefined },
+			afterInsertion: true,
+		});
 	});
 
 	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {

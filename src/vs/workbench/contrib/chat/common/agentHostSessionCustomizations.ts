@@ -228,6 +228,8 @@ export class CustomizationIndex {
 	private readonly _byContainerPath = new Map<string, ISessionChatCustomization>();
 	private readonly _bySkillName = new Map<string, ISessionChatCustomization>();
 	private readonly _resolvedPaths = new Map<string, ISessionChatCustomization | undefined>();
+	/** Tokens looked up on this index; only these are worth carrying to the next one. */
+	private readonly _usedPathTokens = new Set<string>();
 	private readonly _resolvedPathDependencies = new Map<string, { readonly paths: readonly string[]; readonly containerPaths: readonly string[] }>();
 	private readonly _roots: readonly string[];
 
@@ -288,6 +290,7 @@ export class CustomizationIndex {
 	}
 
 	private _resolvePath(token: string): ISessionChatCustomization | undefined {
+		this._usedPathTokens.add(token);
 		if (this._resolvedPaths.has(token)) {
 			return this._resolvedPaths.get(token);
 		}
@@ -334,7 +337,8 @@ export class CustomizationIndex {
 		const changedPaths = changedCustomizationPaths(previous._byPath, this._byPath);
 		const changedContainerPaths = changedCustomizationPaths(previous._byContainerPath, this._byContainerPath);
 		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.size > 0;
-		for (const [token, resolved] of previous._resolvedPaths) {
+		for (const token of previous._usedPathTokens) {
+			const resolved = previous._resolvedPaths.get(token);
 			const dependencies = previous._resolvedPathDependencies.get(token);
 			const affected = dependencies && pathsChanged
 				&& (dependencies.paths.some(path => changedPaths.has(path))
@@ -388,19 +392,26 @@ export type CustomizationIndexFactory = (
 
 /**
  * Creates a customization index whose identity is stable across equivalent
- * protocol snapshots and workspace-root emissions.
+ * protocol snapshots and workspace-root emissions. Resolved paths are carried
+ * across rebuilds only while they keep being looked up, and are dropped when
+ * the optional `options.scope` changes (for example when switching chats).
  */
 export function createCustomizationIndexObservable(
 	owner: DebugOwner,
 	customizations: IObservable<readonly Customization[] | undefined>,
 	workspaceRoots: IObservable<readonly URI[]>,
 	mapHostUri?: IObservable<AgentHostUriMapper | undefined>,
-	createIndex: CustomizationIndexFactory = (items, roots, mapper, previous) => new CustomizationIndex(items, roots, mapper, previous),
+	{ createIndex = (items, roots, mapper, previous) => new CustomizationIndex(items, roots, mapper, previous), scope }: { createIndex?: CustomizationIndexFactory; scope?: IObservable<unknown> } = {},
 ): IObservable<CustomizationIndex> {
 	const stableCustomizations = derivedOpts<readonly Customization[] | undefined>({ owner, equalsFn: structuralEquals }, reader => customizations.read(reader));
 	const stableWorkspaceRoots = derivedOpts<readonly URI[]>({ owner, equalsFn: (a, b) => arrayEquals(a, b, isEqual) }, reader => workspaceRoots.read(reader));
-	return derivedObservableWithCache(owner, (reader, previous) =>
-		createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), previous));
+	let lastScope: unknown;
+	return derivedObservableWithCache(owner, (reader, previous) => {
+		const currentScope = scope?.read(reader);
+		const sameScope = currentScope === lastScope;
+		lastScope = currentScope;
+		return createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), sameScope ? previous : undefined);
+	});
 }
 
 /**

@@ -970,7 +970,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	function createStickyScrollRenderer(requestCount: number) {
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -1008,7 +1008,10 @@ suite('ChatListRenderer', () => {
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
 				isStickyScrollEnabled: () => true,
-				refreshStickyScroll: () => { counters.stickyScrollRefreshes++; },
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
 				stickyScrollTopPadding: 0,
 			},
 			undefined,
@@ -1059,6 +1062,49 @@ suite('ChatListRenderer', () => {
 			refreshed: true,
 			measuredRows: true,
 		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
 
 		disposables.dispose();
 	});

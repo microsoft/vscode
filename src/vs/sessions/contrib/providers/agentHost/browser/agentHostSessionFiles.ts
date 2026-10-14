@@ -176,7 +176,7 @@ export function createSessionOutputObs(
 		return !sessionState || sessionState instanceof Error ? undefined : sessionState.customizations;
 	});
 	const customizationRootsObs = derived<readonly URI[]>(reader => getWorkspaceAndWorktreeRoots(workspaceObs.read(reader)));
-	const customizationIndexObs = createCustomizationIndexObservable(undefined, customizationsObs, customizationRootsObs, undefined, createCustomizationIndex);
+	const customizationIndexObs = createCustomizationIndexObservable(undefined, customizationsObs, customizationRootsObs, undefined, { createIndex: createCustomizationIndex });
 
 	const customizationsByChat = new Map<string, IObservable<readonly ISessionChatCustomization[]>>();
 	const getChatCustomizations = (chatUri: URI): IObservable<readonly ISessionChatCustomization[]> => {

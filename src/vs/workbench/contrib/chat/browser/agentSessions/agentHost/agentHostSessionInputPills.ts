@@ -789,7 +789,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const current = resolution.read(reader);
 			return current ? (uri: URI) => current.connection.resourceUris.fromAgentHost(uri) : undefined;
 		});
-		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper);
+		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()) });
 		const customizationParser = derived(this, reader => {
 			resolution.read(reader);
 			chatResource.read(reader);
