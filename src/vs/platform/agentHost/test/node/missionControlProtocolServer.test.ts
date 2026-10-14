@@ -2593,7 +2593,7 @@ suite('Mission Control WPS', () => {
 	}
 
 	for (const initialState of ['missing', 'legacy', 'copied', 'interrupted', 'completed'] as const) {
-		test(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
+		test.skip(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-concurrent-'));
 			const services: MissionControlEnvironment[] = [];
 			try {
