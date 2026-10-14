@@ -9796,6 +9796,43 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts the runtime when HydraFusion multi-root changes with v2 on', async () => {
+			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+					[CopilotCliConfigKey.HydraFusionV2]: true,
+				},
+			});
+			const stopsAfter = async (config: Record<string, unknown>) => {
+				configurationService.updateRootConfig(config);
+				await agent.listChatsToMigrate();
+				return client.stopCallCount;
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					initial: client.stopCallCount,
+					multiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
+					backToV2: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: false }),
+					v1: await stopsAfter({ [CopilotCliConfigKey.HydraFusionV2]: false }),
+					// Without v2 the hint is inert, so toggling it must not restart.
+					v1MultiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
+				}, {
+					initial: 0,
+					multiRoot: 1,
+					backToV2: 2,
+					v1: 3,
+					v1MultiRoot: 3,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restarts the runtime only when the effective local memory store changes', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });

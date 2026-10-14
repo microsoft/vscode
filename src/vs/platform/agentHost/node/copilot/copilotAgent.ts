@@ -1236,6 +1236,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._isHydraFusionEnabled() && (this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 	}
 
+	/** Mirrors the launcher's gate: the sticky-root hint only affects HydraFusion v2 plans. */
+	private _isHydraFusionMultiRootEnabled(): boolean {
+		return this._isHydraFusionV2Enabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
+	}
+
 	private _isEnsembleEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
 	}
@@ -1347,6 +1352,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
 			this._isHydraFusionV2Enabled(),
+			this._isHydraFusionMultiRootEnabled(),
 			this._isLocalMemoryEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),
