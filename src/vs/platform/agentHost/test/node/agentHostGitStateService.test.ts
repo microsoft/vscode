@@ -433,7 +433,7 @@ suite('AgentHostGitStateService', () => {
 			gitState: h.service.getSessionGitState(SESSION),
 			repositoryCalls: h.repositoryCalls,
 		}, {
-			restored: ['/wd/tracked.ts'], success: true,
+			restored: [URI.file('/wd/tracked.ts').fsPath], success: true,
 			gitState: { branchName: 'feature', uncommittedChanges: 0 }, repositoryCalls: [],
 		});
 	}));
