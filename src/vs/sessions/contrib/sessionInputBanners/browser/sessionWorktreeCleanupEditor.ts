@@ -325,7 +325,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const heading = dom.append(section, dom.$('h2.session-worktree-cleanup-settings-heading'));
 		heading.appendChild(renderIcon(Codicon.settingsGear));
 		dom.append(heading, dom.$('span', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Cleanup Settings")));
-		dom.append(section, dom.$('p', undefined, localize('sessionWorktreeCleanup.automaticDescription', "Changes take effect immediately and can apply to sessions that already meet the configured age. For merged pull requests, automatically mark inactive sessions as done first, then optionally delete them after an additional retention period.")));
+		dom.append(section, dom.$('p', undefined, localize('sessionWorktreeCleanup.automaticDescription', "Changes to these settings are saved immediately. Background cleanup evaluates existing and future sessions after confirming their eligibility. For merged pull requests, inactive sessions are marked as done first, then optionally deleted after an additional retention period.")));
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoMark', "Mark merged sessions as done after"),
 			localize('sessionWorktreeCleanup.autoMarkAria', "Automatically mark merged sessions as done"));
