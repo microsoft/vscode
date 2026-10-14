@@ -146,7 +146,8 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			await this._agentHostGitService.restore(repositoryRoot, [baseline.repoRelativePath], { staged: true, ref: baseline.sha });
 			this._throwIfCancelled(token);
 
-			if (after && !extUriBiasedIgnorePathCase.isEqual(URI.parse(before.uri), URI.parse(after.uri))) {
+			// Git paths are case-sensitive even on case-insensitive file systems, so a case-only rename is still a rename.
+			if (after && this._getRepositoryRelativePath(repositoryRoot, URI.parse(after.uri)) !== baseline.repoRelativePath) {
 				await this._discardBranchAddition(repositoryRoot, URI.parse(after.uri), sessionUri, token);
 			}
 
@@ -162,14 +163,18 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		const isUntracked = await this._isUntracked(repositoryRoot, resource);
 		this._throwIfCancelled(token);
 		if (!isUntracked) {
-			const repositoryRelativePath = relativePath(repositoryRoot, resource);
-			if (repositoryRelativePath === undefined) {
-				throw new Error(`Resource '${resource.fsPath}' is outside repository '${repositoryRoot.fsPath}'.`);
-			}
-			await this._agentHostGitService.restore(repositoryRoot, [repositoryRelativePath], { staged: true, ref: EMPTY_TREE_OBJECT });
+			await this._agentHostGitService.restore(repositoryRoot, [this._getRepositoryRelativePath(repositoryRoot, resource)], { staged: true, ref: EMPTY_TREE_OBJECT });
 			this._throwIfCancelled(token);
 		}
 		await this._deleteResource(resource, sessionUri);
+	}
+
+	private _getRepositoryRelativePath(repositoryRoot: URI, resource: URI): string {
+		const repositoryRelativePath = relativePath(repositoryRoot, resource);
+		if (repositoryRelativePath === undefined) {
+			throw new Error(`Resource '${resource.fsPath}' is outside repository '${repositoryRoot.fsPath}'.`);
+		}
+		return repositoryRelativePath;
 	}
 
 	private async _isUntracked(repositoryRoot: URI, resource: URI): Promise<boolean> {

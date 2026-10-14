@@ -357,6 +357,39 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		});
 	});
 
+	test('reverts a case-only rename in Branch Changes as a rename', async () => {
+		const { handler, gitService, fileService, stateManager, session } = setup(disposables);
+		const owner = buildDefaultChatUri(session.toString());
+		const channel = buildBranchChangesetUri(owner);
+		const before = URI.file('/repo/src/File.ts');
+		const after = URI.file('/repo/src/file.ts');
+		addChangesetFile(stateManager, channel, {
+			before: {
+				uri: before.toString(),
+				content: { uri: buildGitBlobUri(owner, 'baseline-sha', 'src/File.ts', before.path) },
+			},
+			after: { uri: after.toString(), content: { uri: after.toString() } },
+		});
+
+		await handler.invoke({
+			channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(after),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			deleteCalls: fileService.deleteCalls,
+		}, {
+			restoreCalls: [
+				{ workingDirectory: URI.file('/repo').toString(), paths: ['src/File.ts'], options: { staged: true, ref: 'baseline-sha' } },
+				{ workingDirectory: URI.file('/repo').toString(), paths: ['src/file.ts'], options: { staged: true, ref: EMPTY_TREE_OBJECT } },
+				{ workingDirectory: URI.file('/repo').toString(), paths: ['src/File.ts'], options: { ref: 'baseline-sha' } },
+			],
+			deleteCalls: [{ resource: after.toString(), useTrash: true }],
+		});
+	});
+
 	test('uses the repository containing the Branch Changes resource in a multi-root session', async () => {
 		const firstWorkingDirectory = URI.file('/workspace/first');
 		const secondWorkingDirectory = URI.file('/workspace/second');
