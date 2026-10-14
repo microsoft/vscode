@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -33,7 +34,7 @@ export interface IExternalUriOpener {
 	readonly label: string;
 
 	canOpen(uri: URI, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
-	openExternalUri(uri: URI, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean>;
+	openExternalUri(uri: URI, ctx: { sourceUri: URI; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean>;
 }
 
 export interface IExternalUriOpenerService {
@@ -138,7 +139,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return validOpeners.map(value => value.opener);
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean> {
 
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
@@ -191,7 +192,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	private async showOpenerPrompt(
 		openers: ReadonlyArray<IExternalUriOpener>,
 		targetUri: URI,
-		ctx: { sourceUri: URI },
+		ctx: { sourceUri: URI; viewColumn?: ViewColumn },
 		token: CancellationToken
 	): Promise<boolean> {
 		type PickItem = IQuickPickItem & { opener?: IExternalUriOpener | 'configureDefault' };

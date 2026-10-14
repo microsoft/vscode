@@ -5,11 +5,12 @@
 
 import * as sinon from 'sinon';
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
+import '../../browser/extensions.contribution.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
@@ -62,6 +63,7 @@ import { toUserDataProfile } from '../../../../../platform/userDataProfile/commo
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -574,6 +576,71 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		await Event.toPromise(Event.filter(testObject.onChange, e => !!e?.gallery));
 		assert.equal(await testObject.canInstall(target), true);
+	});
+
+	suite('installExtension waits for installed inventory', () => {
+		for (const { name, version, preRelease, disabled } of [
+			{ name: 'newer pre-release', version: '1.26.54', preRelease: true, disabled: false },
+			{ name: 'newer release', version: '1.26.54', preRelease: false, disabled: false },
+			{ name: 'same release', version: '1.26.53', preRelease: false, disabled: false },
+			{ name: 'older release', version: '1.26.52', preRelease: false, disabled: false },
+			{ name: 'disabled pre-release', version: '1.26.54', preRelease: true, disabled: true },
+			{ name: 'missing extension', version: undefined, preRelease: false, disabled: false }
+		]) {
+			test(name, async () => {
+				const gallery = aGalleryExtension('a', { version: '1.26.53' }, { isPreReleaseVersion: false });
+				const local = version ? aLocalExtension('a', { version }, {
+					isPreReleaseVersion: preRelease, preRelease, installedTimestamp: 1000
+				}) : undefined;
+				const inventory = new DeferredPromise<ILocalExtension[]>();
+				instantiationService.stub(IExtensionManagementService, 'getInstalled', async () => [...await inventory.p]);
+				instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+				instantiationService.stub(IProgressService, {
+					withProgress: (_options, task) => task({ report() { } })
+				});
+				const installFromGallery = sinon.spy(async (extension: IGalleryExtension) => {
+					const installed = aLocalExtension(extension.name, { version: extension.version }, {
+						isPreReleaseVersion: extension.properties.isPreReleaseVersion, installedTimestamp: 2000
+					});
+					didInstallEvent.fire([{
+						identifier: installed.identifier, source: extension, local: installed,
+						operation: InstallOperation.Install, profileLocation: null!
+					}]);
+					return installed;
+				});
+				instantiationService.stub(IWorkbenchExtensionManagementService, 'installFromGallery', installFromGallery);
+				instantiationService.stub(IWorkbenchExtensionManagementService, 'updateFromGallery', installFromGallery);
+				if (local && disabled) {
+					await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+				}
+				testObject = disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+				instantiationService.stub(IExtensionsWorkbenchService, testObject);
+				const install = sinon.spy(testObject, 'install');
+				const command = CommandsRegistry.getCommand('workbench.extensions.installExtension');
+				assert.ok(command);
+
+				const pending = instantiationService.invokeFunction(command.handler, gallery.identifier.id, { enable: true });
+				const installedBeforeInventoryLoaded = install.called;
+				await inventory.complete(local ? [local] : []);
+				await pending;
+
+				assert.deepStrictEqual({
+					installedBeforeInventoryLoaded,
+					installCount: installFromGallery.callCount,
+					version: testObject.local[0].version,
+					preRelease: testObject.local[0].local?.isPreReleaseVersion,
+					installedTimestamp: testObject.local[0].local?.installedTimestamp,
+					enablement: testObject.local[0].enablementState
+				}, {
+					installedBeforeInventoryLoaded: false,
+					installCount: local ? 0 : 1,
+					version: version ?? gallery.version,
+					preRelease,
+					installedTimestamp: local ? 1000 : 2000,
+					enablement: EnablementState.EnabledGlobally
+				});
+			});
+		}
 	});
 
 	test('test onchange event is triggered while installing', async () => {

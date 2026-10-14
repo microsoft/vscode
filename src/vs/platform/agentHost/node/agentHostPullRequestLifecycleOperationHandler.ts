@@ -73,7 +73,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
 		}
-		const sessionUri = parsed.sessionUri;
+		const sessionUri = parsed.sessionUri ?? parsed.ownerUri;
 		// Each folder has its own pull request; the changeset owner identifies the folder.
 		const ownerUri = parsed.ownerUri;
 		const status = this._statusService.getPullRequestStatus(ownerUri);

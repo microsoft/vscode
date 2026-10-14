@@ -23,7 +23,7 @@ import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectW
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, derived, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
@@ -31,6 +31,7 @@ import { ISessionChangesStatsCache } from '../../services/sessions/common/sessio
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionGridView } from './sessionGridLayout.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -47,7 +48,7 @@ export interface ISessionViewOptions extends IChatViewOptions { }
  * renders the session's chats as a grid of groups. The header content shares the
  * chat's centered, width-capped content band.
  */
-export class SessionView extends Disposable implements ISerializableView {
+export class SessionView extends Disposable implements ISerializableView, ISessionGridView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
@@ -71,6 +72,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _contentContainer: HTMLElement;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastContentLayout: { readonly view: AbstractChatView | ChatGroupsView; readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
+	private _contentGap = 0;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
@@ -94,6 +97,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 	private readonly _isVisibleObs = observableValue(this, true);
+	readonly shownChatCount: IObservable<number>;
 
 	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.preparationProgress?.read(reader)
 		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
@@ -143,6 +147,12 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView));
 		this._contentContainer.appendChild(this._groupsView.element);
+		this.shownChatCount = derived(this, reader => {
+			if (!this._isVisibleObs.read(reader)) {
+				return 0;
+			}
+			return this._standaloneView.read(reader) ? 1 : this._groupsView.groupCount.read(reader);
+		});
 
 		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
@@ -212,7 +222,11 @@ export class SessionView extends Disposable implements ISerializableView {
 					return;
 				}
 				if (session.isCreated.read(reader)) {
+					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
 					this._showSessionGroups(session, options);
+					if (moveFocus) {
+						this._groupsView.focus();
+					}
 				} else if (session.isNewSessionRequestInProgress?.read(reader) && hasPreparationProgress.read(reader)) {
 					// Keep the composer alive so failure or cancellation restores its prompt and attachments.
 					const moveFocus = isAncestorOfActiveElement(view.element);
@@ -279,8 +293,18 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
+		this.layoutContainer(width, height, top, left);
+		this.layoutContents();
+	}
+
+	layoutContainer(width: number, height: number, top: number, left: number): void {
 		size(this.element, width, height);
+		this._centeredContentContainer.style.width = `${width}px`;
 		this._lastLayout = { width, height, top, left };
+	}
+
+	layoutContents(gap = 0): void {
+		this._contentGap = gap;
 		this._layoutChildren();
 	}
 
@@ -291,28 +315,32 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
+		const view = this._visibleStandaloneView ?? this._groupsView;
+		const gap = view === this._groupsView ? this._contentGap : 0;
+		this.element.classList.toggle('independent-chat-groups', view === this._groupsView && this._isGridLayout && gap > 0);
 		if (!this._isVisible || width === 0 || height === 0) {
+			this._lastContentLayout = undefined;
 			return;
 		}
 
-		// Set the host to the full session width; its centered inner content is
-		// capped and aligned via CSS (see chatCompositeBar.css).
-		this._centeredContentContainer.style.width = `${width}px`;
-
 		const barHeight = this._header.visible ? this._header.height : 0;
+		const contentHeight = Math.max(0, height - barHeight);
+		const contentTop = top + barHeight;
+		const previous = this._lastContentLayout;
+		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
+			return;
+		}
+		this._lastContentLayout = { view, width, height: contentHeight, top: contentTop, left, gap };
 
 		// Cap the host's height to the header so the chat groups grid sits below it.
 		size(this._centeredContentContainer, width, barHeight);
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		const contentHeight = height - barHeight;
-		const contentTop = top + barHeight;
-		const standaloneView = this._visibleStandaloneView;
-		if (standaloneView) {
-			standaloneView.layout(width, contentHeight, contentTop, left);
+		if (view === this._groupsView) {
+			view.layout(width, contentHeight, contentTop, left, gap);
 		} else {
-			this._groupsView.layout(width, contentHeight, contentTop, left);
+			view.layout(width, contentHeight, contentTop, left);
 		}
 	}
 
@@ -492,6 +520,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (visible === wasVisible) {
 			return;
 		}
+		this._lastContentLayout = undefined;
 		this._isVisibleObs.set(visible, undefined);
 		this._groupsView.setSessionVisible(visible);
 		this._visibleStandaloneView?.setVisible(visible);
@@ -507,6 +536,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	override dispose(): void {
+		this._lastLayout = undefined;
+		this._lastContentLayout = undefined;
 		this._isVisibleObs.set(false, undefined);
 		super.dispose();
 	}

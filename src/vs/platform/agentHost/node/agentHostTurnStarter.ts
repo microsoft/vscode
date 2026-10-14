@@ -95,7 +95,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	if (!state) {
 		logService.info(`[AgentHostTurnStarter] Turn started for session not in state manager: ${request.chat}, turnId=${request.turnId} - status/summary updates may be dropped unless the session is restored`);
 	}
-	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat);
+	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat, request.message.model);
 
 	const agent = providerService.getProviderForSession(request.session);
 	if (!agent) {
@@ -118,8 +118,8 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 
 	const isEphemeralSession = stateManager.isEphemeralSession(request.session);
 	const messageOriginKind = getMessageOriginTelemetryKind(request.message, isEphemeralSession);
-	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.turnId, state, request.source, request.message, isEphemeralSession);
-	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, request.session, request.chat), state, request.message.model?.id);
-	turnTracker.turnStarted(agent, request.chat, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind);
+	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession, stateManager.getChatParent(request.chat) !== undefined);
+	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat)), state, request.message.model?.id);
+	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind, undefined, undefined, stateManager.getChatParent(request.chat) !== undefined ? 'task' : undefined);
 	return { agent };
 }

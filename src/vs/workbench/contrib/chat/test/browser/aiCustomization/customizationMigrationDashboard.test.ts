@@ -32,7 +32,6 @@ suite('CustomizationMigrationDashboard', () => {
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
 			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
 			configureLocations: () => { },
-			dismissResult: () => { },
 			migrateWithAgent: () => { },
 			migrateCategory: () => { },
 			setItemSelected: () => { },
@@ -40,7 +39,6 @@ suite('CustomizationMigrationDashboard', () => {
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
 			openCustomization: () => { },
-			dismissActivity: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
@@ -57,7 +55,7 @@ suite('CustomizationMigrationDashboard', () => {
 		return {
 			scopes: [
 				{
-					storage: PromptsStorage.user, label: 'Your profile', count: 5, skipped: false, hasConfigurableDestinations: true,
+					storage: PromptsStorage.user, label: 'Your profile', count: 5, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 2, selectedCount: 2, countLabel: '1 agent · 1 instruction',
@@ -78,13 +76,18 @@ suite('CustomizationMigrationDashboard', () => {
 					],
 				},
 				{
-					storage: PromptsStorage.local, label: 'vscode', count: 3, skipped: false, hasConfigurableDestinations: true,
+					storage: PromptsStorage.local, label: 'vscode', count: 3, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.PromptFiles, label: 'Convert Prompt to Skills', description: 'Convert prompts to skills.', count: 1, selectedCount: 1, countLabel: '1 prompt', highRisk: true,
 							destinationLabel: '.github/skills',
 							destinationAriaLabel: 'Change destination for workspace prompt migrations',
-							items: [{ id: 'workspace-prompt', label: 'Build', scopeLabel: 'Workspace', sourceLabel: '.github/prompts/build.prompt.md' }],
+							items: [{
+								id: 'workspace-prompt',
+								label: 'Build',
+								scopeLabel: 'Workspace',
+								sourceLabel: '.github/prompts/build.prompt.md',
+							}],
 						},
 						{
 							id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, selectedCount: 1, countLabel: '1 server',
@@ -100,7 +103,6 @@ suite('CustomizationMigrationDashboard', () => {
 			],
 			manualReviewItems: [],
 			hasIgnoredGroups: false,
-			activity: [],
 		};
 	}
 
@@ -138,6 +140,7 @@ suite('CustomizationMigrationDashboard', () => {
 			items: [...parent.querySelectorAll('.migration-tree-item-label')].map(element => element.textContent),
 			sources: [...parent.querySelectorAll('.migration-tree-item-source')].map(element => element.textContent),
 			changes: [...parent.querySelectorAll('.migration-tree-item-changes')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
+			warning: parent.querySelector('.migration-warning-banner')?.textContent,
 			checklistCopy: parent.textContent?.includes('Your migration checklist'),
 			intro: parent.querySelector('.migration-intro')?.textContent,
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
@@ -153,7 +156,10 @@ suite('CustomizationMigrationDashboard', () => {
 			counts: ['1', '2', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
-			changes: ['The gallery property will be removed.'],
+			changes: [
+				'The gallery property will be removed.',
+			],
+			warning: 'Prompt-to-skill conversion changesConvert prompts to skills.',
 			checklistCopy: false,
 			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
 			agentButtonInTitleRow: true,
@@ -283,7 +289,7 @@ suite('CustomizationMigrationDashboard', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showLoading('Migrations', 'Loading migrations');
 		dashboard.focus();
-		dashboard.showOverview({ scopes: [], activity: [] });
+		dashboard.showOverview({ scopes: [] });
 		assert.deepStrictEqual({
 			focus: document.activeElement?.tagName,
 			dashboardContainsFocus: parent.contains(document.activeElement),
@@ -295,7 +301,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('renders an empty completed state without review controls', () => {
 		const { parent, dashboard } = createDashboard();
-		dashboard.showOverview({ scopes: [], activity: [] });
+		dashboard.showOverview({ scopes: [] });
 		dashboard.focus();
 		assert.deepStrictEqual({
 			description: parent.querySelector('.migration-intro')?.textContent,
@@ -307,70 +313,6 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: 'No migrations are needed.',
 			buttons: 0,
 			focus: 'BODY',
-		});
-	});
-
-	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
-		let model: ICustomizationMigrationDashboardOverview = {
-			...overview(),
-			result: { migratedCount: 1 },
-			activity: ['latest', 'previous'].map(id => ({
-				id, categoryLabel: 'Prompt to Skills', scopeLabel: id, storage: PromptsStorage.user,
-				items: [{ label: 'release', sourceLabel: 'profile/release.prompt.md', targetLabel: '~/.agents/skills/release/SKILL.md', operation: 'converted' }],
-			})),
-		};
-		let contentChanges = 0;
-		const { parent, dashboard, telemetryActions } = createDashboard({
-			dismissActivity: id => {
-				model = { ...model, activity: model.activity.filter(entry => entry.id !== id) };
-				dashboard.showOverview(model);
-			},
-			dismissResult: () => {
-				model = { ...model, result: undefined };
-				dashboard.showOverview(model);
-			},
-			onDidChangeContent: () => contentChanges++,
-		});
-		dashboard.showOverview(model);
-		const viewChanges = button(parent, 'View migration changes');
-		viewChanges.focus();
-		viewChanges.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		const expanded = {
-			open: [...parent.querySelectorAll('details')].map(element => element.open),
-			focus: document.activeElement?.tagName,
-			disclosureAriaHidden: parent.querySelector('.migration-activity-disclosure')?.getAttribute('aria-hidden'),
-			disclosureLabels: [...parent.querySelectorAll('.migration-activity-disclosure')].map(element => element.textContent),
-			operation: parent.querySelector('.migration-operation')?.textContent,
-			paths: [...parent.querySelectorAll('.migration-paths dd')].slice(0, 2).map(element => element.textContent),
-		};
-		dashboard.showOverview(model);
-		const remainedOpen = parent.querySelector('details')?.open;
-		button(parent, 'Dismiss Prompt to Skills activity from latest').click();
-		const nextFocus = document.activeElement?.textContent;
-		button(parent, 'Dismiss Prompt to Skills activity from previous').click();
-		const lastDismissFocus = document.activeElement?.textContent;
-		button(parent, 'Dismiss migration result').click();
-		assert.deepStrictEqual({
-			expanded, remainedOpen,
-			nextFocused: nextFocus?.includes('previous'),
-			lastDismissFocus,
-			result: !!parent.querySelector('.migration-result'),
-			activity: !!parent.querySelector('.migration-activity'),
-			focus: document.activeElement?.textContent,
-			notified: contentChanges > 0,
-			telemetryActions,
-		}, {
-			expanded: {
-				open: [true, false],
-				focus: 'SUMMARY',
-				disclosureAriaHidden: 'true',
-				disclosureLabels: ['', ''],
-				operation: 'Converted to skill',
-				paths: ['profile/release.prompt.md', '~/.agents/skills/release/SKILL.md'],
-			},
-			remainedOpen: true, nextFocused: true, lastDismissFocus: 'Migrate',
-			result: false, activity: false, focus: 'Migrate', notified: true,
-			telemetryActions: ['viewChangesClicked', 'activityDismissed', 'activityDismissed', 'resultDismissed'],
 		});
 	});
 
@@ -387,5 +329,33 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('focuses refresh errors and restores the prior overview target after retry', () => {
+		let retries = 0;
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview(overview());
+		dashboard.focusDestination(PromptsStorage.user);
+		const overviewFocus = document.activeElement?.getAttribute('aria-label');
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showLoading('Migrations unavailable', 'Try again.', () => {
+			retries++;
+			dashboard.showLoading('Migrations', 'Loading migrations');
+		});
+		const errorFocus = document.activeElement?.getAttribute('aria-label');
+		button(parent, 'Retry loading migrations').click();
+		dashboard.showOverview(overview());
+
+		assert.deepStrictEqual({
+			overviewFocus,
+			errorFocus,
+			retries,
+			restoredFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			overviewFocus: 'Change destination for user prompt migrations',
+			errorFocus: 'Retry loading migrations',
+			retries: 1,
+			restoredFocus: 'Change destination for user prompt migrations',
+		});
 	});
 });

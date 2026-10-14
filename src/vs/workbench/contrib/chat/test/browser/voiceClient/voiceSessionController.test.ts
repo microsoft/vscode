@@ -12,6 +12,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -891,6 +892,11 @@ suite('VoiceSessionController', () => {
 			notificationService,
 			promptsService,
 			chatEntitlementService,
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity(resource: URI) {
+					return { connectionAuthority: 'local', backendSession: resource.with({ scheme: resource.scheme.substring('agent-host-'.length) }) };
+				}
+			}(),
 		));
 	}
 
@@ -6369,6 +6375,7 @@ suite('VoiceSessionController live transcription', () => {
 		const chatEntitlementService = new TestChatEntitlementService();
 		chatEntitlementService.entitlement = ChatEntitlement.Pro;
 		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
+		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);

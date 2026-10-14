@@ -4,15 +4,18 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions on a selected Agent Host. AHP is the only execution path, for both local and remote hosts.
+Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned GitHub automations through the Copilot gateway.
 
-The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported host never falls back to browser execution or to another host.
+The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
 ```mermaid
 flowchart TD
 	UI["Automations UI, blueprints, and tools"] --> Service["IAutomationService<br/>ProviderAutomationService"]
 	Service --> Providers["ISessionsProvider.automations<br/>one per concrete Agent Host"]
 	Providers --> Connection["ReconnectableAgentHostAutomationStore<br/>connection and capability boundary"]
+	Providers --> Cloud["CloudAutomationStore<br/>account and feature boundary"]
+	Cloud --> CloudStore["GitHubCloudAutomationStore<br/>repository cache and operation coordination"]
+	CloudStore --> GitHub["GitHub cloud execution authority"]
 	Connection --> Projection["AgentHostAutomationStore<br/>AHP dispatch and state projection"]
 	Projection --> Authority["AgentHostAutomationService<br/>durable execution authority"]
 	Archive["Read-only historical run archive"] --> Projection
@@ -28,6 +31,8 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](services/sessions/common/sessionsProvider.ts) |
 | Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
 | Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
+| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
 | Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](contrib/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
 | Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
@@ -37,6 +42,10 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Definition review, draft configuration, cards, and history presentation | Automations contributions |
 
 The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency.
+
+History completeness is exposed separately from definition readiness through optional `historyState`. A failed history read retains the last history without disabling otherwise available definition mutations. The cloud adapter periodically refreshes active history and performs bounded discovery after dispatch, stop acknowledgements, or a local follow-up through the central GitHub client; idle definitions refresh only on entry, account or client changes, or explicit refresh.
+
+Cloud history retains the authoritative task ID as its native session resource. Opening or locally archiving a run may resolve that exact task through the extension provider; it never matches by title or chooses a recent task. External rows remain usable through GitHub when native resolution is unavailable. Hydrated runs use provider-owned archive and read state, while Stop remains a remote cancellation request. Automation provenance excludes these sessions from the primary sidebar without changing external-session ownership. Newer local conversation progress takes precedence over stale history, and a conversation hidden behind Automations is not automatically marked read.
 
 `IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one host's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. The common interfaces live in Workbench, and the provider specialization lives in Sessions, preserving the layer direction.
 
@@ -48,9 +57,15 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 
 ## Definitions and session configuration
 
+Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
+
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
-An `AutomationTarget` separates concrete host identity (`providerId`) from the agent on that host (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider; providers without AHP Automations do not offer Automation creation.
+An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
+
+Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
+
+Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 
 Projected definition and run identifiers are opaque, concrete-provider-scoped identities containing the complete host resource URI. Equal resource URIs on different hosts, or equal final path segments within one host, do not share identity. Commands resolve the scoped identity to the original host resource; they never reconstruct a host resource from a displayed ID. Historical archive rows use the same definition identity and a distinct provider-scoped history identity.
 
@@ -97,6 +112,14 @@ A store's catalogue is `loading`, `ready`, `unavailable`, or in `error`. Only `r
 - `error` means an authoritative catalogue could not be read.
 
 The aggregate waits for AfterRestored provider registration. A window without an Automation-capable provider then settles to unavailable, not loading or empty-ready. Across providers, errors take precedence, followed by loading, unavailability, and finally ready. Available hosts remain usable even while another host is unavailable.
+
+Providers may expose observable enablement. Disabled providers are excluded from every aggregate and command route, not represented as unavailable hosts. Cloud enablement requires the cloud experiment setting, parent Automations enablement, and visible AI features; account changes or disabling the feature dispose pending requests and clear projected definitions and history. Disabling client access does not stop schedules already owned by GitHub.
+
+Cloud dialog configuration is supplied by the enabled provider through the shared Automation contract. Repository selection reuses the New Chat repository search, validates private repository access, and defaults to Cloud while retaining a matching local checkout. Session types follow workspace capabilities; selecting another supported provider changes execution without changing the displayed workspace. Provider-owned model/tool drafts, UTC scheduling, and immutable-target guidance follow the selected provider. The cloud provider loads its selectable tools from the Mission Control tool catalog once per account session; new definitions select every catalog tool, and saved tool IDs outside the catalog are preserved unchanged. Eligibility is advisory UI state; mutations still revalidate access at the provider boundary.
+
+Agent-facing tools consume that same provider configuration. Listing refreshes enabled cloud catalogues and loads selectable tools, returning a serializable snapshot with explicit tool-catalog readiness or errors. It exposes known active runs and the provider's history readiness separately from definition readiness; a missing active run does not establish an uncertain request's outcome. Configure preserves UTC schedules and provider-owned partial-update semantics. Run distinguishes accepted, started, already-running, uncertain, and not-started outcomes; providers translate uncertain mutations into the shared `AutomationMutationUncertainError` without inviting an automatic retry.
+
+Cloud discovery is limited to user-owned definitions in known and recent private/internal GitHub.com repositories. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
 
 Creation availability is observable and comes from the negotiated AHP create capability and authoritative catalogue readiness. Forms and tools use the same capability. Definition-specific Run, Update, and Remove actions come from the host's operations; clients do not infer permission from a locally retained definition.
 

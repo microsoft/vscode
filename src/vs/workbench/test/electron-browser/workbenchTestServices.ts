@@ -13,6 +13,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IAgentHostEditorState, IAgentsWindowInvitation } from '../../../platform/chat/common/agentsWindowInvitation.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
@@ -105,6 +106,13 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
+
+	readonly onDidChangeAgentHostEditorState = Event.None;
+	async getAgentHostEditorState(): Promise<IAgentHostEditorState> { return { revision: 0, editorSessionCount: 0, sessions: [], lastShown: undefined, lastCopilotHarnessIntroductionSessionCount: undefined, invitation: undefined }; }
+	async updateAgentHostEditorState(): Promise<void> { }
+	async claimAgentsWindowInvitation(): Promise<IAgentsWindowInvitation | undefined> { return undefined; }
+	async markAgentsWindowInvitationShown(): Promise<void> { }
+	async releaseAgentsWindowInvitation(): Promise<void> { }
 
 	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
@@ -199,6 +207,8 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void> { }
+	readonly onDidProgressZipFile = Event.None;
+	async cancelZipFile(operationId: string): Promise<void> { }
 	async profileRenderer(): Promise<any> { throw new Error(); }
 	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }

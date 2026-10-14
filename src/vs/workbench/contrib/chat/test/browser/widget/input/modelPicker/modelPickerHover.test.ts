@@ -80,7 +80,8 @@ suite('ModelPickerHover', () => {
 	});
 
 	test('HydraFusion presents like Auto: its detail as the badge and its description instead of a category', () => {
-		const model = createModel('hydrafusion', 'HydraFusion');
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion');
+		const model: ILanguageModelChatMetadataAndIdentifier = { ...hydraFusion, metadata: { ...hydraFusion.metadata, modelGroup: { id: 'copilotcli' } } };
 		const opened: { url: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
 		const openerService = upcastPartial<IOpenerService>({
 			open: async (resource, options) => {
@@ -92,7 +93,7 @@ suite('ModelPickerHover', () => {
 			...model.metadata,
 			category: 'powerful',
 			detail: 'Research preview',
-			tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.',
+			tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.',
 		} as ILanguageModelChatMetadata;
 		const hover = getModelHoverContent(model, true, undefined, openerService);
 		assert.ok(hover);
@@ -111,7 +112,7 @@ suite('ModelPickerHover', () => {
 		}, {
 			category: undefined,
 			badges: ['Research preview'],
-			description: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route. Learn more',
+			description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more',
 			paragraphCount: 1,
 			linkInline: true,
 			learnMore: 'https://aka.ms/hydrafusion-blog',
@@ -141,16 +142,17 @@ suite('ModelPickerHover', () => {
 		});
 	});
 
-	test('auto names its navigation option Optimize for, other models keep the schema title', () => {
-		const results = ['auto', 'gpt-5'].map(id => {
-			const model = createModel(id, id);
+	test('auto names its navigation option Optimize for, while Ensemble and other models keep the schema title', () => {
+		const results = ['auto', 'ensemble', 'gpt-5'].map(id => {
+			const model = createModel(id === 'ensemble' ? 'auto' : id, id);
 			model.metadata = {
 				...model.metadata,
+				...(id === 'ensemble' && { autoModelEnsemble: { intelligenceUsesHydraFusion: false } }),
 				configurationSchema: {
 					properties: {
 						navigationOption: {
 							type: 'string',
-							title: id === 'auto' ? undefined : 'Thinking Effort',
+							title: id === 'auto' ? undefined : id === 'ensemble' ? 'Effort Level' : 'Effort Level',
 							enum: ['efficiency', 'intelligence'],
 							group: 'navigation',
 						},
@@ -172,7 +174,8 @@ suite('ModelPickerHover', () => {
 
 		assert.deepStrictEqual(results, [
 			['Optimize for', 'Context Size'],
-			['Thinking Effort', 'Context Size'],
+			['Effort Level', 'Context Size'],
+			['Effort Level', 'Context Size'],
 		]);
 	});
 });

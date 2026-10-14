@@ -483,11 +483,6 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 				group: 'manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
-			}, {
-				id: MenuId.SessionItemContextMenu,
-				group: '9_storage',
-				order: 0,
-				when: ChatContextKeys.enabled,
 			}],
 		});
 	}
@@ -682,11 +677,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					type: 'array',
 					items: { type: 'string' },
 					default: [],
-					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `{name}` to position the welcome name, for example `Back at it, {name}`. When no name is known, `{name}` and its surrounding separator are removed."),
+					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `${name}` to position the welcome name, for example `Back at it, ${name}`. When no name is known, `${name}` and its surrounding separator are removed."),
 				}
 			},
 			additionalProperties: false,
-			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `{name}` inside a phrase to position the welcome name."),
+			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `${name}` inside a phrase to position the welcome name."),
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 		},

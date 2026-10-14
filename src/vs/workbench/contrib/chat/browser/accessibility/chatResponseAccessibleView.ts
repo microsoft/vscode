@@ -408,6 +408,17 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'mcpAuthenticationRequired': {
+				const servers = part.isUsed ? [] : part.servers.get();
+				if (servers.length) {
+					const serverNames = servers.map(server => server.name).join(', ');
+					const text = servers.length === 1
+						? localize('mcpAuthenticationRequiredSingle', "The MCP server {0} requires authentication. Use the Authenticate button in the chat response to continue.", serverNames)
+						: localize('mcpAuthenticationRequiredMultiple', "The MCP servers {0} require authentication. Use the Authenticate button in the chat response to continue.", serverNames);
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
@@ -449,6 +460,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'toolInvocation': {
 				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.Streaming && IChatToolInvocation.isImageGeneration(part)) {
+					break;
+				}
 				const invocationMessage = renderChatMessageAsPlaintext(part.invocationMessage);
 				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {

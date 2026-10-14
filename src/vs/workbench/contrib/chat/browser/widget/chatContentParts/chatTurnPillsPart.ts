@@ -94,7 +94,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
 
 		this._register(autorun(reader => {
-			this.domNode.style.display = showChanges.read(reader) ? '' : 'none';
+			this.domNode.hidden = !showChanges.read(reader);
 		}));
 	}
 

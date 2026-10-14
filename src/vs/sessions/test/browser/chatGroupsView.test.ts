@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
@@ -22,15 +23,21 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -40,15 +47,19 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import '../../browser/media/workbench.css';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked = observableValue(this, false);
+	override readonly historyStatus = observableValue<IChatSessionHistoryStatus | undefined>(this, undefined);
 	layoutCount = 0;
+	readonly layouts: { readonly width: number; readonly height: number }[] = [];
 	primary = false;
 	split = false;
+	onInput: (() => void) | undefined;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -64,8 +75,9 @@ class TestChatView extends AbstractChatView {
 		return {};
 	}
 
-	protected doLayout(): void {
+	protected doLayout(width: number, height: number): void {
 		this.layoutCount++;
+		this.layouts.push({ width, height });
 	}
 
 	focus(): void {
@@ -75,6 +87,10 @@ class TestChatView extends AbstractChatView {
 	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
 		this.split = split;
+	}
+
+	override setChat(_chat: IChat, _historyKey?: string, _session?: ISession, onInput?: () => void): void {
+		this.onInput = onInput;
 	}
 }
 
@@ -267,6 +283,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+	instantiationService.stub(IThemeService, new TestThemeService(new TestColorTheme({ [agentsPanelBorder]: '#ff0000' }, ColorScheme.DARK)));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -295,7 +312,7 @@ function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly
 	return {
 		visible: !banner?.classList.contains('hidden'),
 		message: banner?.querySelector('.session-readonly-banner-text')?.textContent ?? undefined,
-		action: banner?.querySelector('.session-readonly-banner-action-link')?.textContent ?? undefined,
+		action: banner?.querySelector('.session-readonly-banner-action:not([hidden]) .monaco-link')?.textContent ?? undefined,
 	};
 }
 
@@ -322,10 +339,25 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
 
+	test('releases the main chat resource observable when clearing the session', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const before = view['_mainChatResource'] !== undefined;
+		view.setSession(undefined, options);
+		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
+	});
+
+	test('releases the main chat resource observable on disposal', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		view.dispose();
+		assert.strictEqual(view['_mainChatResource'], undefined);
+	});
+
 	test('aligns transcript overlays with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
-		workbench.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		workbench.style.setProperty('--session-view-content-horizontal-padding', '24px');
 		const sessionsPart = mainWindow.document.createElement('div');
 		sessionsPart.classList.add('part', 'sessionspart');
 		const groups = mainWindow.document.createElement('div');
@@ -350,8 +382,306 @@ suite('Sessions - ChatGroupsView', () => {
 			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '32px',
+			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
+		});
+	});
+
+	test('renders vertically split chats as independent panels', async () => {
+		const { view } = createHarness(disposables);
+		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
+		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
+		const card = $('.part.sessionspart.agents-part-card');
+		const sessionView = $('.session-view.independent-chat-groups');
+		sessionView.appendChild(view.element);
+		card.appendChild(sessionView);
+		workbench.appendChild(card);
+		mainWindow.document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(800, 600, 0, 0, 4);
+
+		view.splitActiveChat('bottom');
+		await timeout(0);
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const cornerRadii = () => groups.map(group => {
+			const surface = group.querySelector<HTMLElement>('.chat-group-view-surface');
+			assert(surface !== null);
+			const frame = mainWindow.getComputedStyle(surface, '::after');
+			return {
+				bottomLeft: frame.borderBottomLeftRadius,
+				bottomRight: frame.borderBottomRightRadius,
+			};
+		});
+		const internalCorners = cornerRadii();
+		sessionView.classList.add('session-grid-bottom-left');
+		const bottomLeftWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-left');
+		sessionView.classList.add('session-grid-bottom-right');
+		const bottomRightWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-right');
+
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+			cornerOwners: groups.map(group => ({
+				bottomLeft: group.classList.contains('chat-grid-bottom-left'),
+				bottomRight: group.classList.contains('chat-grid-bottom-right'),
+			})),
+			internalCorners,
+			bottomLeftWindowCorners,
+			bottomRightWindowCorners,
+			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'), group => ({
+				top: group.style.borderTopWidth,
+				right: group.style.borderRightWidth,
+				bottom: group.style.borderBottomWidth,
+				left: group.style.borderLeftWidth,
+			})),
+			surfaces: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view-surface'), surface => {
+				const style = mainWindow.getComputedStyle(surface);
+				const frame = mainWindow.getComputedStyle(surface, '::after');
+				return {
+					backgroundColor: style.backgroundColor,
+					overflow: style.overflow,
+					frame: {
+						content: frame.content,
+						borderColor: frame.borderTopColor,
+						borderWidth: frame.borderTopWidth,
+						borderRadius: frame.borderRadius,
+					},
+				};
+			}),
+			contentFrameBorderWidths: Array.from(view.element.querySelectorAll<HTMLElement>('.modern-ui-editor-tab-content'), content => mainWindow.getComputedStyle(content, '::after').borderTopWidth),
+		}, {
+			hasGaps: true,
+			gapSashes: 1,
+			boundaryOverlays: 0,
+			splitViews: 1,
+			cornerOwners: [
+				{ bottomLeft: false, bottomRight: false },
+				{ bottomLeft: true, bottomRight: true },
+			],
+			internalCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '7px' },
+			],
+			bottomLeftWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '11px', bottomRight: '7px' },
+			],
+			bottomRightWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '11px' },
+			],
+			insets: [
+				{ top: '0px', right: '0px', bottom: '2px', left: '0px' },
+				{ top: '2px', right: '0px', bottom: '0px', left: '0px' },
+			],
+			surfaces: [
+				{
+					backgroundColor: 'rgb(17, 34, 51)',
+					overflow: 'hidden',
+					frame: {
+						content: '""',
+						borderColor: 'rgb(68, 85, 102)',
+						borderWidth: '1px',
+						borderRadius: '7px',
+					},
+				},
+				{
+					backgroundColor: 'rgb(17, 34, 51)',
+					overflow: 'hidden',
+					frame: {
+						content: '""',
+						borderColor: 'rgb(68, 85, 102)',
+						borderWidth: '1px',
+						borderRadius: '7px',
+					},
+				},
+			],
+			contentFrameBorderWidths: ['0px', '0px'],
+		});
+	});
+
+	test('uses independent gaps between every split chat in the session', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const firstChild = createChat('firstChild', SessionStatus.Completed, main.resource);
+		const secondChild = createChat('secondChild', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, firstChild, secondChild, unrelated]);
+		view.setSession(session, options);
+		view.layout(1200, 600, 0, 0, 4);
+
+		view.splitChatToSide(firstChild.resource);
+		await timeout(0);
+		await view.openChatInNewGroup(secondChild.resource, firstChild.resource);
+		await view.openChatInNewGroup(unrelated.resource, secondChild.resource);
+
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
+		}, {
+			hasGaps: true,
+			gapSashes: 3,
+			boundaryOverlays: 0,
+			sashes: 3,
+		});
+	});
+
+	test('uses independent gaps in a nested chat grid', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, child, unrelated]);
+		view.setSession(session, options);
+		view.layout(1000, 600, 0, 0, 4);
+
+		view.splitActiveChat('right');
+		await timeout(0);
+		await sessionsService.openChat(session, unrelated.resource);
+		view.splitActiveChat('bottom');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+		}, {
+			hasGaps: true,
+			gapSashes: 2,
+			boundaryOverlays: 0,
+			splitViews: 2,
+		});
+	});
+
+	test('keeps independent panels when the active chat changes', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, child, unrelated]);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0, 4);
+
+		view.splitChatToSide(child.resource);
+		await timeout(0);
+
+		const snapshot = () => ({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
+		});
+		const related = snapshot();
+		await sessionsService.openChat(session, unrelated.resource);
+		const unrelatedActive = snapshot();
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ related, unrelatedActive, restored: snapshot() }, {
+			related: {
+				hasGaps: true,
+				gapSashes: 1,
+				sashes: 1,
+			},
+			unrelatedActive: {
+				hasGaps: true,
+				gapSashes: 1,
+				sashes: 1,
+			},
+			restored: {
+				hasGaps: true,
+				gapSashes: 1,
+				sashes: 1,
+			},
+		});
+	});
+
+	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(800, 600, 0, 0, 4);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const snapshot = () => ({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			separatorBorders: view.element.querySelectorAll('.monaco-split-view2.separator-border').length,
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
+		});
+		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+		};
+
+		const multiple = snapshot();
+		await setChatTabsMode(SessionsChatTabsMode.Single);
+		const single = snapshot();
+		view.layout(800, 600, 0, 0, 0);
+		const zeroGapDensity = snapshot();
+		view.layout(800, 600, 0, 0, 4);
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+
+		assert.deepStrictEqual({ multiple, single, zeroGapDensity, restored: snapshot() }, {
+			multiple: {
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
+				sashes: 1,
+			},
+			single: {
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
+				sashes: 1,
+			},
+			zeroGapDensity: {
+				hasGaps: false,
+				gapSashes: 0,
+				separatorBorders: 1,
+				sashes: 1,
+			},
+			restored: {
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
+				sashes: 1,
+			},
+		});
+	});
+
+	test('allocates horizontal gap insets outside each chat minimum width', async () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(404, 600, 0, 0, 4);
+
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			groupWidths: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'), group => group.style.width),
+			contentWidths: chatViewFactory.views.filter(createdView => createdView.kind === 'chat').map(createdView => createdView.layouts.at(-1)?.width),
+		}, {
+			groupWidths: ['202px', '202px'],
+			contentWidths: [200, 200],
 		});
 	});
 
@@ -1104,6 +1434,19 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('a read-only draft uses the transcript view and returns to the composer when available', () => {
+		const { view } = createHarness(disposables);
+		const chat = createChat('draft', SessionStatus.Untitled);
+		const draft = new TestActiveSession([chat], undefined, false);
+		view.setSession(draft, options);
+		const kinds = [view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind];
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		kinds.push(view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		kinds.push(view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind);
+		assert.deepStrictEqual(kinds, ['newSession', 'chat', 'newSession']);
+	});
+
 	test('new session request activity switches the draft to the chat view', () => {
 		const { view } = createHarness(disposables);
 		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
@@ -1620,6 +1963,116 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('shows an actionless policy history explanation on first read-only open', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		view.setSession(new TestActiveSession([chat]), options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.historyStatus.set({ kind: 'history', message: 'Your organization has disabled this agent.' }, undefined);
+		assert.deepStrictEqual(readBanner(view), { visible: true, message: 'Your organization has disabled this agent.', action: undefined });
+	});
+
+	test('shows Refresh only for failed history and prioritizes connection feedback after input', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.hasVisibleTranscriptContent.set(true, undefined);
+		const quiet = readBanner(view).visible;
+		let refreshes = 0;
+		const pending = new DeferredPromise<void>();
+		const failure: IChatSessionHistoryStatus = {
+			kind: 'history', message: 'Couldn\'t refresh this conversation. Recent messages may be missing.',
+			action: { label: 'Refresh', run: () => { refreshes++; return pending.p; } },
+		};
+		current.historyStatus.set(failure, undefined);
+		const failed = readBanner(view);
+		const announcement = view.element.querySelector('.session-readonly-banner-announcement')?.textContent;
+		const link = view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!;
+		link.focus();
+		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link.click();
+		current.historyStatus.set({ ...failure }, undefined);
+		const refreshing = { refreshes, disabled: link.getAttribute('aria-disabled'), focused: mainWindow.document.activeElement === link, connectCalls: provider.connectCalls };
+		await pending.complete();
+		await timeout(0);
+		current.onInput?.();
+		assert.deepStrictEqual({
+			quiet, failed, announcement, refreshing,
+			connectionAction: readBanner(view).action !== 'Refresh',
+			bannerCount: view.element.querySelectorAll('.session-readonly-banner:not(.hidden)').length,
+			connectCalls: provider.connectCalls,
+		}, {
+			quiet: false,
+			failed: { visible: true, message: failure.message, action: 'Refresh' },
+			announcement: failure.message,
+			refreshing: { refreshes: 1, disabled: 'true', focused: true, connectCalls: 0 },
+			connectionAction: true, bannerCount: 1, connectCalls: 1,
+		});
+	});
+
+	test('cached history status preserves archive restrictions and disappears when a draft becomes live', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat]);
+		session.isArchived.set(true, undefined);
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		const archived = readBanner(view);
+		current.historyStatus.set({
+			kind: 'history', message: 'Recent messages may be missing.',
+			action: { label: 'Refresh', run: async () => { } },
+		}, undefined);
+		const whileArchived = readBanner(view);
+		const actions = [...view.element.querySelectorAll('.session-readonly-banner-action:not([hidden]) a')].map(link => link.textContent);
+		transaction(tx => {
+			session.isArchived.set(false, tx);
+			chat.interactivity.set(ChatInteractivity.DraftOnly, tx);
+		});
+		const draft = readBanner(view);
+		transaction(tx => {
+			current.historyStatus.set(undefined, tx);
+			chat.interactivity.set(ChatInteractivity.Full, tx);
+		});
+		assert.deepStrictEqual({ whileArchived, actions, draft, live: readBanner(view).visible }, {
+			whileArchived: { ...archived, message: 'Recent messages may be missing. Archived sessions are read-only.', action: 'Refresh' },
+			actions: ['Refresh', archived.action],
+			draft: { visible: true, message: 'Recent messages may be missing.', action: 'Refresh' },
+			live: false,
+		});
+	});
+
+	test('a failed live snapshot stays quiet until composition and retries content without another connection', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.hasVisibleTranscriptContent.set(true, undefined);
+		let retries = 0;
+		current.historyStatus.set({
+			kind: 'live', message: 'Live content could not be loaded.',
+			action: { label: 'Retry', run: async () => { retries++; } },
+		}, undefined);
+		const quiet = readBanner(view).visible;
+		current.onInput?.();
+		const afterInput = readBanner(view);
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ quiet, afterInput, retries, connects: provider.connectCalls }, {
+			quiet: false, afterInput: { visible: true, message: 'Live content could not be loaded.', action: 'Retry' }, retries: 1, connects: 0,
+		});
+	});
+
 	test('does not show a transient read-only banner while a peer transcript loads', () => {
 		const { chatViewFactory, view } = createHarness(disposables);
 		const main = createChat('main');
@@ -1671,7 +2124,7 @@ suite('Sessions - ChatGroupsView', () => {
 		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 		const hostNotRunning = readBanner(view);
 
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
 		remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
 
 		assert.deepStrictEqual({
@@ -1922,6 +2375,178 @@ suite('Sessions - ChatGroupsView', () => {
 			whileLoading: { state: false, banner: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Connect' } },
 			withTranscript: { state: false, banner: true },
 			settledEmpty: true,
+		});
+	});
+
+	test('draft-only chats connect once on input if no background connection was started', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const gate = new DeferredPromise<void>();
+		provider.connectGate = gate.p;
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		const opened = {
+			connects: provider.connectCalls,
+			banner: readBanner(view).visible,
+			recovery: readRemoteHostUnavailableState(view).visible,
+		};
+		currentView.onInput?.();
+		currentView.onInput?.();
+		const duringConnect = { connects: provider.connectCalls, banner: readBanner(view).visible, recovery: readRemoteHostUnavailableState(view).visible };
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		await gate.complete();
+		await timeout(0);
+		const connectedBanner = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const idleAgainBanner = readBanner(view).visible;
+
+		assert.deepStrictEqual({ opened, duringConnect, connectedBanner, idleAgainBanner, connects: provider.connectCalls }, {
+			opened: { connects: 0, banner: false, recovery: false },
+			duringConnect: { connects: 1, banner: true, recovery: false },
+			connectedBanner: false,
+			idleAgainBanner: false,
+			connects: 1,
+		});
+	});
+
+	test('failed draft resume keeps the banner and requires Retry rather than another keystroke', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const gate = new DeferredPromise<void>();
+		provider.connectGate = gate.p;
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		currentView.onInput?.();
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { });
+		try {
+			await gate.error(new Error('resume failed'));
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+		currentView.onInput?.();
+		const failed = {
+			connects: provider.connectCalls,
+			banner: readBanner(view).visible,
+			action: readBanner(view).action,
+			recovery: readRemoteHostUnavailableState(view).visible,
+		};
+		provider.connectGate = undefined;
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ failed, connects: provider.connectCalls }, {
+			failed: { connects: 1, banner: true, action: 'Retry', recovery: false },
+			connects: 2,
+		});
+	});
+
+	test('draft-only chats reveal background connection progress only on input without starting another connection', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(session, options);
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		const beforeInput = { banner: readBanner(view).visible, recovery: readRemoteHostUnavailableState(view).visible };
+		currentView.onInput?.();
+		currentView.onInput?.();
+		const afterInput = { banner: readBanner(view), recovery: readRemoteHostUnavailableState(view).visible };
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+
+		assert.deepStrictEqual({ beforeInput, afterInput, ready: readBanner(view).visible, connects: provider.connectCalls }, {
+			beforeInput: { banner: false, recovery: false },
+			afterInput: { banner: { visible: true, message: 'Waiting for agent host connection...', action: undefined }, recovery: false },
+			ready: false,
+			connects: 0,
+		});
+	});
+
+	test('draft-only chats stay quiet when background waking and preparation finish before input', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(session, options);
+		const connecting = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		const preparing = readBanner(view).visible;
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		chatViewFactory.views[chatViewFactory.views.length - 1].onInput?.();
+
+		assert.deepStrictEqual({ connecting, preparing, ready: readBanner(view).visible, recovery: readRemoteHostUnavailableState(view).visible, connects: provider.connectCalls }, {
+			connecting: false, preparing: false, ready: false, recovery: false, connects: 0,
+		});
+	});
+
+	test('draft-only chats reveal a background wake failure on input without retrying on every keystroke', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(session, options);
+		const connecting = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		const failed = readBanner(view).visible;
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		currentView.onInput?.();
+		currentView.onInput?.();
+		const afterInput = { banner: readBanner(view).visible, action: readBanner(view).action };
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		const recovered = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+
+		assert.deepStrictEqual({ connecting, failed, afterInput, recovered, idleAgain: readBanner(view).visible, connects: provider.connectCalls }, {
+			connecting: false, failed: false, afterInput: { banner: true, action: 'Retry' }, recovered: false, idleAgain: false, connects: 0,
+		});
+	});
+
+	test('draft-only chats retain their composer and banner while the connected host finishes preparing', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main', SessionStatus.Untitled);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const originalView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		originalView.onInput?.();
+		const preparing = { banner: readBanner(view).message, recovery: readRemoteHostUnavailableState(view).visible };
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+
+		assert.deepStrictEqual({
+			preparing,
+			keptComposer: chatViewFactory.views[chatViewFactory.views.length - 1] === originalView,
+			kind: originalView.kind,
+			bannerAfterReady: readBanner(view).visible,
+			connects: provider.connectCalls,
+		}, {
+			preparing: { banner: 'Preparing the session...', recovery: false },
+			keptComposer: true,
+			kind: 'chat',
+			bannerAfterReady: false,
+			connects: 0,
 		});
 	});
 
@@ -2300,6 +2925,29 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('draft-only chats preserve the reconnecting banner delay after input', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const chat = createChat('main');
+			chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].onInput?.();
+			const initiallyVisible = readBanner(view).visible;
+			await timeout(4_999);
+			const visibleBeforeDelay = readBanner(view).visible;
+			await timeout(1);
+
+			assert.deepStrictEqual({ initiallyVisible, visibleBeforeDelay, afterDelay: readBanner(view) }, {
+				initiallyVisible: false,
+				visibleBeforeDelay: false,
+				afterDelay: { visible: true, message: 'Reconnecting to WSL: Ubuntu...', action: undefined },
+			});
+		});
+	});
+
 	test('shows the reconnecting banner after its delay despite unrelated observable updates', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionsProvidersService, view } = createHarness(disposables);
@@ -2332,7 +2980,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 			await timeout(5_500);
 			const banner = readBanner(view);
-			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+			view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
 				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },

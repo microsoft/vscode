@@ -65,9 +65,9 @@ suite('AgentHostSandboxNotifications', () => {
 		fire('local-client', 3);
 		fire('local-client', 4);
 		assert.deepStrictEqual({ messages, logs, messagesAtRollback }, {
-			messages: Array(2).fill('Could not change terminal sandboxing. Try the action again. SDK rejected update'),
+			messages: Array(2).fill('Could not change sandbox access. SDK rejected update'),
 			logs: Array(2).fill('SDK rejected update'),
-			messagesAtRollback: [['Could not change terminal sandboxing. Try the action again. SDK rejected update']],
+			messagesAtRollback: [['Could not change sandbox access. SDK rejected update']],
 		});
 	});
 });
