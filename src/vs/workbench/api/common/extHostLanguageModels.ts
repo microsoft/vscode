@@ -201,8 +201,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const images = hasKey(icon, { light: true, dark: true }) ? icon : { light: icon, dark: icon };
 		const light = URI.revive(images.light);
 		const dark = URI.revive(images.dark);
-		if (!isEqualOrParent(light, extension.extensionLocation) || !isEqualOrParent(dark, extension.extensionLocation)) {
-			this._logService.warn(`[LanguageModels](${extension.identifier.value}) Ignoring a model icon outside the extension. Model icons must be theme icons or files inside the extension.`);
+		// Images load from a URL that keeps `%` and `\` as written, and loading decodes `%2e%2e`
+		// and treats `\` as a separator, so either could reach outside the folder checked here.
+		const isInsideExtension = (uri: URI) => !/[%\\]/.test(uri.path) && isEqualOrParent(uri, extension.extensionLocation);
+		if (!isInsideExtension(light) || !isInsideExtension(dark)) {
+			this._logService.warn(`[LanguageModels](${extension.identifier.value}) Ignoring a model icon outside the extension. Model icons must be theme icons or files inside the extension, without '%' or '\\' in their paths.`);
 			return undefined;
 		}
 		return { light, dark };

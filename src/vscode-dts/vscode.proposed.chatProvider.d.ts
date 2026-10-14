@@ -92,8 +92,9 @@ declare module 'vscode' {
 		 * `new ThemeIcon('chat-model-provider-claude')`.
 		 *
 		 * Images must be files inside the extension, e.g. `Uri.joinPath(context.extensionUri,
-		 * 'media', 'icon.svg')`; any other {@link Uri} is ignored. They are drawn at the size of a
-		 * small icon and should be static, small SVG or PNG files.
+		 * 'media', 'icon.svg')`; any other {@link Uri}, or one whose path contains `%` or `\`, is
+		 * ignored. They are drawn at the size of a small icon and should be static, small SVG or
+		 * PNG files.
 		 */
 		readonly iconPath?: IconPath;
 

@@ -95,6 +95,10 @@ suite('ExtHostLanguageModels model icons', () => {
 		otherFolder: URI.file('/extensions/other.provider/icon.svg'),
 		remote: URI.parse('https://example.com/icon.svg'),
 		escapingDark: { light: inside('media/light.svg'), dark: inside('../../icon.svg') },
+		// Loading decodes `%2e%2e` and treats `\` as a separator, so these reach the sibling extension.
+		encodedTraversal: inside('%2e%2e/other.provider/icon.svg'),
+		encodedTraversalDark: { light: inside('media/light.svg'), dark: inside('%2e%2e/other.provider/dark.svg') },
+		backslashTraversal: extensionLocation.with({ path: `${extensionLocation.path}/..\\other.provider\\icon.svg` }),
 	};
 
 	async function provideIcons(enableProposal: boolean) {
@@ -122,6 +126,9 @@ suite('ExtHostLanguageModels model icons', () => {
 				otherFolder: undefined,
 				remote: undefined,
 				escapingDark: undefined,
+				encodedTraversal: undefined,
+				encodedTraversalDark: undefined,
+				backslashTraversal: undefined,
 			},
 			// `iconPath` is part of the chatProvider proposal.
 			disabled: Object.fromEntries(Object.keys(iconPaths).map(id => [id, undefined])),
