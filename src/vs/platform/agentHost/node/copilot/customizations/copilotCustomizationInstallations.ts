@@ -468,7 +468,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 				...catalogContract,
 				requiredCapabilities: [...catalogContract.requiredCapabilities, 'mcp-install-planning', 'multiple-transport-choice'],
 			},
-			policySessionId,
+			...(source.kind === 'candidate' ? { policySessionId } : {}),
 			scope: 'user',
 			source,
 		});

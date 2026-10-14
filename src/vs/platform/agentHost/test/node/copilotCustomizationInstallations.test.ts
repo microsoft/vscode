@@ -812,7 +812,6 @@ suite('CopilotCustomizationInstallations', () => {
 						'multiple-transport-choice',
 					],
 				},
-				policySessionId: 'policy-session',
 				scope: 'user',
 				source: {
 					kind: 'card',
