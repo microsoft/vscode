@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, CopilotClient, CopilotSession, PermissionRequestResult } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, CopilotClient, CopilotSession, PermissionRequest, PermissionRequestResult } from '@github/copilot-sdk';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -80,8 +80,14 @@ export class CopilotSessionSandbox extends Disposable {
 		this._requests.clear();
 	}
 
-	beginPathGrant(toolCallId: string, grant: ISandboxPathGrant): void {
-		this._pendingPathGrants.set(toolCallId, grant);
+	beginPathGrant(toolCallId: string, request: PermissionRequest): ISandboxPathGrant | undefined {
+		const grant = request.managedApprovalRequired !== true && (request.kind === 'read' || request.kind === 'write' || request.kind === 'shell')
+			? request.sandboxPathGrant
+			: undefined;
+		if (grant) {
+			this._pendingPathGrants.set(toolCallId, grant);
+		}
+		return grant;
 	}
 
 	/** Returns whether the caller needs to synchronize configuration deferred by this permission request. */

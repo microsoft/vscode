@@ -5678,12 +5678,7 @@ export class CopilotAgentSession extends Disposable {
 			const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
 				? request.requestSandboxPermissive === true
 				: false;
-			sandboxPathGrant = !managedApprovalRequired && requestSandboxBypass && (request.kind === 'read' || request.kind === 'write' || request.kind === 'shell')
-				? request.sandboxPathGrant
-				: undefined;
-			if (sandboxPathGrant) {
-				this._sandbox.beginPathGrant(toolCallId, sandboxPathGrant);
-			}
+			sandboxPathGrant = this._sandbox.beginPathGrant(toolCallId, request);
 			if (!managedApprovalRequired && request.kind === 'custom-tool' && this._mcpRoutingProxies.has(request.toolName)) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving MCP routing proxy ${request.toolName}`);
 				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
