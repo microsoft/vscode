@@ -224,9 +224,11 @@ export function registerEditorCanvasActions(
 		try {
 			const instanceId = getCanvasDefinitionInstanceId(canvas);
 			const existing = context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
-			if (existing?.source) {
+			if (existing) {
 				await canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
-				return;
+				if (existing.source) {
+					return;
+				}
 			}
 			await context.definitionProvider.openCanvas(canvas, instanceId);
 		} catch (error) {

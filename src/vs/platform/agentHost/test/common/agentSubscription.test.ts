@@ -839,6 +839,29 @@ suite('ChatStateSubscription', () => {
 		assert.deepStrictEqual(snapshots.map(snapshot => snapshot.canvases), [[{ resource: 'ahp-canvas:/preview' }]]);
 	});
 
+	test('reports buffered canvas changes replayed after a cancelled snapshot refresh', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const replayed: (readonly ActionEnvelope[])[] = [];
+		disposables.add(sub.onDidCancelSnapshotRefresh(envelopes => replayed.push(envelopes)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.cancelSnapshotRefresh();
+		const value = sub.value;
+
+		assert.deepStrictEqual({
+			canvases: value instanceof Error ? undefined : value?.canvases,
+			replayed: replayed.map(envelopes => envelopes.map(envelope => envelope.action.type)),
+		}, {
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+			replayed: [[ActionType.ChatCanvasesChanged]],
+		});
+	});
+
 	for (const bufferedAcknowledgement of [false, true]) {
 		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
 			const sub = createSub();

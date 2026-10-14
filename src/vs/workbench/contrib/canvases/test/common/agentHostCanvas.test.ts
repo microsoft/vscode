@@ -124,9 +124,11 @@ suite('AgentHost canvases', () => {
 	test('invalidates definitions for registry actions and snapshots only', () => {
 		const appliedAction = store.add(new Emitter<ActionEnvelope>());
 		const appliedSnapshot = store.add(new Emitter<ChatState>());
+		const cancelledRefresh = store.add(new Emitter<readonly ActionEnvelope[]>());
 		const subscription = upcastPartial<IAgentSubscription<ChatState>>({
 			onDidApplyAction: appliedAction.event,
 			onDidApplySnapshot: appliedSnapshot.event,
+			onDidCancelSnapshotRefresh: cancelledRefresh.event,
 		});
 		let changes = 0;
 		store.add(getAgentHostCanvasDefinitionsChangedEvent(subscription)(() => changes++));
@@ -134,8 +136,12 @@ suite('AgentHost canvases', () => {
 		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }));
 		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }));
 		appliedSnapshot.fire(upcastPartial<ChatState>({}));
+		cancelledRefresh.fire([
+			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }),
+			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }),
+		]);
 
-		assert.strictEqual(changes, 2);
+		assert.strictEqual(changes, 3);
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {

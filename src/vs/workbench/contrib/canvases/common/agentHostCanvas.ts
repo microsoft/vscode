@@ -13,7 +13,7 @@ import { IAgentConnection } from '../../../../platform/agentHost/common/agentSer
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
-import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
@@ -93,9 +93,14 @@ export class AgentHostCanvasCollection extends Disposable {
 }
 
 export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSubscription<ChatState>): Event<void> {
+	const onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = subscription.onDidCancelSnapshotRefresh ?? Event.None;
 	return Event.any(
 		Event.map(Event.filter(subscription.onDidApplyAction, envelope => envelope.action.type === ActionType.ChatCanvasesChanged), () => undefined),
 		Event.map(subscription.onDidApplySnapshot ?? Event.None, () => undefined),
+		Event.map(Event.filter(
+			onDidCancelSnapshotRefresh,
+			envelopes => envelopes.some(envelope => !envelope.rejectionReason && envelope.action.type === ActionType.ChatCanvasesChanged),
+		), () => undefined),
 	);
 }
 

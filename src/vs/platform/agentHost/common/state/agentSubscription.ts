@@ -60,6 +60,9 @@ export interface IAgentSubscription<T> {
 
 	/** Fires after a server snapshot and any newer buffered actions are applied. */
 	readonly onDidApplySnapshot?: Event<T>;
+
+	/** Fires after a cancelled snapshot refresh replays its buffered actions. */
+	readonly onDidCancelSnapshotRefresh?: Event<readonly ActionEnvelope[]>;
 }
 
 /**
@@ -124,6 +127,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 	protected readonly _onDidApplySnapshot = this._register(new Emitter<T>());
 	readonly onDidApplySnapshot: Event<T> = this._onDidApplySnapshot.event;
+
+	protected readonly _onDidCancelSnapshotRefresh = this._register(new Emitter<readonly ActionEnvelope[]>());
+	readonly onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = this._onDidCancelSnapshotRefresh.event;
 
 	protected readonly _clientId: string;
 	protected readonly _log: (msg: string) => void;
@@ -190,6 +196,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
 		}
 		this._onDidChange.fire(this.value as T);
+		this._onDidCancelSnapshotRefresh.fire(buffered);
 	}
 
 	/**

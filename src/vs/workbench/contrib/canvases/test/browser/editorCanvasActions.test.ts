@@ -75,7 +75,13 @@ suite('EditorCanvasActions', () => {
 			title: 'Counter',
 			source: URI.parse('https://example.test/user-counter'),
 		};
-		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing]);
+		const unavailableProject: ICanvas = {
+			resource: URI.parse('agent-host-canvas:/project-counter'),
+			instanceId: getCanvasDefinitionInstanceId(projectDefinition),
+			title: 'Counter',
+			source: undefined,
+		};
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing, unavailableProject]);
 		const context: ICanvasContext = {
 			owner,
 			canvases,
@@ -211,7 +217,7 @@ suite('EditorCanvasActions', () => {
 				canvas: 'project:counter',
 				instanceId: getCanvasDefinitionInstanceId(projectDefinition),
 			}],
-			revealed: ['agent-host-canvas:/user-counter'],
+			revealed: ['agent-host-canvas:/project-counter', 'agent-host-canvas:/user-counter'],
 			reopened: ['agent-host-canvas:/preview'],
 			refreshedTitles: ['Chart', 'Counter', 'Preview'],
 			uninitializedItems: 0,
