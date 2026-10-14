@@ -4578,6 +4578,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(item => `group:${item.group.id}`);
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), this.groupExternalSessions);
+		const comparisonGroupsByWorkspaceLabel = new Map<string, ISessionGroupItem[]>();
+		if (grouping === SessionsGrouping.Workspace) {
+			for (const groupItem of groupItemsById.values()) {
+				if (!groupItem.comparison) {
+					continue;
+				}
+				const comparison = comparisonsByGroupId.get(groupItem.group.id);
+				if (!comparison) {
+					continue;
+				}
+				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
+				const workspaceLabel = comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
+					?? this.labelService.getWorkspaceLabel(comparison.workspace);
+				let workspaceGroups = comparisonGroupsByWorkspaceLabel.get(workspaceLabel);
+				if (!workspaceGroups) {
+					workspaceGroups = [];
+					comparisonGroupsByWorkspaceLabel.set(workspaceLabel, workspaceGroups);
+				}
+				workspaceGroups.push(groupItem);
+				if (!sections.some(section => section.id === `workspace:${workspaceLabel}`)) {
+					sections.push({
+						id: `workspace:${workspaceLabel}`,
+						collapseStateId: `workspace:${comparison.workspace.toString()}`,
+						label: workspaceLabel,
+						sessions: [],
+					});
+				}
+			}
+		}
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
@@ -4608,7 +4637,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);
 				const isOpenWindow = (section: ISessionSection) =>
 					!!this.openWindowSourceFolder && section.sessions.some(s => sessionMatchesFolder(s, this.openWindowSourceFolder!));
-				const meetsCriteria = (section: ISessionSection) => isRecent(section) || isOpenWindow(section);
+				const meetsCriteria = (section: ISessionSection) => comparisonGroupsByWorkspaceLabel.has(section.label) || isRecent(section) || isOpenWindow(section);
 
 				let anyMeets = false;
 				for (const section of workspaceSections) {
@@ -4762,6 +4791,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			};
 		};
 
+		const renderWorkspaceSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
+			const renderedSection = renderSection(section);
+			const comparisonGroups = comparisonGroupsByWorkspaceLabel.get(section.label);
+			return comparisonGroups
+				? {
+					...renderedSection,
+					children: [
+						...comparisonGroups.map(renderGroup),
+						...(renderedSection.children ?? []),
+					],
+				}
+				: renderedSection;
+		};
+
 		const navigationSections: ISessionSection[] = [];
 		const showNavigationShortcuts = this.options.showNavigationShortcuts?.() === true;
 		if (showNavigationShortcuts) {
@@ -4827,7 +4870,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(s => !moreFolderSectionIds.has(s.id))
 				.map(s => s.id);
 
-			const defaultOrder = [...defaultGroupIds, ...primaryWorkspaceIds];
+			const comparisonGroupIds = new Set(
+				[...groupItemsById.values()]
+					.filter(groupItem => groupItem.comparison)
+					.map(groupItem => `group:${groupItem.group.id}`),
+			);
+			const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
 			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
 			this._topLevelOrder = resolvedIds;
 			for (const id of resolvedIds) {
@@ -4836,7 +4884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} else {
 					const section = sectionById.get(id);
 					if (section) {
-						children.push(renderSection(section));
+						children.push(renderWorkspaceSection(section));
 					}
 				}
 			}
@@ -4845,7 +4893,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (moreFolderSections.length > 0) {
 				if (this.expandedMoreFolders) {
 					for (const section of moreFolderSections) {
-						children.push(renderSection(section));
+						children.push(renderWorkspaceSection(section));
 					}
 					children.push({
 						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },

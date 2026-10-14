@@ -3377,19 +3377,29 @@ suite('Sessions - SessionsList', () => {
 		test('renders synthesis and Judge before connected compact attempts', () => {
 			const { attempt1, attempt2, container } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
+			const workspace = [...container.querySelectorAll<HTMLElement>('.session-section')]
+				.find(section => section.querySelector('.session-section-label')?.textContent === 'Workspace');
 			const attempts = [...container.querySelectorAll<HTMLElement>('.session-comparison-attempt')];
 			const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
 			const independentParticipants = participants.filter(participant => !participant.classList.contains('session-comparison-attempt'));
 			const judge = independentParticipants.find(participant => participant.querySelector('.session-title')?.textContent === 'Judge');
-			assert.ok(parent && judge);
+			assert.ok(parent && workspace && judge);
 
 			assert.deepStrictEqual({
+				hierarchy: {
+					workspaceLevel: workspace.closest('.monaco-list-row')?.getAttribute('aria-level'),
+					comparisonLevel: parent.closest('.monaco-list-row')?.getAttribute('aria-level'),
+					attemptLevels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-level')),
+				},
 				parent: {
 					title: parent.querySelector('.session-section-label')?.textContent,
 					summary: parent.querySelector('.session-group-description')?.textContent,
 					layersIcon: parent.querySelector('.session-section-icon')?.classList.contains('codicon-layers'),
 					ariaLabel: parent.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					connector: parent.closest('.monaco-list-row')?.getAttribute('data-session-group-connector'),
+					childOrder: [...parent.children].map(child => child.className),
+					labelMaxWidth: mainWindow.getComputedStyle(parent.querySelector<HTMLElement>('.session-section-label')!).maxWidth,
+					labelsOverflow: mainWindow.getComputedStyle(parent.querySelector<HTMLElement>('.session-group-labels')!).overflow,
 				},
 				order: participants.map(participant => participant.querySelector('.session-title')?.textContent),
 				attempts: attempts.map(attempt => {
@@ -3425,12 +3435,26 @@ suite('Sessions - SessionsList', () => {
 				},
 				independentParticipantConnectors: independentParticipants.map(participant => participant.getAttribute('data-session-group-connector')),
 			}, {
+				hierarchy: {
+					workspaceLevel: '1',
+					comparisonLevel: '2',
+					attemptLevels: ['3', '3'],
+				},
 				parent: {
 					title: 'Improve the picker',
 					summary: 'Comparison · 2 attempts working',
 					layersIcon: true,
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 					connector: null,
+					childOrder: [
+						'session-section-chevron collapsible codicon codicon-chevron-down',
+						'session-section-icon codicon codicon-layers',
+						'session-section-label-container session-group-labels',
+						'session-group-input',
+						'session-section-toolbar has-no-actions',
+					],
+					labelMaxWidth: '100%',
+					labelsOverflow: 'hidden',
 				},
 				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Copilot · Balance'],
 				attempts: [
