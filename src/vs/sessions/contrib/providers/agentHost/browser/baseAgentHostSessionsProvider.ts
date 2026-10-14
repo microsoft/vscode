@@ -57,6 +57,7 @@ import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type Sess
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -4170,12 +4171,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * refcount to the agent host.
 	 */
 	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	/** Consecutive `onDidError` retry count per session while chat-details references are held. */
+	private readonly _sessionStateErrorRetries = new Map<string, number>();
+	private static readonly MAX_SESSION_STATE_ERROR_RETRIES = 2;
 	private readonly _sessionChatDetailsReferences = new SessionChatDetailsReferenceCollection(
 		sessionId => {
+			this._sessionStateErrorRetries.delete(sessionId);
 			this._ensureSessionStateSubscription(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 		},
 		sessionId => {
+			this._sessionStateErrorRetries.delete(sessionId);
 			if (!this._store.isDisposed) {
 				this._keepSessionStateAlive(sessionId);
 			}
@@ -7511,20 +7517,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
+			this._sessionStateErrorRetries.delete(sessionId);
 			this._applySessionStateUpdate(sessionId, state);
 		}));
 		// A subscribe that fails after this point settles via `onDidError`, never `onDidChange`.
+		// Skip retrying when the host authoritatively reports `AHP_SESSION_NOT_FOUND`, and cap
+		// transient error retries at `MAX_SESSION_STATE_ERROR_RETRIES` while chat details are
+		// actively observed. Subsequent recovery occurs on host start/reconnect, visibility pin
+		// changes, `ChatTurnComplete`, or `_keepSessionStateAlive` queries.
 		const onDidError = ref.object.onDidError;
 		if (onDidError) {
-			store.add(onDidError(() => {
+			store.add(onDidError(error => {
 				chatCatalogLoading.set(false, undefined);
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
-					queueMicrotask(() => {
-						if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
-							this._ensureSessionStateSubscription(sessionId);
-						}
-					});
+					if (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND) {
+						return;
+					}
+					const retries = this._sessionStateErrorRetries.get(sessionId) ?? 0;
+					if (retries < BaseAgentHostSessionsProvider.MAX_SESSION_STATE_ERROR_RETRIES) {
+						this._sessionStateErrorRetries.set(sessionId, retries + 1);
+						queueMicrotask(() => {
+							if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
+								this._ensureSessionStateSubscription(sessionId);
+							}
+						});
+					}
 				}
 			}));
 		}
@@ -7532,6 +7550,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
+			this._sessionStateErrorRetries.delete(sessionId);
 			this._applySessionStateUpdate(sessionId, value);
 		}
 
@@ -8239,6 +8258,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
 		for (const sessionId of this._sessionChatDetailsReferences.activeSessionIds) {
+			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
 			this._ensureSessionStateSubscription(sessionId);
@@ -8357,6 +8377,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
 		this._runningModelConfigurations.deleteAndDispose(stateOwner.sessionId);
+		this._sessionStateErrorRetries.delete(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
