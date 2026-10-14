@@ -13,7 +13,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
-import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
@@ -40,8 +42,8 @@ suite('AgentHostSessionStateStore', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createStore(flushDelay = MANUAL_FLUSH, service: ISessionDataService = sessionData.createService(), db: IAgentHostDatabase = database): AgentHostSessionStateStore {
-		return store.add(new AgentHostSessionStateStore(flushDelay, db, service, new NullLogService()));
+	function createStore(flushDelay = MANUAL_FLUSH, service: ISessionDataService = sessionData.createService(), db: IAgentHostDatabase = database, gitService: IAgentHostGitService = new class extends mock<IAgentHostGitService>() { }()): AgentHostSessionStateStore {
+		return store.add(new AgentHostSessionStateStore(flushDelay, db, service, new NullLogService(), gitService));
 	}
 
 	async function oldBuildSession(build: ILegacySessionFixture['build'] = '1.143'): Promise<{ fixture: ILegacySessionFixture; session: URI }> {
@@ -102,7 +104,7 @@ suite('AgentHostSessionStateStore', () => {
 			],
 			blob: legacySessionMetadata(fixture)[`agentHost.changeset.branch.${getWorkingDirectoryScopeId(otherFolder.workingDirectories)}`].length,
 			oldBuildViewUnchanged: true,
-			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1, checkpointSequence: 0 },
+			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1, checkpointSequence: 4 },
 		});
 	});
 
@@ -988,6 +990,86 @@ suite('AgentHostSessionStateStore', () => {
 				sessionDb: (await refsIn(fixture.session)).own,
 				peer: (await refsIn(peer.uri)).all.length,
 			}, { sessionDb: ['default-turn-1', 'default-turn-2'], peer: 2 });
+		});
+
+		suite('rebuild at import without agent-host.db', () => {
+			const repositoryRoot = URI.file('/repo');
+
+			/** A git service whose repository holds `refs`, counting the listings. */
+			function gitWith(refs: readonly string[], listings: string[] = []): IAgentHostGitService {
+				return new class extends mock<IAgentHostGitService>() {
+					override async getRepositoryRoot() { return repositoryRoot; }
+					override async listRefNamesWithOids(_root: URI, pattern: string) {
+						listings.push(pattern);
+						return refs.map(ref => ({ ref, oid: 'oid' }));
+					}
+				}();
+			}
+
+			async function seedPostBuildSession(): Promise<{ fixture: ILegacySessionFixture; session: URI }> {
+				const { fixture, session } = await oldBuildSession();
+				await seedPeerTurns(fixture);
+				const peer = sessionData.createService().openDatabase(URI.parse(fixture.chats[1].uri));
+				await peer.object.createTurn('same-folder-turn-1');
+				await peer.object.setTurnEventId('same-folder-turn-1', 'event-same-folder-turn-1');
+				await peer.object.setTurnCheckpointRef('same-folder-turn-1', 'refs/agents/fixture/chats/k/checkpoints/turn/12');
+				peer.dispose();
+				const own = sessionData.createService().openDatabase(session);
+				await own.object.setMetadata(SESSION_ROW_OWNER_CHAT_METADATA_KEY, fixture.chats[0].uri);
+				own.dispose();
+				return { fixture, session };
+			}
+
+			async function indexOf(fixture: ILegacySessionFixture, db: IAgentHostDatabase): Promise<string[]> {
+				const rows = await Promise.all(['default-turn-1', 'default-turn-2', 'same-folder-turn-1', 'other-folder-turn-1'].map(turnId => db.readTurnCheckpoints(fixture.session, turnId)));
+				return rows.flat().map(row => `${row.turnId}@${fixture.chats.findIndex(chat => chat.uri === row.chat)}:${(row.checkpointRef ?? '').replace(/^.*\/turn\//, '')}`).sort();
+			}
+
+			test('a lost agent-host.db rebuilds the index and a counter above every ref in git, so the next checkpoint cannot collide', async () => {
+				const { fixture, session } = await seedPostBuildSession();
+				const lost = store.add(new AgentHostDatabase(':memory:'));
+				const listings: string[] = [];
+				const states = createStore(MANUAL_FLUSH, sessionData.createService(), lost, gitWith(['refs/agents/fixture/chats/z/checkpoints/turn/30', 'refs/agents/fixture/checkpoints/turn/2'], listings));
+
+				await states.load(session);
+
+				assert.deepStrictEqual({
+					index: await indexOf(fixture, lost),
+					repositories: (await states.checkpoints.repositories(session)).map(root => root.toString()),
+					listings,
+					next: await states.checkpoints.allocate(session, 0),
+				}, {
+					index: ['default-turn-1@0:1', 'default-turn-2@0:2', 'other-folder-turn-1@2:4', 'same-folder-turn-1@1:12'],
+					repositories: [repositoryRoot.toString()],
+					listings: ['refs/agents/fixture/'],
+					next: 31,
+				});
+			});
+
+			test('without git refs the counter is the highest recorded number plus one, and an unused session never lists refs', async () => {
+				const { fixture, session } = await oldBuildSession();
+				await seedPeerTurns(fixture);
+				const listings: string[] = [];
+				const fresh = store.add(new AgentHostDatabase(':memory:'));
+				const states = createStore(MANUAL_FLUSH, sessionData.createService(), fresh, gitWith(['refs/agents/fixture/checkpoints/turn/99'], listings));
+
+				await states.load(session);
+
+				assert.deepStrictEqual({ listings, next: await states.checkpoints.allocate(session, 0), index: (await indexOf(fixture, fresh)).length }, { listings: [], next: 5, index: 4 });
+			});
+
+			test('rebuilding again over the rebuilt state changes neither the index nor the counter', async () => {
+				const { fixture, session } = await seedPostBuildSession();
+				const lost = store.add(new AgentHostDatabase(':memory:'));
+				const git = gitWith(['refs/agents/fixture/checkpoints/turn/30']);
+				await createStore(MANUAL_FLUSH, sessionData.createService(), lost, git).load(session);
+				const first = await indexOf(fixture, lost);
+
+				const again = createStore(MANUAL_FLUSH, sessionData.createService(), lost, git);
+				await again.load(session);
+
+				assert.deepStrictEqual({ index: await indexOf(fixture, lost), next: await again.checkpoints.allocate(session, 0) }, { index: first, next: 31 });
+			});
 		});
 	});
 });

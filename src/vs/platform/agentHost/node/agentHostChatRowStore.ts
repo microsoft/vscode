@@ -214,10 +214,12 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 					// Provider rows of the default chat always carry an event id; a peer's turn is known by its own database through its event id.
 					if (record.eventId === undefined && !claimed.has(record.turnId) && await ownRef.object.getTurnEventId(record.turnId) !== undefined) {
 						claimed.add(record.turnId);
-						if (!await ownRef.object.getTurnCheckpointRef(record.turnId)) {
-							await ownRef.object.setTurnCheckpointRef(record.turnId, record.checkpointRef);
+						let checkpointRef = await ownRef.object.getTurnCheckpointRef(record.turnId);
+						if (!checkpointRef) {
+							checkpointRef = record.checkpointRef;
+							await ownRef.object.setTurnCheckpointRef(record.turnId, checkpointRef);
 						}
-						indexed.push({ chat, turnId: record.turnId, storageResource: entry.storage!, checkpointRef: record.checkpointRef });
+						indexed.push({ chat, turnId: record.turnId, storageResource: entry.storage!, checkpointRef });
 					}
 				}
 			} finally {
