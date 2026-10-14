@@ -342,15 +342,20 @@ suite('WorktreeIsolation', () => {
 	});
 
 	test('a session whose worktree metadata never persisted still has its worktree removed', async () => {
-		db = new class extends TestSessionDatabase {
-			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
-				if (set['copilot.worktree.branchName']) {
-					throw new Error('Creation metadata persistence failed');
-				}
-				await super.applyMetadataChanges(set, remove);
-			}
-		}();
-		const isolation = createIsolation(disposables);
+		const sessionDataService = createSessionDataService(db);
+		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		// Reads see nothing persisted, as when the metadata write failed.
+		const unpersisted = new Proxy(store, {
+			get: (target, property, receiver) => property === 'readWithoutImport' ? async () => new Map() : Reflect.get(target, property, receiver),
+		});
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
+			createGitService(),
+			nullPullRequestResolver,
+			sessionDataService,
+			unpersisted,
+			new NullLogService(),
+		));
 		const worktree = await isolation.resolveForWorkspaceConversion({
 			sessionUri, sessionId, workingDirectory: repoRoot,
 			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
@@ -359,7 +364,7 @@ suite('WorktreeIsolation', () => {
 
 		const recorded = await isolation.readSessionWorktreeForRemoval(sessionUri);
 
-		assert.deepStrictEqual(recorded && { worktree: recorded.worktree.toString(), branchName: recorded.branchName }, { worktree: worktree.toString(), branchName });
+		assert.deepStrictEqual(recorded && { worktree: recorded.worktree.toString(), repositoryRoot: recorded.repositoryRoot.toString(), branchName: recorded.branchName }, { worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branchName });
 	});
 
 	for (const interruption of ['registration', 'claim'] as const) {
