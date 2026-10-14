@@ -609,13 +609,14 @@ export function createProgressiveChatCustomizations(
 			}
 		};
 
-		// Results are a prefix of the transcript, so they only ever grow in order.
+		// Resolved turns are listed in transcript order. Turns still pending are skipped, so a seeded
+		// (just completed) turn stays visible while older history resolves.
 		let needsWork = false;
 		for (const turn of turns) {
 			const entry = entries.get(turn.id)!;
 			if (!entry.resolved) {
 				needsWork = true;
-				break;
+				continue;
 			}
 			if (entry.resolvedAgainst !== currentIndex) {
 				needsWork = true;

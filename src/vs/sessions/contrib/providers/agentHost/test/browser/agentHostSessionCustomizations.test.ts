@@ -484,6 +484,31 @@ suite('Progressive Chat Customizations', () => {
 		});
 	});
 
+	for (const withNewActiveTurn of [false, true]) {
+		test(`a turn completing before older history resolves keeps its customizations${withNewActiveTurn ? ' while a new turn starts' : ''}`, () => {
+			const older = Array.from({ length: 20 }, (_, i) => ({ id: `old-${i}`, responseParts: [readTool(`/repo/src/file${i}.ts`)] }));
+			const hookParts = [readTool('.github/hooks/b.md')];
+			const newActive = { id: 'next', responseParts: [readTool('.github/hooks/a.md')] };
+			const { scheduler, chatState, observed, result } = setup(older, { activeTurn: { id: 'done', responseParts: hookParts } });
+			const completed = [...older, { id: 'done', responseParts: hookParts }];
+
+			chatState.set({ turns: completed, activeTurn: withNewActiveTurn ? newActive : undefined }, undefined);
+			const afterCompletion = result.get().map(c => c.id);
+			scheduler.flush();
+
+			const expected = resolveChatCustomizations(
+				createIncrementalChatCustomizationRefsParser()({ turns: completed, activeTurn: withNewActiveTurn ? newActive : undefined }),
+				new CustomizationIndex(customizations, [root]),
+			).map(c => c.id);
+			assert.deepStrictEqual({ reads: [...new Set(observed.map(ids => ids.join()))], afterCompletion, final: result.get().map(c => c.id), expected }, {
+				reads: withNewActiveTurn ? ['hook-b', 'hook-b,hook-a'] : ['hook-b'],
+				afterCompletion: withNewActiveTurn ? ['hook-b', 'hook-a'] : ['hook-b'],
+				final: expected,
+				expected: withNewActiveTurn ? ['hook-b', 'hook-a'] : ['hook-b'],
+			});
+		});
+	}
+
 	test('the active turn is shown while earlier turns are still being resolved', () => {
 		const { observed } = setup(createTurns(20), { activeTurn: { id: 'active', responseParts: [readTool('.github/hooks/a.md')] } });
 
