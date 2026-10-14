@@ -9,11 +9,11 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { AgentSession } from '../common/agentService.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -533,6 +533,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (existing) {
 			return existing;
 		}
+		if (isAhpChatChannel(key)) {
+			throw new SessionStateNotASessionError(key, undefined);
+		}
 		const readCatalogRow = await readCatalog();
 		const created = this._createdDefaultChats.get(key);
 		// A just-created session's default chat is the one the host minted, until its catalog records one.
@@ -543,6 +546,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		let state = await this._database.readSessionState(key);
 		let reads: MirrorReads | undefined;
 		if (!state) {
+			// Only on import: a chat recorded by another session is never imported as a session of its own.
+			const owner = (await this._database.findCentralChatOwners([key])).get(key);
+			if (owner && owner.ownerSession !== key) {
+				throw new SessionStateNotASessionError(key, owner.ownerSession);
+			}
 			const chats = authority === 1 ? await this._legacyChats(session, catalog) : [];
 			reads = await this._observe(key, chats, []);
 			const importedChats = authority === 1 ? chats : await this._normalizedChats(session, catalog);

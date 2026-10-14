@@ -777,6 +777,27 @@ suite('AgentHostSessionStateStore', () => {
 		})), [[fixture.session, true], [peer.uri, false], undefined]);
 	});
 
+	test('a chat is never loaded as a session: a chat URI, or a resource another session records as its chat, is rejected without importing', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const peer = fixture.chats[1].uri;
+		const recorded = 'copilot:/recorded-as-chat';
+		const catalog = await database.getSessionChatCatalog(session.toString());
+		const rows = (catalog?.chats ?? []).map(({ ownerSession: _ownerSession, ...row }) => row);
+		assert.strictEqual((await database.replaceSessionChatCatalog(session.toString(), [...rows, { chat: recorded, order: rows.length }], catalog?.revision)).status, 'applied');
+		const store = createStore();
+		const outcome = (resource: string) => store.load(URI.parse(resource)).then(() => 'loaded', (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			peer: await outcome(peer),
+			recorded: await outcome(recorded),
+			central: await Promise.all([peer, recorded].map(async resource => (await database.readSessionState(resource)) !== undefined)),
+		}, {
+			peer: `${peer} is a chat, not a session`,
+			recorded: `${recorded} is a chat of ${session.toString()}, not a session`,
+			central: [false, false],
+		});
+	});
+
 	test('a just-created session without a catalog imports the default chat the host minted, not the legacy derivation', async () => {
 		const session = URI.parse('copilot:/created-without-catalog');
 		const minted = URI.parse('ahp-chat:/minted-default');

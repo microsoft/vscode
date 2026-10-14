@@ -678,7 +678,8 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual({
 			read: read?.length,
 			reconciled: reconciled?.length,
-			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN')).length,
+			// Lookups of the peers; the session state store's import also checks the session itself once.
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN') && sql.includes(peers[0])).length,
 			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
 		}, {
 			read: peers.length,

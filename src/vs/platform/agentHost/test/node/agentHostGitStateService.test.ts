@@ -32,7 +32,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
-import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -272,7 +272,8 @@ suite('AgentHostGitStateService', () => {
 			getAuthToken: () => 'token',
 		};
 
-		const stateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const centralDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+		const stateStore = createTestSessionStateStore(centralDatabase, sessionDataService);
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
@@ -280,6 +281,7 @@ suite('AgentHostGitStateService', () => {
 			options?.authenticationService ?? authenticationService,
 			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
+			sessionDataService,
 			configurationService,
 			options?.telemetryService ?? NullTelemetryService,
 			createTestChatOwnershipService(stateManager),
@@ -294,6 +296,7 @@ suite('AgentHostGitStateService', () => {
 		return {
 			stateManager,
 			db,
+			centralDatabase,
 			stateStore,
 			whenStateStoreIdle: async () => {
 				// Queued writers may only reach the store after earlier async steps, so drain repeatedly.
@@ -1356,6 +1359,34 @@ suite('AgentHostGitStateService', () => {
 			resolved: ['main', 'release-A', 'release-A'],
 			directories: [replacement, WORKING_DIRECTORY, WORKING_DIRECTORY],
 			baseBranches: ['main', 'release-A', 'release-A'],
+		});
+	}));
+
+	test('resolving a peer chat\'s base branch reads its folder scope from its session and never imports the chat as a session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, project: 'file:///repo', gitState: { branchName: 'feature', baseBranchName: 'main' } });
+		const peer = buildChatUri(SESSION, 'peer');
+		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer, buildDefaultChatUri(SESSION)), { workingDirectories: ['file:///peer'] });
+		const session = URI.parse(SESSION);
+		await h.stateStore.write(session, sessionStatePatch({ chats: [{ chat: peer, isDefault: false, fields: { workingDirectories: ['file:///peer'] } }] }), SessionStateMirrorFlush.Immediate);
+		await h.stateStore.writeMetadata(session, URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
+		await h.stateStore.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: 'origin/session-base' }, SessionStateMirrorFlush.Immediate);
+
+		const resolved = await Promise.all([peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		await h.service.refreshSessionGitState(peer, undefined);
+		await h.service.associateRecordedPullRequests(peer, ['https://github.com/microsoft/vscode/pull/7']);
+		await h.whenStateStoreIdle();
+
+		assert.deepStrictEqual({
+			resolved,
+			chatRecord: h.stateStore.peek(URI.parse(peer)),
+			chatState: await h.centralDatabase.readSessionState(peer),
+			load: await h.stateStore.load(URI.parse(peer)).then(() => 'loaded', (error: Error) => error.message),
+		}, {
+			resolved: ['peer-base', 'session-base'],
+			chatRecord: undefined,
+			chatState: undefined,
+			load: `${peer} is a chat, not a session`,
 		});
 	}));
 

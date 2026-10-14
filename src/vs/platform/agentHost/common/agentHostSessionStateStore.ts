@@ -165,6 +165,13 @@ export class SessionStateDeletedError extends Error {
 	}
 }
 
+/** Thrown for a chat passed where a session is expected: a chat's state is kept by its session, never as a session's. */
+export class SessionStateNotASessionError extends Error {
+	constructor(resource: string, owner: string | undefined) {
+		super(owner === undefined ? `${resource} is a chat, not a session` : `${resource} is a chat of ${owner}, not a session`);
+	}
+}
+
 /** The part of a session's catalog row the store needs to import it. */
 export interface ISessionStateKnownCatalog {
 	readonly authorityVersion: 1 | 2;
