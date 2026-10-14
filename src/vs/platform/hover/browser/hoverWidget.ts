@@ -40,6 +40,42 @@ const enum Constants {
 	HoverWindowEdgeMargin = 2,
 }
 
+/**
+ * Returns the bounding client rect of an element, clipped to the part that is not hidden by the
+ * overflow of its ancestors (e.g. a row of a horizontally scrolling list that is wider than its
+ * view). Falls back to the unclipped rect when the element is hidden entirely.
+ */
+function getVisibleBoundingClientRect(element: HTMLElement): { top: number; right: number; bottom: number; left: number } {
+	const rect = element.getBoundingClientRect();
+	let { top, right, bottom, left } = rect;
+	let position = dom.getComputedStyle(element).position;
+	for (let ancestor = element.parentElement; ancestor && position !== 'fixed'; ancestor = ancestor.parentElement) {
+		const style = dom.getComputedStyle(ancestor);
+		// A static ancestor is not the containing block of an absolutely positioned element, so it does not clip it
+		if (position === 'absolute' && style.position === 'static') {
+			continue;
+		}
+		position = style.position;
+		const clipsX = style.overflowX !== 'visible';
+		const clipsY = style.overflowY !== 'visible';
+		if (clipsX || clipsY) {
+			const ancestorRect = ancestor.getBoundingClientRect();
+			if (clipsX) {
+				left = Math.max(left, ancestorRect.left);
+				right = Math.min(right, ancestorRect.right);
+			}
+			if (clipsY) {
+				top = Math.max(top, ancestorRect.top);
+				bottom = Math.min(bottom, ancestorRect.bottom);
+			}
+		}
+	}
+	if (left > right || top > bottom) {
+		return rect;
+	}
+	return { top, right, bottom, left };
+}
+
 export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _lockMouseTracker: CompositeMouseTracker;
@@ -366,7 +402,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
 
-			const boundingRect = e.getBoundingClientRect();
+			const boundingRect = getVisibleBoundingClientRect(e);
 			return {
 				top: boundingRect.top * zoom,
 				bottom: boundingRect.bottom * zoom,

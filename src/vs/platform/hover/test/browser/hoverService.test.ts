@@ -272,6 +272,38 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should position the hover next to the visible part of a target clipped by its ancestors', () => {
+			const layoutHoverX = (targetPosition: string) => {
+				const view = document.createElement('div');
+				view.style.overflow = 'hidden';
+				view.getBoundingClientRect = () => new DOMRect(0, 100, 200, 300);
+				fixture.appendChild(view);
+				const target = document.createElement('div');
+				target.style.position = targetPosition;
+				target.getBoundingClientRect = () => new DOMRect(0, 100, 300, 22);
+				view.appendChild(target);
+
+				const hover = showHover('Clipped target', target, {
+					position: { hoverPosition: HoverPosition.RIGHT },
+					appearance: { showPointer: true }
+				});
+				const hoverWidget = asHoverWidget(hover);
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+				hoverWidget.layout();
+				const x = hoverWidget.x;
+				hover.dispose();
+				return x;
+			};
+
+			assert.deepStrictEqual({
+				clippedByAncestor: layoutHoverX('static'),
+				notClippedByNonContainingBlock: layoutHoverX('absolute')
+			}, {
+				clippedByAncestor: 203,
+				notClippedByNonContainingBlock: 303
+			});
+		});
+
 		test('should size the hover pointer as a border box so its centre matches the pointer size', () => {
 			const target = createTarget();
 			const hover = showHover('Pointer geometry', target, {
