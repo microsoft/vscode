@@ -19,12 +19,12 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
-import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
@@ -40,6 +40,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabledIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabledIds.includes(CustomizationMarketplaceSources.CopilotConnectors.id),
@@ -70,7 +71,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, harness.id);
 			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override readonly availableHarnesses = observableValue(this, [harness]);
 			override getActiveDescriptor() { return harness; }
+			override getDescriptorForSession() { return harness; }
 		}());
 	}
 
@@ -79,6 +82,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		platformService: ICustomizationMarketplaceService,
 		connectorsService: ICopilotConnectorsService,
 		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
+		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
+		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
 	): CustomizationMarketplaceWorkbenchService {
 		const platformSources = platformService.allSources ?? platformService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 		const normalizedPlatformService = new class extends mock<ICustomizationMarketplaceService>() {
@@ -90,13 +95,15 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}();
 		const pluginMarketplaceService = new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
-			override getMarketplaceReferences() { return []; }
+			override getMarketplaceReferences() { return pluginMarketplaceReferences; }
 		}();
-		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider } satisfies IHarnessDescriptor;
+		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider, marketplaceManagementProvider } satisfies IHarnessDescriptor;
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, harness.id);
 			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override readonly availableHarnesses = observableValue(this, [harness]);
 			override getActiveDescriptor() { return harness; }
+			override getDescriptorForSession() { return harness; }
 		}();
 		return store.add(new CustomizationMarketplaceWorkbenchService(
 			configuration,
@@ -180,6 +187,102 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
 			items: [CustomizationMarketplaceSources.McpGallery.id],
 			platformRequests: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined, sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }],
+		});
+	});
+
+	test('projects provider-managed marketplaces as discover sources', async () => {
+		const configuration = createConfiguration([]);
+		const providerChanges = store.add(new Emitter<void>());
+		let listCalls = 0;
+		const marketplace = {
+			name: 'vscode-team-kit',
+			source: 'GitHub: microsoft/vscode-team-kit',
+			isDefault: false,
+			managed: false,
+			available: true,
+		};
+		const unavailableMarketplace = {
+			name: 'unavailable-kit',
+			source: 'GitHub: microsoft/unavailable-kit',
+			isDefault: false,
+			managed: false,
+			available: false,
+		};
+		const queries: ICustomizationMarketplaceSourceQuery[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: providerChanges.event,
+			list: async () => {
+				listCalls++;
+				return [marketplace, unavailableMarketplace];
+			},
+			add: async () => marketplace,
+			queryMarketplace: async (_session, _marketplace, options) => {
+				queries.push(options);
+				return {
+					items: [{
+						identifier: 'team-kit-plugin',
+						displayName: 'Team Kit Plugin',
+						description: 'Team workflows',
+						mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+					total: 1,
+				};
+			},
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const service = createService(
+			configuration,
+			platformService,
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			provider,
+			[parseMarketplaceReference('local/ignored-marketplace')!],
+		);
+		await Event.toPromise(service.onDidChangeSources);
+		const sourceId = getProviderMarketplaceSourceId(marketplace.name);
+		const unavailableSourceId = getProviderMarketplaceSourceId(unavailableMarketplace.name);
+		const allSources = service.allSources.map(source => [source.id, source.displayName]);
+		const enabledSources = service.sources.map(source => [source.id, source.displayName]);
+		await assert.rejects(service.query({ sourceIds: [unavailableSourceId] }, CancellationToken.None), isCancellationError);
+		const page = await service.query({ sourceIds: [sourceId] }, CancellationToken.None);
+		const contentChanged = Event.toPromise(service.onDidChangeSources);
+		providerChanges.fire();
+		await contentChanged;
+		await setEnabled(configuration, ChatConfiguration.PluginsEnabled, false);
+
+		assert.deepStrictEqual({
+			allSources,
+			enabledSources,
+			disabledSources: service.sources.map(source => [source.id, source.displayName]),
+			items: page.items.map(item => [item.sourceId, item.displayName]),
+			queries,
+			listCalls,
+		}, {
+			allSources: [
+				[sourceId, 'vscode-team-kit'],
+				[unavailableSourceId, 'unavailable-kit'],
+				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.displayName],
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
+			enabledSources: [
+				[sourceId, 'vscode-team-kit'],
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
+			disabledSources: [
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
+			items: [[sourceId, 'Team Kit Plugin']],
+			queries: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined }],
+			listCalls: 2,
 		});
 	});
 

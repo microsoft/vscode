@@ -177,7 +177,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getHoverContent(): IManagedHoverContent {
 		if (this._usesMissionControl()) {
-			return this._getAriaLabel();
+			return `${this._getAriaLabel()}\n\n${localize('missionControlSharing.fileSystemAccess', "Enabling remote connections allows clients authenticated as your GitHub account to read and modify files across this machine's accessible file systems, including sensitive files. Operating system permissions still apply.")}`;
 		}
 		const lines: string[] = [];
 		const state = this._getState();

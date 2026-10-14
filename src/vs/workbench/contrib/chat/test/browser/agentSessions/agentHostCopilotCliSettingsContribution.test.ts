@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IPolicyData } from '../../../../../../base/common/defaultAccount.js';
+import { IPolicyData, type IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -12,15 +12,19 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -64,6 +68,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 	private readonly _onDidChangePolicyData = new Emitter<IPolicyData | null>();
 	override readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+	private readonly _onDidChangeDefaultAccount = new Emitter<IDefaultAccount | null>();
+	override readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+	override currentDefaultAccount: IDefaultAccount | null = null;
 
 	constructor(override policyData: IPolicyData | null) {
 		super();
@@ -74,8 +81,14 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 		this._onDidChangePolicyData.fire(this.policyData);
 	}
 
+	setDefaultAccount(account: IDefaultAccount | null): void {
+		this.currentDefaultAccount = account;
+		this._onDidChangeDefaultAccount.fire(account);
+	}
+
 	dispose(): void {
 		this._onDidChangePolicyData.dispose();
+		this._onDidChangeDefaultAccount.dispose();
 	}
 }
 
@@ -107,7 +120,6 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.Memory]: { type: 'boolean', title: 'Copilot Memory' },
 	[CopilotCliConfigKey.LocalMemory]: { type: 'boolean', title: 'Local Copilot Memory' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
-	[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: { type: 'string', title: 'Claude Default Thinking Level' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
 	[CopilotCliConfigKey.EnableShellInitScript]: { type: 'boolean', title: 'Shell Init Script' },
 };
@@ -126,12 +138,14 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>, 
 	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService(settings);
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
+	const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
-	return { agentHostService, defaultAccountService, configurationService };
+	return { agentHostService, defaultAccountService, configurationService, contextKeyService };
 }
 
 suite('AgentHostCopilotCliSettingsContribution', () => {
@@ -166,7 +180,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostCopilotMemoryEnabledSettingId]: true,
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
-			[CopilotClaudeDefaultReasoningEffortSettingId]: 'medium',
 			[AgentHostShellToolInitScriptEnabledSettingId]: true,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema));
@@ -174,7 +187,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 18);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -193,7 +206,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
-			[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: 'medium',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
 			[CopilotCliConfigKey.EnableShellInitScript]: true,
 		});
@@ -353,6 +365,49 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
+	test('forwards the on-device model settings and recomputes the account gate', async () => {
+		const localModelSchema: Record<string, ConfigPropertySchema> = {
+			[CopilotCliConfigKey.LocalModelEnabled]: { type: 'boolean', title: 'On-Device Models' },
+			[CopilotCliConfigKey.LocalModelUseInAuto]: { type: 'boolean', title: 'Use On-Device Model in Auto' },
+			[CopilotCliConfigKey.LocalModelLlamaServerPath]: { type: 'string', title: 'llama-server Path' },
+			[CopilotCliConfigKey.LocalModelAccountGate]: { type: 'boolean', title: 'On-Device Models Allowed for Account' },
+		};
+		const mergedConfig = (service: MockAgentHostService) => Object.assign({}, ...service.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
+		const { agentHostService, defaultAccountService, contextKeyService } = setup(disposables, {
+			// Use in Auto is not set: it is forwarded as off.
+			[LocalModelEnabledSettingId]: true,
+			[LocalModelLlamaServerPathSettingId]: '  /opt/llama/llama-server ',
+		});
+		agentHostService.setRootState(makeRootStateWithSchema(localModelSchema));
+		await flush();
+		const signedOut = mergedConfig(agentHostService);
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setDefaultAccount({ authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, accountName: 'octocat', sessionId: 's1', enterprise: false });
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		await flush();
+		const signedIn = mergedConfig(agentHostService);
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setPreviewFeaturesEnabled(false);
+		await flush();
+
+		assert.deepStrictEqual({ signedOut, signedIn, previewDisabled: mergedConfig(agentHostService) }, {
+			signedOut: {
+				[CopilotCliConfigKey.LocalModelEnabled]: true,
+				[CopilotCliConfigKey.LocalModelUseInAuto]: false,
+				[CopilotCliConfigKey.LocalModelLlamaServerPath]: '/opt/llama/llama-server',
+				[CopilotCliConfigKey.LocalModelAccountGate]: false,
+			},
+			signedIn: {
+				[CopilotCliConfigKey.LocalModelAccountGate]: true,
+			},
+			previewDisabled: {
+				[CopilotCliConfigKey.LocalModelAccountGate]: false,
+			},
+		});
+	});
+
 	test('does not dispatch to a host whose schema does not advertise any key', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
@@ -387,7 +442,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.Memory]: false,
 			[CopilotCliConfigKey.LocalMemory]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
-			[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: '',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 			[CopilotCliConfigKey.EnableShellInitScript]: false,
 		}));

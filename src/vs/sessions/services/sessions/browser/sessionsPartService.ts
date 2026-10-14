@@ -9,6 +9,7 @@ import { IActiveSession } from '../common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -35,6 +36,9 @@ export interface IToggleMaximizeSessionEvent {
 
 export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
+
+	/** Number of chat surfaces currently shown across all visible session views. */
+	readonly shownChatCount: IObservable<number>;
 
 	/**
 	 * Reconciles the part's grid so it renders exactly the given visible

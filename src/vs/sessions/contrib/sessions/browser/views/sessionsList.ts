@@ -33,7 +33,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem, getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -145,6 +145,8 @@ export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.sho
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
+export const SessionItemHasUnreadNestedSessionsContext = new RawContextKey<boolean>('sessionItem.hasUnreadNestedSessions', false);
+type SessionContextKeyProvider = (session: ISession, reader: IReader | undefined) => Iterable<[string, ContextKeyValue]>;
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sessionChatItem.canArchive', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
@@ -252,7 +254,7 @@ export function formatSessionListTime(date: Date): string {
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
 }
 
-function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
+export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
 	const mainChat = session.mainChat.read(reader);
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
@@ -1006,6 +1008,7 @@ function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLi
 interface ICompactInputNeededPresentationOptions {
 	readonly compact?: () => boolean;
 	readonly deriveStatusFromMainChat?: boolean;
+	readonly showMetadataWhileActive?: (session: ISession) => boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 	readonly aggregateChatApprovals?: boolean;
 }
@@ -1317,6 +1320,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			activeSession?: IObservable<IActiveSession | undefined>;
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
+			getAdditionalContextKeys?: SessionContextKeyProvider;
+			showMetadataWhileActive?: (session: ISession) => boolean;
+			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
 			externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
@@ -1561,6 +1567,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
+		const getAdditionalContextKeys = this.options.getAdditionalContextKeys;
+		if (getAdditionalContextKeys) {
+			const contextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+			template.elementDisposables.add(autorun(reader => {
+				const values = new Map(getAdditionalContextKeys(element, reader));
+				template.contextKeyService.bufferChangeEvents(() => {
+					for (const [key, contextKey] of contextKeys) {
+						if (!values.has(key)) {
+							contextKey.reset();
+							contextKeys.delete(key);
+						}
+					}
+					for (const [key, value] of values) {
+						let contextKey = contextKeys.get(key);
+						if (!contextKey) {
+							contextKey = template.contextKeyService.createKey<ContextKeyValue>(key, undefined);
+							contextKeys.set(key, contextKey);
+						}
+						contextKey.set(value);
+					}
+				});
+			}));
+			template.elementDisposables.add(toDisposable(() => {
+				template.contextKeyService.bufferChangeEvents(() => {
+					for (const contextKey of contextKeys.values()) {
+						contextKey.reset();
+					}
+				});
+			}));
+		}
 		SessionItemInExternalSectionContext.bindTo(template.contextKeyService).set(this.options.isRenderedInExternalSection?.(element) ?? false);
 		const canImportContext = SessionItemCanImportContext.bindTo(template.contextKeyService);
 
@@ -1737,9 +1773,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
 				: getSessionDiffStats(element, reader);
 			// When the session is InProgress or NeedsInput, hide workspace/diff details in this row
-			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
+			const hideDetails = !this.options.showMetadataWhileActive?.(element) && (sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput);
 			const mainChat = element.mainChat.read(reader);
-			const timeDate = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const timeDate = this.options.showMetadataWhileActive?.(element) ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 
 			const parts: HTMLElement[] = [];
 			if (
@@ -1756,8 +1792,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(badgeEl);
 			}
 
-			const statusMessage = getSessionStatusMessage(sessionStatus, description);
-			if (sessionStatus !== SessionStatus.InProgress) {
+			const statusMessage = getSessionStatusMessage(sessionStatus, description)
+				?? (sessionStatus === SessionStatus.Completed ? this.options.getCompletedStatusMessage?.(element, reader) : undefined);
+			if (sessionStatus !== SessionStatus.InProgress || !hideDetails) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
@@ -2850,6 +2887,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
 	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
+	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -2965,7 +3003,8 @@ class SessionsAccessibilityProvider {
 		return derived(this, reader => {
 			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const mainChat = element.mainChat.read(reader);
-			const updatedAt = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const showMetadataWhileActive = this.options?.showMetadataWhileActive?.(element);
+			const updatedAt = showMetadataWhileActive ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
@@ -2983,6 +3022,12 @@ class SessionsAccessibilityProvider {
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			// History rows show their status next to the time, so their label reads it too.
+			const historyStatusMessage = (showMetadataWhileActive ? getSessionStatusMessage(status, element.description.read(reader)) : undefined)
+				?? (status === SessionStatus.Completed ? this.options?.getCompletedStatusMessage?.(element, reader) : undefined);
+			if (historyStatusMessage) {
+				label = localize('sessionItemHistoryStatusAria', "{0}, {1}", label, typeof historyStatusMessage === 'string' ? historyStatusMessage : renderAsPlaintext(historyStatusMessage, { omitMarkdownSyntax: true }));
 			}
 			const eligible = isExternalApplicationBadgeEligible(element, reader);
 			if (eligible) {
@@ -3006,8 +3051,7 @@ class SessionsAccessibilityProvider {
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
 			if (
 				this.options &&
-				status !== SessionStatus.InProgress &&
-				status !== SessionStatus.NeedsInput &&
+				(showMetadataWhileActive || (status !== SessionStatus.InProgress && status !== SessionStatus.NeedsInput)) &&
 				workspaceLabel &&
 				(
 					this.options.grouping() !== SessionsGrouping.Workspace ||
@@ -5608,6 +5652,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
+			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
+				!session.isArchived.get()
+				&& session.capabilities.get().supportsIndependentChatReadState === true
+				&& getSessionListChats(session).some(chat => !chat.isRead.get()))],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
@@ -6603,6 +6651,12 @@ export interface ISessionsFlatListOptions {
 	readonly contextMenuId?: MenuId;
 	/** Allows focused list surfaces to handle actions from their custom context menu. */
 	readonly onContextMenuAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
+	/** Per-session context shared by the inline toolbar and context menu. */
+	readonly getAdditionalContextKeys?: SessionContextKeyProvider;
+	/** Keeps repository and time visible alongside progress in history views. */
+	readonly showMetadataWhileActive?: (session: ISession) => boolean;
+	/** Short outcome shown before the time of a completed row, such as "Cancelled". */
+	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
 	readonly markSessionReadOnOpen?: boolean;
 	/**
@@ -6698,6 +6752,9 @@ export class SessionsFlatList extends Disposable {
 				externalApplicationBadgeShowFrom,
 				reportExternalApplicationBadgeModeExperimentTrigger,
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
+				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
+				showMetadataWhileActive: this.options.showMetadataWhileActive,
+				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -6732,6 +6789,8 @@ export class SessionsFlatList extends Disposable {
 					externalApplicationBadgeMode,
 					reportExternalApplicationBadgeModeExperimentTrigger,
 					reportExternalApplicationBadgeShowFromExperimentTrigger,
+					showMetadataWhileActive: this.options.showMetadataWhileActive,
+					getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
@@ -6789,6 +6848,7 @@ export class SessionsFlatList extends Disposable {
 			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, session.isQuickChat?.get() ?? false],
 			[SessionItemStatusContext.key, session.status.get()],
+			...(this.options.getAdditionalContextKeys?.(session, undefined) ?? []),
 		]);
 		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));
 		const actions = Separator.join(...menu.getActions({ shouldForwardArgs: true }).map(([, groupActions]) => groupActions));

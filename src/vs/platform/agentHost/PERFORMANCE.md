@@ -292,10 +292,13 @@ Canvas product telemetry uses existing usage consent, independently of OTel.
 | --- | --- |
 | `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `unknown`). |
 | `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `interrupted`. Input, owner, and editor lifetime changes share the `interrupted` outcome. |
-| `agentHost.canvasExtensionsReady` | Extension listing, bounded readiness wait, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
+| `agentHost.canvasExtensionsReady` | Extension listing, any remaining bounded readiness wait after session create/resume, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
+| `copilotSdk/extension_startup` | Total initial setup/discovery through native provider settlement for all Runtime extensions, not canvas-only. |
 | `integratedBrowser.open` with `source=canvas` | Backing-view creation, not a logical open. Exclude these rows from ordinary browser-tab usage. |
 
-New events use numeric `schemaVersion: 1`; `durationMs` uses a producer-local monotonic clock. Settled may include failed providers. Readiness measures host overhead, not total extension startup or model TTFT.
+Host/browser canvas events use numeric `schemaVersion: 1`; `durationMs` uses a producer-local monotonic clock. Settled may include failed providers. `agentHost.canvasExtensionsReady` measures listing overhead and the remaining readiness wait, not total Runtime extension startup or model TTFT.
+
+`copilotSdk/extension_startup` reports create and cold resume, not resident joins or reloads. Use standard (`restricted=false`) rows: `duration_ms` is monotonic total startup time, not per-request TTFT. Outcomes are `success`, `settled_with_failures`, `failed`, `cancelled`, or `superseded`. Optional authoritative snapshot counts (`discovered_count`, `running_count`, `failed_count`, `disabled_count`) are omitted when unavailable; observed empty discovery reports zeros.
 
 Load failure rate is `error / (loaded + error)`; compute latency percentiles from successful loads. Navigation completion is not first paint or application readiness. Crashes or lost delivery may leave no completion.
 

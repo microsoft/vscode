@@ -367,7 +367,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				hasPopup: button?.getAttribute('aria-haspopup'),
 			})),
 		}, {
-			title: 'Discover customizations',
+			title: 'Browse customizations',
 			buttons: [
 				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
 				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
@@ -443,6 +443,38 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 
 		assertImageReplacesFallback(fixture.container, '.customization-discovery-card-icon');
+	});
+
+	test('search results render compact star counts with exact accessible labels', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('server');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('popular', { stars: 189_789 }),
+				resource('featured', { stars: 33_000 }),
+				resource('recent', { stars: 999 }),
+				resource('established', { stars: 1_800_000 }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			[...fixture.container.querySelectorAll('.customization-discovery-result-stats')].map(element => ({
+				text: element.textContent,
+				ariaLabel: element.getAttribute('aria-label'),
+			})),
+			[
+				{ text: '189K', ariaLabel: '189,789 stars' },
+				{ text: '33K', ariaLabel: '33,000 stars' },
+				{ text: '999', ariaLabel: '999 stars' },
+				{ text: '1.8M', ariaLabel: '1,800,000 stars' },
+			],
+		);
 	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
