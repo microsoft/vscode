@@ -2039,7 +2039,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const sensitiveEditLocationsConfig = this._getSensitiveEditLocationsConfig(request.sessionResource, existingState);
 
 			// On-device models: a chat bound to an installed model that isn't loaded keeps its draft.
-			if ((invocationChat === undefined || !isSubagentChatUri(invocationChat)) && !request.acceptedConfirmationData?.length && !request.rejectedConfirmationData?.length
+			if (!this._isSubagentChat(this._resolveSessionUri(request.sessionResource).toString(), invocationChat) && !request.acceptedConfirmationData?.length && !request.rejectedConfirmationData?.length
 				&& !await this._localModels.checkBeforeSend(request, this._extractRawModelId(request.userSelectedModelId))) {
 				return {};
 			}
