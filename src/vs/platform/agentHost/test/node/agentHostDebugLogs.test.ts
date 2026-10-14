@@ -47,7 +47,7 @@ suite('AgentHostDebugLogsCollector', () => {
 
 	teardown(async () => {
 		// The collector's disposal cleans retained artifacts without awaiting
-		// (`dispose` is synchronous), and that teardown runs first. So this
+		// (`dispose` is synchronous), and teardown runs first. So this
 		// delete can race a still-running recursive delete of the same tree,
 		// which Windows reports as `EPERM` on `rmdir`. `maxRetries` is Node's
 		// built-in backoff for exactly those errors.
