@@ -195,10 +195,7 @@ suite('AgentHostPeerChatStore', () => {
 				{ key: SESSION_CUSTOM_TITLE_KEY, value: `${prefix}…` },
 				{ key: customChatTitleMetadataKey(first.toString()), value: `${prefix}…` },
 				{ key: customChatTitleSourceMetadataKey(first.toString()), value: 'user' },
-				{ key: SESSION_CUSTOM_TITLE_KEY, value: `${prefix}…` },
-				{ key: SESSION_CUSTOM_TITLE_SOURCE_KEY, value: 'user' },
 				{ key: customChatTitleMetadataKey(first.toString()), value: exact },
-				{ key: SESSION_CUSTOM_TITLE_KEY, value: exact },
 			],
 		});
 	});
@@ -929,31 +926,52 @@ suite('AgentHostPeerChatStore', () => {
 		return createPerResourceStore();
 	}
 
-	test('a normalized peer mirrors its read state and later provider data to its own chat database', async () => {
+	test('a normalized peer change writes no provider, origin, inherited-turn, read or title keys into the peer database', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		await store.setRead(session, first, true);
-		await store.upsert(session, first, 'late-provider-data');
-		assert.deepStrictEqual(await databaseFor(first).getMetadataObject({ [AH_META_IS_READ_DB_KEY]: true, [CHAT_PROVIDER_DATA_METADATA_KEY]: true }), {
-			[AH_META_IS_READ_DB_KEY]: 'true',
-			[CHAT_PROVIDER_DATA_METADATA_KEY]: 'late-provider-data',
+		await store.upsert(session, first, 'late-provider-data', origin, 'inherited-turn');
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.setArchived(session, first, true);
+		assert.deepStrictEqual({
+			peerWrites: databaseFor(first).setMetadataCalls,
+			central: await store.tryRead(session),
+		}, {
+			peerWrites: [],
+			central: [{ uri: first.toString(), isRead: true, archived: true, providerData: 'late-provider-data', origin, inheritedTurnId: 'inherited-turn', workingDirectories: undefined }],
 		});
 	});
 
-	test('a failed peer mirror write is retried by the next mirror instead of being remembered as written', async () => {
+	test('a normalized peer writes its working directories into its own database only when they change', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
-		const peerDatabase = databaseFor(first);
-		const original = peerDatabase.setMetadata.bind(peerDatabase);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed' });
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'provider-data');
+		await store.persistMetadata(session, first, { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: '' });
+		await store.setRead(session, first, true);
+		assert.deepStrictEqual(databaseFor(first).setMetadataCalls, [
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) },
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: '' },
+		]);
+	});
+
+	test('a failed session mirror write is retried by the next mirror instead of being remembered as written', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const sessionDatabase = databaseFor(session);
+		const original = sessionDatabase.setMetadata.bind(sessionDatabase);
+		const titleKey = customChatTitleMetadataKey(first.toString());
 		let failures = 1;
-		sinon.stub(peerDatabase, 'setMetadata').callsFake(async (key, value) => {
-			if (key === AH_META_IS_READ_DB_KEY && failures-- > 0) {
-				throw new Error('peer db unavailable');
+		sinon.stub(sessionDatabase, 'setMetadata').callsFake(async (key, value) => {
+			if (key === titleKey && failures-- > 0) {
+				throw new Error('session db unavailable');
 			}
 			return original(key, value);
 		});
-		await store.setRead(session, first, true);
-		const afterFailure = await peerDatabase.getMetadata(AH_META_IS_READ_DB_KEY);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed' });
+		const afterFailure = await sessionDatabase.getMetadata(titleKey);
 		await store.setArchived(session, first, true);
-		assert.deepStrictEqual({ afterFailure, afterRetry: await peerDatabase.getMetadata(AH_META_IS_READ_DB_KEY) }, { afterFailure: undefined, afterRetry: 'true' });
+		assert.deepStrictEqual({ afterFailure, afterRetry: await sessionDatabase.getMetadata(titleKey) }, { afterFailure: undefined, afterRetry: 'Renamed' });
 	});
 
 	test('persists and reads the explicit empty sentinel', async () => {

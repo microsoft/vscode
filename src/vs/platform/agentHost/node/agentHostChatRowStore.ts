@@ -118,6 +118,9 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 				} finally {
 					ownRef.dispose();
 				}
+			} else if (mirrored) {
+				// The chat's own database was never created, so its rows, if any, are only in the session database.
+				await this._mirror(session, chat, kind, apply, kind === 'draft' ? undefined : turnIdsBase([]), revision, removal);
 			}
 		});
 	}

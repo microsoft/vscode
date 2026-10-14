@@ -158,14 +158,15 @@ suite('Session state compatibility fixtures', () => {
 			peerChats: undefined,
 			defaultChatIsRead: 'true',
 			defaultTitle: 'Default title',
+			// A title change writes nothing into a chats_v2 peer's own db, whose working directories are written only when they change.
 			peerDb: {
-				[SESSION_CUSTOM_TITLE_KEY]: 'Renamed peer',
-				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-				'agentHost.chatWorkingDirectories': '["file:///workspace/lib"]',
+				[SESSION_CUSTOM_TITLE_KEY]: undefined,
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: undefined,
+				'agentHost.chatWorkingDirectories': undefined,
 			},
 		});
 
-		// An old build's edit of a mirrored key is not imported over the normalized catalog.
+		// An old build's edit of a peer's title is not imported over the normalized catalog.
 		const reference = service.openDatabase(URI.parse(peerChat));
 		await reference.object.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Old build title');
 		reference.dispose();

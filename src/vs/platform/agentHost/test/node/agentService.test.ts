@@ -25264,8 +25264,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				liveSelectionMatches: true,
 				peerCatalogSelectionMatches: true,
-				// The v2 peer's origin is now mirrored to its own chat db (same serialization as the legacy writer), so the old-format chat db carries it.
-				chatMetadataSelectionMatches: true,
+				chatMetadataSelectionMatches: false,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});
@@ -26999,7 +26998,7 @@ suite('AgentService (node dispatcher)', () => {
 				disposedPeers: agent.disposedPeers,
 				deleted,
 			}, {
-				titleWasPersisted: 'Temporary Title',
+				titleWasPersisted: undefined,
 				orphanExists: false,
 				normalizedPeerAfterFailure: undefined,
 				disposedPeers: [peer.toString(), buildDefaultChatUri(session)],
