@@ -140,8 +140,9 @@ export class TimelineService extends Disposable implements ITimelineService {
 		this._onDidChangeProviders.fire({ removed: [id] });
 	}
 
-	setUri(uri: URI) {
-		this.viewsService.openView(TimelinePaneId, true);
+	async setUri(uri: URI): Promise<void> {
+		// Wait for the view to be created and visible, otherwise it would miss the new uri or skip loading it
+		await this.viewsService.openView(TimelinePaneId, true);
 		this._onDidChangeUri.fire(uri);
 	}
 
