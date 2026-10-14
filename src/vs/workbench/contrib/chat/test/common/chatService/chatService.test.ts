@@ -7,7 +7,7 @@ import assert from 'assert';
 import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
-import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -21,6 +21,7 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -68,6 +69,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
+import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -168,6 +170,7 @@ suite('ChatService', () => {
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let editingSessionState: ISettableObservable<ChatEditingSessionState>;
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -226,10 +229,11 @@ suite('ChatService', () => {
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
+		editingSessionState = observableValue('editingSessionState', ChatEditingSessionState.Idle);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
-					state: constObservable(ChatEditingSessionState.Idle),
+					state: editingSessionState,
 					requestDisablement: observableValue('requestDisablement', []),
 					entries: editingSessionEntries,
 					dispose: () => { }
@@ -6120,6 +6124,119 @@ suite('ChatService', () => {
 
 		// Clean up
 		ref.dispose();
+	});
+
+	test('session storage does not wait for editing diff stats', async () => {
+		const fileService = testDisposables.add(new FileService(new NullLogService()));
+		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const pendingDiff = new DeferredPromise<void>();
+		const modifiedUri = URI.file('/workspace/file.ts');
+		editingSessionEntries.set([new class extends mock<IModifiedFileEntry>() {
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly originalURI = modifiedUri;
+			override readonly modifiedURI = modifiedUri;
+			override readonly linesAdded = constObservable(1);
+			override readonly linesRemoved = constObservable(0);
+
+			override async getDiffInfo() {
+				await pendingDiff.p;
+				return nullDocumentDiff;
+			}
+		}()], undefined);
+
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		try {
+			const persisted = await raceTimeout((async () => {
+				await testService.getHistorySessionItems();
+				model.addRequest({ parts: [], text: 'second message' }, { variables: [] }, 0);
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				await testService.getHistorySessionItems();
+
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
+				assert.ok(sessionId);
+				const sessionLog = await fileService.readFile(URI.joinPath(testService.getChatStorageFolder(), `${sessionId}.jsonl`));
+				const session = new ChatSessionOperationLog().read(sessionLog.value);
+				const rawIndex = storageService.get('chat.ChatSessionStore.index', StorageScope.WORKSPACE);
+				assert.ok(rawIndex);
+				const index = JSON.parse(rawIndex) as { entries: IChatSessionIndex };
+				return {
+					requests: session.requests.map(request => typeof request.message === 'string' ? request.message : request.message.text),
+					isEmpty: index.entries[sessionId].isEmpty,
+					diffSettled: pendingDiff.isSettled,
+				};
+			})(), 1_000);
+
+			assert.deepStrictEqual(persisted, {
+				requests: ['hello world', 'second message'],
+				isEmpty: false,
+				diffSettled: false,
+			});
+		} finally {
+			pendingDiff.complete();
+			ref.dispose();
+		}
+	});
+
+	test('session storage preserves edit stats while the editing session initializes', async () => {
+		const modifiedUri = URI.file('/workspace/file.ts');
+		editingSessionEntries.set([new class extends mock<IModifiedFileEntry>() {
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly originalURI = modifiedUri;
+			override readonly modifiedURI = modifiedUri;
+			override readonly linesAdded = constObservable(3);
+			override readonly linesRemoved = constObservable(1);
+		}()], undefined);
+
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
+		assert.ok(sessionId);
+		const getStoredStats = () => {
+			const rawIndex = storageService.get('chat.ChatSessionStore.index', StorageScope.WORKSPACE);
+			assert.ok(rawIndex);
+			const index = JSON.parse(rawIndex) as { entries: IChatSessionIndex };
+			return index.entries[sessionId].stats;
+		};
+
+		try {
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const initialStats = getStoredStats();
+
+			editingSessionState.set(ChatEditingSessionState.Initial, undefined);
+			editingSessionEntries.set([], undefined);
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const initializingStats = getStoredStats();
+
+			editingSessionState.set(ChatEditingSessionState.Idle, undefined);
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const settledStats = getStoredStats();
+
+			assert.deepStrictEqual({
+				initialStats,
+				initializingStats,
+				settledStats,
+			}, {
+				initialStats: { fileCount: 1, added: 3, removed: 1 },
+				initializingStats: { fileCount: 1, added: 3, removed: 1 },
+				settledStats: undefined,
+			});
+		} finally {
+			ref.dispose();
+		}
 	});
 
 	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {

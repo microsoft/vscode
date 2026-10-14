@@ -61,7 +61,7 @@ import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarket
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -1141,8 +1141,11 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly openFirstMigrationItem?: boolean;
-	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning';
+	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
+	readonly pluginMarketplaceMigration?: boolean;
+	readonly pluginMarketplaceMigrationOnly?: boolean;
+	readonly pluginMarketplaceMigrationDeselected?: boolean;
 }
 
 // ============================================================================
@@ -1175,6 +1178,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Prompts,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
+	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
+		onDidChange: Event.None,
+		list: async () => [],
+		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
+		queryMarketplace: async () => ({ items: [], total: 0 }),
+		remove: async () => ({ removed: true }),
+		refresh: async () => [],
+	} : undefined;
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
 		{
@@ -1184,6 +1195,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
 			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			marketplaceManagementProvider,
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
 					servers: constObservable(mcpServerCompatibility),
@@ -1202,7 +1214,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
 					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
 						: undefined;
-	const fixtureFiles = (options.files ?? allFiles)
+	const fixtureFiles = (options.files ?? (options.pluginMarketplaceMigrationOnly ? [] : allFiles))
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
@@ -1293,6 +1305,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
+				[ChatConfiguration.PluginMarketplaces]: options.pluginMarketplaceMigration ? ['microsoft/vscode-team-kit'] : undefined,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
@@ -1508,7 +1521,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
-						servers: [{
+						servers: options.pluginMarketplaceMigrationOnly ? [] : [{
 							id: 'mcp.config.ws0.remote-browser',
 							name: 'Remote Browser',
 							collectionId: 'mcp.config.ws0',
@@ -2266,6 +2279,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.showCustomizationMigrationDashboard();
 	}
 
+	if (options.pluginMarketplaceMigrationDeselected) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]') !== null,
+			'The plugin marketplace migration checkbox did not render.',
+		);
+		ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]')!.click();
+	}
+
 	if (options.openFirstMigrationItem) {
 		await waitForFixtureCondition(
 			() => ctx.container.querySelector('.migration-tree-item') !== null,
@@ -2290,6 +2311,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
 			.find(button => button.textContent?.trim().startsWith('Migrate'))!;
+		migrateButton.click();
+	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
+		await waitForFixtureCondition(
+			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.some(button => button.getAttribute('aria-label') === 'Migrate Plugin Marketplaces (User)'),
+			'The plugin marketplace migration action did not render.',
+		);
+		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+			.find(button => button.getAttribute('aria-label') === 'Migrate Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
@@ -2450,8 +2480,27 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	assert(!!row.querySelector('.mcp-server-source-path')?.textContent, 'Error rows retain their configuration path.');
 	assert(!row.querySelector('.mcp-server-description')?.textContent, 'Error rows hide their ordinary description when a configuration path is available.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
+	assert(row.querySelector('.mcp-server-start')?.textContent === 'Start', 'Error rows must offer a Start action.');
 	assert(!row.querySelector('.mcp-server-show-output'), 'Error rows must not show an inline output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
+}
+
+async function renderMcpErrorStartPending(ctx: ComponentFixtureContext): Promise<void> {
+	await renderEditor(ctx, {
+		sessionResource: localSessionResource,
+		isSessionsWindow: true,
+		selectedSection: AICustomizationManagementSection.McpServers,
+		activeSessionMcpServers: inlineErrorMcpServers.map(server => ({
+			...server,
+			start: () => new Promise<void>(() => { }),
+		})),
+		mcpSearchQuery: 'component',
+	});
+	const startButton = ctx.container.querySelector<HTMLElement>('.mcp-server-start');
+	assert(!!startButton, 'The fixture must render Start for an errored server.');
+	startButton.click();
+	await timeout(50);
+	assert(startButton.getAttribute('aria-disabled') === 'true', 'Start must be disabled while the retry is pending.');
 }
 
 async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -3292,7 +3341,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: a supported migration candidate shows a compact warning icon and linked yellow Migration available label, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: a supported migration candidate shows a compact warning icon and linked yellow Migration available label, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a Start button plus a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3363,6 +3412,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	McpServersSearchEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An MCP server search with no matches shows the empty-results state without stale server actions.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				mcpSearchQuery: 'no matching server',
+			});
+			assert(!ctx.container.querySelector('.mcp-server-item'), 'The empty search must not retain MCP server rows.');
+		},
+	}),
+
 	McpServersTabActiveSession: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -3375,9 +3437,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a Start button plus a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
 		render: renderMcpErrorActions,
+	}),
+
+	McpServersErrorStartPending: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['After Start is activated on the errored server, the Start button remains visible but disabled while the retry is pending.'],
+		render: renderMcpErrorStartPending,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
@@ -3539,6 +3607,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	PluginMarketplaceMigrationDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Profile-scoped Plugin Marketplaces group lists the chat.plugins.marketplaces source, the fixed ~/.copilot/settings.json destination, and a Copy action without offering destination configuration.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDashboardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a constrained editor, the Plugin Marketplaces migration source, destination, selection control, and actions remain readable without horizontal overflow.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['When the marketplace is deselected, its checkbox is off and the group action reads Migrate 0 in a disabled state.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			pluginMarketplaceMigrationDeselected: true,
+		}),
+	}),
+
 	MigrationPromptDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -3570,6 +3674,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			migrationDashboard: true,
 			migrationConfirmation: 'promptFiles',
 			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationConfirmation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A concise confirmation dialog explains that migration adds the marketplace to Copilot and that the Local agent keeps using the existing VS Code setting.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			migrationConfirmation: 'pluginMarketplaces',
 		}),
 	}),
 

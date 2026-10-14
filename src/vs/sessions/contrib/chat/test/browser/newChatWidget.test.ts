@@ -2762,6 +2762,13 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => upcastPartial({
+						schema: {
+							properties: {
+								isolation: { type: 'string', enum: ['folder', 'worktree'] },
+							},
+						},
+					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2800,7 +2807,7 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(getComparisonBranch.call(harness), 'main');
 	});
 
-	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+	test('hides comparison action when draft does not advertise worktree isolation', () => {
 		const draftWorkspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -2846,6 +2853,7 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => undefined,
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2857,7 +2865,7 @@ suite('NewChatWidget', () => {
 			visible: shouldShowComparisonAction.call(harness),
 		}, {
 			branch: 'main',
-			visible: true,
+			visible: false,
 		});
 	});
 

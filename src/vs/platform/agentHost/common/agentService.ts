@@ -880,7 +880,7 @@ export interface IAgentHostManagementService {
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions(): Promise<void>;
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
@@ -965,7 +965,7 @@ export interface IAgentService {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	refreshCopilotConnectorSessions?(): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
@@ -1444,7 +1444,7 @@ export interface IAgentHostService extends IAgentConnection {
 	setAuthenticationPending(pending: boolean): void;
 
 	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions?(): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through its local Agent Host provider. */
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;

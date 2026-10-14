@@ -153,6 +153,7 @@ export class ChatGroupsView extends Themable {
 		this._groupDisposables.clearAndDisposeAll();
 		this._currentSessionStore = store;
 		this._grid = undefined;
+		this._mainChatResource = undefined;
 		this._gridDidLayout = false;
 		this._groups = [];
 		this._activeGroup = undefined;
@@ -1210,6 +1211,7 @@ export class ChatGroupsView extends Themable {
 
 	override dispose(): void {
 		this._persistLayout();
+		this._mainChatResource = undefined;
 		super.dispose();
 	}
 }

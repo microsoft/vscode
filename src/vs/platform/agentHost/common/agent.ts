@@ -1495,8 +1495,8 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
-	/** Refresh live sessions after account-backed Connector membership changes. */
-	refreshConnectorSessions?(): Promise<void>;
+	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
+	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;

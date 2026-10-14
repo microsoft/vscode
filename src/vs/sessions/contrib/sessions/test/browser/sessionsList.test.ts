@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -3964,6 +3964,63 @@ suite('Sessions - SessionsList', () => {
 				flatRowHeight: '54px',
 				flatRowOffset: 54,
 			});
+		});
+	});
+
+	suite('session title animations', () => {
+		function renderProgressTitles() {
+			const sessions = [
+				createTestSession('First', { status: SessionStatus.InProgress }).session,
+				createTestSession('Second', { status: SessionStatus.InProgress }).session,
+			];
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const titles = [...container.querySelectorAll<HTMLElement>('.session-title')];
+			assert.strictEqual(titles.length, 2);
+			return { container, titles };
+		}
+
+		test('keeps title shimmers on the shared clock when motion resumes', async function () {
+			if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				this.skip();
+			}
+			const { container, titles } = renderProgressTitles();
+			const animations = () => titles.map(title => title.getAnimations().find(animation => (animation as CSSAnimation).animationName === 'session-title-shimmer'));
+			const waitForSharedMotion = async () => retry(async () => {
+				const [first, second] = animations();
+				assert.ok(first?.playState === 'paused' && second?.playState === 'paused'
+					&& typeof first.currentTime === 'number' && first.currentTime > 0
+					&& first.currentTime === second.currentTime);
+			}, 10, 100);
+			await waitForSharedMotion();
+			const before = animations()[0]?.currentTime;
+			await retry(async () => assert.notStrictEqual(animations()[0]?.currentTime, before), 10, 100);
+			container.classList.add('monaco-reduce-motion');
+			await retry(async () => assert.ok(animations().every(animation => !animation)), 10, 100);
+			container.classList.remove('monaco-reduce-motion');
+			await waitForSharedMotion();
+		});
+
+		test('workbench reduced motion leaves in-progress session titles static', () => {
+			const { container, titles } = renderProgressTitles();
+			container.classList.add('monaco-reduce-motion');
+			assert.deepStrictEqual(titles.map(title => {
+				const style = mainWindow.getComputedStyle(title);
+				return {
+					managed: title.classList.contains('chat-progress-animation'),
+					animation: style.animationName,
+					solid: style.webkitTextFillColor === style.color,
+				};
+			}), [
+				{ managed: true, animation: 'none', solid: true },
+				{ managed: true, animation: 'none', solid: true },
+			]);
 		});
 	});
 

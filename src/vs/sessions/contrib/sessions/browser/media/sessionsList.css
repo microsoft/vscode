@@ -1455,7 +1455,7 @@
 			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
 			animation-play-state: paused;
 		}
 
@@ -1477,6 +1477,12 @@
 			animation: none;
 		}
 	}
+}
+
+.monaco-reduce-motion .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	animation: none;
 }
 
 @keyframes session-title-shimmer {

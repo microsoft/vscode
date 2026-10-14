@@ -11,7 +11,7 @@ import { attributePermissionResult, isPermissionDeniedKind, permissionResultToCo
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -49,7 +49,8 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { reconcileCopilotConnectors } from './copilotConnectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
@@ -585,6 +586,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
@@ -689,6 +691,10 @@ export interface ICopilotAgentSessionOptions {
 	readonly realpath?: (path: string) => Promise<string>;
 	/** Overrides the control-plane RPC timeout for deterministic tests. */
 	readonly controlPlaneRpcTimeoutMs?: number;
+	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
+	readonly connectorRefreshTimeoutMs?: number;
+	/** Requests a later attempt after an abandoned Connector RPC settles. */
+	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
 	readonly canvasHandoff?: ICopilotCanvasHandoff;
 }
@@ -1130,6 +1136,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
+	/** Captured once, including undefined, and retained across root turns and child idle/resume until session teardown. */
+	private readonly _telemetryContextBySubagentToolCallId = new Map<string, IAgentTelemetryContext | undefined>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
@@ -1304,8 +1312,124 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	markConnectorConfigurationChanged(): void {
-		this._requiresConnectorConfigurationRefresh = true;
+	markConnectorConfigurationChanged(forceConnectorName?: string): void {
+		this._pendingConnectorRefreshes.set(forceConnectorName, ++this._connectorRefreshGeneration);
+	}
+
+	get hasPendingConnectorRefresh(): boolean {
+		return this._pendingConnectorRefreshes.size > 0;
+	}
+
+	/** Called under the provider's per-chat queue, or before the initialized session is registered. */
+	refreshConnectors(token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve();
+		}
+		if (!this._connectorRefresh) {
+			const cancellation = new CancellationTokenSource();
+			this._connectorRefreshCancellation.value = cancellation;
+			const timeoutHandle = disposableTimeout(() => cancellation.cancel(), this._connectorRefreshTimeoutMs);
+			const refresh = this._doRefreshConnectors(cancellation.token).finally(() => {
+				timeoutHandle.dispose();
+				if (this._connectorRefreshCancellation.value === cancellation) {
+					this._connectorRefreshCancellation.clear();
+				}
+				if (this._connectorRefresh === refresh) {
+					this._connectorRefresh = undefined;
+				}
+			});
+			this._connectorRefresh = refresh;
+		}
+		const listener = token.onCancellationRequested(() => this.cancelConnectorRefresh());
+		return this._connectorRefresh.finally(() => listener.dispose());
+	}
+
+	cancelConnectorRefresh(): void {
+		this._connectorRefreshCancellation.value?.cancel();
+	}
+
+	/** Releases callbacks for one server before Stop waits for ordered lifecycle work. */
+	cancelMcpServerAuthentication(id: string): void {
+		const serverName = this._mcpCustomizations.serverNameForCustomizationId(id);
+		if (serverName) {
+			this._cancelPendingMcpAuthRequestsForServer(serverName);
+		}
+	}
+
+	private async _doRefreshConnectors(token: CancellationToken): Promise<void> {
+		const canReconcile = () => !token.isCancellationRequested && !this.isDisposed && !this.hasActiveTurn && !this.hasActiveSubagents
+			&& this._mcpServerControlOperations === 0
+			&& this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const canStart = () => canReconcile() && !this._outstandingConnectorReconcile;
+		while (this.hasPendingConnectorRefresh && canStart()) {
+			const generation = this._connectorRefreshGeneration;
+			const requests = [...this._pendingConnectorRefreshes];
+			for (const [forceConnectorName, requestGeneration] of requests) {
+				if (!canStart()) {
+					return;
+				}
+				try {
+					// Apply customization enablement before connector reconciliation checks for stopped servers.
+					await raceCancellationError(this._reconcileMcpServerEnablement(), token);
+					if (!canReconcile()) {
+						return;
+					}
+					const result = await reconcileCopilotConnectors(this._wrapper.session, this._logService, {
+						forceConnectorName,
+						canReconcile,
+						preserveStoppedServers: true,
+						token,
+						onReconcileRequested: rpc => this._trackConnectorReconcile(rpc),
+					});
+					if (token.isCancellationRequested || this.isDisposed) {
+						return;
+					}
+					// Resolve newly discovered names before publishing their inventory or tools.
+					await raceCancellationError(this._reconcileMcpServerEnablement(), token);
+					if (token.isCancellationRequested || this.isDisposed) {
+						return;
+					}
+					if (result.displayNames) {
+						this._setMcpServerDisplayNames(result.displayNames);
+					}
+					await raceCancellationError(this._refreshMcpServersFromRpc(), token);
+					if (token.isCancellationRequested || this.isDisposed) {
+						return;
+					}
+					this._fireMcpToolsListChanged();
+					if (result.reconciled && this._pendingConnectorRefreshes.get(forceConnectorName) === requestGeneration) {
+						this._pendingConnectorRefreshes.delete(forceConnectorName);
+					}
+				} catch (error) {
+					if (isCancellationError(error) && token.isCancellationRequested) {
+						this._retryAfterConnectorReconcile ||= !!this._outstandingConnectorReconcile;
+						this._logService.info(`[Copilot:${this.sessionId}] Connector MCP refresh was cancelled or timed out; retaining the request for retry`);
+					} else {
+						this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh Connector MCP state; retaining the request for retry`, error);
+					}
+					return;
+				}
+			}
+			if (generation === this._connectorRefreshGeneration) {
+				return;
+			}
+		}
+	}
+
+	private _trackConnectorReconcile(rpc: Promise<unknown>): void {
+		const outstanding = rpc.then(() => undefined, () => undefined).finally(() => {
+			if (this._outstandingConnectorReconcile !== outstanding) {
+				return;
+			}
+			this._outstandingConnectorReconcile = undefined;
+			if (this._retryAfterConnectorReconcile) {
+				this._retryAfterConnectorReconcile = false;
+				if (!this.isDisposed && this.hasPendingConnectorRefresh) {
+					this._onConnectorRefreshRetryable(this);
+				}
+			}
+		});
+		this._outstandingConnectorReconcile = outstanding;
 	}
 
 	/**
@@ -1489,7 +1613,15 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
-	private _requiresConnectorConfigurationRefresh = false;
+	private _connectorRefreshGeneration = 0;
+	private readonly _pendingConnectorRefreshes = new Map<string | undefined, number>();
+	private _connectorRefresh: Promise<void> | undefined;
+	private readonly _connectorRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _outstandingConnectorReconcile: Promise<void> | undefined;
+	private _retryAfterConnectorReconcile = false;
+	private readonly _connectorRefreshTimeoutMs: number;
+	private readonly _onConnectorRefreshRetryable: (session: CopilotAgentSession) => void;
+	private _mcpServerControlOperations = 0;
 	private readonly _mcpServerDisplayNames = new Map<string, string>();
 	/**
 	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
@@ -1647,6 +1779,7 @@ export class CopilotAgentSession extends Disposable {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
 			this._observedUsageEventIds.clear();
+			this._telemetryContextBySubagentToolCallId.clear();
 			this.modelCallTurnCorrelation.clearTelemetryContexts();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
@@ -1655,6 +1788,8 @@ export class CopilotAgentSession extends Disposable {
 		this.sessionId = options.rawSessionId;
 		this._ownerSessionUri = options.sessionUri;
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
+		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
+		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
 		this.resourceUri = options.resource ?? options.sessionUri;
 		this._chatChannelUri = options.chatChannelUri;
 		this._subagentChatUriFormat = options.subagentChatUriFormat;
@@ -1930,8 +2065,12 @@ export class CopilotAgentSession extends Disposable {
 	// #endregion
 
 	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
-		const turn = this._owningRootTurn(parentToolCallId);
-		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, turn?.id === turnId ? turn.telemetryContext : undefined);
+		const turn = this._currentTurn.value;
+		const rootContext = turn?.id === turnId ? turn.telemetryContext : undefined;
+		const telemetryContext = parentToolCallId
+			? this._telemetryContextBySubagentToolCallId.get(parentToolCallId)
+			: rootContext;
+		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, telemetryContext);
 		this._onDidSessionProgress.fire({
 			kind: 'model_call_completed',
 			resource: this._chatChannelUri,
@@ -1939,6 +2078,13 @@ export class CopilotAgentSession extends Disposable {
 			modelCallId,
 			parentToolCallId,
 		});
+	}
+
+	private _spawningSubagentTelemetryContext(parentToolCallId: string | undefined): IAgentTelemetryContext | undefined {
+		if (parentToolCallId && !this._fusionPhaseLabels.has(parentToolCallId)) {
+			return this._telemetryContextBySubagentToolCallId.get(parentToolCallId);
+		}
+		return this._currentTurn.value?.telemetryContext;
 	}
 
 	private _emitModelCallFinished(event: ICopilotModelCallFinishedEvent): void {
@@ -3060,9 +3206,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
-		if (this._requiresConnectorConfigurationRefresh) {
-			return true;
-		}
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
 	}
@@ -5536,7 +5679,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _startMcpServer(serverName: string, token: CancellationToken): Promise<void> {
-		return raceCancellationError(this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+		return raceCancellationError(this._runMcpServerControl(() => this._mcpServerLifecycleSequencer.queue(serverName, async () => {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -5563,7 +5706,21 @@ export class CopilotAgentSession extends Disposable {
 				// where the start rejects before any status is emitted.
 				this._seedMcpServersFromRpc();
 			}
-		}), token);
+		})), token);
+	}
+
+	/** A control already in flight defers reconciliation; a later control wins over its final state. */
+	private async _runMcpServerControl(operation: () => Promise<void>): Promise<void> {
+		this._mcpServerControlOperations++;
+		try {
+			await this._connectorRefresh;
+			if (this.isDisposed) {
+				throw new CancellationError();
+			}
+			await operation();
+		} finally {
+			this._mcpServerControlOperations--;
+		}
 	}
 
 	private _reconcileMcpServerEnablement(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
@@ -5731,12 +5888,13 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Cannot stop unknown MCP server customization ${id}`);
 			return;
 		}
-		return this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+		this._cancelPendingMcpAuthRequestsForServer(serverName);
+		return this._runMcpServerControl(() => this._mcpServerLifecycleSequencer.queue(serverName, async () => {
 			this._cancelPendingMcpAuthRequestsForServer(serverName);
 			await this._wrapper.session.rpc.mcp.stopServer({ serverName });
 			this._mcpLifecycleVersion++;
 			this._mcpCustomizations.applyOne({ name: serverName, state: { kind: McpServerStatus.Stopped } });
-		});
+		}));
 	}
 
 	async backgroundMcpServerStartup(): Promise<void> {
@@ -8125,6 +8283,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			if (!this._telemetryContextBySubagentToolCallId.has(e.data.toolCallId)) {
+				// Taskless subagents have no tracked tool and inherit the current root's guarded context.
+				this._telemetryContextBySubagentToolCallId.set(e.data.toolCallId, this._spawningSubagentTelemetryContext(tracked?.parentToolCallId));
+			}
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._subagentDisplayNamesByAgentId.set(e.agentId, subagentChatTitle(tracked?.meta?.subagentDescription, e.data.agentDisplayName));

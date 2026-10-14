@@ -227,6 +227,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
 		}
+		const workflowSummary = this.delegate.workflow?.summary.get();
+		if (workflowSummary) {
+			return localize('chat.modelPicker.workflowSummaryHover', "{0} • {1}", label, workflowSummary);
+		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};
 		if (selectedModel) {

@@ -728,6 +728,35 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
 	});
 
+	test('keeps Branch Changes operations present but disabled while a turn is active', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		stateManager.createSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
+		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+		});
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const branchOperations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
+
+		assert.deepStrictEqual(branchOperations, [{
+			...sampleOperations[0],
+			status: ChangesetOperationStatus.Disabled,
+		}]);
+	});
+
 	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';

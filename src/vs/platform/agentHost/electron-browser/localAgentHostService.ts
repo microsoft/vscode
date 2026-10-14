@@ -526,8 +526,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
-		return this._getManagementService().refreshCopilotConnectorSessions();
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions(forceConnectorName);
 	}
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
