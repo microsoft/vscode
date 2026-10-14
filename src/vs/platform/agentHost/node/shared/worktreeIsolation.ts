@@ -1059,7 +1059,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
 			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName, worktreeBranchPrefix));
-			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch: selectedBranch, branchName: newBranchName });
+			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName: newBranchName });
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
 			const branch = await this._gitService.getBranch(repositoryRoot, selectedBranch);
