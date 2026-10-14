@@ -279,6 +279,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown> }>();
 	/** A chat's effective values with the inputs they were computed from, so unchanged inputs return the same object. */
 	private readonly _chatValues = new Map<ProtocolURI, { readonly inputs: readonly unknown[]; readonly values: Record<string, unknown> }>();
+	/** The keys the config change being reduced changed, by channel, until its envelope is processed. */
+	private readonly _reducedChanges = new Map<ProtocolURI, readonly string[]>();
 	/** A chat's effective values when its sandbox selection last changed; a rejection of older values is stale. */
 	private readonly _chatSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
 
@@ -312,6 +314,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxUserSelections.delete(session);
 		}));
+		// Reduction precedes the envelope and knows the previous values, so a replacement's removed keys are known too.
+		this._register(this._stateManager.onDidChangeSessionConfig(event => this._reducedChanges.set(event.session.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
+		this._register(this._stateManager.onDidChangeChatConfig(event => this._reducedChanges.set(event.chat.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
 		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
 			this._chatValues.delete(chat);
 			this._chatSandboxChanges.delete(chat);
@@ -345,7 +350,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 					session: envelope.channel,
 					config: envelope.action.config,
 					origin: envelope.origin,
-				});
+				}, this._changedKeys(envelope.channel, envelope.action.config));
 			} else if (envelope.action.type === ActionType.ChatConfigChanged) {
 				const session = this._stateManager.getChatOwner(envelope.channel);
 				if (session !== undefined) {
@@ -361,7 +366,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 						}
 						this._recordSandboxChanges(session, envelope.channel);
 					}
-					this._fireChatConfigChange(session, envelope.channel, Object.keys(envelope.action.config), envelope.origin);
+					this._fireChatConfigChange(session, envelope.channel, this._changedKeys(envelope.channel, envelope.action.config), envelope.origin);
 				}
 			}
 		}));
@@ -516,10 +521,16 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return Object.fromEntries(keys.map(key => [key, values[key]]));
 	}
 
+	/** The keys a config change touched: those it set and those whose value it changed (a replacement removes keys). */
+	private _changedKeys(channel: ProtocolURI, config: Record<string, unknown>): string[] {
+		const reduced = this._reducedChanges.get(channel) ?? [];
+		this._reducedChanges.delete(channel);
+		return [...new Set([...Object.keys(config), ...reduced])];
+	}
+
 	/** Fires the session event and, for every registered chat of the session, the chat event for the keys the chat does not set itself. */
-	private _fireSessionConfigChange(event: IAgentSessionConfigurationChangeEvent): void {
+	private _fireSessionConfigChange(event: IAgentSessionConfigurationChangeEvent, keys: readonly string[] = Object.keys(event.config)): void {
 		this._onDidSessionConfigChange.fire(event);
-		const keys = Object.keys(event.config);
 		for (const chat of this._stateManager.getSessionState(event.session)?.chats ?? []) {
 			const target = { session: event.session, chat: chat.resource };
 			const overridden = new Set([...this._chatLayers(target)].flatMap(layer => Object.keys(layer)));
@@ -910,4 +921,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		return values;
 	}
+}
+
+function changedConfigKeys(previous: Readonly<Record<string, unknown>> | undefined, current: Readonly<Record<string, unknown>> | undefined): string[] {
+	return [...new Set([...Object.keys(previous ?? {}), ...Object.keys(current ?? {})])].filter(key => !equals(previous?.[key], current?.[key]));
 }

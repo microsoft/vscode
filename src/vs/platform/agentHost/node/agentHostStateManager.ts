@@ -378,6 +378,9 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
+	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined }>());
+	/** Fires when a `chat/configChanged` changed a chat's own config, also before the chat's state is resolved. */
+	readonly onDidChangeChatConfig: Event<{ chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined }> = this._onDidChangeChatConfig.event;
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
@@ -2202,7 +2205,9 @@ export class AgentHostStateManager extends Disposable {
 				const newChat = chatReducer(chat, chatAction, this._log);
 				chatEntry.state = newChat;
 				if (chatAction.type === ActionType.ChatConfigChanged) {
+					const previous = chatEntry.config;
 					chatEntry.config = newChat.config;
+					this._onDidChangeChatConfig.fire({ chat: channel, previous, current: chatEntry.config });
 				}
 				if (chatAction.type === ActionType.ChatCanvasesChanged) {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
@@ -2227,7 +2232,9 @@ export class AgentHostStateManager extends Disposable {
 				resultingState = newChat;
 			} else if (chatEntry?.valid && chatAction.type === ActionType.ChatConfigChanged) {
 				// A chat's own config exists before its state is resolved; reduce it alone.
-				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(chatEntry.config ? { config: chatEntry.config } : {}) }, chatAction, this._log).config;
+				const previous = chatEntry.config;
+				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(previous ? { config: previous } : {}) }, chatAction, this._log).config;
+				this._onDidChangeChatConfig.fire({ chat: channel, previous, current: chatEntry.config });
 			} else {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
 			}

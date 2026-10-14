@@ -236,6 +236,19 @@ suite('AgentConfigurationService', () => {
 			]);
 		});
 
+		test('a replacement fans out the keys it removed, from the session and from a chat', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => {
+				if (e.chat === peer || e.chat === defaultChat) {
+					events.push(`${e.chat === peer ? 'peer' : 'default'} ${Object.keys(e.config).sort().join(',')}`);
+				}
+			}));
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' }, replace: true });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+			assert.deepStrictEqual(events, ['default level,limit', 'peer limit', 'peer level,limit']);
+		});
+
 		test('a seed gives a chat being created its values until it is registered', () => {
 			setUpSession({ level: 'low' });
 			const fork = buildChatUri(session, 'fork');
