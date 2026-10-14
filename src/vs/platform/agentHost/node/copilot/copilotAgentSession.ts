@@ -1070,6 +1070,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
+	/** Retained with the subagent identity across root turns and child idle/resume, until session teardown. */
+	private readonly _telemetryContextBySubagentToolCallId = new Map<string, IAgentTelemetryContext | undefined>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
@@ -1583,6 +1585,7 @@ export class CopilotAgentSession extends Disposable {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
 			this._observedUsageEventIds.clear();
+			this._telemetryContextBySubagentToolCallId.clear();
 			this.modelCallTurnCorrelation.clearTelemetryContexts();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
@@ -1753,8 +1756,12 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
-		const turn = this._owningRootTurn(parentToolCallId);
-		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, turn?.id === turnId ? turn.telemetryContext : undefined);
+		const turn = this._currentTurn.value;
+		const rootContext = turn?.id === turnId ? turn.telemetryContext : undefined;
+		const telemetryContext = parentToolCallId
+			? this._telemetryContextBySubagentToolCallId.get(parentToolCallId)
+			: rootContext;
+		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, telemetryContext);
 		this._onDidSessionProgress.fire({
 			kind: 'model_call_completed',
 			resource: this._chatChannelUri,
@@ -7905,6 +7912,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			if (!this._telemetryContextBySubagentToolCallId.has(e.data.toolCallId)) {
+				const parentContext = tracked?.parentToolCallId
+					? this._telemetryContextBySubagentToolCallId.get(tracked.parentToolCallId)
+					: this._currentTurn.value?.telemetryContext;
+				this._telemetryContextBySubagentToolCallId.set(e.data.toolCallId, parentContext);
+			}
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._subagentDisplayNamesByAgentId.set(e.agentId, subagentChatTitle(tracked?.meta?.subagentDescription, e.data.agentDisplayName));

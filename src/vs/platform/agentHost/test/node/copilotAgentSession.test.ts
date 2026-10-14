@@ -69,6 +69,7 @@ import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } f
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import type { FileEditTracker } from '../../node/shared/fileEditTracker.js';
@@ -7734,23 +7735,143 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
-	test('does not attribute a background subagent model call to a replacement root turn', async () => {
-		const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
-		const { session, mockSession } = await createAgentSession(disposables, { telemetryContext: context });
+	for (const parentEnded of [false, true]) {
+		test(`retains background subagent account telemetry after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
+			const telemetryService = new class extends CapturingTelemetryService {
+				override publicLog(eventName = '', data?: unknown): void {
+					this.events.push({ eventName, data });
+				}
+			}();
+			const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+			const options = { telemetryContext: context };
+			const { session, mockSession } = await createAgentSession(disposables, options);
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+			if (parentEnded) {
+				session.discardActiveTurn();
+			} else {
+				session.resetTurnState('turn-2');
+			}
+			mockSession.fire('assistant.message', {
+				messageId: 'message', apiCallId: 'call', content: 'done',
+			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
+			new CopilotGitHubTelemetryForwarder(() => false, telemetryService).forward({
+				sessionId: session.sessionId, restricted: false,
+				event: { kind: 'response.success', properties: { modelCallId: 'call' }, metrics: {} },
+			}, 'child-turn', undefined, session.modelCallTurnCorrelation.getTelemetryContext('call'));
+			const event = telemetryService.events.find(event => event.eventName === 'copilotSdk/response.success');
+			assert.deepStrictEqual({
+				context: session.modelCallTurnCorrelation.getTelemetryContext('call'),
+				data: event?.data,
+			}, {
+				context,
+				data: {
+					modelCallId: 'call', created_at: undefined, model_call_id: undefined, exp_assignment_context: undefined,
+					session_id: session.sessionId, sdk_session_id: session.sessionId, copilot_tracking_id: undefined,
+					kind: 'response.success', restricted: false, copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a',
+					usageStatus: 'notReported', turnId: 'child-turn',
+				},
+			});
+		});
+	}
+
+	test('retained subagent context observes discovery but stays invalid after credential replacement', async () => {
+		let available = false;
+		let current = true;
+		const context: IAgentTelemetryContext = {
+			get copilotSku() { return available && current ? 'sku-a' : undefined; },
+			get copilotTrackingId() { return available && current ? 'analytics-a' : undefined; },
+		};
+		const options = { telemetryContext: context };
+		const { session, mockSession } = await createAgentSession(disposables, options);
 		session.resetTurnState('turn-1');
-		mockSession.fire('subagent.started', {
+		const start = () => mockSession.fire('subagent.started', {
 			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
 		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
-		const completeCall = (id: string) => mockSession.fire('assistant.message', {
-			messageId: id, apiCallId: id, content: 'done',
-		} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
-		completeCall('call-1');
+		start();
+		session.discardActiveTurn();
+		const complete = (id: string) => {
+			mockSession.fire('assistant.message', { messageId: id, apiCallId: id, content: 'done' } as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
+			const captured = session.modelCallTurnCorrelation.getTelemetryContext(id);
+			return { copilotSku: captured?.copilotSku, copilotTrackingId: captured?.copilotTrackingId };
+		};
+		const pending = complete('pending');
+		available = true;
+		const discovered = complete('discovered');
+		current = false;
+		options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
 		session.resetTurnState('turn-2');
-		completeCall('call-2');
+		start();
+		const invalidated = complete('invalidated');
+		session.dispose();
+		assert.deepStrictEqual({ pending, discovered, invalidated, disposed: session.modelCallTurnCorrelation.getTelemetryContext('discovered') }, {
+			pending: { copilotSku: undefined, copilotTrackingId: undefined },
+			discovered: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+			invalidated: { copilotSku: undefined, copilotTrackingId: undefined },
+			disposed: undefined,
+		});
+	});
+
+	test('nested subagents inherit the spawning child account context instead of the replacement root', async () => {
+		const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+		const options = { telemetryContext: context };
+		const { session, mockSession } = await createAgentSession(disposables, options);
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'parent-tool', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'parent-agent' });
+		options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+		session.resetTurnState('turn-2');
+		mockSession.fire('tool.execution_start', {
+			toolCallId: 'child-tool', toolName: 'task', arguments: { prompt: 'Explore more', agent_type: 'explore' },
+		} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'parent-agent' });
+		mockSession.fire('subagent.started', {
+			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore more',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'child-agent' });
+		session.discardActiveTurn();
+		mockSession.fire('assistant.message', {
+			messageId: 'message', apiCallId: 'nested-call', content: 'done',
+		} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'child-agent' });
+		assert.deepStrictEqual(session.modelCallTurnCorrelation.getTelemetryContext('nested-call'), context);
+	});
+
+	test('retains the guarded subagent context across child completion and resume', async () => {
+		const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+		const options = { telemetryContext: context };
+		const { session, mockSession, signals } = await createAgentSession(disposables, options);
+		const identity = { toolCallId: 'search-tool', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', { ...identity, agentDescription: 'Search' }, { agentId: 'search-agent' });
+		mockSession.fire('subagent.completed', identity, { agentId: 'search-agent' });
+		await timeout(0);
+		options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.message', {
+			messageId: 'resumed-message', apiCallId: 'resumed-call', content: 'done',
+		} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'search-agent' });
 		assert.deepStrictEqual({
-			original: session.modelCallTurnCorrelation.getTelemetryContext('call-1'),
-			replacement: session.modelCallTurnCorrelation.getTelemetryContext('call-2'),
-		}, { original: context, replacement: undefined });
+			lifecycle: signals.flatMap(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed' ? [signal.kind] : []),
+			context: session.modelCallTurnCorrelation.getTelemetryContext('resumed-call'),
+		}, { lifecycle: ['subagent_completed', 'subagent_resumed'], context });
+	});
+
+	test('does not adopt a later root context for a child started without account context', async () => {
+		const options: { telemetryContext?: IAgentTelemetryContext } = {};
+		const { session, mockSession } = await createAgentSession(disposables, options);
+		const start = () => mockSession.fire('subagent.started', {
+			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'child-agent' });
+		start();
+		options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+		session.resetTurnState('later-root');
+		start();
+		mockSession.fire('assistant.message', {
+			messageId: 'late-message', apiCallId: 'late-call', content: 'done',
+		} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'child-agent' });
+		assert.strictEqual(session.modelCallTurnCorrelation.getTelemetryContext('late-call'), undefined);
 	});
 
 	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
