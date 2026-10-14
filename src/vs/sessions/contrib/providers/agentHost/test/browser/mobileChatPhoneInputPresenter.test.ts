@@ -36,7 +36,7 @@ suite('MobileChatPhoneInputPresenter images', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const key = SessionConfigKey.ImageGenerationEnabled;
 
-	function setup(kind: 'session' | 'delegates', options: { available?: boolean; readOnly?: boolean; control?: boolean; catalog?: boolean; writeError?: Error; imagesEnabled?: boolean } = {}) {
+	function setup(kind: 'session' | 'delegates', options: { available?: boolean; readOnly?: boolean; control?: boolean; catalog?: boolean; writeError?: Error; imagesEnabled?: boolean; imageRatesMissing?: boolean } = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		store.add(toDisposable(() => container.remove()));
 		const config: ResolveSessionConfigResult = {
@@ -56,7 +56,7 @@ suite('MobileChatPhoneInputPresenter images', () => {
 				imageModels: options.catalog === false ? undefined : [{
 					id: 'opaque/runtime-image', name: 'Image From Runtime', isDefault: true, supportedOperations: ['generate'],
 					availability: options.available === false ? 'unavailable' : 'available',
-					pricing: { batchSize: 100_000, textInputPrice: 50 },
+					pricing: { batchSize: 100_000, textInputPrice: 50, ...(options.imageRatesMissing ? {} : { imageInputPrice: 80.125, imageOutputPrice: 0 }) },
 				}],
 			}),
 		}];
@@ -174,6 +174,27 @@ suite('MobileChatPhoneInputPresenter images', () => {
 	}
 
 	for (const kind of ['session', 'delegates'] as const) {
+		test(`${kind} shows dashes for unreported image prices without changing consent`, async () => {
+			const rig = setup(kind, { imageRatesMissing: true });
+			try {
+				await rig.openImages();
+				await rig.inspectDetails();
+				rig.container.querySelector<HTMLButtonElement>('.chat-model-card-pricing-toggle')!.click();
+				assert.deepStrictEqual({
+					prices: Array.from(rig.container.querySelectorAll('.chat-model-card-pricing-row'), row => [
+						row.querySelector('.chat-model-card-pricing-label')?.textContent,
+						row.querySelector('.chat-model-card-pricing-value')?.textContent,
+					]),
+					writes: rig.writes,
+					delegateWrites: rig.delegateWrites,
+					modelSelections: rig.modelSelections,
+				}, {
+					prices: [['Text Input', '500'], ['Image Input', '-'], ['Image Output', '-']],
+					writes: [], delegateWrites: [], modelSelections: [],
+				});
+			} finally { await rig.close(); }
+		});
+
 		test(`${kind} hides Images when the feature setting is off`, async () => {
 			const rig = setup(kind, { imagesEnabled: false });
 			try {
@@ -228,6 +249,10 @@ suite('MobileChatPhoneInputPresenter images', () => {
 				assert.strictEqual(pricing.getAttribute('aria-expanded'), 'false');
 				pricing.click();
 				assert.strictEqual(pricing.getAttribute('aria-expanded'), 'true');
+				assert.deepStrictEqual(Array.from(rig.container.querySelectorAll('.chat-model-card-pricing-row'), row => [
+					row.querySelector('.chat-model-card-pricing-label')?.textContent,
+					row.querySelector('.chat-model-card-pricing-value')?.textContent,
+				]), [['Text Input', '500'], ['Image Input', '801.25'], ['Image Output', '0']]);
 				assert.deepStrictEqual(rig.writes, []);
 			} finally { await rig.close(); }
 		});

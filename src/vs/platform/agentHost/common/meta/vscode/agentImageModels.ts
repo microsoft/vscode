@@ -15,11 +15,13 @@ export interface IImageToolModel {
 	readonly supportedOperations: readonly ('generate' | 'edit')[];
 	readonly isDefault: boolean;
 	readonly availability?: 'available' | 'unavailable';
-	/** Text-token prices are not image-token rates or an estimated per-image cost. */
+	/** Catalog-reported credits per billing batch, not an estimated per-image cost. */
 	readonly pricing?: {
 		readonly batchSize: number;
 		readonly textInputPrice?: number;
 		readonly textOutputPrice?: number;
+		readonly imageInputPrice?: number;
+		readonly imageOutputPrice?: number;
 	};
 }
 
@@ -36,10 +38,14 @@ function parseImageModelPricing(value: unknown): IImageToolModel['pricing'] {
 		&& input >= 0 && Number.isFinite(input / batchSize * 1_000_000) ? input : undefined;
 	const textInputPrice = price(raw.textInputPrice);
 	const textOutputPrice = price(raw.textOutputPrice);
-	return textInputPrice === undefined && textOutputPrice === undefined ? undefined : {
+	const imageInputPrice = price(raw.imageInputPrice);
+	const imageOutputPrice = price(raw.imageOutputPrice);
+	return textInputPrice === undefined && textOutputPrice === undefined && imageInputPrice === undefined && imageOutputPrice === undefined ? undefined : {
 		batchSize,
 		...(textInputPrice !== undefined ? { textInputPrice } : {}),
 		...(textOutputPrice !== undefined ? { textOutputPrice } : {}),
+		...(imageInputPrice !== undefined ? { imageInputPrice } : {}),
+		...(imageOutputPrice !== undefined ? { imageOutputPrice } : {}),
 	};
 }
 

@@ -308,7 +308,7 @@ suite('TabbedModelPicker', () => {
 			selections: result.selections,
 		}, {
 			visible: true, name: 'First Image', modelId: 'image-first',
-			pricing: [['Text Input', '500'], ['Text Output', '0']],
+			pricing: [['Text Input', '500'], ['Text Output', '0'], ['Image Input', '-'], ['Image Output', '-']],
 			missingRatePlaceholder: false, pricingToggle: 'Pricing details', pricingExpanded: 'false', hasCacheHint: false, selections: [],
 		});
 		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
@@ -359,7 +359,10 @@ suite('TabbedModelPicker', () => {
 		details.click();
 		assert.strictEqual(result.popup.querySelector('.chat-model-card-name')?.textContent, 'GPT Image 2.5 Sunburst');
 		assert.strictEqual(result.popup.querySelector('.chat-model-card-badge')?.textContent, 'Preview');
-		assert.strictEqual(result.popup.querySelectorAll('.chat-model-card-pricing-row').length, 0);
+		assert.deepStrictEqual(Array.from(result.popup.querySelectorAll('.chat-model-card-pricing-row'), row => [
+			row.querySelector('.chat-model-card-pricing-label')?.textContent,
+			row.querySelector('.chat-model-card-pricing-value')?.textContent,
+		]), [['Image Input', '-'], ['Image Output', '-']]);
 		assert.ok(!result.popup.textContent?.includes('Not Reported'));
 		assert.ok(result.popup.textContent?.includes('Actual usage and cost are shown after each image tool call.'));
 		assert.deepStrictEqual(result.selections, []);
@@ -371,7 +374,7 @@ suite('TabbedModelPicker', () => {
 			models: models.map(model => ({
 				...model, metadata: {
 					...model.metadata, inputCost: 4, outputCost: 8,
-					imageModels: [{ id: 'preview-image', name: 'Preview Image', isDefault: true, supportedOperations: ['generate'], pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0 } }],
+					imageModels: [{ id: 'preview-image', name: 'Preview Image', isDefault: true, supportedOperations: ['generate'], pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300 } }],
 				}
 			})),
 		});
@@ -386,7 +389,7 @@ suite('TabbedModelPicker', () => {
 		assert.strictEqual(toggle.getAttribute('aria-expanded'), 'true');
 		assert.strictEqual(body.inert, false);
 		assert.ok(body.classList.contains('expanded'));
-		assert.deepStrictEqual(Array.from(body.querySelectorAll('.chat-model-card-pricing-row'), row => row.textContent), ['Text Input500', 'Text Output0']);
+		assert.deepStrictEqual(Array.from(body.querySelectorAll('.chat-model-card-pricing-row'), row => row.textContent), ['Text Input500', 'Text Output0', 'Image Input801.25', 'Image Output3000']);
 		element(result.popup, '[role="button"][aria-label^="Back to Images"]').click();
 		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
 		openDetails(result.popup, 'First');
@@ -399,6 +402,36 @@ suite('TabbedModelPicker', () => {
 		assert.strictEqual(element(result.popup, '.chat-model-card-pricing-toggle').getAttribute('aria-expanded'), 'false');
 		assert.deepStrictEqual(result.selections, []);
 	});
+
+	for (const { pricing, rows } of [
+		{ pricing: { batchSize: 2_000_000, imageInputPrice: 0, imageOutputPrice: 80.125 }, rows: [['Image Input', '0'], ['Image Output', '40.0625']] },
+		{ pricing: { batchSize: 1_000_000, imageInputPrice: 0.005 }, rows: [['Image Input', '0.005'], ['Image Output', '-']] },
+		{ pricing: { batchSize: 1_000_000, imageOutputPrice: 300.001 }, rows: [['Image Input', '-'], ['Image Output', '300.001']] },
+	]) {
+		test(`image-only pricing displays reported rates without inventing text prices (${JSON.stringify(pricing)})`, () => {
+			const result = createPicker({
+				models: models.map(model => ({
+					...model, metadata: {
+						...model.metadata,
+						imageModels: [{ id: 'image-only', name: 'Image Only', isDefault: true, supportedOperations: ['generate'], pricing }],
+					},
+				})),
+			});
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Images"]').click();
+			openDetails(result.popup, 'Image Only');
+			const toggle = element(result.popup, '.chat-model-card-pricing-toggle');
+			toggle.click();
+			assert.deepStrictEqual({
+				rows: Array.from(result.popup.querySelectorAll('.chat-model-card-pricing-row'), row => [
+					row.querySelector('.chat-model-card-pricing-label')?.textContent,
+					row.querySelector('.chat-model-card-pricing-value')?.textContent,
+				]),
+				caption: result.popup.querySelector('.chat-model-card-pricing-caption')?.textContent,
+				expanded: toggle.getAttribute('aria-expanded'),
+				selections: result.selections,
+			}, { rows, caption: 'Credits per 1M tokens', expanded: 'true', selections: [] });
+		});
+	}
 
 	test('Off and the runtime default select image generation independently of the chat model', async () => {
 		let enabled = false;

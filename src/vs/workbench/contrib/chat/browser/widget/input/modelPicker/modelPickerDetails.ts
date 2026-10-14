@@ -35,6 +35,7 @@ export function renderModelPricing(
 	identifier: string,
 	store: DisposableStore,
 	disclosure?: IPricingDisclosure,
+	missingCostLabel = formatModelCost(undefined),
 ): HTMLElement {
 	const section = append(container, $('.chat-model-card-section.chat-model-card-pricing'));
 	section.classList.toggle('collapsible', !!disclosure);
@@ -60,7 +61,7 @@ export function renderModelPricing(
 	for (const metric of metrics) {
 		const row = append(content, $('.chat-model-card-pricing-row'));
 		append(row, $('span.chat-model-card-pricing-label', undefined, metric.label));
-		append(row, $('span.chat-model-card-pricing-value', undefined, formatModelCost(metric.cost)));
+		append(row, $('span.chat-model-card-pricing-value', undefined, typeof metric.cost === 'number' ? formatModelCost(metric.cost) : missingCostLabel));
 	}
 	const update = () => {
 		const expanded = disclosure?.isExpanded() ?? true;
@@ -137,18 +138,23 @@ export function renderImageModelDetails(model: ILanguageModelImageModel, provide
 		append(content, $('p', undefined, localize('models.imageSwitchingUnavailable', "Available from the image service. This runtime does not yet support switching image models.")));
 	}
 	const prices = model.pricing;
-	if (prices && (prices.textInputPrice !== undefined || prices.textOutputPrice !== undefined)) {
+	if (prices || model.availability !== 'unavailable') {
 		let expanded = false;
-		const metrics = [
-			[localize('models.imageTextInputCost', "Text Input"), prices.textInputPrice],
-			[localize('models.imageTextOutputCost', "Text Output"), prices.textOutputPrice],
+		const textMetrics = [
+			[localize('models.imageTextInputCost', "Text Input"), prices?.textInputPrice],
+			[localize('models.imageTextOutputCost', "Text Output"), prices?.textOutputPrice],
 		] as const;
-		renderModelPricing(content, metrics.flatMap(([label, price]) => price === undefined ? [] : [{ label, cost: price / prices.batchSize * 1_000_000 }]),
+		const metrics = [
+			...textMetrics.filter(([, price]) => price !== undefined),
+			[localize('models.imageInputCost', "Image Input"), prices?.imageInputPrice],
+			[localize('models.imageOutputCost', "Image Output"), prices?.imageOutputPrice],
+		] as const;
+		renderModelPricing(content, metrics.map(([label, price]) => ({ label, cost: prices && price !== undefined ? price / prices.batchSize * 1_000_000 : undefined })),
 			`image-${model.id}`, store, disclosure ?? {
 				isExpanded: () => expanded,
 				setExpanded: value => { expanded = value; },
 				onDidChange: Event.None,
-			});
+			}, '-');
 	}
 	append(content, $('p.chat-model-card-section', undefined, localize('models.imageActualUsage', "Actual usage and cost are shown after each image tool call.")));
 	return { header, content, dispose: () => store.dispose() };

@@ -111,7 +111,7 @@ suite('Image generation tool metadata', () => {
 	test('the auxiliary image catalog round trips independently of chat pricing', () => {
 		const model = { id: 'another-host/model', provider: 'remote', name: 'Remote model' };
 		const images: readonly IImageToolModel[] = [
-			{ id: 'opaque/image:first', name: 'First Image', supportedOperations: ['generate', 'edit'], isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0 } },
+			{ id: 'opaque/image:first', name: 'First Image', supportedOperations: ['generate', 'edit'], isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300.001 } },
 			{ id: 'opaque/image:second', name: 'Second Image', supportedOperations: ['generate'], isDefault: false },
 		];
 		const meta = withAgentImageModels({ inputCost: 0 }, images);
@@ -126,6 +126,23 @@ suite('Image generation tool metadata', () => {
 			roundTrip: images, runtime: images, chatPricing: { inputCost: 0 },
 			absent: undefined, olderRuntime: undefined, emptyCatalog: [],
 		});
+	});
+
+	test('image catalog rates preserve independent image-only, zero, and fractional prices', () => {
+		const image = { id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true };
+		for (const field of ['imageInputPrice', 'imageOutputPrice'] as const) {
+			for (const value of [0, 0.005, 80.125]) {
+				const pricing = { batchSize: 1_000_000, [field]: value };
+				const parsed = readCopilotImageModels({ imageModels: [{ ...image, pricing }] });
+				assert.deepStrictEqual({
+					runtime: parsed,
+					roundTrip: readAgentImageModels({ _meta: withAgentImageModels(undefined, parsed) }),
+				}, {
+					runtime: [{ ...image, pricing }],
+					roundTrip: [{ ...image, pricing }],
+				});
+			}
+		}
 	});
 
 	test('image catalogs validate entries and preserve opaque IDs without inventing models or prices', () => {
@@ -169,8 +186,18 @@ suite('Image generation tool metadata', () => {
 		]) {
 			assert.deepStrictEqual(readCopilotImageModels({ imageModels: [{ ...image, pricing }] }), [image]);
 		}
+		for (const field of ['imageInputPrice', 'imageOutputPrice'] as const) {
+			for (const value of [undefined, null, -1, NaN, Infinity, Number.MAX_VALUE, '0']) {
+				assert.deepStrictEqual(readCopilotImageModels({
+					imageModels: [{ ...image, pricing: { batchSize: 1, [field]: value } }],
+				}), [image]);
+			}
+		}
 		assert.deepStrictEqual(readCopilotImageModels({
 			imageModels: [{ ...image, pricing: { batchSize: 1_000_000, textInputPrice: 0, textOutputPrice: -1 } }],
 		}), [{ ...image, pricing: { batchSize: 1_000_000, textInputPrice: 0 } }]);
+		assert.deepStrictEqual(readCopilotImageModels({
+			imageModels: [{ ...image, pricing: { batchSize: 1_000_000, imageInputPrice: -1, imageOutputPrice: 0 } }],
+		}), [{ ...image, pricing: { batchSize: 1_000_000, imageOutputPrice: 0 } }]);
 	});
 });

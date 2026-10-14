@@ -29,7 +29,7 @@ suite('AgentHostLanguageModelProvider', () => {
 	test('a remote image catalog stays auxiliary across wire round trips and catalog removal', async () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('remote-session', 'opaque-host-vendor'));
 		const images: readonly IImageToolModel[] = [
-			{ id: 'opaque/image:one', name: 'Remote Image One', supportedOperations: ['generate'], isDefault: true },
+			{ id: 'opaque/image:one', name: 'Remote Image One', supportedOperations: ['generate'], isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300.001 } },
 			{ id: 'opaque/image:two', name: 'Remote Image Two', supportedOperations: ['edit'], isDefault: false },
 		];
 		const model: SessionModelInfo = {

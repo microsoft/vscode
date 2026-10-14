@@ -10048,7 +10048,7 @@ suite('CopilotAgent', () => {
 		test(`publishes image models only as an auxiliary preview catalog (${quality ?? 'development'})`, async () => {
 			const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
 			client.imageModels = [
-				{ id: 'image-one', name: 'Image One', supportedOperations: ['generate', 'edit'], isDefault: true, availability: 'available' },
+				{ id: 'image-one', name: 'Image One', supportedOperations: ['generate', 'edit'], isDefault: true, availability: 'available', pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300.001 } },
 				{ id: 'image-two', name: 'Image Two', supportedOperations: ['generate'], isDefault: false, availability: 'available' },
 			];
 			const { agent } = createTestAgentContext(disposables, {
