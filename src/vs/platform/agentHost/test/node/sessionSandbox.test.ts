@@ -530,7 +530,7 @@ suite('Session sandbox configuration', () => {
 					allowUnsandboxedCommands: getSessionSandboxConfig(configuration, owner).allowUnsandboxedCommands,
 					policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
 				}, {
-					directSelection: 'on',
+					directSelection: runtimeAllows === true ? 'off' : 'on',
 					approvedSelection: runtimeAllows === true ? 'off' : 'on',
 					allowUnsandboxedCommands: runtimeAllows === true && localAllows,
 					policy: { enabled: true, ...(runtimeAllows !== undefined ? { allowBypass: runtimeAllows } : {}) },
@@ -1043,22 +1043,41 @@ suite('Session sandbox configuration', () => {
 		}, { cancelled: { config: {}, toolUnchanged: true }, once: {}, owner: {}, other: {}, root });
 	});
 
-	test('managed enablement rejects direct Off but permits confirmed opt-out and re-enablement', () => {
+	for (const enabled of [false, true]) {
+		for (const allowBypass of [undefined, false, true]) {
+			test(`session toggle respects managed enablement ${enabled} and bypass ${allowBypass}`, () => {
+				const { configuration, create } = setupSession();
+				const owner = create('bypass', { sandboxEnabled: 'off' });
+				configuration.setSessionSandboxPolicy(owner, { enabled, allowBypass });
+				const read = () => ({
+					selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+					enabled: getSessionSandboxOverrides(configuration, owner).enabled,
+				});
+				const initial = read();
+				configuration.updateSessionConfig(owner, { sandboxEnabled: 'on' });
+				configuration.setSessionSandboxEnabled(owner, true);
+				const reenabled = read();
+				configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+				const off = enabled && allowBypass !== true ? 'on' : 'off';
+				assert.deepStrictEqual({ initial, reenabled, disabled: read() }, {
+					initial: { selection: off, enabled: off },
+					reenabled: { selection: 'on', enabled: 'on' },
+					disabled: { selection: off, enabled: off },
+				});
+			});
+		}
+	}
+
+	test('revoking bypass reconciles an explicit off selection with mandatory sandboxing', () => {
 		const { configuration, create } = setupSession();
-		const owner = create('bypass', { sandboxEnabled: 'off' });
-		configuration.setSessionSandboxEnabled(owner, false);
+		const owner = create('revoke-bypass', { sandboxEnabled: 'off' });
 		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
-		const beforeApproval = { selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled, enabled: getSessionSandboxOverrides(configuration, owner).enabled };
 		configuration.setSessionSandboxEnabled(owner, false);
-		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
-		const afterApproval = getSessionSandboxOverrides(configuration, owner).enabled;
-		configuration.updateSessionConfig(owner, { sandboxEnabled: 'on' });
-		const reenabled = getSessionSandboxOverrides(configuration, owner).enabled;
-		configuration.setSessionSandboxEnabled(owner, true);
-		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
-		assert.deepStrictEqual({ beforeApproval, afterApproval, reenabled, afterDirectDisable: configuration.getSessionConfigValues(owner)?.sandboxEnabled }, {
-			beforeApproval: { selection: 'on', enabled: 'on' }, afterApproval: 'off', reenabled: 'on', afterDirectDisable: 'on',
-		});
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+		assert.deepStrictEqual({
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			enabled: getSessionSandboxOverrides(configuration, owner).enabled,
+		}, { selection: 'on', enabled: 'on' });
 	});
 
 	test('session sandbox opt-out is offered only for supported runtime bypass prompts', () => {

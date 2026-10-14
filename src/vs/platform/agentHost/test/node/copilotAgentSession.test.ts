@@ -752,6 +752,7 @@ class MockCopilotSession {
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
+					this.sandboxConfigSources.push(params.sandboxConfigSource);
 					if (this.sandboxConfigUpdateGate) {
 						await this.sandboxConfigUpdateGate;
 					}
@@ -817,6 +818,7 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly sandboxConfigSources: Array<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfigSource']> = [];
 	readonly sandboxDisableRequests: string[] = [];
 	readonly sandboxDisableDecisionContexts: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]['decisionContext'][] = [];
 	sandboxDisableResult = { success: true, enabled: false };
@@ -10566,6 +10568,31 @@ suite('CopilotAgentSession', () => {
 					})));
 				});
 			}
+		}
+
+		for (const enabled of [false, true]) {
+			test(`managed bypass permits disabling and re-enabling an idle SDK sandbox with managed enablement ${enabled}`, async () => {
+				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
+				const { mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
+					sandboxPolicy: { enabled, allowBypass: true },
+				});
+				for (const selection of ['on', 'off', 'on', 'off']) {
+					setConfigValue(SessionConfigKey.SandboxEnabled, selection);
+					fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: selection });
+					await timeout(0);
+				}
+				assert.deepStrictEqual({ configs: mockSession.sandboxConfigUpdates, sources: mockSession.sandboxConfigSources, sandboxResults }, {
+					configs: [
+						expectedSessionSandboxConfig('linux', sandbox),
+						{ enabled: false },
+						expectedSessionSandboxConfig('linux', sandbox),
+						{ enabled: false },
+					],
+					sources: [undefined, 'session_disabled', undefined, 'session_disabled'],
+					sandboxResults: [true, false, true, false],
+				});
+			});
 		}
 
 		test('idle session sandbox override is applied immediately and stays pinned across root changes', async () => {

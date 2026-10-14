@@ -22,9 +22,9 @@ suite('AgentHostSandboxToggle', () => {
 			expected: { checked: true, disabled: true },
 		},
 		{
-			name: 'managed enablement overrides an unconfirmed off choice even when bypass is allowed',
+			name: 'managed enablement permits an explicit off choice when bypass is allowed',
 			state: { sessionEnabled: false, globalEnabled: true, managedEnabled: true, allowsBypass: true },
-			expected: { checked: true, disabled: true },
+			expected: { checked: false, disabled: false },
 		},
 		{
 			name: 'confirmed session bypass permits re-enablement',
@@ -47,9 +47,9 @@ suite('AgentHostSandboxToggle', () => {
 			expected: { checked: false, disabled: false },
 		},
 		{
-			name: 'an unset choice follows and locks the managed requirement',
+			name: 'an unset choice follows managed enablement without locking when bypass is allowed',
 			state: { sessionEnabled: undefined, globalEnabled: false, managedEnabled: true, allowsBypass: true },
-			expected: { checked: true, disabled: true },
+			expected: { checked: true, disabled: false },
 		},
 		{
 			name: 'an unset choice follows the enabled global default',
@@ -65,6 +65,29 @@ suite('AgentHostSandboxToggle', () => {
 		test(scenario.name, () => {
 			assert.deepStrictEqual(getAgentHostSandboxToggleState({ provider: 'copilotcli', ...scenario.state }), scenario.expected);
 		});
+	}
+
+	for (const managedEnabled of [false, true]) {
+		for (const enabled of [false, true]) {
+			test(`bypass permits toggling in both directions with managed enablement ${managedEnabled} and sandbox ${enabled}`, () => {
+				const writes: boolean[] = [];
+				const state = { provider: 'copilotcli', sessionEnabled: enabled, confirmedEnabled: enabled, globalEnabled: true, managedEnabled, allowsBypass: true };
+				const toggle = createAgentHostSandboxToggle(() => state, enabled => {
+					writes.push(enabled);
+					state.sessionEnabled = enabled;
+				})!;
+				const before = { checked: toggle.checked, disabled: toggle.disabled };
+				toggle.onChange(!enabled);
+				const changed = getAgentHostSandboxToggleState(state);
+				toggle.onChange(enabled);
+				assert.deepStrictEqual({ before, changed, after: { checked: toggle.checked, disabled: toggle.disabled }, writes }, {
+					before: { checked: enabled, disabled: false },
+					changed: { checked: !enabled, disabled: false },
+					after: { checked: enabled, disabled: false },
+					writes: [!enabled, enabled],
+				});
+			});
+		}
 	}
 
 	test('presentation reflects managed policy without writing a session choice', () => {
@@ -89,9 +112,9 @@ suite('AgentHostSandboxToggle', () => {
 				},
 				{
 					label: 'Sandboxing for terminal',
-					title: 'Sandboxing is required by your organization',
+					title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 					checked: true,
-					disabled: true,
+					disabled: false,
 				},
 				{
 					label: 'Sandboxing for terminal',
@@ -182,10 +205,10 @@ suite('AgentHostSandboxToggle', () => {
 		const blockedWrites = [...writes];
 		state.allowsBypass = true;
 		toggle.onChange(false);
-		assert.deepStrictEqual({ blockedWrites, writes }, { blockedWrites: [true], writes: [true] });
+		assert.deepStrictEqual({ blockedWrites, writes }, { blockedWrites: [true], writes: [true, false] });
 	});
 
-	test('confirmed bypass allows turning on once and immediately locks direct disabling', () => {
+	test('confirmed bypass allows repeated enablement and disabling', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: false, confirmedEnabled: false, globalEnabled: true, managedEnabled: true, allowsBypass: true };
 		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
@@ -193,8 +216,8 @@ suite('AgentHostSandboxToggle', () => {
 		toggle.onChange(true);
 		toggle.onChange(false);
 		assert.deepStrictEqual({ before, checked: toggle.checked, disabled: toggle.disabled, writes }, {
-			before: { checked: false, disabled: false, title: 'Sandboxing was disabled for this session through an approved bypass. You can enable it again.' },
-			checked: true, disabled: true, writes: [true],
+			before: { checked: false, disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			checked: false, disabled: false, writes: [true, false],
 		});
 	});
 

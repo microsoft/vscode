@@ -6436,8 +6436,11 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxConfig: SandboxConfig = requestDisable && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.failClosed
 			? { enabled: false }
 			: base ?? { enabled: false };
+		const source = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.SandboxEnabled] === 'off'
+			? 'session_disabled'
+			: undefined;
 		try {
-			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService))) {
+			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService, source))) {
 				this._sandboxDisabledForSession = false;
 				this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
 				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this._sandboxDiagnostics.update(this._isCustomTerminalToolEnabled() ? { enabled: false } : sandboxConfig));

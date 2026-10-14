@@ -73,7 +73,7 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
 	const policy = configuration.getSessionSandboxPolicy(session);
-	const authorizedDisable = policy?.allowBypass === true && configuration.getSessionSandboxEnabled(session) === false;
+	const authorizedDisable = policy?.allowBypass === true && (selection === 'off' || configuration.getSessionSandboxEnabled(session) === false);
 	const localEnabled = selection === 'on' ? AgentSandboxEnabledValue.On
 		: selection === 'off' ? AgentSandboxEnabledValue.Off
 			: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;

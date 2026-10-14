@@ -577,7 +577,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		actionWidget.hide();
 		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
 			draft: { checked: !isWeb, disabled: !isWeb },
-			bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+			bypassAllowed: { checked: false, disabled: false },
 			running: { checked: !isWeb, disabled: !isWeb },
 			published: { checked: false, disabled: false },
 			dispatches: [],
@@ -614,7 +614,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionEnabled: permissionPicker['_getSandboxStandaloneToggle']()?.checked,
 		}, {
 			requiredState: { checked: true, disabled: true, writes: 0 },
-			optionalState: { checked: true, disabled: true },
+			optionalState: { checked: false, disabled: false },
 			sessionEnabled: true,
 		});
 
@@ -1484,12 +1484,12 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			managedSandboxEnforced,
 			managedSandboxAllowsBypass: observableFromEvent(managedSettingsService, managedSettingsChanged.event, () => allowBypass === true),
 		};
-		const visibleStates: Pick<IActionListItemInlineToggle, 'disabled' | 'title'>[] = [];
+		const visibleStates: Pick<IActionListItemInlineToggle, 'checked' | 'disabled' | 'title'>[] = [];
 		let onHide: (() => void) | undefined;
 		const recordVisibleState = <T>(items: readonly IActionListItem<T>[]) => {
 			const toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
 			assert.ok(toggle);
-			visibleStates.push({ disabled: toggle.disabled, title: toggle.title });
+			visibleStates.push({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title });
 		};
 		const actionWidgetService = new class extends mock<IActionWidgetService>() {
 			override readonly isVisible = false;
@@ -1604,11 +1604,11 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
-					const disabled = managed;
+					const disabled = managed && bypass !== true;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
 						checked: true,
 						disabled,
-						title: managed
+						title: disabled
 							? 'Sandboxing is required by your organization'
 							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
@@ -1636,7 +1636,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
 		managedSettingsChanged.fire();
-		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, true);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
 
 		allowBypass = false;
 		managedSettingsChanged.fire();
@@ -1655,9 +1655,11 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		allowBypass = true;
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
-			{ disabled: true, title: 'Sandboxing is required by your organization' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
-			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ checked: true, disabled: true, title: 'Sandboxing is required by your organization' },
+			{ checked: true, disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ checked: false, disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ checked: true, disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ checked: true, disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];
 		assert.strictEqual(picker['_getSandboxStandaloneToggle'](), undefined);

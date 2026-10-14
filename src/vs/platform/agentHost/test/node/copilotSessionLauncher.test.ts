@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SandboxConfigSource, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -238,14 +238,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 		let disconnected = false;
 		let captured: ResumeSessionConfig | undefined;
-		const updates: Array<{ sandboxConfig?: SandboxConfig }> = [];
+		const updates: Array<{ sandboxConfig?: SandboxConfig; sandboxConfigSource?: SandboxConfigSource }> = [];
 		const raw = {
 			sessionId: 'sess-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
 			rpc: {
 				options: {
-					update: async (options: { sandboxConfig?: SandboxConfig }) => {
+					update: async (options: { sandboxConfig?: SandboxConfig; sandboxConfigSource?: SandboxConfigSource }) => {
 						if (options.sandboxConfig && sandboxUpdateError) {
 							throw sandboxUpdateError;
 						}
@@ -547,14 +547,20 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		});
 
 		for (const allowBypass of [false, true]) {
-			test(`${kind} discards off before applying an org-managed floor with bypass ${allowBypass}`, async () => {
+			test(`${kind} ${allowBypass ? 'applies' : 'discards'} off before applying an org-managed floor with bypass ${allowBypass}`, async () => {
 				const fixture = setup(kind, true, true, allowBypass);
 				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
 				fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: false, allowBypass: false });
 				assert.deepStrictEqual({
-					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => ({
+						enabled: update.sandboxConfig?.enabled,
+						source: update.sandboxConfigSource,
+					})),
 					stored: fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled,
-				}, { applied: [true], stored: 'on' });
+				}, {
+					applied: [{ enabled: allowBypass ? false : true, source: allowBypass ? 'session_disabled' : undefined }],
+					stored: allowBypass ? 'off' : 'on',
+				});
 			});
 		}
 	}
