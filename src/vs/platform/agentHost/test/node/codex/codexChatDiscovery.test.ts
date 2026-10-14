@@ -407,6 +407,39 @@ suite('Codex chat discovery', () => {
 		}
 	}));
 
+	test('reports the last turn start as the modified time when a resume only advances the native update time', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem, events } = createHarness(store);
+		try {
+			client.threads = [{ ...thread('first', 10), recencyAt: 10 }];
+			await agent.startChatDiscovery();
+			client.threads = [{ ...thread('first', 50), recencyAt: 10 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			client.threads = [{ ...thread('first', 90), recencyAt: 80 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			assert.deepStrictEqual(events.map(chats => chats.map(chat => chat.modifiedTime)), [[10_000], [80_000]]);
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('republishes the modified time when a turn starts in the same second as the last native update', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem, events } = createHarness(store);
+		try {
+			client.threads = [{ ...thread('first', 90), recencyAt: 80 }];
+			await agent.startChatDiscovery();
+			client.threads = [{ ...thread('first', 90), recencyAt: 90 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			assert.deepStrictEqual(events.map(chats => chats.map(chat => chat.modifiedTime)), [[80_000], [90_000]]);
+		} finally {
+			store.dispose();
+		}
+	}));
+
 	test('serves the latest discovery metadata without materializing the external thread', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
 		const { agent, client, filesystem } = createHarness(store);
