@@ -100,10 +100,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
-	/** Drains all writes and propagates failures to callers synchronizing catalog state. */
-	async whenIdle(): Promise<void> {
-		while (this._writes.size || this._metadataWrites.size) {
-			await Promise.all([...this._writes.values(), ...this._metadataWrites.keys()]);
+	/** Drains all writes, or one session's writes, and propagates failures to callers synchronizing catalog state. */
+	async whenIdle(session?: URI): Promise<void> {
+		const sessionKey = session?.toString();
+		while (true) {
+			const writes = this._pendingWrites(sessionKey);
+			if (writes.length === 0) {
+				return;
+			}
+			await Promise.all(writes);
 		}
 	}
 
@@ -111,21 +116,29 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	async whenSessionIdle(session: URI): Promise<void> {
 		const sessionKey = session.toString();
 		while (true) {
-			const writes: Promise<void>[] = [];
-			const queuedWrite = this._writes.get(sessionKey);
-			if (queuedWrite) {
-				writes.push(queuedWrite);
-			}
-			for (const [write, key] of this._metadataWrites) {
-				if (key === sessionKey) {
-					writes.push(write);
-				}
-			}
+			const writes = this._pendingWrites(sessionKey);
 			if (writes.length === 0) {
 				return;
 			}
 			await Promise.allSettled(writes);
 		}
+	}
+
+	private _pendingWrites(sessionKey?: string): Promise<void>[] {
+		if (sessionKey === undefined) {
+			return [...this._writes.values(), ...this._metadataWrites.keys()];
+		}
+		const writes: Promise<void>[] = [];
+		const queuedWrite = this._writes.get(sessionKey);
+		if (queuedWrite) {
+			writes.push(queuedWrite);
+		}
+		for (const [write, key] of this._metadataWrites) {
+			if (key === sessionKey) {
+				writes.push(write);
+			}
+		}
+		return writes;
 	}
 
 	private _trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void> {

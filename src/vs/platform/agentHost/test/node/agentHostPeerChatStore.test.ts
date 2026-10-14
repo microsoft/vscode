@@ -96,7 +96,7 @@ suite('AgentHostPeerChatStore', () => {
 		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
 	}
 
-	test('session idle waits for metadata migration without waiting for another session', async () => {
+	test('session catalog idle waits for local metadata migration without waiting for another session', async () => {
 		const localGate = new DeferredPromise<void>();
 		const otherGate = new DeferredPromise<void>();
 		const otherSession = URI.parse('agenthost:other-peer-store');
@@ -109,7 +109,7 @@ suite('AgentHostPeerChatStore', () => {
 		const otherWrite = store.persistMetadata(otherSession, otherSession, { [SESSION_CUSTOM_TITLE_KEY]: 'Other title' });
 		let sessionIdle = false;
 		let allIdle = false;
-		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
+		const sessionDrain = store.whenIdle(session).then(() => { sessionIdle = true; });
 		const allDrain = store.whenIdle().then(() => { allIdle = true; });
 		try {
 			await timeout(0);
@@ -126,7 +126,7 @@ suite('AgentHostPeerChatStore', () => {
 		assert.strictEqual(allIdle, true);
 	});
 
-	test('session idle settles a rejected write without hiding the error from its caller', async () => {
+	test('session catalog idle propagates rejected writes while session data idle settles', async () => {
 		const gate = new DeferredPromise<void>();
 		const store = createStore(new TestSessionDatabase());
 		store.setMetadataMigration(async () => {
@@ -134,13 +134,14 @@ suite('AgentHostPeerChatStore', () => {
 			throw new Error('metadata migration failed');
 		});
 		const write = assert.rejects(store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'New title' }), /metadata migration failed/);
+		const sessionCatalogDrain = assert.rejects(store.whenIdle(session), /metadata migration failed/);
 		const allDrain = assert.rejects(store.whenIdle(), /metadata migration failed/);
 		let sessionIdle = false;
 		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
 		await timeout(0);
 		assert.strictEqual(sessionIdle, false);
 		gate.complete();
-		await Promise.all([write, allDrain, sessionDrain]);
+		await Promise.all([write, sessionCatalogDrain, allDrain, sessionDrain]);
 		assert.strictEqual(sessionIdle, true);
 	});
 

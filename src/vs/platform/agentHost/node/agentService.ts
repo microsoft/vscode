@@ -2548,7 +2548,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._peerChatStore.setRead(session, URI.parse(readable[0].resource), readValue === 'true');
 			}
 		}
-		await this._peerChatStore.whenIdle();
+		await this._peerChatStore.whenIdle(session);
 		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			const normalized = snapshot?.authorityVersion === 2 ? snapshot : undefined;
@@ -7133,6 +7133,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _whenSessionDataIdle(session: URI): Promise<void> {
 		await this._peerChatStore.whenSessionIdle(session);
+		await this._whenBackgroundCatalogStateWritesIdle(session.toString());
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
 			await ref.object.whenIdle();
@@ -7784,7 +7785,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly IPassiveSessionMetadataUpdate[]): Promise<void> {
 		let requestUnavailable = false;
 		try {
-			await this._peerChatStore.whenIdle();
+			await this._peerChatStore.whenIdle(session);
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
