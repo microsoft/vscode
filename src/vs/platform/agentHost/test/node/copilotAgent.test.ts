@@ -58,7 +58,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -2362,6 +2362,26 @@ suite('CopilotAgent', () => {
 						{ kind: 'token', accessToken: 'mcp-token' },
 					],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('sends a chat\'s own mode to the SDK, not the session\'s', async () => {
+			const { agent, stateManager } = createTestAgentContext(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'per-chat-mode');
+				const defaultChat = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: defaultChat.toString() });
+				const protocol = platformSessionSchema.toProtocol();
+				stateManager.setSessionConfig(session.toString(), {
+					schema: { ...protocol, properties: { ...protocol.properties, [SessionConfigKey.Mode]: { ...protocol.properties[SessionConfigKey.Mode], chatMutable: true } } },
+					values: { [SessionConfigKey.Mode]: 'interactive' },
+				});
+				stateManager.addChat(session.toString(), peer.toString(), peer.toString(), { config: { values: { [SessionConfigKey.Mode]: 'plan' } } });
+				const resolve = (chat: URI) => (agent as unknown as { _resolveSdkMode(session: URI, chat: URI): string | undefined })._resolveSdkMode(session, chat);
+				assert.deepStrictEqual([resolve(defaultChat), resolve(peer)], ['interactive', 'plan']);
 			} finally {
 				await disposeAgent(agent);
 			}
