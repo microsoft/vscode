@@ -24,6 +24,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
@@ -34,7 +35,7 @@ import {
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService, type IAgentChatConfigurationTarget } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -437,12 +438,32 @@ export class SessionPermissionManager extends Disposable {
 		return session === undefined ? undefined : this._stateManager.getSessionState(session);
 	}
 
+	/** The chat whose config applies to a chat channel; `undefined` for a session or an unregistered chat. */
+	private _chatTargetOf(sessionOrChat: ProtocolURI): IAgentChatConfigurationTarget | undefined {
+		const session = isAhpChatChannel(sessionOrChat) ? this._resolveSession(sessionOrChat) : undefined;
+		return session === undefined ? undefined : { session, chat: sessionOrChat };
+	}
+
+	/** The effective config of a chat (its own values over the session's), or of a session. */
+	private _effectiveConfigOf(sessionOrChat: ProtocolURI): { readonly schema: SessionConfigSchema; readonly values: Record<string, unknown> } | undefined {
+		const config = this._sessionStateOf(sessionOrChat)?.config;
+		const target = this._chatTargetOf(sessionOrChat);
+		return config && { schema: config.schema, values: (target && this._configService.getChatConfigValues(target)) ?? config.values };
+	}
+
+	private _effectiveValue<K extends SessionConfigKey.AutoApprove | SessionConfigKey.Permissions>(sessionOrChat: ProtocolURI, key: K) {
+		const target = this._chatTargetOf(sessionOrChat);
+		return target
+			? this._configService.getChatEffectiveValue(target, platformSessionSchema, key)
+			: this._configService.getEffectiveValue(sessionOrChat, platformSessionSchema, key);
+	}
+
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		const config = this._sessionStateOf(sessionKey)?.config;
+		const config = this._effectiveConfigOf(sessionKey);
 		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
 		if (policyOwned) {
 			const effective = config.values.effectiveApprovalMode;
@@ -453,7 +474,7 @@ export class SessionPermissionManager extends Disposable {
 		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+		return this._effectiveValue(sessionKey, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
@@ -536,7 +557,7 @@ export class SessionPermissionManager extends Disposable {
 			}
 			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
-				this._addToolToSessionPermissions(sessionKey, toolName);
+				this._addToolToChatPermissions({ session: sessionKey, chat: chatChannel }, toolName);
 			}
 		}
 	}
@@ -798,10 +819,10 @@ export class SessionPermissionManager extends Disposable {
 		if (!toolName) {
 			return false;
 		}
-		// `getEffectiveValue` walks session → parent → host, so sessions
-		// that haven't materialized their own `permissions` yet transparently
-		// inherit from the host-level allow/deny lists.
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions);
+		// The effective value walks the chat's own values, the chats that spawned
+		// it, the session and the host, so a chat without its own `permissions`
+		// inherits the session's and the host's allow/deny lists.
+		const permissions = this._effectiveValue(sessionKey, SessionConfigKey.Permissions);
 		const allowed = permissions?.allow.includes(toolName) ?? false;
 		if (allowed) {
 			this._logService.trace(`[SessionPermissionManager] Auto-approving "${toolName}" via permissions`);
@@ -823,18 +844,22 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
-	private _addToolToSessionPermissions(sessionKey: ProtocolURI, toolName: string): void {
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions)
+	/**
+	 * "Allow in this Session" from a chat adds the tool to that chat's
+	 * permissions (a subagent's to the chat it inherits them from).
+	 */
+	private _addToolToChatPermissions(target: IAgentChatConfigurationTarget, toolName: string): void {
+		const permissions = this._configService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.Permissions)
 			?? { allow: [], deny: [] };
 		if (permissions.allow.includes(toolName)) {
 			return;
 		}
-		this._configService.updateSessionConfig(sessionKey, {
+		this._configService.updateChatConfig(target, {
 			[SessionConfigKey.Permissions]: {
 				allow: [...permissions.allow, toolName],
 				deny: [...permissions.deny],
 			},
 		});
-		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to session permissions for ${sessionKey}`);
+		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to the permissions of ${target.chat}`);
 	}
 }
