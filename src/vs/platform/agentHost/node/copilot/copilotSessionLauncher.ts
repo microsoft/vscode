@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -16,9 +16,10 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -39,6 +40,7 @@ import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { toSdkClientToolName, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
+import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -120,6 +122,17 @@ export function toSessionConfigMcpServers(plan: Pick<CopilotSessionLaunchPlan, '
  */
 export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefined): SessionConfig['reasoningEffort'] {
 	return effort as SessionConfig['reasoningEffort'];
+}
+
+/**
+ * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
+ * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
+ */
+function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
+	if (typeof assignmentContext !== 'string' || !assignmentContext) {
+		return {};
+	}
+	return { expAssignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } };
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
@@ -294,6 +307,8 @@ interface ICopilotSessionLaunchBase {
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
+	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
+	readonly localModelProvider?: ILocalModelProvider;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -421,10 +436,20 @@ export function resolveConfiguredReasoningEffortOverride(model: ModelSelection |
 
 /**
  * The configured override over the picker's thinking level. Shared by the
- * launcher and `CopilotAgent._changeModel` so both resolve it the same way.
+ * launcher and `CopilotAgent._changeModel` so both resolve it the same way,
+ * encoded for the runtime with {@link toRuntimeReasoningEffort}.
  */
 export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
-	return resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model);
+	return toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model));
+}
+
+/**
+ * Encodes a resolved effort for the runtime. An on-device row's Off (`none`) is sent as `minimal`: the runtime sends no
+ * `reasoning_effort` for `none`, which an `enable_thinking` template would read as on; the handler maps `minimal` to
+ * `enable_thinking: false`. Everything else is unchanged.
+ */
+export function toRuntimeReasoningEffort(model: ModelSelection | undefined, effort: SessionConfig['reasoningEffort']): SessionConfig['reasoningEffort'] {
+	return isLocalModelSelectionId(model?.id) && (effort as string | undefined) === 'none' ? toSdkReasoningEffort('minimal') : effort;
 }
 
 /**
@@ -663,6 +688,66 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 	return objectsEqual(merged, registered) ? undefined : merged;
 }
 
+// #region On-device model rows
+
+/** Drops every entry of the on-device sentinel provider; only the provider's own contribution may register it. */
+function withoutLocalModelEntries(config: ICopilotByokSessionConfig): Required<ICopilotByokSessionConfig> {
+	return {
+		providers: (config.providers ?? []).filter(provider => provider.name !== LOCAL_MODEL_SENTINEL_PROVIDER_NAME),
+		models: (config.models ?? []).filter(model => model.provider !== LOCAL_MODEL_SENTINEL_PROVIDER_NAME),
+	};
+}
+
+/** The BYOK config a session launches with: the external BYOK config plus the on-device provider's contribution (even when external BYOK is off). */
+export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig {
+	if (!local || (local.providers.length === 0 && local.models.length === 0)) {
+		return byok;
+	}
+	const external = withoutLocalModelEntries(byok);
+	return { providers: [...external.providers, ...local.providers], models: [...external.models, ...local.models] };
+}
+
+/**
+ * The BYOK snapshot to sync onto a live session: external BYOK stays additive ({@link mergeByokSessionConfig}), while
+ * on-device rows are replaced, so an uninstalled model's row is withdrawn. `undefined` when nothing changes.
+ */
+export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig | undefined {
+	if (!local) {
+		return mergeByokSessionConfig(applied, external);
+	}
+	const appliedExternal = withoutLocalModelEntries(applied);
+	const mergedExternal = mergeByokSessionConfig(appliedExternal, withoutLocalModelEntries(external)) ?? appliedExternal;
+	const composed: ICopilotByokSessionConfig = {
+		providers: [...(mergedExternal.providers ?? []), ...local.providers],
+		models: [...(mergedExternal.models ?? []), ...local.models],
+	};
+	const registered: ICopilotByokSessionConfig = { providers: applied.providers ?? [], models: applied.models ?? [] };
+	return objectsEqual(composed, registered) ? undefined : composed;
+}
+
+/**
+ * The selection id of a direct-selection row, `vscode-on-device/<id>`. The runtime accepts the bare `<id>` in `setModel`
+ * but resolves it as a CAPI model, so rows are only ever published and selected by this id.
+ */
+export function getLocalModelSelectionId(rowId: string): string {
+	return `${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/${rowId}`;
+}
+
+/** Whether `modelId` is the selection id of a direct-selection (on-device) row. */
+export function isLocalModelSelectionId(modelId: string | undefined): boolean {
+	return !!modelId?.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
+}
+
+/** The family whose direct-selection row is `modelId` (a selection id), or `undefined`. */
+export function findLocalModelDirectFamily(provider: Pick<ILocalModelProvider, 'getModelRows'> | undefined, modelId: string | undefined): string | undefined {
+	if (!provider || !modelId) {
+		return undefined;
+	}
+	return provider.getModelRows().find(row => getLocalModelSelectionId(row.id) === modelId)?.familyId;
+}
+
+// #endregion
+
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
 export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<boolean> {
 	try {
@@ -884,27 +969,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
 				return displayNames;
 			}
-			const token = plan.githubCredentials.token;
-			const auth = await session.rpc.gitHubAuth.getStatus();
-			const accounts = plan.client.rpc ? await plan.client.rpc.account.getAllUsers() : [];
-			let account = token ? accounts.find(candidate => candidate.token === token && candidate.selectionId) : undefined;
-			if (!account) {
-				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
-				const matchingAccounts = accounts.filter(candidate => {
-					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli' || candidate.authInfo.type === 'account'
-						? candidate.authInfo.login
-						: candidate.authInfo.copilotUser?.login;
-					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
-					return candidate.selectionId && accountHost === sessionHost && (!auth.login || login === auth.login);
-				});
-				const matchingProviders = matchingAccounts.filter(candidate => candidate.authInfo.type === 'token-provider');
-				account = matchingProviders.length === 1 ? matchingProviders[0] : matchingAccounts.length === 1 ? matchingAccounts[0] : undefined;
+			if (!capabilities.sessionAccountSelection) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts`);
+				return displayNames;
 			}
-			if (!account?.selectionId) {
+			const account = await session.rpc.connectors.getAccount();
+			if (!account) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
 				return displayNames;
 			}
-			status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
+			status = await session.rpc.connectors.reconcile({ accountId: account.accountId, refreshCatalog: true });
 			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; using the current Connector state when available: ${getErrorMessage(error)}`);
@@ -1080,16 +1154,22 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [byok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
 		const customAgents = plan.isEphemeral ? [] : [
 			...pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name)),
 			...buildCopilotBuiltinAgents(plan.snapshot.tools),
 		];
-		if (byok.models?.length) {
+		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
-			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy ${byok.providers?.[0]?.baseUrl}`);
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${externalByok.models.length} BYOK model(s) across ${externalByok.providers?.length ?? 0} provider(s) via loopback proxy ${externalByok.providers?.[0]?.baseUrl}`);
 		}
+		// On-device direct-selection rows are added outside the BYOK gate.
+		const localModelConfig = plan.localModelProvider?.contributeSessionConfig();
+		if (localModelConfig?.models.length) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${localModelConfig.models.length} on-device model row(s)`);
+		}
+		const byok = withLocalModelSessionConfig(externalByok, localModelConfig);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
@@ -1214,11 +1294,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			imageGeneration: { enabled: true },
 			featureFlags,
+			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
-			// an override is configured.
-			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
+			// an override is configured (encoded like every other path).
+			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
 			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId)) : {}),
 			modelCapabilities,
 			enableMcpApps: true,

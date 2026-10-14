@@ -50,7 +50,7 @@ import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoM
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
- * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
+ * Models that support reasoning_effort get an "Effort Level" dropdown in the model picker UI.
  */
 function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;

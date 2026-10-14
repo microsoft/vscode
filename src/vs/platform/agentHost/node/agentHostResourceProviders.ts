@@ -24,19 +24,11 @@ export interface IAgentHostResourceProvider {
 }
 
 /** Routes resource operations to scheme providers, with the filesystem as the fallback. */
-export interface IAgentHostResourceProviders {
+export interface IAgentHostResourceProviders extends Required<IAgentHostResourceProvider> {
 	readonly _serviceBrand: undefined;
 
 	/** Registers a provider, rejecting schemes that already have one. Disposal unregisters it. */
 	registerProvider(scheme: string, provider: IAgentHostResourceProvider): IDisposable;
-	read(uri: URI, encoding: ContentEncoding): Promise<ResourceReadResult>;
-	list(uri: URI): Promise<ResourceListResult>;
-	write(params: ResourceWriteParams): Promise<ResourceWriteResult>;
-	copy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
-	delete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
-	move(params: ResourceMoveParams): Promise<ResourceMoveResult>;
-	resolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
-	mkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
 }
 
 /** Owns scheme-based resource routing and the filesystem fallback. */

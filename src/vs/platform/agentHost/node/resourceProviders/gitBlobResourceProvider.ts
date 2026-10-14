@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../../common/agentHostWorkingDirectories.js';
 import { parseFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
+import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories } from '../agentConfigurationService.js';
 import { resolveChangesetOwnerScope } from '../agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 import { resolveSessionRepositories } from '../agentHostSessionRepositories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -17,7 +21,7 @@ import { type IGitBlobUriFields, parseGitBlobUri } from '../gitDiffContent.js';
 
 /** Session lifecycle operations needed while reading a session's git content. */
 interface IGitBlobResourceProviderHost {
-	resolveSession(uri: URI): URI | undefined;
+	readSavedWorkingDirectories(session: URI, resource: URI): Promise<readonly string[] | undefined>;
 	restoreSession(session: URI): Promise<void>;
 	reconcileResidency(): void;
 }
@@ -28,6 +32,7 @@ export class GitBlobResourceProvider implements IAgentHostResourceProvider {
 		private readonly _host: IGitBlobResourceProviderHost,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	async read(uri: URI): Promise<ResourceReadResult> {
@@ -38,22 +43,28 @@ export class GitBlobResourceProvider implements IAgentHostResourceProvider {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const owningSession = this._host.resolveSession(URI.parse(fields.sessionUri));
+		const resource = URI.parse(fields.sessionUri);
+		const recordedOwner = isAhpChatChannel(fields.sessionUri) ? await this._chatOwnership.createRecordedOwnerLookup()(fields.sessionUri) : undefined;
+		const owningSession = resolveAgentHostSession(resource, chat => chat === fields.sessionUri ? recordedOwner : this._chatOwnership.getChatOwner(chat));
 		if (!owningSession) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Session not found: ${fields.sessionUri}`);
 		}
 		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
 		try {
-			if (!wasRestored) {
+			const savedDirectories = wasRestored ? undefined : await this._host.readSavedWorkingDirectories(owningSession, resource);
+			if (!wasRestored && savedDirectories === undefined) {
 				await this._host.restoreSession(owningSession);
 			}
-			const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields, owningSession);
+			const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields, owningSession, savedDirectories);
 			if (!workingDirectory) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
 			}
 			const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
 			if (!blob) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
+			}
+			if (savedDirectories !== undefined && !equals(savedDirectories, await this._host.readSavedWorkingDirectories(owningSession, resource))) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'Saved repository ownership changed while reading the file');
 			}
 			return {
 				data: blob.toString(),
@@ -93,18 +104,21 @@ export class GitBlobResourceProvider implements IAgentHostResourceProvider {
 	 *   [/work/app, /work/lib]         + /outside/c.ts        → undefined (NotFound)
 	 *   [/work/app, /work/lib]         + ''  (legacy)         → /work/app
 	 */
-	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields, owningSession: URI): Promise<URI | undefined> {
+	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields, owningSession: URI, savedDirectories?: readonly string[]): Promise<URI | undefined> {
 		const gitService = this._gitService;
 		if (!gitService) {
 			return undefined;
 		}
-		const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
-		if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
-			return undefined;
+		let workingDirectories = savedDirectories;
+		if (workingDirectories === undefined) {
+			const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
+			if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
+				return undefined;
+			}
+			workingDirectories = ownerScope.workingDirectories.length
+				? ownerScope.workingDirectories
+				: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
 		}
-		const workingDirectories = ownerScope.workingDirectories.length
-			? ownerScope.workingDirectories
-			: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
 		// Backwards-compat: no resolvable absolute path means we cannot match a
 		// repository root, so fall back to today's primary-directory behavior.
 		if (!fields.absolutePath) {

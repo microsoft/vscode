@@ -261,6 +261,20 @@ type ModelCallTurnCorrelatedClassification = {
 */
 
 /* __GDPR__
+	"copilotSdk/extension_startup": {
+		"owner": "jruales",
+		"comment": "Reports aggregate initial startup for all Runtime extensions on create or cold resume, not resident joins or reloads. Contains no extension identities, paths, content, or error text.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Initial startup outcome: success, settled_with_failures, failed, cancelled, or superseded." },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Monotonic aggregate elapsed wall time in milliseconds from before initial extension setup/discovery until native provider settlement, not a remaining wait or per-request TTFT.", "isMeasurement": true },
+		"discovered_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of extensions in the authoritative startup snapshot; omitted when unavailable, with zero representing observed empty discovery.", "isMeasurement": true },
+		"running_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of running extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"failed_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of failed extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"disabled_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of disabled extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
 	"copilotSdk/tgrep_startup": {
 		"owner": "bhavyaus",
 		"comment": "Reports the outcome and performance of an indexed-search startup attempt in the Copilot CLI runtime.",

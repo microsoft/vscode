@@ -9,12 +9,14 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { buildOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
-import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection, IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ChatSummary, SessionState } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpener, IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
@@ -47,6 +49,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			}();
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return authority === 'other-host' ? owner : undefined; }
 			override findSessionResource(resource: URI, authority = 'local'): URI | undefined { return resources.get(`${authority}:${resource}`); }
+			override resolveSessionResource() { return undefined; }
 			override registerSessionResource(resource: URI, authority?: string, provider?: string): URI {
 				assert.deepStrictEqual([authority, provider], ['other-host', 'claude']);
 				resources.set(`${authority}:${resource}`, remote);
@@ -72,6 +75,46 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host')));
 		assert.deepStrictEqual({ result, listings, opened }, { result: true, listings: 1, opened: [remote.with({ fragment: 'peer' }).toString()] });
 	});
+
+	for (const [name, defaultChat, peerChat, defaultId, peerId, cached] of ([
+		['shaped', 'ahp-chat://default/c2Vzc2lvbi0x', 'ahp-chat://peer-1/c2Vzc2lvbi0x', 'ahp-chat://default/c2Vzc2lvbi0x', 'peer-1'],
+		['opaque', 'ahp-chat:/11111111-1111-4111-8111-111111111111', 'ahp-chat:/22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+	] as const).flatMap(row => [true, false].map(cached => [...row, cached] as const))) {
+		test(`a link whose chat id resolves to the ${name} default chat (${cached ? 'cached state' : 'session listing'}) opens the session itself, a peer link keeps its fragment`, async () => {
+			const backend = URI.parse('ahp-session:/s1');
+			const client = URI.parse('agent-host-codex:/s1');
+			const state = upcastPartial<SessionState>({ defaultChat, chats: [upcastPartial<ChatSummary>({ resource: defaultChat }), upcastPartial<ChatSummary>({ resource: peerChat })] });
+			let opener: IOpener | undefined;
+			const opened: string[] = [];
+			const connections = new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeSessionResolution = Event.None;
+				override findSessionResource(): URI | undefined { return client; }
+				override resolveSessionResource() {
+					return upcastPartial<IAgentHostSessionResolution>({
+						backendSession: backend,
+						connection: upcastPartial<IAgentConnection>(cached
+							? { getSubscriptionUnmanaged: () => upcastPartial<IAgentSubscription<any>>({ value: state }) }
+							: { getSubscriptionUnmanaged: () => undefined, listSessions: async () => [upcastPartial<IAgentSessionMetadata>({ session: backend, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peerChat), kind: 'peer' }] })] }),
+					});
+				}
+			}();
+			store.add(new AgentHostOpenSessionLinkOpenerContribution(
+				new class extends mock<IOpenerService>() { override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; } }(),
+				new class extends mock<IChatWidgetService>() { override async openSession(resource: URI): Promise<IChatWidget | undefined> { opened.push(resource.toString()); return {} as IChatWidget; } }(),
+				new class extends mock<IChatSessionsService>() { override async activateChatSessionItemProvider(): Promise<void> { } }(),
+				store.add(new ChatRequestOriginService()),
+				new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } }(),
+				new NullLogService(),
+				new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
+				new class extends mock<IPathService>() { }(),
+				connections,
+			));
+			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultChat)));
+			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultId)));
+			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, peerId)));
+			assert.deepStrictEqual(opened, ['agent-host-codex:/s1', 'agent-host-codex:/s1', `agent-host-codex:/s1#${peerId}`]);
+		});
+	}
 
 	test('standard link presentation waits for advertised provider metadata and coalesces the initial listing', async () => {
 		const backend = URI.parse('ahp-session:/cold-link');
@@ -252,7 +295,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				override registerProvider(): IDisposable { return Disposable.None; }
 			},
 			new class extends mock<IPathService>() { },
-			new class extends mock<IAgentHostConnectionsService>() { },
+			new class extends mock<IAgentHostConnectionsService>() { override resolveSessionResource() { return undefined; } }(),
 		));
 
 		assert.ok(registeredOpener);

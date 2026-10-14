@@ -401,6 +401,14 @@
 	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
 		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
 	}
+
+	&.modern-ui-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-left > .chat-group-view-surface {
+		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
+
+	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-right > .chat-group-view-surface {
+		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {

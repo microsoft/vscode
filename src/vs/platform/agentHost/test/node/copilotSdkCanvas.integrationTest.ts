@@ -16,17 +16,17 @@ import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnviro
 import { resolveCopilotRuntimePaths } from '../../node/copilot/copilotRuntimePaths.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
-suite('Copilot SDK - canvas first-open events', () => {
+suite('Copilot SDK - canvas lifecycle', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const instanceId = 'contract-instance';
 
-	test('records first opens but not repeat opens, provider reload, or cold resume', async function () {
-		this.timeout(180_000);
+	/** Writes a model-free canvas provider and returns runtime clients configured to load it. */
+	async function createCanvasContract() {
 		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		assert.ok(extensionSdkPath && extensionBootstrapPath, 'Bundled canvas extension assets must be available');
 		const root = await mkdtemp(join(tmpdir(), 'ahp-canvas-contract-'));
 		const workDirectory = join(root, 'work');
 		const extensionDirectory = join(workDirectory, '.github', 'extensions', 'canvas-contract');
-		const listeners = disposables.add(new DisposableStore());
 		const createClient = () => new CopilotClient({
 			mode: 'empty',
 			connection: RuntimeConnection.forStdio({ path: runtimePath }),
@@ -54,27 +54,6 @@ suite('Copilot SDK - canvas first-open events', () => {
 			extensionSdkPath,
 			onPermissionRequest: approveAll,
 		};
-		const instanceId = 'contract-instance';
-		let liveRecords = 0;
-		const observations: { phase: string; live: number; history: number }[] = [];
-		const observe = (session: CopilotSession) => {
-			listeners.add(toDisposable(session.on('session.canvas.recorded', () => liveRecords++)));
-		};
-		const capture = async (session: CopilotSession, phase: string) => {
-			const history = await session.getEvents();
-			const records = history.filter(event => event.type === 'session.canvas.recorded').length;
-			await retry(async () => assert.strictEqual(liveRecords, records, `${phase}: live events must match history`), 50, 100);
-			observations.push({ phase, live: liveRecords, history: records });
-		};
-		const waitForOpen = (session: CopilotSession, previousUrl: string | undefined) => retry(async () => {
-			const { openCanvases } = await session.rpc.canvas.listOpen();
-			const canvas = openCanvases.find(canvas => canvas.instanceId === instanceId);
-			assert.ok(canvas?.url && canvas.url !== previousUrl, 'Canvas must be ready in a new provider process');
-			return canvas.url;
-		}, 100, 300);
-		let client = createClient();
-		let session: CopilotSession | undefined;
-
 		try {
 			await mkdir(extensionDirectory, { recursive: true });
 			await writeFile(join(extensionDirectory, 'extension.mjs'), `
@@ -90,14 +69,52 @@ await joinSession({
 	})],
 });
 `, 'utf8');
+		} catch (error) {
+			await rm(root, { recursive: true, force: true });
+			throw error;
+		}
+		return { root, config, createClient };
+	}
+
+	function waitForContractCanvas(session: CopilotSession) {
+		return retry(async () => {
+			const { canvases } = await session.rpc.canvas.list();
+			assert.ok(canvases.some(canvas => canvas.canvasId === 'contract'), 'Test provider must register its canvas');
+		}, 100, 300);
+	}
+
+	function waitForOpen(session: CopilotSession, previousUrl: string | undefined) {
+		return retry(async () => {
+			const { openCanvases } = await session.rpc.canvas.listOpen();
+			const canvas = openCanvases.find(canvas => canvas.instanceId === instanceId);
+			assert.ok(canvas?.url && canvas.url !== previousUrl, 'Canvas must be ready in a new provider process');
+			return canvas.url;
+		}, 100, 300);
+	}
+
+	test('records first opens but not repeat opens, provider reload, or cold resume', async function () {
+		this.timeout(180_000);
+		const { root, config, createClient } = await createCanvasContract();
+		const listeners = disposables.add(new DisposableStore());
+		let liveRecords = 0;
+		const observations: { phase: string; live: number; history: number }[] = [];
+		const observe = (session: CopilotSession) => {
+			listeners.add(toDisposable(session.on('session.canvas.recorded', () => liveRecords++)));
+		};
+		const capture = async (session: CopilotSession, phase: string) => {
+			const history = await session.getEvents();
+			const records = history.filter(event => event.type === 'session.canvas.recorded').length;
+			await retry(async () => assert.strictEqual(liveRecords, records, `${phase}: live events must match history`), 50, 100);
+			observations.push({ phase, live: liveRecords, history: records });
+		};
+		let client = createClient();
+		let session: CopilotSession | undefined;
+
+		try {
 			await client.start();
 			session = await client.createSession(config);
 			observe(session);
-			const created = session;
-			await retry(async () => {
-				const { canvases } = await created.rpc.canvas.list();
-				assert.ok(canvases.some(canvas => canvas.canvasId === 'contract'), 'Test provider must register its canvas');
-			}, 100, 300);
+			await waitForContractCanvas(session);
 
 			const first = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
 			const firstUrl = await waitForOpen(session, undefined);
@@ -140,6 +157,49 @@ await joinSession({
 			]);
 		} finally {
 			listeners.dispose();
+			try {
+				await session?.disconnect();
+			} finally {
+				try {
+					await client.stop();
+				} finally {
+					await rm(root, { recursive: true, force: true });
+				}
+			}
+		}
+	});
+
+	test('keeps an open canvas across a resume on the same client', async function () {
+		this.timeout(180_000);
+		const { root, config, createClient } = await createCanvasContract();
+		const client = createClient();
+		let session: CopilotSession | undefined;
+
+		try {
+			await client.start();
+			session = await client.createSession(config);
+			await waitForContractCanvas(session);
+			await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+			const firstUrl = await waitForOpen(session, undefined);
+			// Closing persists this model-free session so it can be resumed.
+			await session.rpc.canvas.close({ instanceId });
+			await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+
+			// An Agent Host configuration refresh disconnects the SDK session and resumes it on the same client.
+			const sessionId = session.sessionId;
+			await session.disconnect();
+			session = await client.resumeSession(sessionId, config);
+			const resumed = session;
+			const restoredOnResume = resumed.openCanvases.some(canvas => canvas.instanceId === instanceId);
+			await retry(async () => {
+				const { extensions } = await resumed.rpc.extensions.list();
+				assert.ok(extensions.length > 0 && extensions.every(extension => extension.status !== 'starting'), 'Extensions must settle');
+			}, 100, 300);
+			const listedOnceExtensionsSettle = (await resumed.rpc.canvas.listOpen()).openCanvases.some(canvas => canvas.instanceId === instanceId);
+			await waitForOpen(resumed, firstUrl);
+
+			assert.deepStrictEqual({ restoredOnResume, listedOnceExtensionsSettle }, { restoredOnResume: true, listedOnceExtensionsSettle: true });
+		} finally {
 			try {
 				await session?.disconnect();
 			} finally {

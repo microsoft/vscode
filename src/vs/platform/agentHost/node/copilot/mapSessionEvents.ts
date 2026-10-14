@@ -33,6 +33,8 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { ILogService } from '../../../log/common/log.js';
+import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
+import { createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -40,6 +42,19 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+type AutoModeResolvedData = Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'];
+
+/**
+ * The usage `_meta` a restored Auto decision carries. An on-device pick also carries `vscode.localModel` as `unknown`,
+ * since the SDK history doesn't record whether the local model or the fallback answered; persisted usage overrides it.
+ */
+function autoModeResolvedMeta(autoModeResolved: AutoModeResolvedData): Record<string, unknown> {
+	return {
+		autoModeResolved,
+		...(/-local$/i.test(autoModeResolved.chosenModel) ? createLocalModelTurnExecutionMeta({ execution: 'unknown' }) : {}),
+	};
 }
 
 function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined): string {
@@ -686,7 +701,7 @@ export async function mapSessionEvents(
 		}
 		const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
 		if (autoModeResolved) {
-			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, autoModeResolved } };
+			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, ...autoModeResolvedMeta(autoModeResolved) } };
 			pendingSubagentAutoModeResolved.delete(parentToolCallId);
 		}
 		touch(builder);
@@ -771,6 +786,7 @@ export async function mapSessionEvents(
 						if (builder?.usage) {
 							const metadata = { ...builder.usage._meta };
 							delete metadata.autoModeResolved;
+							delete metadata[LOCAL_MODEL_META_KEY];
 							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
 						}
 					}
@@ -833,7 +849,7 @@ export async function mapSessionEvents(
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
 							model: pendingAutoModeResolved.chosenModel,
-							_meta: { autoModeResolved: pendingAutoModeResolved },
+							_meta: autoModeResolvedMeta(pendingAutoModeResolved),
 						};
 						pendingAutoModeResolved = undefined;
 					}

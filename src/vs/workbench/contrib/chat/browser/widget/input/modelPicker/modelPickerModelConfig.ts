@@ -167,7 +167,7 @@ export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAnd
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
-				? localize('chat.effort.header', "Thinking Effort")
+				? localize('chat.effort.header', "Effort Level")
 				: localize('chat.context.header', "Context"));
 			values.push({ group, label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
