@@ -155,6 +155,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
+	/** Listeners and database references of the static changeset computations in flight, released when the service is disposed. */
+	private readonly _staticComputeResources = this._register(new DisposableStore());
 	/** Per-owner debounce timers for mid-turn Session Changes computation. */
 	private readonly _debouncedSessionDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-chat debounce timers for mid-turn chat Session Changes aggregates. */
@@ -1735,6 +1737,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}, clientContext);
 			}
 		};
+		if (this._store.isDisposed) {
+			// A recompute queued before the service was disposed never starts.
+			return;
+		}
 		this._activeStaticComputes.add(changesetUri);
 		const current = this._markChangesetComputing(changesetUri);
 		const statusBeforeCompute = current?.status === ChangesetStatus.Ready || current?.status === ChangesetStatus.Error ? current : statusBeforeRefresh;
@@ -1760,7 +1766,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 
-		const computeDisposables = new DisposableStore();
+		const computeDisposables = this._staticComputeResources.add(new DisposableStore());
 		computeDisposables.add(ref);
 		let summaryInvalidated = false;
 		computeDisposables.add(this._stateManager.onDidChangeSessionConfig(event => {
@@ -1798,6 +1804,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				} else {
 					diffs = await this._tryComputeSessionGitDiffs(session, strategy);
 				}
+			}
+			if (this._store.isDisposed) {
+				// Disposal released the database reference and listeners; nothing is published for a disposed service.
+				return;
 			}
 			if (!diffs) {
 				if (kind === 'branch') {
@@ -1857,6 +1867,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const reviewed = kind === ChangesetKind.Branch
 				? await this._computeReviewedInfo(session, ref.object)
 				: undefined;
+			if (this._store.isDisposed) {
+				return;
+			}
 			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session)
 				? this._getSessionSummaryWorkingDirectories(session)
 				: this._getEffectiveWorkingDirectories(session);
@@ -1896,18 +1909,22 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 		} catch (err) {
-			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
-			this._stateManager.dispatchServerAction(changesetUri, {
-				type: ActionType.ChangesetStatusChanged,
-				status: ChangesetStatus.Error,
-				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
-			});
+			if (!this._store.isDisposed) {
+				this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
+				this._stateManager.dispatchServerAction(changesetUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+				});
+			}
 			outcome = 'error';
 		} finally {
 			this._activeStaticComputes.delete(changesetUri);
-			this._stateManager.onChangesetLivenessChanged();
-			computeDisposables.dispose();
-			emitStaticTelemetry();
+			this._staticComputeResources.delete(computeDisposables);
+			if (!this._store.isDisposed) {
+				this._stateManager.onChangesetLivenessChanged();
+				emitStaticTelemetry();
+			}
 		}
 	}
 

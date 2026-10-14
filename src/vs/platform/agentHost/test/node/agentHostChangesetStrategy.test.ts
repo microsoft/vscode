@@ -43,8 +43,6 @@ import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostChangesetStrategy', () => {
-	// The real store reads through asynchronous I/O that fake timers do not drive, so let in-flight computes settle before the leak check runs.
-	teardown(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('mock', 'strategy').toString();
 	const turnId = 'turn-1';

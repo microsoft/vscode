@@ -1391,8 +1391,6 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
 
-	// The real store reads through asynchronous I/O, so let in-flight changeset computes settle before the leak check runs.
-	teardown(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
