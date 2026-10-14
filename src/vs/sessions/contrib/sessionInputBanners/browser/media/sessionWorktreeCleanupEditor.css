@@ -206,10 +206,6 @@
 	min-height: 36px;
 }
 
-.session-worktree-cleanup-setting .disabled {
-	color: var(--vscode-disabledForeground);
-}
-
 .session-worktree-cleanup-configure {
 	display: flex;
 	align-items: center;

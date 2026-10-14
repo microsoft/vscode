@@ -395,7 +395,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const checkbox = this.editorDisposables.add(new Checkbox(ariaLabel, false, defaultCheckboxStyles));
 		this.automaticCleanupInput ??= checkbox;
 		row.appendChild(checkbox.domNode);
-		const text = dom.append(row, dom.$('span', undefined, label));
+		dom.append(row, dom.$('span', undefined, label));
 		const days = dom.append(row, dom.$('input')) as HTMLInputElement;
 		days.type = 'number';
 		days.min = '1';
@@ -408,7 +408,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			checkbox.checked = value > 0;
 			days.disabled = !checkbox.checked;
 			days.value = String(value > 0 ? value : 15);
-			text.classList.toggle('disabled', !checkbox.checked);
 		};
 		update();
 		this.editorDisposables.add(checkbox.onChange(() => {
