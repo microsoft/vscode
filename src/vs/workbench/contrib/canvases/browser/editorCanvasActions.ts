@@ -187,9 +187,12 @@ export function registerEditorCanvasActions(
 	}));
 
 	async function loadAvailableDefinitions(context: ICanvasContext, definitionProvider: NonNullable<ICanvasContext['definitionProvider']>, request: number): Promise<void> {
+		if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
+			return;
+		}
 		try {
 			const definitions = await definitionProvider.listCanvases();
-			if (store.isDisposed || request !== requestSequence || currentContext.get() !== context || context.definitionProvider !== definitionProvider || !canvasService.enabled.get()) {
+			if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
 				return;
 			}
 			availableDefinitions.set(
@@ -197,11 +200,19 @@ export function registerEditorCanvasActions(
 				undefined,
 			);
 		} catch (error) {
-			if (store.isDisposed || request !== requestSequence || currentContext.get() !== context) {
+			if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
 				return;
 			}
 			logService.error('[EditorCanvasActions] Failed to list registered canvases', error);
 		}
+	}
+
+	function isCurrentDefinitionsRequest(context: ICanvasContext, definitionProvider: NonNullable<ICanvasContext['definitionProvider']>, request: number): boolean {
+		return !store.isDisposed
+			&& request === requestSequence
+			&& currentContext.get() === context
+			&& context.definitionProvider === definitionProvider
+			&& canvasService.enabled.get();
 	}
 
 	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {

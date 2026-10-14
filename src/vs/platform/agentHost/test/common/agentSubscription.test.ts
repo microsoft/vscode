@@ -823,6 +823,22 @@ suite('ChatStateSubscription', () => {
 		});
 	});
 
+	test('fires snapshot application after replaying buffered canvas changes', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const snapshots: ChatState[] = [];
+		disposables.add(sub.onDidApplySnapshot(state => snapshots.push(state)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.handleSnapshot(makeChatState(chatUri), 1);
+
+		assert.deepStrictEqual(snapshots.map(snapshot => snapshot.canvases), [[{ resource: 'ahp-canvas:/preview' }]]);
+	});
+
 	for (const bufferedAcknowledgement of [false, true]) {
 		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
 			const sub = createSub();

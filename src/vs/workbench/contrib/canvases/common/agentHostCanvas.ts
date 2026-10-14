@@ -11,8 +11,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
-import { observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
@@ -89,6 +90,13 @@ export class AgentHostCanvasCollection extends Disposable {
 			: undefined;
 		return { owner, canvases, openRequests, definitionProvider };
 	}
+}
+
+export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSubscription<ChatState>): Event<void> {
+	return Event.any(
+		Event.map(Event.filter(subscription.onDidApplyAction, envelope => envelope.action.type === ActionType.ChatCanvasesChanged), () => undefined),
+		Event.map(subscription.onDidApplySnapshot ?? Event.None, () => undefined),
+	);
 }
 
 function getOpenRequests(chat: ChatState | undefined, canvases: readonly ICanvas[] | undefined): ReadonlyMap<string, ICanvasOpenRequest> {

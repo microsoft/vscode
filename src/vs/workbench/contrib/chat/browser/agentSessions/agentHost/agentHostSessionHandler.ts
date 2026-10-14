@@ -38,7 +38,7 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCanvasCollection } from '../../../../canvases/common/agentHostCanvas.js';
+import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -879,11 +879,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
-		this._canvasDefinitionsTracking.value = chatSubscription?.onDidApplyAction(envelope => {
-			if (envelope.action.type === ActionType.ChatCanvasesChanged) {
-				this._onDidChangeCanvasDefinitions.fire();
-			}
-		});
+		this._canvasDefinitionsTracking.value = chatSubscription
+			? getAgentHostCanvasDefinitionsChangedEvent(chatSubscription)(() => this._onDidChangeCanvasDefinitions.fire())
+			: undefined;
 		this._promptCacheTracking.clear();
 		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
 		this._sandboxNotification.clear();

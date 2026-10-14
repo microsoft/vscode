@@ -310,6 +310,19 @@ suite('EditorCanvasActions', () => {
 		await refresh.p;
 		await timeout(0);
 		const commandIdsAfterRefresh = getCommandIds();
+
+		const obsoleteRefresh = new DeferredPromise<readonly ICanvasDefinition[]>();
+		pendingDefinitions.value = obsoleteRefresh;
+		definitionsChanged.fire();
+		await timeout(0);
+		definitionsChanged.fire();
+		await timeout(0);
+		enabled.set(false, undefined);
+		obsoleteRefresh.complete([definition]);
+		await obsoleteRefresh.p;
+		await timeout(0);
+		await timeout(0);
+		const listCallsAfterDisable = listCalls;
 		registration.dispose();
 
 		assert.deepStrictEqual({
@@ -317,6 +330,7 @@ suite('EditorCanvasActions', () => {
 			whileRefreshing,
 			shownCommandKeptAfterRefresh: commandIdsAfterRefresh.includes(shownCommandId),
 			opened,
+			listCallsAfterDisable,
 			commandRegisteredAfterDispose: CommandsRegistry.getCommand(shownCommandId) !== undefined,
 		}, {
 			listCallsAfterStreaming: 1,
@@ -327,6 +341,7 @@ suite('EditorCanvasActions', () => {
 			},
 			shownCommandKeptAfterRefresh: true,
 			opened: ['preview'],
+			listCallsAfterDisable: 3,
 			commandRegisteredAfterDispose: false,
 		});
 	});

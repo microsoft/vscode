@@ -13,9 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentHostCanvas, AgentHostCanvasCollection } from '../../common/agentHostCanvas.js';
+import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
 
 suite('AgentHost canvases', () => {
@@ -118,6 +119,23 @@ suite('AgentHost canvases', () => {
 			],
 			changeCount: 1,
 		});
+	});
+
+	test('invalidates definitions for registry actions and snapshots only', () => {
+		const appliedAction = store.add(new Emitter<ActionEnvelope>());
+		const appliedSnapshot = store.add(new Emitter<ChatState>());
+		const subscription = upcastPartial<IAgentSubscription<ChatState>>({
+			onDidApplyAction: appliedAction.event,
+			onDidApplySnapshot: appliedSnapshot.event,
+		});
+		let changes = 0;
+		store.add(getAgentHostCanvasDefinitionsChangedEvent(subscription)(() => changes++));
+
+		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }));
+		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }));
+		appliedSnapshot.fire(upcastPartial<ChatState>({}));
+
+		assert.strictEqual(changes, 2);
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {

@@ -57,6 +57,9 @@ export interface IAgentSubscription<T> {
 
 	/** Fires after a server-originated action is applied to this subscription's state. */
 	readonly onDidApplyAction: Event<ActionEnvelope>;
+
+	/** Fires after a server snapshot and any newer buffered actions are applied. */
+	readonly onDidApplySnapshot?: Event<T>;
 }
 
 /**
@@ -119,6 +122,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidApplyAction: Event<ActionEnvelope> = this._onDidApplyAction.event;
 
+	protected readonly _onDidApplySnapshot = this._register(new Emitter<T>());
+	readonly onDidApplySnapshot: Event<T> = this._onDidApplySnapshot.event;
+
 	protected readonly _clientId: string;
 	protected readonly _log: (msg: string) => void;
 
@@ -148,6 +154,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
 		this._onDidChange.fire(this.value as T);
+		this._onDidApplySnapshot.fire(this.value as T);
 	}
 
 	/**
