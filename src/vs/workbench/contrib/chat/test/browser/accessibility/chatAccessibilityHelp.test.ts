@@ -76,6 +76,35 @@ suite('Chat Accessibility Help', () => {
 		}, { silent: true, keyboard: true, apiOnly: true });
 	});
 
+	test('documents on-device models only while the setting is on', () => {
+		const keybindings = new MockKeybindingService();
+		const describe = (help: string) => ({
+			rows: help.includes('Each model has a single row, like a cloud model\'s') && help.includes('for a model that isn\'t downloaded, Download (Set Up for model files already on this device), the download\'s progress, such as 42%, or Paused; it opens the model\'s detail page; Right Arrow on the row opens it too') && help.includes('Actions such as Retry, Pause, Resume, Download and Set Up are on the detail page, and those for a running, paused or failed step also in the notice above the chat input') && !help.includes('at most one action for its state')
+				&& help.includes('Enter on an installed model selects it and starts loading it right away, without asking') && help.includes('Cancel takes back a model change, keeping the loaded model') && !help.includes('asks before loading it'),
+			consent: help.includes('choosing Download, or Set Up for model files already on this device, agrees to exactly what the page shows') && !/winget|Homebrew|\bapt\b|Open Terminal|Update llama\.cpp/.test(help),
+			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one') && !/LLAMACPP_SERVER_PATH|Use This llama\.cpp/.test(help),
+			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.includes('Manage') && !help.includes('Make Active, Start'),
+			thinking: help.includes('a Thinking choice when the model supports it, which sets its thinking level for this chat'),
+			context: help.includes('Changing the context size of a loaded model reloads it right away without asking, once its running responses finish'),
+			activeBadge: help.includes('an Active badge while it is loaded or loading'),
+			load: help.includes('a progress bar and the time remaining estimated from it, which counts down and reads Almost done once that time has passed') && help.includes('A load\'s progress is estimated from the last comparable load') && help.includes('or Reloading when a new context size loads it again') && help.includes('or Retrying without speculative decoding, and why, when this llama.cpp build crashed with it'),
+			pendingStop: help.includes('Once chosen, these read Pausing, Cancelling or Stopping') && help.includes('the notice says Pausing, Cancelling or Stopping right away, and so does the button, which can\'t be chosen again'),
+			memoryWarning: help.includes('A warning at the top says when this device doesn\'t have the GPU memory for the model at its context size'),
+			readout: help.includes('readout beside the model name in the chat input shows its state while it isn\'t ready, such as Loading, Reloading or Not loaded, and its thinking level and context size once it is; a screen reader hears all of them'),
+			notice: help.includes('On-device models show no notifications. Instead, one notice above the chat input shows an error, a running download, a model loading or reloading or another step with a progress bar and the busy indicator of an active session, or a pause') && help.includes('The notice has no Details action: the model\'s detail page opens from the readout or the model picker'),
+			pause: help.includes('Pause stops a download or update so it can be resumed later') && !/public build/i.test(help),
+			commands: help.includes('Set Up On-Device Model, which opens the detail page'),
+			auto: help.includes('Auto may run some requests on this device'),
+		});
+		assert.deepStrictEqual({
+			off: describe(getAccessibilityHelpText('panelChat', keybindings, true)),
+			on: describe(getAccessibilityHelpText('panelChat', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, true)),
+		}, {
+			off: { rows: false, consent: false, llamaCpp: false, manage: false, thinking: false, context: false, activeBadge: false, load: false, pendingStop: false, memoryWarning: false, readout: false, notice: false, pause: false, commands: false, auto: false },
+			on: { rows: true, consent: true, llamaCpp: true, manage: true, thinking: true, context: true, activeBadge: true, load: true, pendingStop: true, memoryWarning: true, readout: true, notice: true, pause: true, commands: true, auto: true },
+		});
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);

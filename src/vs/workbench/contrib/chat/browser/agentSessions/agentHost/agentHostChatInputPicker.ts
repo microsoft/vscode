@@ -347,6 +347,8 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.SandboxEnabled,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
+	// TODO: Consolidate timeout configuration UI with other clients.
+	'inputRequestTimeout',
 ]);
 
 /**

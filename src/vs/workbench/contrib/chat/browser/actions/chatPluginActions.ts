@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -197,6 +198,11 @@ interface IProviderMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly marketplace?: ICustomizationMarketplaceInfo;
 }
 
+const removeMarketplaceButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.trash),
+	tooltip: localize('removeMarketplace', "Remove Marketplace"),
+};
+
 export const MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID = 'workbench.action.chat.managePluginMarketplaces';
 
 export class ManagePluginMarketplacesAction extends Action2 {
@@ -227,13 +233,15 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
-		const marketplaceManagementProvider = customizationHarnessService.getActiveDescriptor().marketplaceManagementProvider;
+		const sessionResource = customizationHarnessService.activeSessionResource.get();
+		const marketplaceManagementProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.marketplaceManagementProvider;
 		if (marketplaceManagementProvider) {
 			await this.manageProviderMarketplaces(
 				quickInputService,
 				notificationService,
 				accessor.get(IDialogService),
 				marketplaceManagementProvider,
+				sessionResource,
 			);
 			return;
 		}
@@ -363,9 +371,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		notificationService: INotificationService,
 		dialogService: IDialogService,
 		provider: ICustomizationMarketplaceManagementProvider,
+		sessionResource: URI,
 	): Promise<void> {
 		while (true) {
-			const marketplaces = await provider.list();
+			const marketplaces = await provider.list(sessionResource);
 			const items: QuickPickInput<IProviderMarketplaceQuickPickItem>[] = [{
 				id: 'addMarketplace',
 				label: localize('addMarketplace', "{0} Add Marketplace...", '$(add)'),
@@ -387,6 +396,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					detail: marketplace.source,
 					kind: 'marketplace' as const,
 					marketplace,
+					buttons: !marketplace.isDefault && !marketplace.managed ? [removeMarketplaceButton] : undefined,
 				})));
 			}
 			const selected = await quickInputService.pick(items, {
@@ -397,6 +407,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
 				matchOnDescription: true,
 				matchOnDetail: true,
+				onDidTriggerItemButton: async context => {
+					const marketplace = context.item.marketplace;
+					if (context.button === removeMarketplaceButton && marketplace && await this.removeProviderMarketplace(dialogService, provider, sessionResource, marketplace)) {
+						context.removeItem();
+					}
+				},
 			});
 			if (!selected) {
 				return;
@@ -404,7 +420,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (selected.kind === 'add') {
 				const source = await this.promptMarketplaceSource(quickInputService, marketplaces.map(marketplace => marketplace.source));
 				if (source !== undefined) {
-					await provider.add(source);
+					await provider.add(sessionResource, source);
 				}
 				continue;
 			}
@@ -430,7 +446,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (action.id === 'refreshMarketplace') {
-				const failures = (await provider.refresh(marketplace.name)).filter(result => !result.success);
+				const failures = (await provider.refresh(sessionResource, marketplace.name)).filter(result => !result.success);
 				if (failures.length > 0) {
 					notificationService.warn(localize(
 						'refreshMarketplaceFailed',
@@ -441,26 +457,37 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				}
 				continue;
 			}
-			const result = await provider.remove(marketplace.name);
-			if (result.removed) {
-				continue;
-			}
-			const dependentPlugins = result.dependentPlugins ?? [];
-			const confirmation = await dialogService.confirm({
-				type: 'warning',
-				message: localize('forceRemoveMarketplace', "Remove marketplace '{0}' and uninstall its plugins?", marketplace.name),
-				detail: dependentPlugins.length > 0
-					? localize('forceRemoveMarketplaceDetail', "The following plugins depend on this marketplace and will be uninstalled:\n\n{0}", dependentPlugins.join('\n'))
-					: localize('forceRemoveMarketplaceUnknownDetail', "The marketplace could not be removed normally. Forced removal may uninstall plugins from it."),
-				primaryButton: localize('forceRemoveMarketplaceButton', "Remove Marketplace and Plugins"),
-			});
-			if (confirmation.confirmed) {
-				const forced = await provider.remove(marketplace.name, true);
-				if (!forced.removed) {
-					throw new Error(localize('forceRemoveMarketplaceFailed', "Marketplace '{0}' could not be removed.", marketplace.name));
-				}
-			}
+			await this.removeProviderMarketplace(dialogService, provider, sessionResource, marketplace);
 		}
+	}
+
+	private async removeProviderMarketplace(
+		dialogService: IDialogService,
+		provider: ICustomizationMarketplaceManagementProvider,
+		sessionResource: URI,
+		marketplace: ICustomizationMarketplaceInfo,
+	): Promise<boolean> {
+		const result = await provider.remove(sessionResource, marketplace.name);
+		if (result.removed) {
+			return true;
+		}
+		const dependentPlugins = result.dependentPlugins ?? [];
+		const confirmation = await dialogService.confirm({
+			type: 'warning',
+			message: localize('forceRemoveMarketplace', "Remove marketplace '{0}' and uninstall its plugins?", marketplace.name),
+			detail: dependentPlugins.length > 0
+				? localize('forceRemoveMarketplaceDetail', "The following plugins depend on this marketplace and will be uninstalled:\n\n{0}", dependentPlugins.join('\n'))
+				: localize('forceRemoveMarketplaceUnknownDetail', "The marketplace could not be removed normally. Forced removal may uninstall plugins from it."),
+			primaryButton: localize('forceRemoveMarketplaceButton', "Remove Marketplace and Plugins"),
+		});
+		if (!confirmation.confirmed) {
+			return false;
+		}
+		const forced = await provider.remove(sessionResource, marketplace.name, true);
+		if (!forced.removed) {
+			throw new Error(localize('forceRemoveMarketplaceFailed', "Marketplace '{0}' could not be removed.", marketplace.name));
+		}
+		return true;
 	}
 
 	private async addLocalMarketplace(

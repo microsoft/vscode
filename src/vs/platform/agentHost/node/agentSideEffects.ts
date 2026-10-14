@@ -41,18 +41,17 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
+import { chatUriFormatOf, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
-	buildSubagentChatUri,
 	createErrorResponsePart,
 	getErrorResponsePart,
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
-	isSubagentChatUri,
 	mergeLogicalTurnUsage,
 	MessageAttachmentKind,
 	MessageKind,
@@ -880,7 +879,7 @@ export class AgentSideEffects extends Disposable {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 		};
-		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
+		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
 		if (startedWithSteering) {
 			this._turnTracker.markSteering(channel, action.turnId, 'started');
 		}
@@ -960,7 +959,7 @@ export class AgentSideEffects extends Disposable {
 				usageMeta.directCopilotUsage?.totalNanoAiu,
 			);
 			// Subagent charges are already folded into the parent turn's aggregate.
-			if (!isSubagentChatUri(sessionKey)) {
+			if (this._chatOwnership.getChatParent(sessionKey) === undefined) {
 				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, usageMeta.copilotUsage?.totalNanoAiu);
 			}
 			if (agent) {
@@ -981,7 +980,7 @@ export class AgentSideEffects extends Disposable {
 			&& readToolCallMeta(action).toolKind === 'subagent'
 			&& readToolCallMeta(action).subagentChatUri === undefined
 		) {
-			action = { ...action, _meta: { ...action._meta, subagentChatUri: buildSubagentChatUri(sessionUri, action.toolCallId) } };
+			action = { ...action, _meta: { ...action._meta, subagentChatUri: this._subagentChatUriOf(sessionUri, sessionKey, action.toolCallId) } };
 		}
 
 		// When a parent tool call has an associated subagent session,
@@ -1149,6 +1148,19 @@ export class AgentSideEffects extends Disposable {
 	 * owner is recorded while the chat is registered so late signals for a
 	 * removed chat still reach its session.
 	 */
+	/**
+	 * The id of the chat running the subagent spawned by `toolCallId`. The
+	 * root conversation chat is found through the recorded spawn edges, so a
+	 * nested subagent derives from the same root as its parent's siblings.
+	 */
+	private _subagentChatUriOf(session: ProtocolURI, issuingChat: ProtocolURI, toolCallId: string): ProtocolURI {
+		let root = issuingChat;
+		for (let parent = this._chatOwnership.getChatParent(root); parent !== undefined && parent !== root; parent = this._chatOwnership.getChatParent(root)) {
+			root = parent;
+		}
+		return subagentChatUri(chatUriFormatOf(this._chatOwnership.getDefaultChat(session)), session, root, toolCallId);
+	}
+
 	private _sessionOf(channel: ProtocolURI): ProtocolURI | undefined {
 		if (!isAhpChatChannel(channel)) {
 			return channel;
@@ -1251,7 +1263,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Ignoring subagent start for unregistered chat ${chatURI}/${toolCallId}`);
 			return;
 		}
-		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
+		const subagentChatUri = this._subagentChatUriOf(parentSessionUri, chatURI, toolCallId);
 		const immediateParentChatUri = spawningToolParentId
 			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri
 			: chatURI;
@@ -1394,7 +1406,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** A Fusion phase chat only presents part of its parent's turn, so that parent owns the work done in it. */
 	private _turnOwningChat(chatUri: ProtocolURI): ProtocolURI {
-		if (!isSubagentChatUri(chatUri)) {
+		if (this._chatOwnership.getChatParent(chatUri) === undefined) {
 			return chatUri;
 		}
 		for (const subagent of this._subagentChats.values()) {
@@ -1545,7 +1557,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _toolCallCompletionChat(chatChannel: ProtocolURI): ProtocolURI {
-		if (!isSubagentChatUri(chatChannel)) {
+		if (this._chatOwnership.getChatParent(chatChannel) === undefined) {
 			return chatChannel;
 		}
 
@@ -1729,7 +1741,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const state = this._stateManager.getSessionState(channel);
 				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, resumedTurn.message.model?.id);
-				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)));
+				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
 				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 				const key = this._resumedTurnExecutionKey(channel, action.turnId);
 				const execution: IResumedTurnExecution = {

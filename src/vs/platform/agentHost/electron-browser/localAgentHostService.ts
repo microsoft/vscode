@@ -520,8 +520,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().refreshCopilotConnectorSessions();
 	}
 
-	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
-		return this._getManagementService().uninstallPlugin(provider, request);
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
 	}
 
 	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
@@ -532,28 +532,28 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().openSessionCanvas(session, request, chat);
 	}
 
-	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {
-		return this._getManagementService().installPlugin(provider, request);
+	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().installPlugin(provider, request, session, chat);
 	}
 
-	listPluginMarketplaces(provider: string) {
-		return this._getManagementService().listPluginMarketplaces(provider);
+	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: string, source: string) {
-		return this._getManagementService().addPluginMarketplace(provider, source);
+	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
 	}
 
-	browsePluginMarketplace(provider: string, name: string) {
-		return this._getManagementService().browsePluginMarketplace(provider, name);
+	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
 	}
 
-	removePluginMarketplace(provider: string, name: string, force?: boolean) {
-		return this._getManagementService().removePluginMarketplace(provider, name, force);
+	removePluginMarketplace(provider: string, session: URI, name: string, force?: boolean, chat?: URI) {
+		return this._getManagementService().removePluginMarketplace(provider, session, name, force, chat);
 	}
 
-	refreshPluginMarketplaces(provider: string, name?: string) {
-		return this._getManagementService().refreshPluginMarketplaces(provider, name);
+	refreshPluginMarketplaces(provider: string, session: URI, name?: string, chat?: URI) {
+		return this._getManagementService().refreshPluginMarketplaces(provider, session, name, chat);
 	}
 
 	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {

@@ -545,6 +545,32 @@ suite('TabbedActionListWidget', () => {
 		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
 	});
 
+	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const changes: boolean[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+			}),
+			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
+		});
+		const toggle = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.action-list-item-inline-toggle .monaco-switch')!;
+		toggle.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		toggle.dispatchEvent(enter);
+		// A synthetic keydown has no default action, so emulate the button's native activation.
+		if (!enter.defaultPrevented) {
+			toggle.click();
+		}
+		assert.deepStrictEqual({ enterPrevented: enter.defaultPrevented, changes, checked: toggle.getAttribute('aria-checked'), visible: widget.isVisible }, {
+			enterPrevented: false, changes: [false], checked: 'false', visible: true,
+		});
+	});
+
 	test('details scroll independently and retain a fixed Back button', async () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('button');

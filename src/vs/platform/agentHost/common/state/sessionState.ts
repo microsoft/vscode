@@ -13,6 +13,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { isUUID } from '../../../../base/common/uuid.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
@@ -878,11 +879,6 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 
 const SUBAGENT_CHAT_ID = 'subagent';
 
-export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
-	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
-}
-
 export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
 	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
@@ -926,15 +922,54 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string }
 	}
 }
 
+const canonicalOpaqueChatPrefix = `${AHP_CHAT_SCHEME}:/`;
+
+/**
+ * The uuid of a canonical opaque chat URI (`ahp-chat:/<uuid>` with nothing
+ * else), or `undefined` for any other resource.
+ */
+export function getCanonicalOpaqueChatUuid(resource: ResourceURI | string): string | undefined {
+	const value = resource.toString();
+	if (!value.startsWith(canonicalOpaqueChatPrefix)) {
+		return undefined;
+	}
+	const uuid = value.slice(canonicalOpaqueChatPrefix.length);
+	return isUUID(uuid) ? uuid : undefined;
+}
+
+/**
+ * The client chat id (a chat resource fragment) of a chat. Deterministic per
+ * URI so persisted fragments never change: the short uuid of a canonical
+ * opaque chat, the parsed id of a shaped chat other than `default`, and the
+ * full URI for everything else. The recorded default chat is addressed by an
+ * empty fragment or {@link DEFAULT_CHAT_ID}, never by this id.
+ */
+export function getAgentHostChatId(resource: ResourceURI | string): string {
+	const uuid = getCanonicalOpaqueChatUuid(resource);
+	if (uuid !== undefined) {
+		return uuid;
+	}
+	const chatId = parseChatUri(resource)?.chatId;
+	return chatId !== undefined && chatId !== DEFAULT_CHAT_ID ? chatId : resource.toString();
+}
+
 /**
  * Resolves a client chat id (a chat resource fragment) to a chat of the
  * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
- * advertised default chat as the caller resolved it.
+ * advertised default chat as the caller resolved it. A full chat URI matches
+ * exactly before the short id is tried.
  */
 export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
-	return chatId === DEFAULT_CHAT_ID
-		? defaultChat
-		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
+	if (chatId === DEFAULT_CHAT_ID) {
+		return defaultChat;
+	}
+	return state.chats.find(chat => chat.resource.toString() === chatId)?.resource
+		?? state.chats.find(chat => getAgentHostChatId(chat.resource) === chatId)?.resource;
+}
+
+/** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */
+export function isSessionDefaultChatId(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): boolean {
+	return defaultChat !== undefined && getSessionChatResource(state, chatId, defaultChat)?.toString() === defaultChat.toString();
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -2008,8 +2043,7 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
  */
 export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
 	return origin?.kind !== ChatOriginKind.Tool
-		&& interactivity !== ChatInteractivity.Hidden
-		&& !isSubagentChatUri(resource);
+		&& interactivity !== ChatInteractivity.Hidden;
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */

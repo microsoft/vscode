@@ -31,7 +31,7 @@ import { SessionInputPickerVisibility } from '../../../../services/sessions/comm
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
@@ -1056,6 +1056,99 @@ suite('NewChatWidget', () => {
 			? [undefined, undefined, undefined]
 			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
+
+	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {
+		const visibility = observableValue('environmentVisibility', false);
+		const providers = [
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			}),
+		];
+		const harness: INoWorkspaceOptionHarness = {
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId: 'agenthost-mission-control' }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => assert.fail('Existing quick chat must be preserved'),
+		};
+		const snapshot = () => {
+			const option = getNoWorkspaceOption.call(harness);
+			return {
+				hosts: option?.submenuActions?.map(action => action.label),
+				selectedLabel: option?.selectedLabel,
+				isSelected: option?.isSelected,
+			};
+		};
+		const states = [snapshot()];
+		visibility.set(true, undefined);
+		states.push(snapshot());
+		visibility.set(false, undefined);
+		states.push(snapshot());
+
+		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		assert.deepStrictEqual(states, isWeb
+			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
+			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+	});
+
+	for (const hasLocalProvider of [false, true]) {
+		test(`rejects a stale Chat ${hasLocalProvider ? 'submenu action' : 'direct selection'} after a Mission Control host goes offline`, async () => {
+			const visibility = observableValue('environmentVisibility', true);
+			const environment = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			});
+			const providers = hasLocalProvider
+				? [upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					label: 'Local Agent Host',
+					supportsQuickChats: true,
+				}), environment]
+				: [environment];
+			const selections: Array<ICreateNewSessionOptions | undefined> = [];
+			const harness: INoWorkspaceOptionHarness = {
+				_useConsolidatedRemoteWorkspaces: constObservable(true),
+				_isWorkspacePickerQuickChat: constObservable(false),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => providers },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+				selectNoWorkspace: options => selections.push(options),
+			};
+			const option = getNoWorkspaceOption.call(harness);
+			visibility.set(false, undefined);
+			if (hasLocalProvider) {
+				await option?.submenuActions?.[1].run();
+			} else {
+				option?.select();
+			}
+			const offlineOption = getNoWorkspaceOption.call(harness);
+			assert.deepStrictEqual({
+				selections,
+				chatAvailable: !!offlineOption,
+				hasSubmenu: !!offlineOption?.submenuActions,
+			}, {
+				selections: [],
+				chatAvailable: !isWeb && hasLocalProvider,
+				hasSubmenu: false,
+			});
+		});
+	}
 
 	test('reselecting Chat or its current host preserves the quick chat draft', async () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
