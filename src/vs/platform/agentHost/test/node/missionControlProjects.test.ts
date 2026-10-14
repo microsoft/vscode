@@ -410,14 +410,16 @@ suite('Mission Control projects', () => {
 		const source = join(workspace, 'owner', 'public');
 		await mkdir(source, { recursive: true });
 		await promisify(execFile)('git', ['init', source]);
-		const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'ready' && project.git)));
+		const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'failed' || project.status === 'ready' && project.git)));
 		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: URI.file(source).toString() }, undefined, { getCredential: () => undefined }))!;
 		await finished;
+		const project = catalogue(projects).find(project => project.id === initial.id)!;
 		assert.deepStrictEqual({
-			ready: catalogue(projects).find(project => project.id === initial.id)?.status,
+			ready: project.status,
+			error: project.error,
 			granted: projects.roots.includes(initial.path),
-			gitDirectory: (await lstat(join(initial.path, '.git'))).isDirectory(),
-		}, { ready: 'ready', granted: true, gitDirectory: true });
+			gitDirectory: project.status === 'ready' && (await lstat(join(initial.path, '.git'))).isDirectory(),
+		}, { ready: 'ready', error: undefined, granted: true, gitDirectory: true });
 	});
 
 	test('a real scoped clone cannot use an ambient SSH transport', async () => {
@@ -430,7 +432,7 @@ suite('Mission Control projects', () => {
 			failed: project.status,
 			sshDenied: project.error?.includes('transport \'ssh\' not allowed'),
 			granted: projects.roots.includes(initial.path),
-		}, { failed: 'failed', sshDenied: true, granted: false });
+		}, { failed: 'failed', sshDenied: true, granted: false }, project.error);
 	});
 
 	test('GitHub SSH and scp URLs clone over HTTPS with the authenticated bearer', async () => {
