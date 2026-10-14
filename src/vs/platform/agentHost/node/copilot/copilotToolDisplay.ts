@@ -16,7 +16,7 @@ import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } f
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
-import { ALLOW_SANDBOX_PATH_SESSION, SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -1150,8 +1150,8 @@ function isUnauthorizedPathGateRequest(request: PermissionRequest): boolean {
 	return isObject(request) && Array.isArray((request as { paths?: unknown }).paths);
 }
 
-/** Describes the actual grant scope separately from the one-time sandbox escalation. */
-export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, permissive: boolean): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
+/** Describes the actual grant scope saved to user settings. */
+export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
 	const path = appendEscapedMarkdownInlineCode(grant.path);
 	const description = grant.removedReadonlyPaths?.length
 		? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
@@ -1162,18 +1162,10 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, permis
 		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover the granted path above, including its contents if it is a folder.", appendEscapedMarkdownInlineCode(grant.deniedPath))
 		: '';
 	return {
-		confirmationTitle: localize('copilot.permission.grant.title', "Allow access to a path blocked by the sandbox?"),
-		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Allow in this Session keeps access in this session only. Save to Sandbox Settings and Retry saves access to your VS Code user settings, which are shared with connected agent hosts.")].filter(Boolean).join('\n\n')),
+		confirmationTitle: localize('copilot.permission.grant.title', "Add to user sandbox settings and retry?"),
+		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.")].filter(Boolean).join('\n\n')),
 		options: [
-			{ id: ALLOW_SANDBOX_PATH_SESSION, label: localize('copilot.permission.grant.session', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
-			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Save to Sandbox Settings and Retry"), kind: ConfirmationOptionKind.Approve, group: 1 },
-			{
-				id: 'allow-once',
-				label: permissive
-					? localize('copilot.permission.grant.permissive', "Allow Once with Relaxed Sandbox Restrictions")
-					: localize('copilot.permission.grant.bypass', "Allow Once Outside the Sandbox"),
-				kind: ConfirmationOptionKind.Approve,
-			},
+			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
 			{ id: 'skip', label: localize('copilot.permission.grant.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
 		],
 	};

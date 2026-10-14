@@ -33,7 +33,7 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
@@ -9632,8 +9632,8 @@ suite('AgentHostChatContribution', () => {
 				const notifications = instantiationService.invokeFunction(accessor => accessor.get(INotificationService));
 				const gate = new DeferredPromise<void>();
 				const saved: unknown[] = [];
-				const update = sinon.stub(config, 'updateValue').callsFake(async (key, value) => {
-					saved.push({ key, value });
+				const update = sinon.stub(config, 'updateValue').callsFake(async (key, value, target) => {
+					saved.push({ key, value, target });
 					await gate.p;
 					if (failSave) {
 						throw new Error('settings are read-only');
@@ -9645,9 +9645,12 @@ suite('AgentHostChatContribution', () => {
 					fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
 					fire({
 						type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-grant',
-						invocationMessage: 'Read /outside', confirmationTitle: 'Allow sandbox access?',
+						invocationMessage: 'Read /outside', confirmationTitle: 'Add to user sandbox settings and retry?',
 						_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
-						options: [{ id: SAVE_SANDBOX_PATH, label: 'Save to Sandbox Settings and Retry', kind: ConfirmationOptionKind.Approve }],
+						options: [
+							{ id: SAVE_SANDBOX_PATH, label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
 					} as ChatAction);
 					await timeout(10);
 					const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
@@ -9656,7 +9659,7 @@ suite('AgentHostChatContribution', () => {
 					IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: SAVE_SANDBOX_PATH });
 					await timeout(10);
 					assert.deepStrictEqual({ saved, confirmations: confirmations().length }, {
-						saved: [{ key: AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, value: { readonlyPaths: ['/outside'] } }],
+						saved: [{ key: AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, value: { readonlyPaths: ['/outside'] }, target: ConfigurationTarget.USER_LOCAL }],
 						confirmations: 0,
 					});
 					gate.complete();

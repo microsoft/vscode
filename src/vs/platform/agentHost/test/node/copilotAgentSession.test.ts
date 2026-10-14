@@ -99,7 +99,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/c
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
-import { ALLOW_SANDBOX_PATH_SESSION, SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -10137,30 +10137,28 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
-		for (const option of [ALLOW_SANDBOX_PATH_SESSION, SAVE_SANDBOX_PATH]) {
-			test(`sandbox path grant ${option} resolves the exact request and retains access across config pushes`, async () => {
+		for (const permissive of [false, true]) {
+			test(`sandbox path grant resolves the exact request and retains saved access across config pushes (permissive: ${permissive})`, async () => {
 				const sandbox = { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/outside'], deniedPaths: ['/secret'] } };
 				const { session, runtime, mockSession, waitForSignal, setRootValue, fireRootConfigChange, rootConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
 					rootValues: { sandbox },
 				});
 				const grant = { path: '/outside', deniedPath: '/outside/new/file', access: 'readWrite' as const, removedReadonlyPaths: ['/outside'] };
-				const request = { kind: 'read' as const, path: '/outside/new/file', toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: grant };
+				const request = { kind: 'shell' as const, command: 'cat /outside/new/file', toolCallId: 'grant-tool', requestSandboxBypass: true, requestSandboxPermissive: permissive, sandboxPathGrant: grant };
 				const pending = runtime.handleAttributedPermissionRequest(request);
 				mockSession.fire('permission.requested', { requestId: 'sdk-grant', permissionRequest: toPermissionRequest(request) });
 				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
 				assert.strictEqual(signal.kind, 'pending_confirmation');
 				if (signal.kind !== 'pending_confirmation') { throw new Error('Expected confirmation'); }
-				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [ALLOW_SANDBOX_PATH_SESSION, SAVE_SANDBOX_PATH, 'allow-once', 'skip']);
+				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SANDBOX_PATH, 'skip']);
 
-				if (option === SAVE_SANDBOX_PATH) {
-					setRootValue('sandbox', { ...sandbox, 'fileSystem.userConfiguredPaths': { readonlyPaths: [], readwritePaths: ['/outside'], deniedPaths: ['/secret'] } });
-				}
+				setRootValue('sandbox', { ...sandbox, 'fileSystem.userConfiguredPaths': { readonlyPaths: [], readwritePaths: ['/outside'], deniedPaths: ['/secret'] } });
 				fireRootConfigChange();
 				await timeout(0);
 				assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [], 'settings forwarding must wait for the grant');
 				session.respondToPermissionRequest('grant-tool', true, {
-					selectedOptionId: option, decisionSource: 'human_response', origin: { clientId: 'client', clientSeq: 5 },
-					sandboxPathGrantSaved: option === SAVE_SANDBOX_PATH ? true : undefined,
+					selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', origin: { clientId: 'client', clientSeq: 5 },
+					sandboxPathGrantSaved: true,
 				});
 				assert.deepStrictEqual(await pending, { kind: 'no-result' });
 				await timeout(0);
@@ -10210,7 +10208,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('permission.requested', { requestId: 'sdk-cancelled', permissionRequest: toPermissionRequest(request) });
 			await waitForSignal(signal => signal.kind === 'pending_confirmation');
 			await session.abort();
-			session.respondToPermissionRequest('cancelled-grant', true, { selectedOptionId: ALLOW_SANDBOX_PATH_SESSION, decisionSource: 'human_response' });
+			session.respondToPermissionRequest('cancelled-grant', true, { selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true });
 			assert.deepStrictEqual({ result: (await pending).kind, grants: mockSession.sandboxGrantRequests }, { result: 'reject', grants: [] });
 		});
 
@@ -10233,7 +10231,7 @@ suite('CopilotAgentSession', () => {
 			await pending;
 		});
 
-		for (const outcome of ['missing-request', 'expired', 'rejected', 'error', 'managed', 'non-human', 'unsaved', 'allow-once', 'skip'] as const) {
+		for (const outcome of ['missing-request', 'expired', 'rejected', 'error', 'managed', 'non-human', 'unsaved', 'allow-once', 'allow-session', 'allow-sandbox-path-session', 'skip'] as const) {
 			test(`sandbox path grant handles ${outcome} without granting or disabling the sandbox`, async () => {
 				const { session, runtime, mockSession, waitForSignal, sandboxResults } = await createAgentSession(disposables);
 				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const }, managedApprovalRequired: outcome === 'managed' };
@@ -10248,8 +10246,9 @@ suite('CopilotAgentSession', () => {
 				mockSession.sandboxGrantSuccess = outcome !== 'rejected';
 				mockSession.sandboxGrantError = outcome === 'error' ? new Error('policy changed') : undefined;
 				session.respondToPermissionRequest('grant-tool', outcome !== 'skip', {
-					selectedOptionId: outcome === 'allow-once' ? 'allow-once' : outcome === 'skip' ? 'skip' : outcome === 'unsaved' ? SAVE_SANDBOX_PATH : ALLOW_SANDBOX_PATH_SESSION,
+					selectedOptionId: outcome === 'allow-once' || outcome === 'allow-session' || outcome === 'allow-sandbox-path-session' || outcome === 'skip' ? outcome : SAVE_SANDBOX_PATH,
 					decisionSource: outcome === 'non-human' ? 'host_policy' : 'human_response',
+					sandboxPathGrantSaved: outcome === 'unsaved' ? undefined : true,
 					origin: { clientId: 'client', clientSeq: 5 },
 				});
 				const result = await pending;
@@ -10258,7 +10257,7 @@ suite('CopilotAgentSession', () => {
 					grants: mockSession.sandboxGrantRequests.length,
 					errorShown: sandboxResults.some(result => typeof result === 'string'),
 				}, {
-					result: outcome === 'allow-once' ? 'approve-once' : 'reject', disabled: [],
+					result: 'reject', disabled: [],
 					grants: outcome === 'error' || outcome === 'rejected' ? 1 : 0,
 					errorShown: ['error', 'rejected', 'missing-request', 'expired', 'unsaved'].includes(outcome),
 				});

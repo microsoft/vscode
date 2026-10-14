@@ -47,6 +47,17 @@ suite('Agent host sandbox path grant settings', () => {
 		assert.deepStrictEqual(saved, { readonlyPaths: ['/read'] });
 	});
 
+	test('upgrades user read-only grants while preserving unrelated user settings', async () => {
+		let saved: unknown;
+		const config = new class extends TestConfigurationService {
+			override async updateValue(_key: string, value: unknown): Promise<void> {
+				saved = value;
+			}
+		}({ [key]: { readonlyPaths: ['/upgrade', '/reference'], readwritePaths: ['/existing'], deniedPaths: ['/secret'] } });
+		await saveSandboxPathGrant(config, { path: '/upgrade', access: 'readWrite', removedReadonlyPaths: ['/upgrade'] }, () => true);
+		assert.deepStrictEqual(saved, { readonlyPaths: ['/reference'], readwritePaths: ['/existing', '/upgrade'], deniedPaths: ['/secret'] });
+	});
+
 	test('propagates save failures and does not poison later writes', async () => {
 		const config = new class extends TestConfigurationService {
 			fail = true;

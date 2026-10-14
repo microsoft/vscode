@@ -246,22 +246,29 @@ suite('Sandbox path grant confirmation display', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('describes read-only, read-write and broader-folder upgrades', () => {
-		const read = getSandboxPathGrantConfirmation({ path: '/read', access: 'read' }, false);
-		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' }, false);
-		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] }, false);
+		const read = getSandboxPathGrantConfirmation({ path: '/read', access: 'read' });
+		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' });
+		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] });
 		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
 		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
-			['Allow read access to `/read` and retry inside the sandbox.', 'Allow in this Session keeps access in this session only. Save to Sandbox Settings and Retry saves access to your VS Code user settings, which are shared with connected agent hosts.'],
-			['Allow read/write access to `/write` and retry inside the sandbox.', 'Allow in this Session keeps access in this session only. Save to Sandbox Settings and Retry saves access to your VS Code user settings, which are shared with connected agent hosts.'],
+			['Allow read access to `/read` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
+			['Allow read/write access to `/write` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
 			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
 		]);
 	});
 
-	test('does not label a permissive retry as outside the sandbox', () => {
-		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' }, true);
-		assert.deepStrictEqual(display.options?.map(option => option.label), [
-			'Allow in this Session', 'Save to Sandbox Settings and Retry', 'Allow Once with Relaxed Sandbox Restrictions', 'Skip',
-		]);
+	test('explains persistence in the header with Allow and Skip buttons', () => {
+		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' });
+		assert.deepStrictEqual({
+			title: display.confirmationTitle,
+			options: display.options?.map(option => ({ id: option.id, label: option.label, kind: option.kind })),
+		}, {
+			title: 'Add to user sandbox settings and retry?',
+			options: [
+				{ id: 'save-sandbox-path', label: 'Allow', kind: 'approve' },
+				{ id: 'skip', label: 'Skip', kind: 'deny' },
+			],
+		});
 	});
 });
 

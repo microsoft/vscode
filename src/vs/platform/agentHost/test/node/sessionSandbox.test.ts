@@ -1074,10 +1074,10 @@ suite('Session sandbox configuration', () => {
 			state: {
 				status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'read', displayName: 'Read',
 				_meta: { 'vscode.sandboxPathGrant': grant },
-				...getSandboxPathGrantConfirmation(grant, false),
+				...getSandboxPathGrantConfirmation(grant),
 			},
 		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['allow-sandbox-path-session', 'save-sandbox-path', 'allow-once', 'skip'], ['allow-once', 'skip']]);
+		assert.deepStrictEqual(options, [['save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {

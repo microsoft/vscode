@@ -6,7 +6,6 @@
 import { isObject } from '../../../base/common/types.js';
 import type { IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
 
-export const ALLOW_SANDBOX_PATH_SESSION = 'allow-sandbox-path-session';
 export const SAVE_SANDBOX_PATH = 'save-sandbox-path';
 
 /** The filesystem policy edit offered by the runtime on a pending sandbox escalation. */
