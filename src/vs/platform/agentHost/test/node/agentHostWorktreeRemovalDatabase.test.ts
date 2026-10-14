@@ -183,4 +183,15 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			'the owner listed inside its own worktree': false,
 		});
 	});
+
+	test('a folder with non-ASCII letters keeps its worktree in use', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const worktree = 'file:///repo.worktrees/Élise';
+		await importSession(database, 'copilotcli:/other', { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([`${worktree}/src`]) });
+
+		assert.deepStrictEqual({
+			sameSpelling: await database.isWorktreeInUse(worktree, OWNER),
+			otherAsciiCase: await database.isWorktreeInUse('file:///REPO.worktrees/Élise/', OWNER),
+		}, { sameSpelling: true, otherAsciiCase: true });
+	});
 });

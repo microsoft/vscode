@@ -126,34 +126,38 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
 const centralWorkingDirectoriesSql = `
 	SELECT p.session_uri AS session_uri, j.value AS directory
 		FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
-		WHERE p.payload IS NOT NULL AND json_valid(p.payload)
+		WHERE instr(lower(p.payload), lower(?1)) > 0 AND json_valid(p.payload)
 	UNION ALL
 	SELECT v.session_uri, j.value
 		FROM session_state_values v, json_each(v.value) j
-		WHERE v.key = '${SESSION_WORKING_DIRECTORIES_KEY}' AND json_valid(v.value)
+		WHERE v.key = '${SESSION_WORKING_DIRECTORIES_KEY}' AND instr(lower(v.value), lower(?1)) > 0 AND json_valid(v.value)
 	UNION ALL
 	SELECT c.owner_session_uri, j.value
 		FROM chats_v2 c, json_each(c.working_directories) j
-		WHERE c.tombstoned = 0 AND c.archived = 0 AND c.working_directories IS NOT NULL AND json_valid(c.working_directories)
+		WHERE c.tombstoned = 0 AND c.archived = 0 AND instr(lower(c.working_directories), lower(?1)) > 0 AND json_valid(c.working_directories)
 	UNION ALL
 	SELECT s.session_uri, j.value
 		FROM session_chat_state s, json_each(s.working_directories) j
-		WHERE s.working_directories IS NOT NULL AND json_valid(s.working_directories)
+		WHERE instr(lower(s.working_directories), lower(?1)) > 0 AND json_valid(s.working_directories)
 			AND NOT EXISTS (SELECT 1 FROM session_chats l WHERE l.session_uri = s.session_uri AND l.chat_uri = s.chat_uri AND l.archived = 1)
 			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND (n.archived = 1 OR n.tombstoned = 1))
 	UNION ALL
 	SELECT s.session_uri, j.value
 		FROM session_chat_state s, json_each(s.launch_working_directories) j
-		WHERE s.launch_working_directories IS NOT NULL AND json_valid(s.launch_working_directories)
+		WHERE instr(lower(s.launch_working_directories), lower(?1)) > 0 AND json_valid(s.launch_working_directories)
 			AND NOT EXISTS (SELECT 1 FROM session_chats l WHERE l.session_uri = s.session_uri AND l.chat_uri = s.chat_uri AND l.archived = 1)
 			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND (n.archived = 1 OR n.tombstoned = 1))`;
 
-// Paths compare case-insensitively: a false match only keeps a folder longer.
+/**
+ * `?1` is the worktree folder, `?2` the excluded session. Paths compare
+ * case-insensitively, both sides folded by SQLite: a false match only keeps
+ * a folder longer. A column is parsed only when it contains the folder.
+ */
 const worktreeInUseSql = `
 	WITH directories(session_uri, directory) AS (${centralWorkingDirectoriesSql})
 	SELECT 1 AS present FROM directories d
-	WHERE d.session_uri <> ?
-		AND (lower(d.directory) = ? OR substr(lower(d.directory), 1, ?) = ?)
+	WHERE d.session_uri <> ?2
+		AND (lower(d.directory) = lower(?1) OR substr(lower(d.directory), 1, length(?1) + 1) = lower(?1) || '/')
 		AND NOT EXISTS (SELECT 1 FROM session_state_values a WHERE a.session_uri = d.session_uri AND a.key = '${AH_META_IS_ARCHIVED_DB_KEY}' AND a.value = 'true')
 		AND NOT EXISTS (SELECT 1 FROM sessions_v2 l WHERE l.session_uri = d.session_uri AND json_valid(l.payload) AND json_extract(l.payload, '$.data.isArchived') = 1)
 	LIMIT 1`;
@@ -195,8 +199,6 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 	}
 
 	isWorktreeInUse(worktreePath: string, excludedSession: string | undefined): Promise<boolean> {
-		const path = worktreePath.toLowerCase().replace(/\/+$/, '');
-		const prefix = `${path}/`;
-		return this._host.read(async connection => !!await connection.get(worktreeInUseSql, [excludedSession ?? '', path, prefix.length, prefix]));
+		return this._host.read(async connection => !!await connection.get(worktreeInUseSql, [worktreePath.replace(/\/+$/, ''), excludedSession ?? '']));
 	}
 }
