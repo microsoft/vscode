@@ -89,6 +89,8 @@ const suites: readonly ISuite[] = [
 
 async function main(): Promise<void> {
 	validateEnvironment();
+	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
+	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
 	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
@@ -143,7 +145,7 @@ async function main(): Promise<void> {
 }
 
 function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
-	const environment = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
+	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
 	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
 	const tmpfs = spawnSync('bash', [
@@ -295,7 +297,7 @@ function runSync(command: string, args: readonly string[], environment: NodeJS.P
 async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surfaceOutput: string | undefined): Promise<IRunResult> {
 	console.log(`Starting Agent Host E2E — ${suite.label}`);
 	const startedAt = process.hrtime.bigint();
-	const environment = {
+	const environment: NodeJS.ProcessEnv = {
 		...process.env,
 		VSCODE_SKIP_PRELAUNCH: '1',
 		...(surfaceOutput ? { AGENT_HOST_PROTOCOL_SURFACE_OUT: surfaceOutput } : {}),
@@ -385,7 +387,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
 		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
-		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}${storage ? ` ${storage}` : ''}`;
+		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label} ${process.env['AGENT_HOST_TEST_PROFILE'] ?? 'full'}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;
 }

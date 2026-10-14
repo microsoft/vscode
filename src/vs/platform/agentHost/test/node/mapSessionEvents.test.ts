@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -644,6 +645,41 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores an on-device Auto pick with its local-model attribution alongside the routing decision', async () => {
+		const local = { chosenModel: 'mai-code-1.1-flash-local' };
+		const cloud = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'session.auto_mode_resolved', data: local },
+			{ type: 'user.message', id: 'turn-local', data: { interactionId: 'm0', content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
+			{ type: 'session.auto_mode_resolved', data: cloud },
+			{ type: 'user.message', id: 'turn-cloud', data: { interactionId: 'm2', content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Second response.' } },
+			{ type: 'user.message', id: 'turn-subagent', data: { interactionId: 'm4', content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: local },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			// Switching the subagent away drops the stale routing and its attribution together.
+			{ type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'gpt-5.5' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, usage: turn.usage })),
+			subagent: subagentTurnsByToolCallId.get('tc-task')?.map(turn => turn.usage),
+		}, {
+			parent: [
+				// What actually ran is not in the SDK history; the persisted turn usage, merged over this on restore, carries it.
+				{ id: 'turn-local', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved: local, 'vscode.localModel': { execution: 'unknown' } } } },
+				{ id: 'turn-cloud', usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved: cloud } } },
+				{ id: 'turn-subagent', usage: undefined },
+			],
+			subagent: [{ model: 'gpt-5.5', _meta: {} }],
+		});
+	});
+
 	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
 		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
 		const events: ISessionEvent[] = [
@@ -1159,7 +1195,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -1185,6 +1221,42 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	for (const withStart of [true, false]) {
+		test(`restores SDK intention summaries with execution_start=${withStart}`, async () => {
+			const requests = [
+				{ toolCallId: 'tc-bash', name: 'bash', intentionSummary: '  List project files \n', arguments: { command: 'ls', description: 'Fallback' } },
+				{ toolCallId: 'tc-powershell', name: 'powershell', intentionSummary: 'Inspect the directory', arguments: { command: 'Get-ChildItem' } },
+				{ toolCallId: 'tc-view', name: 'view', intentionSummary: 'Understand the entry point', arguments: { path: '/repo/file.ts' } },
+				{ toolCallId: 'tc-blank', name: 'bash', intentionSummary: ' \n', arguments: { command: 'ls', description: 'Fallback' } },
+				{ toolCallId: 'tc-absent', name: 'view', arguments: { path: '/repo/file.ts' } },
+			];
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Inspect the project' } },
+				{ type: 'assistant.message', data: { messageId: 'm1', content: '', toolRequests: requests } },
+			];
+			for (const request of requests) {
+				if (withStart) {
+					events.push({
+						type: 'tool.execution_start',
+						data: { toolCallId: request.toolCallId, toolName: request.name, arguments: request.arguments },
+					});
+				}
+				events.push({ type: 'tool.execution_complete', data: { toolCallId: request.toolCallId, success: true } });
+			}
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(turns[0].responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({ toolCallId: part.toolCall.toolCallId, intention: part.toolCall.intention })), [
+				{ toolCallId: 'tc-bash', intention: 'List project files' },
+				{ toolCallId: 'tc-powershell', intention: 'Inspect the directory' },
+				{ toolCallId: 'tc-view', intention: 'Understand the entry point' },
+				{ toolCallId: 'tc-blank', intention: 'Fallback' },
+				{ toolCallId: 'tc-absent', intention: undefined },
+			]);
+		});
+	}
+
 	test('derives shell tool intention from the description argument on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -1197,7 +1269,14 @@ suite('mapSessionEvents — history replay', () => {
 
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
-		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+		assert.ok(part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual({
+			intention: part.toolCall.intention,
+			toolInput: part.toolCall.toolInput,
+		}, {
+			intention: 'List files in the repo root',
+			toolInput: JSON.stringify({ command: 'ls', description: 'List files in the repo root' }, null, 2),
+		});
 	});
 
 	test('restores image function tools before the final answer', async () => {
@@ -1218,6 +1297,47 @@ suite('mapSessionEvents — history replay', () => {
 			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
 			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
 			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
+	});
+
+	test('replays UI output and binary assets without duplicating structured images', async () => {
+		const asset = { type: 'image' as const, assetId: 'asset-1', data: 'aW1hZ2U=', mimeType: 'image/png', byteLength: 5 };
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.binary_asset', data: asset },
+			{ type: 'user.message', data: { content: 'Inspect the image' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'view', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-image', success: true, result: {
+						content: 'Short result', detailedContent: 'Complete result for the UI',
+						binaryResultsForLlm: [{ type: 'image', assetId: asset.assetId, byteLength: 5, mimeType: 'image/png' }],
+					}
+				}
+			},
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-mcp', toolName: 'mcp_tool' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-mcp', success: true, result: {
+						content: 'Summary', contents: [
+							{ type: 'text', text: 'Structured text' },
+							{ type: 'image', data: asset.data, mimeType: 'image/png' },
+						],
+						binaryResultsForLlm: [{ type: 'image', data: asset.data, mimeType: 'image/png' }],
+					}
+				}
+			},
+		]));
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [part.toolCall.content] : []), [
+			[
+				{ type: ToolResultContentType.Text, text: 'Complete result for the UI' },
+				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
+			],
+			[
+				{ type: ToolResultContentType.Text, text: 'Summary' },
+				{ type: ToolResultContentType.Text, text: 'Structured text' },
+				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
+			],
 		]);
 	});
 
@@ -1255,9 +1375,10 @@ suite('mapSessionEvents — history replay', () => {
 		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{ type: 'tool.execution_start', timestamp: '2026-10-08T12:00:00.000Z', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
 			{
 				type: 'tool.execution_complete',
+				timestamp: '2026-10-08T12:00:43.500Z',
 				data: {
 					toolCallId: 'tc-image',
 					success: true,
@@ -1282,8 +1403,42 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
 			],
 			title: 'Generated image with Image Preview',
-			meta: { 'vscode.imageGeneration': imageGeneration },
+			meta: { 'vscode.imageGeneration': imageGeneration, 'vscode.toolCallDurationMs': 43_500 },
 		});
+	});
+
+	test('restores original generated images without model-facing copies', async () => {
+		const modelCopy = { type: 'image' as const, assetId: 'model-copy', data: 'bW9kZWwtY29weQ==', mimeType: 'image/png', byteLength: 10 };
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.binary_asset', data: modelCopy },
+			{ type: 'user.message', data: { content: 'Generate two images.' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'images', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'images', success: true, result: {
+						content: 'Generated images.',
+						structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png' }, { contentIndex: 1, mimeType: 'image/png' }] } },
+						contents: [
+							{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-two', mimeType: 'image/png' },
+						],
+						binaryResultsForLlm: [
+							{ type: 'image', data: 'inline-model-copy', mimeType: 'image/png' },
+							{ type: 'image', assetId: modelCopy.assetId, mimeType: modelCopy.mimeType, byteLength: modelCopy.byteLength },
+						],
+					},
+				}
+			},
+		]));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Generated images.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-one', contentType: 'image/png' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-two', contentType: 'image/png' },
+		]);
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
@@ -2128,6 +2283,60 @@ suite('mapSessionEvents — subagent routing', () => {
 	});
 });
 
+suite('getSdkToolResultContent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const contents: NonNullable<ToolExecutionCompleteResult['contents']> = [
+		{ type: 'text', text: 'Image generated successfully.' },
+		{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+		{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+	];
+	const originals = [{ contentIndex: 1, mimeType: 'image/png' }, { contentIndex: 2, mimeType: 'image/png' }];
+	const binaries: NonNullable<ToolExecutionCompleteResult['binaryResultsForLlm']> = [
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+		{ type: 'image', assetId: 'model-copy', byteLength: 100, mimeType: 'image/png' },
+		{ type: 'image', byteLength: 100, mimeType: 'image/png', omittedReason: 'too_large' },
+	];
+
+	test('keeps indexed originals in content order and preserves non-image content', () => {
+		const result: ToolExecutionCompleteResult = {
+			content: '', contents, binaryResultsForLlm: binaries,
+			structuredContent: { imageGeneration: { images: [...originals].reverse() } },
+		};
+		assert.deepStrictEqual({
+			selected: getSdkToolResultContent('image_generation', result),
+			unmodified: result.contents,
+			unmodifiedBinaries: result.binaryResultsForLlm,
+			otherTool: getSdkToolResultContent('view_image', result),
+		}, { selected: { contents: contents.slice(0, 3), binaryResultsForLlm: [] }, unmodified: contents, unmodifiedBinaries: binaries, otherTool: result });
+	});
+
+	for (const images of [
+		undefined, null, [], [null], [{ contentIndex: -1, mimeType: 'image/png' }],
+		[{ contentIndex: 1.5, mimeType: 'image/png' }], [{ contentIndex: 6, mimeType: 'image/png' }],
+		[{ contentIndex: 0, mimeType: 'image/png' }], [{ contentIndex: 1, mimeType: 'image/jpeg' }],
+		[originals[0], originals[0]], [originals[0], { contentIndex: '2', mimeType: 'image/png' }],
+	]) {
+		test(`preserves all image content for absent or invalid optional indexes (${JSON.stringify(images)})`, () => {
+			const result: ToolExecutionCompleteResult = {
+				content: '', contents, binaryResultsForLlm: binaries, structuredContent: { imageGeneration: images === undefined ? {} : { images } },
+			};
+			assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+		});
+	}
+
+	test('preserves binary-only image results without indexed originals', () => {
+		const result: ToolExecutionCompleteResult = { content: '', binaryResultsForLlm: binaries };
+		assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+	});
+
+	test('preserves a valid multi-image result without additional copies', () => {
+		assert.deepStrictEqual(getSdkToolResultContent('image_generation', {
+			content: '', contents: contents.slice(0, 3), structuredContent: { imageGeneration: { images: originals } },
+		})?.contents, contents.slice(0, 3));
+	});
+});
+
 suite('appendSdkToolResultContent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -2135,6 +2344,54 @@ suite('appendSdkToolResultContent', () => {
 	const chat = URI.parse(buildChatUri(session, 'default'));
 	const terminalDescriptor = { storage: session, session, chat, toolCallId: 'tc-1', title: 'Run Shell Command' };
 	const terminalResource = buildNonPtyShellTerminalUri(session, session, chat, 'tc-1');
+
+	test('retains detailed output unless structured text reproduces it', () => {
+		assert.deepStrictEqual([
+			getSdkToolResultText(undefined),
+			getSdkToolResultText({ content: 'Short' }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full' }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: '' }] }),
+			getSdkToolResultText({ content: 'Short', contents: [{ type: 'text', text: 'Structured' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Complete diff', contents: [{ type: 'text', text: 'Summary' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' \n\t' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' Full\n' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'First\n\nSecond', contents: [{ type: 'text', text: 'First' }, { type: 'text', text: 'Second' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Full' } }] }),
+		], [undefined, 'Short', 'Full', 'Full', 'Short', 'Complete diff', 'Full', undefined, undefined, undefined]);
+	});
+
+	test('maps structured text, audio, and inline resources', () => {
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [
+			{ type: 'text', text: 'MCP result' },
+			{ type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' },
+			{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Document body', mimeType: 'text/plain' } },
+			{ type: 'resource', resource: { uri: 'mcp:/blob', blob: 'YmxvYg==' } },
+		]);
+		assert.deepStrictEqual(content, [
+			{ type: ToolResultContentType.Text, text: 'MCP result' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YXVkaW8=', contentType: 'audio/wav' },
+			{ type: ToolResultContentType.Text, text: 'Document body' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YmxvYg==', contentType: 'application/octet-stream' },
+		]);
+	});
+
+	test('binary projection deduplicates against structured blocks but preserves carrier multiplicity', () => {
+		const content: ToolResultContent[] = [];
+		const asset = { type: 'image' as const, assetId: 'asset-1', data: 'YQ==', mimeType: 'image/png', byteLength: 1 };
+		appendSdkToolResultContent(content, [{ type: 'image', data: 'Yg==', mimeType: 'image/JPEG' }], undefined, [
+			{ type: 'image', data: 'Yg==', mimeType: 'image/jpeg' },
+			{ type: 'image', assetId: 'asset-1', byteLength: 1, mimeType: '' },
+			{ type: 'image', data: 'YQ==', mimeType: 'image/png' },
+			{ type: 'image', byteLength: 100, mimeType: 'image/png', omittedReason: 'too_large' },
+			{ type: 'image', assetId: 'missing', byteLength: 1, mimeType: 'image/png' },
+		], new Map([[asset.assetId, asset]]));
+		assert.deepStrictEqual(content, [
+			{ type: ToolResultContentType.EmbeddedResource, data: 'Yg==', contentType: 'image/JPEG' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YQ==', contentType: 'image/png' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YQ==', contentType: 'image/png' },
+		]);
+	});
 
 	for (const existingTerminal of [false, true]) {
 		for (const outputPreview of [undefined, null, '', 'preview\n']) {

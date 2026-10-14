@@ -1652,6 +1652,27 @@ suite('SessionsManagementService', () => {
 				},
 			);
 		});
+		test('a conversation hidden behind a custom view stays unread until revealed', async () => {
+			const isRead = observableValue('isRead', false);
+			const lastTurnEnd = observableValue('lastTurnEnd', new Date(1));
+			const main = { ...stubChat, isRead, lastTurnEnd };
+			const session = stubSession({ sessionId: 'hidden-cloud', providerId: 'test', isRead, mainChat: constObservable(main), chats: constObservable([main]) });
+			const readChanges: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _resource: URI, read: boolean): Promise<void> {
+					isRead.set(read, undefined);
+					readChanges.push(read);
+				}
+			}(session);
+			const { view, customViewService } = createSessionsManagementService(session, disposables, provider);
+			await view.openSession(session.resource);
+			showTestCustomView(customViewService, disposables);
+			isRead.set(false, undefined);
+			lastTurnEnd.set(new Date(2), undefined);
+			const hiddenRead = isRead.get();
+			customViewService.hideCustomView();
+			assert.deepStrictEqual({ hiddenRead, revealedRead: isRead.get(), readChanges }, { hiddenRead: false, revealedRead: true, readChanges: [true, true] });
+		});
 	});
 
 	test('archiving the active session keeps the custom view open', async () => {
@@ -5636,6 +5657,7 @@ suite('SessionsManagementService', () => {
 			stubSession({ sessionId: 'new-session', providerId: 'test' }),
 			stubSession({ sessionId: 'automation-quick-chat', providerId: 'test' }),
 			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-quick-chat-fresh', providerId: 'test' }),
 		];
 		const deleted: string[] = [];
 		const createOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
@@ -5678,10 +5700,11 @@ suite('SessionsManagementService', () => {
 
 		const firstAutomationSession = service.createAutomationSession(folderUri, { sessionTemplate });
 		const capturedConfiguration = await service.getAutomationSessionConfiguration(firstAutomationSession);
-		service.createNewSession(folderUri);
+		service.createNewSession(folderUri, { sessionTemplate });
 		service.createAutomationQuickChat({ sessionTemplate });
 		service.discardAutomationSession(firstAutomationSession);
 		service.createAutomationSession(folderUri);
+		service.createAutomationQuickChat();
 		service.discardAutomationSession();
 
 		assert.deepStrictEqual({
@@ -5695,12 +5718,13 @@ suite('SessionsManagementService', () => {
 			automationSession: undefined,
 			capturedConfiguration: { sessionTemplate },
 			createOptions: [
+				{ metadata: undefined, automationConfiguration: { sessionTemplate }, isAutomationDraft: true },
 				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
-				{ metadata: undefined },
-				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
-				{ metadata: undefined },
+				{ metadata: undefined, automationConfiguration: { sessionTemplate }, isAutomationDraft: true },
+				{ metadata: undefined, isAutomationDraft: true },
+				{ metadata: undefined, isAutomationDraft: true },
 			],
-			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
+			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement', 'automation-quick-chat-fresh'],
 		});
 	});
 

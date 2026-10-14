@@ -7,11 +7,11 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgent, type IAgentChatContext } fr
 import type { SessionMode } from '../common/agentHostSchema.js';
 import type { IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionState, URI as ProtocolURI } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentHostModelSelectionKind, AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
+import { refineModelSelectionKindForLocalModels, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryData } from './codex/codexAccountTelemetry.js';
 
 export interface IAgentHostTurnTelemetryContext {
@@ -44,7 +44,8 @@ export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, contex
 	const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 	const interactionMode = getConfiguredSessionMode(state?.config);
 	const effectiveModelId = modelId ?? agent.chats.getModel?.(URI.parse(chat), context)?.id;
-	const modelSelectionKind = getModelSelectionKind(agent.id, modelId, effectiveModelId);
+	const models = agent.models.get();
+	const modelSelectionKind = refineModelSelectionKindForLocalModels(getModelSelectionKind(agent.id, modelId, effectiveModelId), models.find(model => model.id === effectiveModelId), models);
 	const modelContext = effectiveModelId === undefined || (modelId === undefined && effectiveModelId === 'auto')
 		? { model: undefined, modelTelemetryKind: undefined }
 		: getModelTelemetryContext(agent, effectiveModelId);
@@ -52,8 +53,8 @@ export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, contex
 }
 
 function getModelSelectionKind(provider: string, modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
-	if (provider === COPILOT_CLI_AGENT_PROVIDER_ID && effectiveModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
-		return 'hydrafusion';
+	if (provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(effectiveModelId)) {
+		return effectiveModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? 'hydrafusionMax' : 'hydrafusion';
 	}
 	if (effectiveModelId === 'auto') {
 		return 'auto';

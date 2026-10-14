@@ -93,7 +93,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 		disposables.add(instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			{ variables: [createImageEntry('image.png', new Uint8Array([0x89, 0x50, 0x4E, 0x47]))] }
+			{ variables: [createImageEntry('image.png', new Uint8Array([0x89, 0x50, 0x4E, 0x47]))], sessionResource: undefined }
 		));
 
 		assert.deepStrictEqual({
@@ -114,7 +114,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -145,7 +145,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -175,7 +175,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			const handler = () => { /* handler logic */ };
@@ -203,7 +203,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -227,7 +227,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -251,7 +251,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -270,7 +270,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -290,7 +290,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables, limit: 1 }
+				{ variables, sessionResource: undefined, limit: 1 }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -305,7 +305,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			assert.ok(part.domNode!.classList.contains('chat-attached-context'), 'Should have chat-attached-context class');
@@ -321,7 +321,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: [image], modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
+				{ variables: [image], sessionResource: undefined, modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
 			));
 
 			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
@@ -342,7 +342,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: [image], modelId: 'copilot/auto' }
+				{ variables: [image], sessionResource: undefined, modelId: 'copilot/auto' }
 			));
 
 			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
@@ -385,7 +385,7 @@ suite('ChatAttachmentsContentPart', () => {
 				const fileService = instantiationService.get(IFileService) as TestFileService;
 				const part = store.add(instantiationService.createInstance(
 					ChatAttachmentsContentPart,
-					{ variables: [image] }
+					{ variables: [image], sessionResource: undefined }
 				));
 
 				mainWindow.document.body.appendChild(part.domNode!);

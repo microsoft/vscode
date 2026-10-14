@@ -130,6 +130,8 @@ async function startAgentHost(): Promise<void> {
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
+			// On-device models run only in this local utility-process host, never in agentHostServerMain.
+			localModel: { kind: 'localUtilityProcess' },
 		});
 		disposables.add(runtime);
 		agentService = runtime.agentService;

@@ -58,6 +58,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private _refreshGeneration = 0;
 	private _initializing: Promise<void> | undefined;
 	private readonly _connects = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _pendingConnects = new Map<string, Promise<void>>();
 
 	constructor(
 		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
@@ -183,12 +184,30 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
+		const pending = this._pendingConnects.get(id);
+		if (pending) {
+			await raceCancellationError(pending, token);
+			return;
+		}
+		const connection = this._connect(id, token);
+		this._pendingConnects.set(id, connection);
+		try {
+			await connection;
+		} finally {
+			if (this._pendingConnects.get(id) === connection) {
+				this._pendingConnects.delete(id);
+			}
+		}
+	}
+
+	private async _connect(id: string, token: CancellationToken): Promise<void> {
 		const watch = StopWatch.create(false);
 		let outcome: MissionControlConnectionAttemptEvent['outcome'] = 'success';
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
 		let connecting = false;
+		let joiningRecovery = false;
 		operation.add(disposableTimeout(() => {
 			timedOut = true;
 			source.cancel();
@@ -196,11 +215,25 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		try {
 			await raceCancellationError(this.initialize(), source.token);
 			const host = this._requireHost(id);
-			if (this._connects.has(id)) {
-				throw new Error(localize('missionControl.connectInProgress', "A connection to {0} is already in progress.", host.displayName ?? host.name));
-			}
 			const generation = this._generation;
 			this._connects.set(id, source);
+			const reuseConnection = async (): Promise<boolean> => {
+				const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
+				if (!connection || (connection.status.kind !== 'connected' && connection.status.kind !== 'connecting' && connection.status.kind !== 'reconnecting')) {
+					return false;
+				}
+				connecting = true;
+				joiningRecovery = true;
+				if (connection.status.kind !== 'connected') {
+					await raceCancellationError(this._remote.waitForConnection(connection.address), source.token);
+				}
+				this._checkGeneration(generation, source.token);
+				this._requireHost(id);
+				return true;
+			};
+			if (await reuseConnection()) {
+				return;
+			}
 			const environment = await raceCancellationError(this._api.getEnvironment(id, source.token), source.token);
 			const account = await raceCancellationError(this._api.getAccountKey(), source.token);
 			this._checkGeneration(generation, source.token);
@@ -211,8 +244,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			if (environment.status !== 'online') {
 				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Connecting will not start or replace this machine.", host.displayName ?? host.name));
 			}
-			const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
-			if (connection && connection.status.kind !== 'connected') {
+			if (await reuseConnection()) {
+				return;
+			}
+			if (this._remote.connections.some(connection => connection.address === cloudSandboxAddress(id))) {
 				await raceCancellationError(this._connections.disconnect(id), source.token);
 				this._checkGeneration(generation, source.token);
 				this._requireHost(id);
@@ -228,7 +263,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._log.warn(timedOut ? message : `${message}: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 			}
 			if (timedOut) {
-				if (connecting && this._connects.get(id) === source) {
+				if (connecting && !joiningRecovery && this._connects.get(id) === source) {
 					await this._connections.disconnect(id);
 				}
 				throw new Error(localize('missionControl.connectTimedOut', "Connecting to the environment timed out. Ensure its owning application is running, then reconnect."));
@@ -333,6 +368,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private _cancelConnect(id: string): void {
 		this._connects.get(id)?.cancel();
 		this._connects.deleteAndDispose(id);
+		this._pendingConnects.delete(id);
 	}
 
 	private _withdraw(): void {

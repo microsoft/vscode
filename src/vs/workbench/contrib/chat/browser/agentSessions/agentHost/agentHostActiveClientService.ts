@@ -17,12 +17,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -279,7 +277,6 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
-	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 	private readonly _scopes = new Map<string, AgentCustomizationScope>();
 	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
@@ -293,12 +290,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._allToolsObs = this._toolsService.observeTools(undefined);
 		this._allToolSetsObs = this._toolsService.toolSets;
-		this._semanticSearchEnabled = observableConfigValue(CopilotSemanticSearchEnabledSettingId, false, configurationService);
 	}
 
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
@@ -383,7 +378,6 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
 				const isCopilotSession = isCopilotAgentHostSessionType(sessionType);
-				const semanticSearchEnabled = isCopilotSession && this._semanticSearchEnabled.read(reader);
 				const semanticSearchTool = isCopilotSession
 					? tools.find(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
 					: undefined;
@@ -398,15 +392,13 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool))).map(tool => {
+				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}
 					// Published under the SDK's built-in name so the session can override it.
 					if (tool === semanticSearchTool) {
-						return semanticSearchEnabled
-							? { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME }
-							: undefined;
+						return { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME };
 					}
 					// Nothing else may claim the published name: two client tools cannot
 					// share one SDK registration.

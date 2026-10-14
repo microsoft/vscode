@@ -406,6 +406,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
+		const meta = this._toMeta(mcpDefaultCwds);
 		const result: IBundleResult = {
 			ref: {
 				type: CustomizationType.Plugin,
@@ -413,7 +414,7 @@ export class SyncedCustomizationBundler extends Disposable {
 				uri: rootUriString,
 				name: this._standalone ? STANDALONE_DISPLAY_NAME : DISPLAY_NAME,
 				nonce,
-				_meta: this._toMeta(mcpDefaultCwds),
+				...(meta ? { _meta: meta } : {}),
 				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 					kind: CustomizationEnablementKind.Global,
 					enabled: true,

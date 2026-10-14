@@ -111,6 +111,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
 		modernUI: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
 		modernUICompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
+		connected: 28 as const,
+		connectedCompact: 24 as const,
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
@@ -218,7 +220,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
 		parent.insertBefore(container, before ?? null);
 
@@ -244,7 +246,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
-		this._register(menu.onDidChange(updateVisibility));
+		this._register(menu.onDidChange(() => {
+			const wasHidden = container.classList.contains('hidden');
+			updateVisibility();
+			if (wasHidden !== container.classList.contains('hidden')) {
+				onDidChangeVisibility?.();
+			}
+		}));
 
 		return container;
 	}
@@ -400,7 +408,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	private updateEditorLayoutActionsToolbar(): void {
+	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
 			!this.editorLayoutActionsToolbarContainer ||
@@ -629,9 +637,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// hosts using modern UI tabs opt into the same aligned height.
 		const usesModernMultiTabHeight = this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs');
 		if (usesModernMultiTabHeight || this.useModernUITabs) {
-			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
-			// Connected tabs reserve one extra pixel for the separator below the gutter.
-			return height + (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) ? 1 : 0);
+			if (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
+				return (isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.connectedCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.connected) + 1;
+			}
+			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
-import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
+import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns, type IChatSensitiveEditLocation } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
@@ -335,6 +335,29 @@ const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
 	sessionMutable: true,
 });
 
+const sensitiveEditLocationsProperty = schemaProperty<readonly IChatSensitiveEditLocation[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.sensitiveEditLocations', "Sensitive Edit Locations"),
+	description: localize('agentHost.sessionConfig.sensitiveEditLocationsDescription', "Workspace-relative customization locations whose edits always require confirmation."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.sensitiveEditLocations.item', "Sensitive Edit Location"),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.path', "Path"),
+			},
+			isDirectory: {
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.isDirectory', "Directory"),
+			},
+		},
+		required: ['path', 'isDirectory'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
 /**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
@@ -389,6 +412,7 @@ export const platformSessionSchema = createSchema({
 		sessionMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
+	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
 });
 
 /**
@@ -453,6 +477,23 @@ export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 /** Shared default for the root config and mirrored workbench setting. */
 export const AgentHostByokModelsEnabledDefault = true;
+
+/**
+ * Root config key mirrored from `chat.utilitySmallModel`: a `${vendor}/${id}`
+ * model that overrides the default model for host utility flows such as title
+ * and pull request generation. Empty uses the default behavior.
+ */
+export const AgentHostUtilitySmallModelConfigKey = 'utilitySmallModel';
+
+/**
+ * Root config key mirrored from `chat.byokUtilityModelDefault`: the default
+ * utility model when the chat's selected main agent model is BYOK.
+ */
+export const AgentHostByokUtilityModelDefaultConfigKey = 'byokUtilityModelDefault';
+
+/** Values of {@link AgentHostByokUtilityModelDefaultConfigKey}; keep in sync with `BYOKUtilityModelDefault` in the chat contribution. */
+export const AgentHostByokUtilityModelDefaults = ['none', 'mainAgent', 'copilot'] as const;
+export type AgentHostByokUtilityModelDefault = typeof AgentHostByokUtilityModelDefaults[number];
 
 /**
  * Root config key forwarded from the renderer carrying the experiment-aware
@@ -521,6 +562,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
+
+/** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
+export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
 export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
@@ -607,11 +651,6 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
-
-// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
-// setting changes. When `false`, the host lists sessions from provider metadata and per-session
-// storage instead of the central catalog, and performs no catalog import or background repair.
-export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -859,6 +898,24 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
 		default: AgentHostByokModelsEnabledDefault,
 	}),
+	[AgentHostUtilitySmallModelConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.utilitySmallModel.title', "Utility Model"),
+		description: localize('agentHost.config.utilitySmallModel.description', "The `vendor/id` of a BYOK model that overrides the default model for utility flows such as title and pull request generation. Empty uses the default behavior."),
+		default: '',
+	}),
+	[AgentHostByokUtilityModelDefaultConfigKey]: schemaProperty<AgentHostByokUtilityModelDefault>({
+		type: 'string',
+		title: localize('agentHost.config.byokUtilityModelDefault.title', "BYOK Utility Model Default"),
+		description: localize('agentHost.config.byokUtilityModelDefault.description', "The default model for utility flows when the chat's selected main agent model is a BYOK model. A configured utility model takes precedence."),
+		enum: [...AgentHostByokUtilityModelDefaults],
+		enumDescriptions: [
+			localize('agentHost.config.byokUtilityModelDefault.none', "Do not use a default utility model."),
+			localize('agentHost.config.byokUtilityModelDefault.mainAgent', "Use the selected BYOK main agent model."),
+			localize('agentHost.config.byokUtilityModelDefault.copilot', "Use the default GitHub Copilot utility model."),
+		],
+		default: 'copilot',
+	}),
 	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
@@ -920,6 +977,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
+	}),
+	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
+		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server identities whose sampling requests are automatically approved in all sessions on this agent host. Approvals include known configuration and source identity, or the exact server name when no other identity is available. Remove an entry to require confirmation again. This does not approve its tool calls."),
+		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Identity") },
+		default: [],
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1003,12 +1067,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
-	}),
-	[AgentHostSessionCatalogEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.sessionCatalogEnabled.title', "Session Catalog"),
-		description: localize('agentHost.config.sessionCatalogEnabled.description', "Whether the session list is served from the central catalog. When disabled, sessions are listed from provider metadata and per-session storage instead."),
-		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

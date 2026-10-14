@@ -9,25 +9,26 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
-import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -111,6 +112,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			return r ? `${prefix}${r}` : undefined;
 		},
 		toModelDisplayName: raw => displayNames[raw],
+		isFusionModel: raw => isCopilotHydraFusionModelId(raw),
 		toResponseDetails: (raw, usage, responseModelId) => {
 			if (responseModelId) {
 				return formatTurnResponseDetails({ name: displayNames[responseModelId] ?? 'HydraFusion' }, undefined, usage);
@@ -665,7 +667,7 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg', 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
@@ -692,7 +694,7 @@ suite('stateToProgressAdapter', () => {
 
 				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
 					kind: ChatRequestOriginKind.Delegation,
-					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I', undefined, 'remote')),
 					delegationScope: 'session',
 				});
 			});
@@ -787,6 +789,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('unwraps live and restored system notification parts without changing protocol messages', () => {
+			const body = 'Shell command "Install dependencies" (shellId: 16) has exited with exit code 1. Use read_bash with shellId "16".';
+			const wrapped = `<system_notification>\n${body}\n</system_notification>`;
+
+			for (const content of [wrapped, { markdown: wrapped }]) {
+				const part = { kind: ResponsePartKind.SystemNotification, content } as const;
+				const turn = createTurn({
+					message: message(wrapped, MessageKind.SystemNotification),
+					responseParts: [part],
+				});
+				const [request, response] = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+				const liveParts = activeTurnToProgress(URI.file('/'), { ...turn, startedAt: '2026-10-12T00:00:00Z' }, undefined);
+				const displayText = (parts: readonly IChatProgress[]) => parts.map(part => part.kind === 'systemNotification' ? part.content.value : undefined);
+
+				assert.deepStrictEqual({
+					live: displayText(liveParts),
+					restored: response.type === 'response' ? displayText(response.parts) : undefined,
+					request: request.type === 'request' ? request.prompt : undefined,
+					protocolRequest: turn.message.text,
+					protocolPart: part.content,
+				}, {
+					live: [body],
+					restored: [body],
+					request: wrapped,
+					protocolRequest: wrapped,
+					protocolPart: content,
+				});
+			}
 		});
 
 		test('workspace continuation restores with a hidden request and visible transition before provider output', () => {
@@ -1045,6 +1077,48 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('successful remote MCP App preserves resource provenance in live rendering and restored history', () => {
+			const backendSession = URI.parse('custom-host-session:/opaque-session');
+			const connectionAuthority = 'remote-host';
+			const tc = createToolCallState({
+				toolName: 'github-get_me',
+				toolInput: '{}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+				_meta: {
+					mcpServerName: 'GitHub',
+					ui: { resourceUri: 'ui://github-mcp-server/get-me', channel: 'mcp://opaque-host-channel/GitHub' },
+				},
+			});
+			const live = rawToolCallStateToInvocation(tc, undefined, backendSession, connectionAuthority);
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, success: true });
+			rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+			const history = rawTurnsToHistory(backendSession, [createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+			})], 'p', connectionAuthority);
+			const response = history[1];
+			assert.ok(response.type === 'response');
+			const restored = response.parts[0];
+			assert.ok(restored.kind === 'toolInvocationSerialized');
+			const expected = {
+				originMessage: 'GitHub (MCP Server)',
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: {},
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/get-me',
+						connectionAuthority,
+						serverId: 'github-customization',
+						channel: 'mcp://opaque-host-channel/GitHub',
+					},
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(invocation => ({
+				originMessage: invocation.originMessage,
+				toolSpecificData: invocation.toolSpecificData,
+			})), [expected, expected]);
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1169,10 +1243,18 @@ suite('stateToProgressAdapter', () => {
 					}]
 				}),
 				createTurn({ usage }),
+				createTurn({ message: { ...message('Max before usage'), model: { id: 'hydrafusion-max' } } }),
+				createTurn({
+					message: { ...message('Max via Auto'), model: { id: 'auto' } },
+					usage, responseParts: [{
+						kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionModel: 'hydrafusion-max' }),
+					}]
+				}),
 			];
-			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'hydrafusion'));
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'hydrafusion-max': 'HydraFusion Max' }, 'hydrafusion'));
 			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.details), [
-				'HydraFusion', 'HydraFusion • 0 credits', 'HydraFusion • 0 credits', 'GPT-5',
+				'HydraFusion', 'HydraFusion • 0 credits', 'HydraFusion • 0 credits', 'GPT-5', 'HydraFusion Max', 'HydraFusion Max • 0 credits',
 			]);
 		});
 
@@ -1959,7 +2041,7 @@ suite('stateToProgressAdapter', () => {
 						const content: ToolResultContent[] = resourceReference
 							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
 							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
-						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
 						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
 						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
 						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
@@ -1976,7 +2058,7 @@ suite('stateToProgressAdapter', () => {
 						assert.ok(restored.kind === 'toolInvocationSerialized');
 
 						const expected = {
-							toolSpecificData: { kind: 'generatedImage' },
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
 							resultDetails: {
 								input: toolInput ?? '',
 								inputLanguage: 'json',
@@ -2041,6 +2123,59 @@ suite('stateToProgressAdapter', () => {
 
 	suite('toolCallStateToInvocation', () => {
 		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('live sampling uses standard tool confirmation with server-scoped options', () => {
+			const options = [
+				{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+				{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: ConfirmationOptionKind.Approve, group: 1 },
+				{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+			];
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'sampling-1', toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow Sampling from test-server?',
+				invocationMessage: 'MCP server test-server wants to sample a model.',
+				toolInput: '{"messages":[],"maxTokens":100}',
+				options,
+			});
+			const state = invocation.state.get();
+			assert.deepStrictEqual({
+				kind: invocation.kind,
+				state: state.type,
+				confirmation: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined,
+			}, {
+				kind: 'toolInvocation',
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				confirmation: {
+					title: 'Allow Sampling from test-server?',
+					message: 'MCP server test-server wants to sample a model.',
+					approvalReason: undefined,
+					customOptions: options,
+				},
+			});
+		});
+
+		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
+			const cases = [
+				{ toolName: 'grep', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'rg', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'web_fetch', input: 'https://example.com', parameters: { url: 'https://example.com' }, invocationMessage: 'Fetching example.com', pastTenseMessage: 'Fetched example.com' },
+			];
+			for (const { input, parameters, ...fields } of cases) {
+				const calls = [input, JSON.stringify(parameters)].map(toolInput => {
+					const running = createToolCallState({ ...fields, toolInput });
+					const live = toolCallStateToInvocation(running);
+					const completed = createCompletedToolCall({ ...fields, toolInput });
+					finalizeToolInvocation(live, completed);
+					const restored = completedToolCallToSerialized(completed, undefined, URI.file('/repo'), '');
+					return { live: [live.invocationMessage, live.pastTenseMessage], restored: [restored.invocationMessage, restored.pastTenseMessage] };
+				});
+				assert.deepStrictEqual(calls, [input, parameters].map(() => ({
+					live: [fields.invocationMessage, fields.pastTenseMessage],
+					restored: [fields.invocationMessage, fields.pastTenseMessage],
+				})));
+			}
+		});
 
 		test('preserves deterministic tool summaries in live and restored host calls', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
@@ -2631,6 +2766,26 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
 
+		for (const toolInput of ['ls -la\nwc -l', JSON.stringify({ command: 'ls -la\nwc -l', description: 'Inspect the workspace' })]) {
+			test(`terminal command input supports ${toolInput.startsWith('{') ? 'JSON arguments' : 'plain commands'} in live state and history`, () => {
+				const fields = {
+					toolName: 'bash',
+					toolInput,
+					intention: 'Understand the project layout',
+					_meta: { toolKind: 'terminal' },
+				};
+				const live = toolCallStateToInvocation(createToolCallState(fields)).toolSpecificData;
+				const history = completedToolCallToSerialized(createCompletedToolCall(fields), undefined, URI.file('/repo'), '').toolSpecificData;
+				assert.deepStrictEqual([live, history].map(data => data?.kind === 'terminal' ? {
+					command: data.commandLine.original,
+					intention: data.intention,
+				} : undefined), [
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+				]);
+			});
+		}
+
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
 				toolInput: 'ls -la',
@@ -2861,13 +3016,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData, undefined);
 		});
 
-		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
-			// A background subagent's `subagent_started` can arrive after its
-			// spawning tool call has already completed, so the running-only
-			// discovery content update is dropped and the child chat resource
-			// never lands on the tool call. The chat resource must still be
-			// derivable from the session + tool call id so the inline subagent
-			// pill remains linkable.
+		test('does not derive a subagent chatResource when neither the tool call nor discovery content carries one', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Map aux bar + editor part creation' },
 			});
@@ -2875,7 +3024,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
+				assert.strictEqual(invocation.toolSpecificData.chatResource, undefined);
 			}
 		});
 
@@ -3946,6 +4095,37 @@ suite('stateToProgressAdapter', () => {
 				}, {
 					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
 					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();
@@ -5256,6 +5436,22 @@ suite('stateToProgressAdapter', () => {
 				concrete: 'Claude Sonnet 4.5 · 1x',
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
+			});
+		});
+	});
+
+	suite('turnToResultMetadata', () => {
+		test('records the model Auto routed to, not the last model call, and nothing for unrouted turns', () => {
+			assert.deepStrictEqual({
+				routed: turnToResultMetadata(createTurn({ usage: { model: 'gpt-5.4-mini', _meta: { autoModeResolved: { chosenModel: 'claude-sonnet-4.6' } } } })),
+				notRouted: turnToResultMetadata(createTurn({ usage: { model: 'claude-opus-4.8' } })),
+				noUsage: turnToResultMetadata(createTurn()),
+				noTurn: turnToResultMetadata(undefined),
+			}, {
+				routed: { resolvedModel: 'claude-sonnet-4.6' },
+				notRouted: undefined,
+				noUsage: undefined,
+				noTurn: undefined,
 			});
 		});
 	});

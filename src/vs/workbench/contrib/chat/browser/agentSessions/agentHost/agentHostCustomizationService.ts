@@ -21,7 +21,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentCustomization, ROOT_STATE_URI, StateComponents, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -78,6 +78,9 @@ export interface IAgentHostCustomizationService {
 
 	/** The ordered roots in the client's URI space for filesystem access. */
 	getClientWorkingDirectoryUris(sessionResource: URI): readonly URI[];
+
+	/** Returns the host-advertised chat URI for the selected client chat resource. */
+	getBackendChatResource?(sessionResource: URI): URI | undefined;
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
@@ -180,6 +183,15 @@ export interface IAgentHostCustomizationTarget {
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
+interface IMcpAutoAuthenticationAttempt {
+	readonly sessionResource: URI;
+	readonly serverId: string;
+	readonly challenge: string;
+	tokenForwarded: boolean | undefined;
+	restarted: boolean;
+	rejected: boolean;
+}
+
 export abstract class AbstractAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
 
@@ -196,7 +208,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
-	private readonly _mcpAutoAuthentication = new Map<string, { readonly challenge: string; authenticated: boolean | undefined }>();
+	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -291,23 +303,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private _isAutoAuthenticatingMcpServer(sessionResource: URI, target: IAgentHostCustomizationTarget, server: McpServerCustomization): boolean {
 		const key = `${sessionResource.toString()}\n${server.id}`;
 		const state = server.state;
+		let entry = this._mcpAutoAuthentication.get(key);
+		if (entry) {
+			this._updateMcpAutoAuthenticationAttempt(key, entry, state);
+			entry = this._mcpAutoAuthentication.get(key);
+		}
 		if (state.kind !== McpServerStatus.AuthRequired) {
-			this._mcpAutoAuthentication.delete(key);
 			return false;
 		}
-		// Every input the silent attempt uses, so republished auth metadata gets a fresh attempt.
-		const challenge = JSON.stringify([
-			state.reason,
-			state.resource.resource,
-			[...(state.resource.authorization_servers ?? [])].sort(),
-			[...(state.resource.scopes_supported ?? [])].sort(),
-			[...(state.requiredScopes ?? [])].sort(),
-			state.oauthClient?.clientId,
-			state.oauthClient?.clientSecret,
-		]);
-		let entry = this._mcpAutoAuthentication.get(key);
+		const challenge = this._mcpAuthenticationChallenge(state);
 		if (!entry || entry.challenge !== challenge) {
-			entry = { challenge, authenticated: undefined };
+			entry = { sessionResource, serverId: server.id, challenge, tokenForwarded: undefined, restarted: false, rejected: false };
 			this._mcpAutoAuthentication.set(key, entry);
 			const currentEntry = entry;
 			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
@@ -317,12 +323,57 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return false;
 			}).then(result => {
 				if (!this._store.isDisposed && this._mcpAutoAuthentication.get(key) === currentEntry) {
-					currentEntry.authenticated = result;
+					currentEntry.tokenForwarded = result;
 					this._fireCustomizationsChanged();
 				}
 			});
 		}
-		return entry.authenticated !== false;
+		return !entry.rejected && entry.tokenForwarded !== false;
+	}
+
+	private _reconcileMcpAutoAuthenticationAttempts(): void {
+		for (const [key, entry] of this._mcpAutoAuthentication) {
+			const target = this._resolveTarget(entry.sessionResource);
+			if (!target) {
+				continue;
+			}
+			const server = this._findMcpServer(target.customizations, entry.serverId);
+			if (server) {
+				this._updateMcpAutoAuthenticationAttempt(key, entry, server.state);
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
+	}
+
+	private _updateMcpAutoAuthenticationAttempt(key: string, entry: IMcpAutoAuthenticationAttempt, state: McpServerState): void {
+		if (state.kind === McpServerStatus.AuthRequired) {
+			if (!entry.restarted) {
+				return;
+			}
+			if (entry.challenge === this._mcpAuthenticationChallenge(state)) {
+				entry.rejected = true;
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		} else if (state.kind === McpServerStatus.Starting && entry.tokenForwarded !== false) {
+			entry.restarted = true;
+		} else {
+			this._mcpAutoAuthentication.delete(key);
+		}
+	}
+
+	private _mcpAuthenticationChallenge(state: Extract<McpServerState, { kind: McpServerStatus.AuthRequired }>): string {
+		return JSON.stringify([
+			state.reason,
+			state.resource.resource,
+			state.resource.resource_name,
+			[...(state.resource.authorization_servers ?? [])].sort(),
+			[...(state.resource.scopes_supported ?? [])].sort(),
+			[...(state.requiredScopes ?? [])].sort(),
+			state.oauthClient?.clientId,
+			state.oauthClient?.clientSecret,
+		]);
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -454,6 +505,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	protected _fireCustomizationsChanged(): void {
+		this._reconcileMcpAutoAuthenticationAttempts();
 		this._onDidChangeCustomizations.fire();
 	}
 
@@ -739,6 +791,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		if (!target) {
 			return false;
 		}
+
 		const entry = this._ensureSessionStateSubscription(sessionResource, target);
 		if (!entry || entry.sub.value !== undefined) {
 			return !!entry && hasSessionSnapshot(entry.sub);
@@ -749,6 +802,19 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
 		await raceCancellation(entry.readiness, token);
 		return hasSessionSnapshot(entry.sub);
+	}
+
+	getBackendChatResource(sessionResource: URI): URI | undefined {
+		const owningSession = sessionResource.with({ fragment: null });
+		const target = this._resolveSessionTarget(owningSession);
+		const entry = target ? this._ensureSessionStateSubscription(owningSession, target) : undefined;
+		if (!entry) {
+			return undefined;
+		}
+		const value = entry.sub.value;
+		const state = value && !(value instanceof Error) ? value : entry.sub.verifiedValue;
+		const resource = state && getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID, state.defaultChat);
+		return resource ? URI.parse(resource.toString()) : undefined;
 	}
 
 	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {

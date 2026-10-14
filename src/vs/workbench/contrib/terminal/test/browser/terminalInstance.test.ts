@@ -34,7 +34,7 @@ import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
-import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from './xterm/xtermTestUtils.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
@@ -330,6 +330,27 @@ suite('Workbench - TerminalInstance', () => {
 			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
 
 			strictEqual(workspaceTrustRequestService.requestCount, 1);
+			instance.dispose();
+		});
+
+		test('reuseTerminal requests workspace trust and does not relaunch when trust is denied', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await instance.reuseTerminal({ executable: '/usr/bin/zsh' }, true);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0
+			});
 			instance.dispose();
 		});
 

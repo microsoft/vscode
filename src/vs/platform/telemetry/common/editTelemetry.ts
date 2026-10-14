@@ -17,10 +17,14 @@ export interface IEditSourcesDetailsTelemetryData {
 	extensionVersion: string | undefined;
 	modelId: string | undefined;
 	autoTier?: string;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	fusionModel?: string;
 	trigger: EditTelemetryTrigger;
 	languageId: string | undefined;
 	statsUuid: string;
 	conversationId: string | undefined;
+	/** Owning Agent Host session ID; unlike conversationId, never the chat's persistence-resource ID. */
+	agentSessionId?: string;
 	/** Hashed originating Agent Host chat ID, scoped under its session rather than globally; omitted when provenance is unknown. */
 	chatSessionId?: string;
 	requestId: string | undefined;
@@ -34,17 +38,19 @@ export interface IEditSourcesDetailsTelemetryData {
 type EditSourcesDetailsTelemetryClassification = {
 	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
 	owner: 'hediet';
-	comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 source groups per session, subdivided by up to five Auto tier values, with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
+	comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 source groups per session, subdivided by up to five Auto tier values and the HydraFusion model (hydrafusion or hydrafusion-max), with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either longterm, 10minFocusWindow, or 20minFocusWindow.' };
 	sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
-	sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with extensionId, extensionVersion, modelId and autoTier removed.' };
+	sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with extensionId, extensionVersion, modelId, autoTier and fusionModel removed.' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The LLM id.' };
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The canonical Auto tier (efficiency, balance, intelligence or fast), when known for a Copilot Auto edit.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) that routed the edit, as attributed by the runtime. Omitted when the edit was not produced by HydraFusion.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the editing window for which stats are reported. Agent Host source rows are further separated by conversationId and chatSessionId.' };
+	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the editing window for which stats are reported. Agent Host source rows are further separated by agentSessionId, conversationId and chatSessionId.' };
 	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat edit session identifier. Agent Host sources retain the existing session/resource identifier for compatibility.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The owning Agent Host session identifier. Omitted for non-Agent Host sources and older markers without owner provenance.' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed originating Agent Host chat identifier, scoped under its session rather than globally and matching core Agent Host telemetry. Omitted when chat provenance is unknown.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The process or subsystem that observed the edit source.' };

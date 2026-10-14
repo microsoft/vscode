@@ -6,6 +6,7 @@
 import { vEnum } from '../../../base/common/validation.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentHostProviderMilestone, AgentHostProviderOperation, IAgentProviderOperationTiming } from './agentHostProviderTiming.js';
 
 export const enum AgentHostLaunchKind {
 	VSCodeMainProcess = 'vscode_main_process',
@@ -116,7 +117,7 @@ export type AgentHostProviderSendStage =
 	| 'refresh'
 	/** Per-turn preparation after the session is ready and before the SDK send. */
 	| 'turnPrepare'
-	/** From the SDK send until the first visible progress (model latency). */
+	/** From the SDK send until the first visible progress, including runtime and model waiting. */
 	| 'modelResponse';
 
 /**
@@ -125,6 +126,8 @@ export type AgentHostProviderSendStage =
  */
 export interface IAgentProviderSendStageRecorder {
 	mark(stage: AgentHostProviderSendStage): void;
+	startOperation?(operation: AgentHostProviderOperation): IAgentProviderOperationTiming | undefined;
+	markMilestone?(milestone: AgentHostProviderMilestone): void;
 }
 
 export interface IAgentHostClientTelemetryContext {

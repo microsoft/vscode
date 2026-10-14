@@ -15,11 +15,13 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, AgentHostCodexMultiRootEnable
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { driveChatTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { AgentHostChatUrisCapabilityMetaKey } from '../../../../common/meta/vscode/agentHostSessionUrisMeta.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 interface IWorkspaceSession {
 	readonly session: string;
@@ -43,6 +45,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: `${prefix}-${config.provider}`,
 			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: { [AgentHostChatUrisCapabilityMetaKey]: true },
 		});
 		await context.client.call('authenticate', {
 			channel: ROOT_STATE_URI,
@@ -97,7 +100,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			});
 			context.createdSessions.push(session);
 			await sessionState(session);
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			await chatState(chat);
 			await run({ session, chat, workspace, primary, secondary, replacement });
 		} finally {
@@ -116,7 +119,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 	}
 
 	async function createPeer(session: string, id: string, workingDirectories?: readonly URI[]): Promise<string> {
-		const chat = buildChatUri(session, id);
+		const chat = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: session,
 			chat,
@@ -391,7 +394,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			await withSession('fork-folder', async session => {
 				const peer = await createPeer(session.session, 'source', [session.secondary]);
 				await turn(peer, 'source-turn', 'Reply exactly "ready".');
-				const fork = buildChatUri(session.session, 'fork');
+				const fork = newTestChatUri();
 				await context.client.call('createChat', {
 					channel: session.session,
 					chat: fork,

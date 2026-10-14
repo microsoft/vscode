@@ -27,6 +27,7 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
+import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { IChatCollapsibleIODataPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -49,6 +50,39 @@ suite('ChatResourceGroupWidget', () => {
 				}
 				return Disposable.None;
 			},
+		});
+	});
+
+	test('saving separate generated images uses hashed names without changing their resource URIs', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
+		await fileService.createFolder(destination);
+		const suggested: string[] = [];
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async defaultFilePath() { return destination; }
+			override async pickFileToSave(resource: URI) { suggested.push(resource.path); return resource; }
+		}());
+		const command = CommandsRegistry.getCommand('chat.toolOutput.save')!;
+		for (const [index, toolCallId] of ['image-call-1', 'image-call-2'].entries()) {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: `/source-${index}/generated-image.png` });
+			await fileService.createFolder(dirname(uri));
+			await fileService.writeFile(uri, VSBuffer.fromString(`image-${index}`));
+			const parts = getGeneratedImageResultParts({ input: '', output: [{ type: 'ref', uri, mimeType: 'image/png' }] }, URI.parse('agent-host://local/session'), toolCallId);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, { parts }));
+		}
+		const saved = await fileService.resolve(destination);
+		const contents = await Promise.all((saved.children ?? []).map(async file => ({
+			name: file.name,
+			value: (await fileService.readFile(file.resource)).value.toString(),
+		})));
+		assert.deepStrictEqual({ suggested, contents: contents.sort((a, b) => a.name.localeCompare(b.name)) }, {
+			suggested: ['/saved/generated-image-3c41e71d9ac9.png', '/saved/generated-image-dc4b1335ceec.png'],
+			contents: [
+				{ name: 'generated-image-3c41e71d9ac9.png', value: 'image-0' },
+				{ name: 'generated-image-dc4b1335ceec.png', value: 'image-1' },
+			],
 		});
 	});
 

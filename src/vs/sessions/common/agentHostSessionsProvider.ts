@@ -225,6 +225,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -271,6 +273,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
 	/** Last sandbox enablement successfully applied by the host. */
 	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
+	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they

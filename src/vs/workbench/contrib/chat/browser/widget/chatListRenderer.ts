@@ -75,6 +75,7 @@ import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getCompactCodicon } from '../chatIcons.js';
+import { stripSystemNotificationWrapper } from '../chatRequestText.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
@@ -122,6 +123,7 @@ import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeConten
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatImageGenerationBatchPart, getImageGenerationBatch } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -1994,7 +1996,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
-				label.textContent = localize('systemNotificationDivider', "System Notification");
+				label.textContent = localize('systemNotificationDivider', "System notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");
 			} else {
 				label.textContent = localize('steeringDivider', "Steering");
@@ -2287,13 +2289,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return {
 					kind: 'working',
 					content: new MarkdownString().appendText(this.getConfirmationPendingLabel(Math.max(1, pendingConfirmationCount))),
-					isActive: true,
-					announce: true,
-				};
-			case 'authentication':
-				return {
-					kind: 'working',
-					content: new MarkdownString().appendText(localize('persistentProgress.authenticationRequired', "Authentication required")),
 					isActive: true,
 					announce: true,
 				};
@@ -2632,13 +2627,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const parts: IChatContentPart[] = [];
 		if (!isStickyScrollRow) {
-			const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
+			const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.sessionResource, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
 			if (explicitImageAttachmentsPart?.domNode) {
 				explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
 				templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitImageAttachmentsPart);
 			}
-			const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.contentReferences, element.modelId, templateData) : undefined;
+			const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.sessionResource, element.contentReferences, element.modelId, templateData) : undefined;
 			if (explicitFileAttachmentsPart?.domNode) {
 				explicitFileAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-file-attachments');
 				explicitFileAttachmentsPart.domNode.style.display = 'flex';
@@ -2649,7 +2644,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
 			}
 			if (otherVariables.length) {
-				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
+				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.sessionResource, element.contentReferences, element.modelId, templateData);
 				if (otherAttachmentsPart.domNode) {
 					templateData.value.appendChild(otherAttachmentsPart.domNode);
 				}
@@ -3033,7 +3028,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const label = element.systemInitiatedLabel ?? element.messageText;
+		const label = stripSystemNotificationWrapper(element.systemInitiatedLabel ?? element.messageText);
 		const notificationPart = this.instantiationService.createInstance(
 			ChatSystemNotificationContentPart,
 			{ kind: 'systemNotification', content: new MarkdownString(label) },
@@ -4016,6 +4011,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
+		const imageBatchIds = new Set(getImageGenerationBatch(isResponseVM(element) ? element.response.value : contentToRender).map(tool => tool.toolCallId));
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
@@ -4025,8 +4021,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& this.isPersistentProgressEnabled()
 				&& this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose
 				&& this.shouldGroupToolInvocation(contentToRender, i, element);
+			const groupsImageTool = renderedPart instanceof ChatToolInvocationPart
+				&& (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
+				&& imageBatchIds.has(content.toolCallId);
 
-			if (promotesStandaloneTool || groupsStandaloneTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
+			if (promotesStandaloneTool || groupsStandaloneTool || groupsImageTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
 			} else {
 				// null -> no change
@@ -4795,6 +4794,32 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex, batchedSubagentParts);
 		}
 
+		if (isResponseVM(context.element) && isImageGenerationToolInvocation(toolInvocation)) {
+			const response = context.element;
+			const batch = getImageGenerationBatch(response.response.value);
+			if (batch.some(tool => tool.toolCallId === toolInvocation.toolCallId)) {
+				this.finalizeCurrentThinkingPart(context, templateData);
+				if (batch[0].toolCallId !== toolInvocation.toolCallId) {
+					return this.renderNoContent(other => other === toolInvocation
+						&& getImageGenerationBatch(response.response.value).some((tool, index) => index > 0 && tool === other));
+				}
+				const batchPart = this.instantiationService.createInstance(ChatImageGenerationBatchPart, toolInvocation, context, response, (tool, blockIndex) => {
+					const part = this.instantiationService.createInstance(ChatToolInvocationPart, tool, { ...context, inImageGenerationBatch: true }, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, blockIndex);
+					part.addDisposable(part.onDidChangeHeight(() => {
+						this.fireItemHeightChange(templateData);
+						this.updateWorkingProgress(templateData);
+					}));
+					this.handleRenderedCodeblocks(response, part, blockIndex, templateData);
+					return part;
+				});
+				batchPart.addDisposable(batchPart.onDidChangeHeight(() => {
+					this.fireItemHeightChange(templateData);
+					this.updateWorkingProgress(templateData);
+				}));
+				return batchPart;
+			}
+		}
+
 		if (this.getCollapsedToolsMode() === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
@@ -5455,9 +5480,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return this.instantiationService.createInstance(ChatTurnPillsContentPart, content, context);
 	}
 
-	private renderAttachments(variables: readonly IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {
+	private renderAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {
 		return this.instantiationService.createInstance(ChatAttachmentsContentPart, {
 			variables,
+			sessionResource,
 			contentReferences,
 			modelId,
 			resolvedModelId,
@@ -5888,7 +5914,7 @@ export function endsWithCompletedQuestionInteraction(parts: readonly IChatRender
 		&& IChatToolInvocation.isComplete(lastPart);
 }
 
-export type PersistentProgressState = 'active' | 'question' | 'confirmation' | 'planReview' | 'authentication' | 'imageGeneration';
+export type PersistentProgressState = 'active' | 'question' | 'confirmation' | 'planReview' | 'imageGeneration';
 
 /** Tool states that block the response on the user rather than on the model. */
 export function isBlockingToolState(state: IChatToolInvocation.StateKind): boolean {
@@ -5922,12 +5948,6 @@ export function getPersistentProgressState(parts: readonly IChatRendererContent[
 		|| parts.some(part => part.kind === 'elicitation2' && part.state.get() === ElicitationState.Pending)
 		|| parts.some(part => part.kind === 'confirmation' && !part.isUsed)) {
 		return 'confirmation';
-	}
-	// MCP sign-in prompts stop describing the current activity once later content is rendered.
-	const lastPart = findLastMeaningfulPart(parts.filter(isParentFlowContent));
-	if ((lastPart?.kind === 'mcpAuthenticationRequired' && !lastPart.isUsed && lastPart.servers.get().length > 0)
-		|| parts.some(part => part.kind === 'toolInvocation' && part.presentation !== 'hidden' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
-		return 'authentication';
 	}
 	if (getWorkingProgressRelevantParts(parts).some(part => part.kind === 'toolInvocation' && isImageGenerationToolInProgress(part))) {
 		return 'imageGeneration';

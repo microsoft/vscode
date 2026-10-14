@@ -44,8 +44,15 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasInfo,
+	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
+	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationRequest,
+	IAgentCustomizationInstallationReview,
+	IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationMarketplaceSearchResult,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -56,6 +63,7 @@ import {
 	IAgentHostSocketInfo,
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
+	IAgentPluginInstallRequest,
 	IAgentPluginUninstallRequest,
 	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
@@ -484,6 +492,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().removeSessionArtifact(session, artifactId);
 	}
 
+	stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		return this._requireClient().stopBackgroundWork(chat, id);
+	}
+
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
 	}
@@ -508,8 +520,60 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().refreshCopilotConnectorSessions();
 	}
 
-	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
-		return this._getManagementService().uninstallPlugin(provider, request);
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
+	}
+
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
+	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().installPlugin(provider, request, session, chat);
+	}
+
+	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
+	}
+
+	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
+	}
+
+	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
+	}
+
+	removePluginMarketplace(provider: string, session: URI, name: string, force?: boolean, chat?: URI) {
+		return this._getManagementService().removePluginMarketplace(provider, session, name, force, chat);
+	}
+
+	refreshPluginMarketplaces(provider: string, session: URI, name?: string, chat?: URI) {
+		return this._getManagementService().refreshPluginMarketplaces(provider, session, name, chat);
+	}
+
+	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._getManagementService().searchCustomizationMarketplace(provider, session, request);
+	}
+
+	listCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().listCustomizationInstallations(provider, session);
+	}
+
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
+	}
+
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	}
+
+	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().recoverCustomizationInstallations(provider, session);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -627,8 +691,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind, chat);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		await this._getManagementService().cancelDebugLogs?.(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

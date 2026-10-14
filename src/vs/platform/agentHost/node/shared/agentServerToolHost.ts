@@ -5,7 +5,7 @@
 
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -226,9 +226,9 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	advertise(sessionOrChatUri: URI): void {
-		const sessionUri = isAhpChatChannel(sessionOrChatUri) ? parseRequiredSessionUriFromChatUri(sessionOrChatUri) : sessionOrChatUri;
+		const sessionUri = isAhpChatChannel(sessionOrChatUri) ? this._stateManager.getChatOwner(sessionOrChatUri) : sessionOrChatUri;
 		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
-		if (!this._stateManager.getSessionState(sessionUri)) {
+		if (!sessionUri || !this._stateManager.getSessionState(sessionUri)) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
@@ -268,7 +268,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 
 	private _executionContext(chatUri: URI): IServerToolExecutionContext {
 		return {
-			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
+			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
 			turnId: this._stateManager.getActiveTurnId(chatUri),
 		};
@@ -279,7 +279,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		const sessionUri = this._stateManager.requireChatOwner(chatUri);
 		if (group.definitions.find(definition => definition.name === toolName)?.topLevelChatOnly && isSubagentSession(sessionUri)) {
 			return false;
 		}

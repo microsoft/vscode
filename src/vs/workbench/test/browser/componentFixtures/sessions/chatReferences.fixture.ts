@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -29,9 +29,10 @@ import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitH
 import { ISessionArtifact, SessionArtifactKind } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
+import { SessionCustomizationKind } from '../../../../contrib/chat/common/sessionChatCustomizations.js';
 
 const pullRequests: readonly IGitHubPullRequest[] = [{
 	number: 335583,
@@ -121,25 +122,41 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
-type Scenario = 'single' | 'collections' | 'copied' | 'mixed';
+type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'customizations';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
 	const { container } = ctx;
 	const authored = gitHubArtifacts(true);
-	const entries = scenario === 'single'
+	const referenceList = scenario === 'cold' || scenario === 'resolved';
+	const dedicatedCollection = scenario === 'collections' || scenario === 'copied' || scenario === 'pullRequests';
+	const resourcePreview = scenario === 'mixed' || scenario === 'file' || scenario === 'image' || scenario === 'website' || scenario === 'customizations';
+	const entries = scenario === 'customizations' ? [] : scenario === 'single'
 		? [authored[0], authored[2], resources(true)[1]]
-		: scenario === 'collections' || scenario === 'copied'
-			? authored
-			: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
-	const session = createMockSession({ artifacts: entries, removableArtifacts: true });
+		: referenceList
+			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
+			: dedicatedCollection
+				? authored
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+	const session = createMockSession({
+		artifacts: entries, removableArtifacts: true,
+		customizations: scenario === 'customizations' ? [
+			{ id: 'skill', kind: SessionCustomizationKind.Skill, name: 'Review', uri: URI.file('/repo/.github/skills/review/SKILL.md') },
+			{ id: 'instructions', kind: SessionCustomizationKind.Instruction, name: 'Coding guidelines', uri: URI.file('/repo/.github/instructions/coding.instructions.md') },
+		] : undefined,
+	});
 	const result = dom.$('div', { role: 'status', 'aria-live': 'polite' });
 	result.style.cssText = 'position:absolute;bottom:16px;left:24px;right:24px;font-size:12px;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
 	result.textContent = 'Copy, open and remove actions affect fixture data only. Reload to reset.';
 	const report = (message: string) => { result.textContent = message; };
 	const removeArtifact = session.removeArtifact;
 	session.removeArtifact = id => { removeArtifact(id); report(`Removed fixture record: ${id}`); };
+	const pendingRefresh = new DeferredPromise<void>();
+	let refreshedResources = 0;
+	ctx.disposableStore.add(toDisposable(() => pendingRefresh.complete()));
 	const workbenchGitHub = createFixtureWorkbenchGitHubService({
 		delayMs: 120,
+		beforeRefresh: scenario === 'cold' ? () => pendingRefresh.p : undefined,
+		onDidRefresh: () => refreshedResources++,
 		pullRequests: pullRequests.map(pr => ({
 			...pr,
 			repositoryNameWithOwner: 'microsoft/vscode',
@@ -158,8 +175,8 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
 		renderPills(ctx, session, {
-			height: scenario === 'mixed' ? '600px' : scenario === 'collections' || scenario === 'copied' ? '280px' : '420px',
-			width: scenario === 'single' ? '660px' : scenario === 'collections' || scenario === 'copied' ? '1200px' : '1080px',
+			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '280px' : '420px',
+			width: referenceList ? '700px' : scenario === 'single' ? '660px' : '1200px',
 			popupPlacement: 'above',
 			prepareServices: services => {
 				const hovers = services.get(IHoverService);
@@ -231,29 +248,54 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	}
 	hint.textContent = scenario === 'single'
 		? 'Hover for details; right-click a pill for copy/remove actions.'
-		: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
+		: referenceList
+			? scenario === 'cold' ? 'Cold cache: IDs stay in front while titles are pending.' : 'Resolved titles: IDs stay in the same leading position.'
+			: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
 	const toolbar = container.querySelector<HTMLElement>('.session-chat-input-toolbar')!;
-	toolbar.style.top = scenario === 'single' ? '52px' : scenario === 'mixed' ? '450px' : `${toolbar.offsetTop}px`;
+	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : `${toolbar.offsetTop}px`;
 	toolbar.style.bottom = 'auto';
 
 	// Icon fonts must be ready before the dropdown measures row widths.
 	await Promise.all(Array.from(dom.getWindow(container).document.fonts, font => font.load()));
+	if (referenceList || scenario === 'pullRequests') {
+		const collection = scenario === 'pullRequests' ? 'Pull Requests' : 'References';
+		Array.from(container.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')).find(button => button.textContent?.includes(collection))!.click();
+		await waitForFixtureCondition(() => {
+			const rows = Array.from(container.querySelectorAll<HTMLElement>('.monaco-list-row.chat-pill-reference'));
+			return rows.length === (scenario === 'pullRequests' ? pullRequests.length : entries.length) && rows.every(row => {
+				const title = row.querySelector<HTMLElement>('.title');
+				const badge = row.querySelector<HTMLElement>('.action-item-badge');
+				return title && badge && badge.nextElementSibling === title
+					&& (scenario === 'cold' ? title.textContent === 'Issue' || title.textContent === 'Pull Request' : [...pullRequests, ...issues].some(item => item.title === title.textContent));
+			});
+		}, `The ${scenario} reference list did not reach its ID-first state`);
+	}
 	if (!ctx.isInteractive) {
 		if (scenario === 'single') {
 			container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			await waitForPreview(container, '.sessions-pr-hover');
-		} else {
-			const label = scenario === 'collections' || scenario === 'copied' ? 'Issues' : 'References';
+		} else if (!referenceList && scenario !== 'pullRequests') {
+			const label = scenario === 'collections' || scenario === 'copied' ? 'Issues' : scenario === 'customizations' ? 'Customizations' : 'References';
 			Array.from(container.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')).find(button => button.textContent?.includes(label))!.click();
-			if (scenario === 'mixed') {
-				await waitForPreview(container, '.monaco-list-row[aria-label^="Open Show rich GitHub"] .action-item-badge');
+			if (resourcePreview && scenario !== 'customizations') {
+				await waitForFixtureCondition(() => refreshedResources >= 2, 'GitHub reference metadata did not finish prefetching');
+				await waitForPreview(container, '.monaco-list-row[aria-label^="#335448, Open Issue:"] .action-item-badge');
 			}
-			const row = await waitForPreview(container, scenario === 'collections' || scenario === 'copied'
-				? '.monaco-list-row[aria-label^="Open Issue #337045:"]'
-				: '.monaco-list-row[aria-label^="Open Commit abc1234"]');
+			const preview = scenario === 'collections' || scenario === 'copied'
+				? { row: '.monaco-list-row[aria-label^="#337045, Open Issue:"]', content: '.sessions-issue-hover' }
+				: scenario === 'image'
+					? { row: '.monaco-list-row[aria-label^="Open reference-layout.svg"]', content: '.chat-pill-image-preview.loaded' }
+					: scenario === 'file'
+						? { row: '.monaco-list-row[aria-label^="Open plan.md"]', content: '.chat-pill-location-hover' }
+						: scenario === 'website'
+							? { row: '.monaco-list-row[aria-label^="Open VS Code documentation"]', content: '.chat-pill-location-hover' }
+							: scenario === 'customizations'
+								? { row: '.monaco-list-row[aria-label^="Coding guidelines"]', content: '.chat-pill-location-hover' }
+								: { row: '.monaco-list-row[aria-label^="Open Commit abc1234"]', content: '.sessions-commit-hover' };
+			const row = await waitForPreview(container, preview.row);
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
-			await waitForPreview(container, scenario === 'collections' || scenario === 'copied' ? '.sessions-issue-hover' : '.sessions-commit-hover');
+			await waitForPreview(container, preview.content);
 			if (scenario === 'copied') {
 				const copyAction = await waitForPreview(row, '[aria-label="Copy issue URL"]');
 				copyAction.click();
@@ -290,7 +332,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Collections: defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'collections'),
-		expectedVisualDescriptions: ['The Issues collection opens above the toolbar with one long-title issue preview beside it. The issue number and actions remain visible. Interactive previews start at rest.'],
+		expectedVisualDescriptions: ['The Issues collection uses the same ID-first rows as References and opens above the toolbar with one long-title issue preview beside it. The issue number and actions remain visible. Interactive previews start at rest.'],
+	}),
+	'Pull Request Collection': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'pullRequests'),
+		expectedVisualDescriptions: ['The open Pull Requests collection uses the same leading number, resolving-title slot, and trailing copy/remove actions as the Issues and References collections.'],
 	}),
 	'Copied Feedback': defineComponentFixture({
 		virtualTime: { enabled: false },
@@ -301,5 +348,35 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'mixed'),
 		expectedVisualDescriptions: ['The References dropdown shows one rich commit preview with author, date and hash actions. Artifacts remain separate. Interactive previews start at rest and also support GitHub, image, file, website, setting and non-GitHub entries.'],
+	}),
+	'Cold Reference Titles': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'cold'),
+		expectedVisualDescriptions: ['The open References list keeps each issue or pull request number before a neutral title while metadata is pending. No Loading labels appear, and copy/remove actions remain available.'],
+	}),
+	'Resolved Reference Titles': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'resolved'),
+		expectedVisualDescriptions: ['The same References list shows resolved GitHub titles with each number still in the leading position. Long titles truncate while numbers and copy/remove actions remain visible.'],
+	}),
+	'File Reference Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'file'),
+		expectedVisualDescriptions: ['A file reference shows its relative path in the same padded popup shell used by rich references, with shared row actions and keyboard navigation.'],
+	}),
+	'Image Reference Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'image'),
+		expectedVisualDescriptions: ['An image reference shows its decoded local image and path in the shared popup shell. The image body stays narrower while using the same frame and actions.'],
+	}),
+	'Website Reference Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'website'),
+		expectedVisualDescriptions: ['A website reference shows its URL in the shared popup shell rather than a resource-specific popup container.'],
+	}),
+	'Customization Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'customizations'),
+		expectedVisualDescriptions: ['A customization displays its relative instruction-file path using the same text popup body as file and URL references.'],
 	}),
 });

@@ -17,10 +17,10 @@ import type { ICompletedSpanData } from '../../../../../otel/common/spanData.js'
 import { type ILocalOtlpHttpReceiver, startLocalOtlpHttpReceiver } from '../../../../../otel/node/otlp/localOtlpReceiver.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { readAgentModelCallDiagnostics } from '../../../../common/meta/agentModelCallMeta.js';
-import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
@@ -168,7 +168,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 			});
 			createdSessions.push(session);
 			await client.call('subscribe', { channel: session });
-			await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+			await client.call('subscribe', { channel: defaultChatChannel(session) });
 		}
 		await driveTurnToCompletion(client, session, sentinel, message, 1);
 		assert.ok(proxy.managedSettingsRequestCount > previousRequests, 'The runtime must fetch the current managed policy');
@@ -421,7 +421,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'otel-resume-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await client.call('subscribe', { channel: first.session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(first.session) });
+		await client.call('subscribe', { channel: defaultChatChannel(first.session) });
 		await driveTurnToCompletion(client, first.session, 'otel-resume-after', 'Reply exactly "otel-resume-after".', 1);
 		assert.ok(proxy.managedSettingsRequestCount > previousRequests);
 		const exported = await inferenceSpan(first.sdkSessionId, spans, 'otel-resume-denied');

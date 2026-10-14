@@ -35,11 +35,12 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
@@ -219,7 +220,7 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -275,7 +276,7 @@ suite('ChatListWidget', () => {
 			} as Partial<IChatSideChatService>);
 		}
 
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: sessionResource }));
 		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 		const container = mainWindow.document.createElement('div');
 		container.style.position = 'absolute';
@@ -521,6 +522,57 @@ suite('ChatListWidget', () => {
 		}, {
 			collapsed: true, expanded: true, restored: true, label: 'Updated Instructions',
 			removed: true, fullTextVisible: true, message: text,
+		});
+	});
+
+	test('updates the most recent response when the tail changes without changing response data IDs', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const addTurn = (text: string, attempt: number) => {
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, attempt);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`${text} response`) });
+			request.response?.complete();
+			return request;
+		};
+		const getMostRecentStates = () => Array.from(container.querySelectorAll<HTMLElement>('.interactive-response'))
+			.map(row => row.classList.contains('chat-most-recent-response'));
+
+		const firstRequest = addTurn('First request', 0);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const firstResponse = viewModel.getItems().filter(isResponseVM)[0];
+		const firstDataId = firstResponse.dataId;
+		const initialMostRecent = getMostRecentStates();
+
+		const secondRequest = addTurn('Second request', 1);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const afterAppendMostRecent = getMostRecentStates();
+		const dataIdAfterAppend = firstResponse.dataId;
+
+		model.removeRequest(secondRequest.id);
+		widget.refresh();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			initialMostRecent,
+			afterAppendMostRecent,
+			afterRemoveMostRecent: getMostRecentStates(),
+			firstDataId,
+			dataIdAfterAppend,
+			dataIdAfterRemove: firstResponse.dataId,
+			remainingRequestId: viewModel.getItems().filter(isRequestVM)[0].id,
+		}, {
+			initialMostRecent: [true],
+			afterAppendMostRecent: [false, true],
+			afterRemoveMostRecent: [true],
+			firstDataId,
+			dataIdAfterAppend: firstDataId,
+			dataIdAfterRemove: firstDataId,
+			remainingRequestId: firstRequest.id,
 		});
 	});
 
@@ -1909,10 +1961,14 @@ suite('ChatListWidget', () => {
 		for (const incrementalRendering of [false, true]) {
 			for (const atBottom of [false, true]) {
 				test(`replaces progress without moving the list (incremental: ${incrementalRendering}, at bottom: ${atBottom})`, async () => {
-					const { model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+					const { instantiationService, model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
 						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
-					}, true);
+					}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }));
+					instantiationService.stub(IChatResponseFileChangesService, {
+						getChangesForRequest: () => undefined,
+						getChangeStatsForRequest: () => constObservable({ files: 0, insertions: 0, deletions: 0 }),
+					});
 					container.classList.add('interactive-list');
 					container.style.fontSize = '13px';
 					container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
@@ -1974,12 +2030,14 @@ suite('ChatListWidget', () => {
 						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
 						progressRows: response.querySelectorAll('.chat-working-progress').length,
 						toolbarVisible: response.querySelector<HTMLElement>('.chat-footer-toolbar')!.getBoundingClientRect().height > 0,
+						turnSummaryHidden: response.querySelector<HTMLElement>('.chat-turn-pills-part')?.getBoundingClientRect().height === 0,
 					}, {
 						scrollPositions: [before.scrollTop],
 						heights: [before.height],
 						paragraphPositions: [before.paragraphTop],
 						progressRows: 0,
 						toolbarVisible: true,
+						turnSummaryHidden: true,
 					});
 				});
 			}

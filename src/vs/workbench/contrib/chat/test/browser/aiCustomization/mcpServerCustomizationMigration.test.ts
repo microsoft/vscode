@@ -15,13 +15,18 @@ import { IProcessEnvironment } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { parseWorkspaceRootMcpConfiguration } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
+import { mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -146,11 +151,12 @@ class InterleavedMigrationProvider extends InMemoryFileSystemProvider {
 }
 
 class TestConfigurationResolverService extends AbstractVariableResolverService {
-	constructor(folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment) {
+	constructor(folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment, configurationService: IConfigurationService = new TestConfigurationService()) {
 		super({
 			getFolderUri: name => folders.find(folder => folder.name === name)?.uri,
 			getWorkspaceFolderCount: () => folders.length,
-			getConfigurationValue: () => undefined,
+			// Like the workbench resolver, which reads the setting in the folder's scope.
+			getConfigurationValue: (folderUri, section) => configurationService.getValue<string>(section, folderUri ? { resource: folderUri } : {}),
 			getAppRoot: () => undefined,
 			getExecPath: () => undefined,
 			getFilePath: () => undefined,
@@ -159,6 +165,20 @@ class TestConfigurationResolverService extends AbstractVariableResolverService {
 			getColumnNumber: () => undefined,
 			getExtension: async () => undefined,
 		}, undefined, undefined, env && Promise.resolve(env));
+	}
+}
+
+/**
+ * Reports the given settings as workspace settings, which `TestConfigurationService` reports as user settings.
+ */
+class WorkspaceSettingsTestConfigurationService extends TestConfigurationService {
+	constructor(configuration: Record<string, unknown> = {}, private readonly workspaceKeys: ReadonlySet<string> = new Set(Object.keys(configuration))) {
+		super(configuration);
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return this.workspaceKeys.has(key) ? { ...inspected, userValue: undefined, userLocalValue: undefined, workspaceValue: inspected.value } : inspected;
 	}
 }
 
@@ -172,8 +192,12 @@ suite('McpServerCustomizationMigration', () => {
 		return fileService;
 	}
 
-	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment): McpServerCustomizationMigrator {
-		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders, env));
+	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = [], env?: IProcessEnvironment, configurationService: IConfigurationService = new TestConfigurationService(), secretStorageService = createSecretStorageService()): McpServerCustomizationMigrator {
+		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders, env, configurationService), configurationService, secretStorageService);
+	}
+
+	function createSecretStorageService(): TestSecretStorageService {
+		return store.add(new TestSecretStorageService());
 	}
 
 	function candidate(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' }): IMcpServerCustomizationMigrationCandidate {
@@ -211,6 +235,20 @@ suite('McpServerCustomizationMigration', () => {
 			...overrides,
 		};
 	}
+
+	/**
+	 * A server that uses `${input:}`, as the client reports it: not delivered from `.vscode/mcp.json`, or
+	 * forwarded from the user configuration, with its variables unresolved in either case.
+	 */
+	function inputSupport(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration, sourceUri?: URI): IAgentHostMcpServerSupport {
+		const server = support(root, name, {
+			delivery: sourceUri ? AgentHostMcpServerDelivery.ClientForwarded : AgentHostMcpServerDelivery.NotDelivered,
+			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
+			projectedConfiguration,
+		});
+		return sourceUri ? { ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri } } : server;
+	}
+
 
 	function userCandidate(name = 'demo'): IMcpServerCustomizationMigrationCandidate {
 		return {
@@ -268,7 +306,11 @@ suite('McpServerCustomizationMigration', () => {
 				target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 			}, {
 				candidates: ['demo', 'http', 'unselected'].map(name => [name, PromptsStorage.user, targetUri.toString()]),
-				exclusions: ['workspace', 'input'].map(name => [name, PromptsStorage.user, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration]),
+				exclusions: [
+					['workspace', PromptsStorage.user, McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
+					// VS Code can't prompt for an input without a description.
+					['input', PromptsStorage.user, McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+				],
 				result: { migratedCount: 2, failures: [] },
 				source: {
 					inputs: [{ id: 'secret', type: 'promptString' }],
@@ -445,7 +487,7 @@ suite('McpServerCustomizationMigration', () => {
 			servers: [
 				support(root, 'eligible'),
 				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: `${root.fsPath}/server` } }),
-				support(root, 'metadata', { compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] } }),
+				support(root, 'metadata'),
 				support(root, 'cwd', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' } }),
 				support(root, 'sse', {
 					compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.SseTransportNotPortable] },
@@ -542,6 +584,134 @@ suite('McpServerCustomizationMigration', () => {
 		}
 	}
 
+	/** An OAuth server as the client reports it: the projection drops `oauth`. */
+	function oauthSupport(root: URI, name: string, url: string, sourceUri?: URI): IAgentHostMcpServerSupport {
+		const server = support(root, name, {
+			compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.OAuthClientConfigurationIgnored] },
+			projectedConfiguration: { type: McpServerType.REMOTE, url },
+		});
+		return sourceUri ? { ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri } } : server;
+	}
+
+	for (const storage of [PromptsStorage.local, PromptsStorage.user]) {
+		test(`migrates the OAuth client ID of ${storage} servers, except with a stored client secret or enterprise-managed sign-in`, async () => {
+			const root = URI.file('/oauth');
+			const fileService = createFileService();
+			const secretStorageService = createSecretStorageService();
+			const user = storage === PromptsStorage.user ? userCandidate() : undefined;
+			const sourceUri = user?.sourceUri ?? URI.joinPath(root, '.vscode', 'mcp.json');
+			const targetUri = user?.targetUri ?? URI.joinPath(root, '.mcp.json');
+			const servers = {
+				clientOnly: { url: 'https://example.com/a', oauth: { clientId: 'client-a' } },
+				withSecret: { url: 'https://example.com/b%20c', oauth: { clientId: 'client-b' } },
+				notManaged: { url: 'https://example.com/c', oauth: { clientId: 'client-c', enterpriseManaged: false } },
+				managed: { url: 'https://example.com/d', oauth: { clientId: 'client-d', enterpriseManaged: true } },
+			};
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
+			// The *Set Client Secret* code lens stores the secret under the URL without percent-encoding.
+			await secretStorageService.set(mcpOAuthClientSecretStorageKey('https://example.com/b c', 'client-b'), 'secret');
+			const migrator = createMigrator(fileService, [], undefined, undefined, secretStorageService);
+			const plan = await migrator.createPlan({
+				servers: Object.entries(servers).map(([name, server]) => oauthSupport(root, name, URI.parse(server.url).toString(), user?.sourceUri)),
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [root], CancellationToken.None, user?.targetUri);
+			const result = await migrator.migrate(plan.candidates, { userTarget: user?.targetUri });
+
+			assert.deepStrictEqual({
+				candidates: plan.candidates.map(candidate => [candidate.name, candidate.oauth]),
+				exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+				result,
+				source: parse((await fileService.readFile(sourceUri)).value.toString()),
+				target: parse((await fileService.readFile(targetUri)).value.toString()),
+				secretKeys: await secretStorageService.keys(),
+			}, {
+				candidates: [
+					['clientOnly', { clientId: 'client-a' }],
+					['notManaged', { clientId: 'client-c' }],
+				],
+				exclusions: [
+					['withSecret', McpServerCustomizationMigrationFailureReason.OAuthClientSecret],
+					['managed', McpServerCustomizationMigrationFailureReason.EnterpriseManagedOAuth],
+				],
+				result: { migratedCount: 2, failures: [] },
+				source: { servers: { withSecret: servers.withSecret, managed: servers.managed } },
+				target: {
+					mcpServers: {
+						clientOnly: { type: 'http', url: 'https://example.com/a', tools: ['*'], oauthClientId: 'client-a' },
+						notManaged: { type: 'http', url: 'https://example.com/c', tools: ['*'], oauthClientId: 'client-c' },
+					},
+				},
+				secretKeys: [mcpOAuthClientSecretStorageKey('https://example.com/b c', 'client-b')],
+			});
+		});
+	}
+
+	test('rejects an OAuth server whose client secret was stored after planning', async () => {
+		const root = URI.file('/oauth-secret-added');
+		const fileService = createFileService();
+		const secretStorageService = createSecretStorageService();
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const content = JSON.stringify({ servers: { demo: { url: 'https://example.com/mcp', oauth: { clientId: 'client' } } } });
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(content));
+		const migrator = createMigrator(fileService, [], undefined, undefined, secretStorageService);
+		const plan = await migrator.createPlan({
+			servers: [oauthSupport(root, 'demo', 'https://example.com/mcp')],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		await secretStorageService.set(mcpOAuthClientSecretStorageKey('https://example.com/mcp', 'client'), 'secret');
+		const result = await migrator.migrate(plan.candidates);
+		assert.deepStrictEqual({
+			planned: plan.candidates.map(candidate => candidate.oauth),
+			reasons: result.failures.map(failure => failure.reason),
+			sourceUnchanged: (await fileService.readFile(sourceUri)).value.toString() === content,
+			targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+		}, {
+			planned: [{ clientId: 'client' }],
+			reasons: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret],
+			sourceUnchanged: true,
+			targetExists: false,
+		});
+	});
+
+	test('reads the client secret with the source URL, as the Set Client Secret code lens does', async () => {
+		const root = URI.file('/oauth-secret-variable-url');
+		const fileService = createFileService();
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const rawUrl = 'https://${env:MCP_HOST}/mcp';
+		// The code lens keys the secret by the URL as written, while the projection resolves its variables.
+		const key = mcpOAuthClientSecretStorageKey(URI.parse(rawUrl).toString(true), 'client');
+		const content = JSON.stringify({ servers: { demo: { url: rawUrl, oauth: { clientId: 'client' } } } });
+		const folders = [{ uri: root, name: 'oauth-secret-variable-url', index: 0 }];
+		const results = [];
+		for (const storedBeforePlanning of [true, false]) {
+			const secretStorageService = createSecretStorageService();
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(content));
+			if (storedBeforePlanning) {
+				await secretStorageService.set(key, 'secret');
+			}
+			const migrator = createMigrator(fileService, folders, { MCP_HOST: 'example.com' }, undefined, secretStorageService);
+			const plan = await migrator.createPlan({
+				servers: [oauthSupport(root, 'demo', 'https://example.com/mcp')],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			}, [root]);
+			await secretStorageService.set(key, 'secret');
+			const result = await migrator.migrate(plan.candidates);
+			results.push({
+				exclusions: plan.exclusions.map(exclusion => exclusion.reason),
+				failures: result.failures.map(failure => failure.reason),
+				sourceUnchanged: (await fileService.readFile(sourceUri)).value.toString() === content,
+				targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ exclusions: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], failures: [], sourceUnchanged: true, targetExists: false },
+			{ exclusions: [], failures: [McpServerCustomizationMigrationFailureReason.OAuthClientSecret], sourceUnchanged: true, targetExists: false },
+		]);
+	});
+
 	test('keeps other unsupported properties blocked even with removable metadata', async () => {
 		const root = URI.file('/unsupported');
 		const fileService = createFileService();
@@ -550,7 +720,6 @@ suite('McpServerCustomizationMigration', () => {
 			{ type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' },
 			{ type: McpServerType.LOCAL, command: 'node', env: { SECRET: null } },
 			{ type: McpServerType.LOCAL, command: 'node', args: ['${input:secret}'] },
-			{ type: McpServerType.REMOTE, url: 'https://example.com', oauth: { clientId: 'required' } },
 			{ type: McpServerType.REMOTE, url: 'https://example.com', transport: 'sse' },
 		];
 		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
@@ -566,7 +735,9 @@ suite('McpServerCustomizationMigration', () => {
 			reasons: plan.exclusions.map(exclusion => exclusion.reason),
 		}, {
 			candidates: [],
-			reasons: configurations.map(() => McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration),
+			reasons: configurations.map(configuration => configuration.type === McpServerType.LOCAL && configuration.args
+				? McpServerCustomizationMigrationFailureReason.UnsupportedInputType
+				: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration),
 		});
 	});
 
@@ -646,7 +817,6 @@ suite('McpServerCustomizationMigration', () => {
 						"\${cwd:backend}"
 					]
 				},
-				"configuration": { "type": "stdio", "command": "\${config:mcp.command}" },
 				"unknownRoot": { "type": "stdio", "command": "\${workspaceFolder:missing}/server.js" }
 			}
 		}`));
@@ -665,7 +835,6 @@ suite('McpServerCustomizationMigration', () => {
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
 				support(first, 'portable', { projectedConfiguration }),
-				support(first, 'configuration', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' } }),
 				support(first, 'unknownRoot', { projectedConfiguration: { type: McpServerType.LOCAL, command: '/workspace/missing/server.js' } }),
 			],
 			discoveryComplete: true,
@@ -688,13 +857,11 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			candidates: ['portable'],
 			exclusions: [
-				['configuration', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['unknownRoot', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			],
 			result: { migratedCount: 1, failures: [] },
 			source: {
 				servers: {
-					configuration: { type: 'stdio', command: '${config:mcp.command}' },
 					unknownRoot: { type: 'stdio', command: '${workspaceFolder:missing}/server.js' },
 				},
 			},
@@ -802,7 +969,6 @@ suite('McpServerCustomizationMigration', () => {
 			wholeUrl: { type: 'http', url: '${env:BASE}/mcp' },
 			scheme: { type: 'http', url: '${env:SCHEME}://example.com/mcp' },
 			input: { command: '${env:TOOLS}/server', args: ['${input:secret}'] },
-			configuration: { command: 'node', env: { TOKEN: '${env:TOKEN}', MODE: '${config:mcp.mode}' } },
 			userHome: { command: '${userHome}/server', env: { TOKEN: '${env:TOKEN}' } },
 			cwd: { command: 'node', cwd: '${env:HOME}', env: { TOKEN: '${env:TOKEN}' } },
 			// VS Code resolves variables in an environment value, but the destination keeps the value verbatim.
@@ -833,9 +999,8 @@ suite('McpServerCustomizationMigration', () => {
 			['port', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
 			['wholeUrl', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
 			['scheme', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
-			['input', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-			['configuration', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-			['userHome', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			['input', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+			['userHome', McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
 			['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			['nestedEnvironment', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			['nestedWorkspace', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
@@ -898,8 +1063,8 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: ['local', 'headers'],
 			exclusions: [
 				['url', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-				['userHome', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-				['input', McpServerCustomizationMigrationFailureReason.NoLongerEligible],
+				['userHome', McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
+				['input', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
 			],
 			result: { migratedCount: 2, failures: [] },
 			source: { servers: { url: servers.url, userHome: servers.userHome, input: servers.input } },
@@ -988,6 +1153,843 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
+	test('rewrites ${input:} references in every supported position', async () => {
+		const root = URI.file('/inputs');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const unrelated = { id: 'unrelated', type: 'promptString', description: 'Not referenced by any server' };
+		const servers = {
+			local: {
+				command: '${input:path}/server',
+				args: ['--key=${input:api-key}', '--region', '${input:region}', '--level=${input:level}', '--root=${workspaceFolder}', '${env:TOOLS}'],
+				env: { MODE: '${input:mode}', PORT: 3000, KEY: '${input:api-key}' },
+			},
+			remote: {
+				type: 'http',
+				url: 'https://example.com/mcp?region=${input:region}',
+				headers: { 'X-Api-Key': '${input:api-key}', 'X-Mode': '${input:mode}' },
+			},
+		};
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [
+				{ id: 'api-key', type: 'promptString', description: 'API key' },
+				{ id: 'region', type: 'promptString', description: 'Region', default: 'us-east-1' },
+				{ id: 'level', type: 'pickString', description: 'Level', options: ['info', 'debug'] },
+				{ id: 'mode', type: 'pickString', description: 'Mode', options: [{ label: 'Fast', value: 'fast' }, { label: 'Safe', value: 'safe' }], default: 'safe' },
+				// `PATH` is set by the OS, so the input is migrated to `MCP_PATH`.
+				{ id: 'path', type: 'promptString', description: 'Tools directory', default: '/opt/bin' },
+				unrelated,
+			],
+			servers,
+		})));
+		// The client forwards nothing of a server with an input, not even its portable variables. The remote URL assumes the raw URL is projected (E11 in #340161).
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [
+				inputSupport(root, 'local', { type: McpServerType.LOCAL, command: servers.local.command, args: servers.local.args, env: servers.local.env }),
+				inputSupport(root, 'remote', { type: McpServerType.REMOTE, url: servers.remote.url, headers: servers.remote.headers }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService, [], { TOOLS: '/opt/tools' });
+
+		const plan = await migrator.createPlan(snapshot, [root]);
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => [candidate.name, candidate.environmentVariables?.map(variable => [variable.id, variable.name, variable.declaration.default])]),
+			exclusions: plan.exclusions,
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			candidates: [
+				['local', [
+					['path', 'MCP_PATH', '/opt/bin'],
+					['api-key', 'API_KEY', undefined],
+					['region', 'REGION', 'us-east-1'],
+					['level', 'LEVEL', undefined],
+					['mode', 'MODE', 'safe'],
+				]],
+				['remote', [
+					['region', 'REGION', 'us-east-1'],
+					['api-key', 'API_KEY', undefined],
+					['mode', 'MODE', 'safe'],
+				]],
+			],
+			exclusions: [],
+			result: { migratedCount: 2, failures: [] },
+			source: { inputs: [unrelated], servers: {} },
+			target: {
+				mcpServers: {
+					local: {
+						type: 'local',
+						command: '${MCP_PATH}/server',
+						args: ['--key=${API_KEY}', '--region', '${REGION}', '--level=${LEVEL}', `--root=${root.fsPath}`, '${TOOLS}'],
+						// Each input is declared with its default, or empty. `MODE` only referred to its input, so it is replaced.
+						env: { MODE: 'safe', PORT: '3000', KEY: '${API_KEY}', MCP_PATH: '/opt/bin', API_KEY: '', REGION: 'us-east-1', LEVEL: '' },
+						tools: ['*'],
+					},
+					remote: {
+						type: 'http',
+						url: 'https://example.com/mcp?region=${REGION:-us-east-1}',
+						headers: { 'X-Api-Key': '${API_KEY}', 'X-Mode': '${MODE:-safe}' },
+						tools: ['*'],
+					},
+				},
+			},
+		});
+	});
+
+	test('migrates inputs whose ids start with a digit, and numeric prompt defaults', async () => {
+		const root = URI.file('/inputs-names');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const server = { command: 'node', args: ['--first=${input:1st}', '--count=${input:count}', '--ratio=${input:ratio}'] };
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [
+				{ id: '1st', type: 'promptString', description: 'First' },
+				// VS Code shows a numeric default in the input box as text.
+				{ id: 'count', type: 'promptString', description: 'Count', default: 5 },
+				{ id: 'ratio', type: 'promptString', description: 'Ratio', default: 0.5 },
+			],
+			servers: { server },
+		})));
+		const migrator = createMigrator(fileService);
+
+		const plan = await migrator.createPlan({
+			servers: [inputSupport(root, 'server', { type: McpServerType.LOCAL, ...server })],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			environmentVariables: plan.candidates.map(candidate => candidate.environmentVariables?.map(variable => [variable.id, variable.name, variable.declaration.default])),
+			result,
+			target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+		}, {
+			environmentVariables: [[['1st', 'MCP_1ST', undefined], ['count', 'COUNT', '5'], ['ratio', 'RATIO', '0.5']]],
+			result: { migratedCount: 1, failures: [] },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['--first=${MCP_1ST}', '--count=${COUNT}', '--ratio=${RATIO}'], env: { MCP_1ST: '', COUNT: '5', RATIO: '0.5' }, tools: ['*'] } } },
+		});
+	});
+
+	test('keeps servers with ${input:} references the destination cannot represent', async () => {
+		const root = URI.file('/inputs-excluded');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const promptString = (id: string, extra: object = {}) => ({ id, type: 'promptString', description: id, ...extra });
+		const inputs = [
+			promptString('secret', { password: true }),
+			{ id: 'picked', type: 'command', command: 'extension.pick' },
+			{ id: 'undescribed', type: 'promptString' },
+			promptString('api-key'),
+			promptString('api_key'),
+			promptString('path'),
+			promptString('mcp_path'),
+			promptString('token'),
+			promptString('brace', { default: 'a}b' }),
+			// Valid on its own, but the `}` after the reference ends the default later.
+			promptString('suffix', { default: 'x${y' }),
+			{ id: 'choice', type: 'pickString', description: 'choice', options: ['a', 'b'], default: 'c' },
+			// VS Code matches a pick default with `===`, so a number never matches the option '5'.
+			{ id: 'pick-number', type: 'pickString', description: 'pick-number', options: ['5'], default: 5 },
+			promptString('flag', { default: true }),
+			promptString('2nd'),
+			promptString('mcp_2nd'),
+			promptString('host', { default: 'example.com' }),
+			promptString('port'),
+			promptString('name'),
+			promptString('long'),
+			promptString('dir'),
+			promptString('ok'),
+			// A stdio server's `env` values are expanded too, so this default can't be written there as is.
+			promptString('reference', { default: '${HOME}' }),
+			promptString('declared'),
+		];
+		const servers = {
+			password: { command: 'node', args: ['${input:secret}'] },
+			commandInput: { command: '${input:picked}' },
+			undeclared: { command: 'node', env: { KEY: '${input:missing}' } },
+			undescribed: { command: '${input:undescribed}' },
+			dash: { command: 'node', args: ['${input:api-key}'] },
+			underscore: { command: 'node', args: ['${input:api_key}'] },
+			reserved: { command: 'node', args: ['${input:path}'] },
+			prefixed: { command: 'node', args: ['${input:mcp_path}'] },
+			environment: { command: 'node', env: { TOKEN: '${input:token}' } },
+			// The same file reads `TOKEN` from the environment.
+			environmentReader: { command: '${command:extension.pick}', env: { TOKEN: '${env:TOKEN}' }, args: ['${input:ok}'] },
+			// A remote server has no `env`, so its references carry the default.
+			braceDefault: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${input:brace}' } },
+			suffixDefault: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Suffix': '${input:suffix}}z' } },
+			referenceDefault: { command: 'node', args: ['${input:reference}'] },
+			// `DECLARED` would be declared in `env`, which already sets it to something else.
+			declaredInEnv: { command: 'node', args: ['${input:declared}'], env: { declared: 'other' } },
+			pickDefault: { command: 'node', args: ['${input:choice}'] },
+			pickNumber: { command: 'node', args: ['${input:pick-number}'] },
+			booleanDefault: { command: 'node', args: ['${input:flag}'] },
+			// `2nd` is prefixed to `MCP_2ND`, the same variable as `mcp_2nd`.
+			digitPrefixed: { command: 'node', args: ['${input:2nd}'] },
+			digitCollision: { command: 'node', args: ['${input:mcp_2nd}'] },
+			hostDefault: { type: 'http', url: 'https://${input:host}/mcp' },
+			port: { type: 'http', url: 'http://localhost:${input:port}/mcp' },
+			envName: { command: 'node', env: { '${input:name}': 'value' } },
+			headerName: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-${input:name}': 'value' } },
+			tooLong: { command: 'node', args: [`${'x'.repeat(995)}\${input:long}`] },
+			cwd: { command: 'node', cwd: '${input:dir}' },
+			commandVariable: { command: 'node', args: ['${command:extension.pick}', '${input:ok}'] },
+		};
+		const source = JSON.stringify({ inputs, servers });
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
+		const names = Object.keys(servers);
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'inputs-excluded', index: 0 }], { TOKEN: 'secret' });
+
+		const plan = await migrator.createPlan({
+			servers: names.map(name => support(root, name)),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		const result = await migrator.migrate(names.map(name => candidate(root, name)));
+
+		const expected = [
+			['password', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+			['commandInput', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+			['undeclared', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+			['undescribed', McpServerCustomizationMigrationFailureReason.UnsupportedInputType],
+			['dash', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['underscore', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['reserved', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['prefixed', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['environment', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['environmentReader', McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
+			['braceDefault', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['suffixDefault', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['referenceDefault', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['declaredInEnv', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['pickDefault', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['pickNumber', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['booleanDefault', McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault],
+			['digitPrefixed', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['digitCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['hostDefault', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
+			['port', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
+			['envName', McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName],
+			['headerName', McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName],
+			['tooLong', McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong],
+			['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			['commandVariable', McpServerCustomizationMigrationFailureReason.UnsupportedVariable],
+		];
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			failures: result.failures.map(failure => [failure.name, failure.reason]),
+			source: (await fileService.readFile(sourceUri)).value.toString(),
+			targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+		}, {
+			candidates: [],
+			exclusions: expected,
+			failures: expected,
+			source,
+			targetExists: false,
+		});
+	});
+
+	test('excludes a server with an input in its URL while the client forwards the URL encoded', async () => {
+		const root = URI.file('/inputs-url');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const servers = {
+			url: { type: 'http', url: 'https://example.com/${input:tenant}/mcp' },
+			header: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Tenant': '${input:tenant}' } },
+		};
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ inputs: [{ id: 'tenant', type: 'promptString', description: 'Tenant' }], servers })));
+		const migrator = createMigrator(fileService);
+
+		const plan = await migrator.createPlan({
+			servers: [
+				// The client projects the URL through `URI`, which encodes the reference (E11 in #340161).
+				inputSupport(root, 'url', { type: McpServerType.REMOTE, url: URI.parse(servers.url.url).toString() }),
+				inputSupport(root, 'header', { type: McpServerType.REMOTE, url: URI.parse(servers.header.url).toString(), headers: servers.header.headers }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			encodedUrl: URI.parse(servers.url.url).toString(),
+			candidates: plan.candidates.map(candidate => candidate.name),
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+		}, {
+			encodedUrl: 'https://example.com/%24%7Binput%3Atenant%7D/mcp',
+			candidates: ['header'],
+			exclusions: [['url', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration]],
+			result: { migratedCount: 1, failures: [] },
+			// The excluded server still references the input.
+			source: { inputs: [{ id: 'tenant', type: 'promptString', description: 'Tenant' }], servers: { url: servers.url } },
+			target: { mcpServers: { header: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Tenant': '${TENANT}' }, tools: ['*'] } } },
+		});
+	});
+
+	test('removes an input declaration only once nothing left in the file references it', async () => {
+		const root = URI.file('/inputs-cleanup');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const declaration = (id: string) => ({ id, type: 'promptString', description: id });
+		const servers = {
+			first: { command: 'node', args: ['${input:shared}', '${input:partial}', '${input:sandboxed}'] },
+			second: { command: 'node', args: ['${input:shared}', '${input:solo}'] },
+			unselected: { command: 'node', args: ['${input:partial}'] },
+		};
+		const sandbox = { network: { allowedDomains: ['${input:sandboxed}.example.com'] } };
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(`{
+			// Inputs that are still referenced, or were never referenced, are kept.
+			"inputs": ${JSON.stringify(['shared', 'partial', 'sandboxed', 'unused', 'solo'].map(declaration))},
+			"sandbox": ${JSON.stringify(sandbox)},
+			"servers": ${JSON.stringify(servers)}
+		}`));
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan({
+			servers: Object.entries(servers).map(([name, server]) => inputSupport(root, name, { type: McpServerType.LOCAL, command: server.command, args: server.args })),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+
+		const result = await migrator.migrate(plan.candidates.filter(candidate => candidate.name !== 'unselected'));
+
+		assert.deepStrictEqual({
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+		}, {
+			result: { migratedCount: 2, failures: [] },
+			source: {
+				inputs: ['partial', 'sandboxed', 'unused'].map(declaration),
+				sandbox,
+				servers: { unselected: servers.unselected },
+			},
+		});
+	});
+
+	test('migrates ${input:} references in user servers forwarded unresolved', async () => {
+		const fileService = createFileService();
+		const { sourceUri, targetUri } = userCandidate();
+		const server = { command: 'node', env: { TOKEN: '${input:token}', SEPARATED: 'a${pathSeparator}b' } };
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [{ id: 'token', type: 'promptString', description: 'Token', password: false }],
+			servers: { server },
+		})));
+		const migrator = createMigrator(fileService);
+
+		const plan = await migrator.createPlan({
+			servers: [inputSupport(URI.file('/unused'), 'server', { type: McpServerType.LOCAL, ...server }, sourceUri)],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [], CancellationToken.None, targetUri);
+		const result = await migrator.migrate(plan.candidates, { userTarget: targetUri });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => [candidate.name, candidate.storage]),
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			candidates: [['server', PromptsStorage.user]],
+			result: { migratedCount: 1, failures: [] },
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], env: { TOKEN: '', SEPARATED: `a${sep}b` }, tools: ['*'] } } },
+		});
+	});
+
+	test('rejects ${input:} candidates whose input declarations changed before writing', async () => {
+		const root = URI.file('/inputs-changed');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const servers = {
+			typeChanged: { command: 'node', args: ['${input:level}'] },
+			optionsChanged: { command: 'node', args: ['${input:mode}'] },
+		};
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [
+				{ id: 'level', type: 'promptString', description: 'Level', default: 'info' },
+				{ id: 'mode', type: 'pickString', description: 'Mode', options: ['fast', 'safe'], default: 'safe' },
+			],
+			servers,
+		})));
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan({
+			servers: Object.entries(servers).map(([name, server]) => inputSupport(root, name, { type: McpServerType.LOCAL, ...server })),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		// Both changes still write the same `${NAME:-default}`, so only the declarations reveal them.
+		const changedSource = JSON.stringify({
+			inputs: [
+				{ id: 'level', type: 'pickString', description: 'Level', options: ['info', 'debug'], default: 'info' },
+				{ id: 'mode', type: 'pickString', description: 'Mode', options: ['fast', 'safe', 'strict'], default: 'safe' },
+			],
+			servers,
+		});
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(changedSource));
+
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			planned: plan.candidates.map(candidate => [candidate.name, candidate.migratedConfiguration]),
+			failures: result.failures.map(failure => [failure.name, failure.reason]),
+			source: (await fileService.readFile(sourceUri)).value.toString(),
+			targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+		}, {
+			planned: [
+				['typeChanged', { type: McpServerType.LOCAL, command: 'node', args: ['${LEVEL}'], env: { LEVEL: 'info' } }],
+				['optionsChanged', { type: McpServerType.LOCAL, command: 'node', args: ['${MODE}'], env: { MODE: 'safe' } }],
+			],
+			failures: [
+				['typeChanged', McpServerCustomizationMigrationFailureReason.SourceChanged],
+				['optionsChanged', McpServerCustomizationMigrationFailureReason.SourceChanged],
+			],
+			source: changedSource,
+			targetExists: false,
+		});
+	});
+
+	test('rewrites ${config:} references in every supported position to environment variables set to their values', async () => {
+		const root = URI.file('/settings');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const servers = {
+			local: {
+				command: '${config:mcp.command}',
+				// The same setting used twice maps to one variable. `GITHUB_TOKEN` is reserved, so it is prefixed.
+				// `user.secret` is only in the user's settings, so its value is not written into the workspace.
+				args: ['--port=${config:mcp.port}', '${config:mcp.command}', '--token=${config:github.token}', '${env:TOOLS}', '--root=${workspaceFolder}', '--secret=${config:user.secret}'],
+				env: { HOST: '${config:mcp.host}', MCP_PORT: '${config:mcp.port}', LEVEL: 3 },
+			},
+			remote: {
+				type: 'http',
+				url: 'https://example.com/${config:mcp.tenant}/mcp?port=${config:mcp.port}',
+				headers: { 'X-Token': '${config:github.token}', 'X-Tools': '${env:TOOLS}' },
+			},
+			// With an input, the client projects the server as written.
+			mixedLocal: { command: 'node', args: ['--region=${input:region}', '--port=${config:mcp.port}'], env: { RATIO: '${config:mcp.ratio}' } },
+			mixedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Region': '${input:region}', 'X-Ratio': '${config:mcp.ratio}' } },
+		};
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({
+			inputs: [{ id: 'region', type: 'promptString', description: 'Region', default: 'eu' }],
+			servers,
+		})));
+		const workspaceSettings = { 'mcp.command': 'npx', 'mcp.port': 8080, 'github.token': 'abc', 'mcp.host': 'localhost', 'mcp.tenant': 'contoso', 'mcp.ratio': 0.5 };
+		const configurationService = new WorkspaceSettingsTestConfigurationService({}, new Set(Object.keys(workspaceSettings)));
+		// The settings are only set for the workspace folder, so they must be read in its scope.
+		for (const [key, value] of Object.entries({ ...workspaceSettings, 'user.secret': 'hunter2' })) {
+			await configurationService.setUserConfiguration(key, value, root);
+		}
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [
+				// The client resolves the variables of `.vscode/mcp.json` servers, including settings, before forwarding them.
+				support(root, 'local', {
+					projectedConfiguration: {
+						type: McpServerType.LOCAL,
+						command: 'npx',
+						args: ['--port=8080', 'npx', '--token=abc', '/opt/tools', `--root=${root.fsPath}`, '--secret=hunter2'],
+						env: { HOST: 'localhost', MCP_PORT: '8080', LEVEL: 3 },
+					},
+				}),
+				support(root, 'remote', { projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/contoso/mcp?port=8080', headers: { 'X-Token': 'abc', 'X-Tools': '/opt/tools' } } }),
+				inputSupport(root, 'mixedLocal', { type: McpServerType.LOCAL, ...servers.mixedLocal }),
+				inputSupport(root, 'mixedRemote', { type: McpServerType.REMOTE, url: servers.mixedRemote.url, headers: servers.mixedRemote.headers }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'settings', index: 0 }], { TOOLS: '/opt/tools' }, configurationService);
+
+		const plan = await migrator.createPlan(snapshot, [root]);
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => [candidate.name, candidate.settingVariables?.map(setting => [setting.key, setting.name, setting.value]), candidate.environmentVariables?.map(variable => variable.name)]),
+			exclusions: plan.exclusions,
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			candidates: [
+				['local', [['mcp.command', 'MCP_COMMAND', 'npx'], ['mcp.port', 'MCP_PORT', '8080'], ['github.token', 'MCP_GITHUB_TOKEN', 'abc'], ['user.secret', 'USER_SECRET', ''], ['mcp.host', 'MCP_HOST', 'localhost']], undefined],
+				['remote', [['mcp.tenant', 'MCP_TENANT', 'contoso'], ['mcp.port', 'MCP_PORT', '8080'], ['github.token', 'MCP_GITHUB_TOKEN', 'abc']], undefined],
+				['mixedLocal', [['mcp.port', 'MCP_PORT', '8080'], ['mcp.ratio', 'MCP_RATIO', '0.5']], ['REGION']],
+				['mixedRemote', [['mcp.ratio', 'MCP_RATIO', '0.5']], ['REGION']],
+			],
+			exclusions: [],
+			result: { migratedCount: 4, failures: [] },
+			source: { servers: {} },
+			target: {
+				mcpServers: {
+					local: {
+						type: 'local',
+						command: '${MCP_COMMAND}',
+						args: ['--port=${MCP_PORT}', '${MCP_COMMAND}', '--token=${MCP_GITHUB_TOKEN}', '${TOOLS}', `--root=${root.fsPath}`, '--secret=${USER_SECRET}'],
+						// `env` values are expanded from the host's environment, so a setting there is replaced with its value.
+						// `MCP_PORT` already holds the value that `args` reads.
+						env: { HOST: 'localhost', MCP_PORT: '8080', LEVEL: '3', MCP_COMMAND: 'npx', MCP_GITHUB_TOKEN: 'abc', USER_SECRET: '' },
+						tools: ['*'],
+					},
+					remote: {
+						type: 'http',
+						url: 'https://example.com/${MCP_TENANT:-contoso}/mcp?port=${MCP_PORT:-8080}',
+						headers: { 'X-Token': '${MCP_GITHUB_TOKEN:-abc}', 'X-Tools': '${TOOLS}' },
+						tools: ['*'],
+					},
+					mixedLocal: {
+						type: 'local',
+						command: 'node',
+						args: ['--region=${REGION}', '--port=${MCP_PORT}'],
+						env: { RATIO: '0.5', REGION: 'eu', MCP_PORT: '8080' },
+						tools: ['*'],
+					},
+					mixedRemote: {
+						type: 'http',
+						url: 'https://example.com/mcp',
+						headers: { 'X-Region': '${REGION:-eu}', 'X-Ratio': '${MCP_RATIO:-0.5}' },
+						tools: ['*'],
+					},
+				},
+			},
+		});
+	});
+
+	test('migrates ${config:} references in user servers forwarded unresolved, with user settings', async () => {
+		const fileService = createFileService();
+		const { sourceUri, targetUri } = userCandidate();
+		const servers = {
+			local: { command: '${config:mcp.command}', args: ['--port=${config:mcp.port}', '${env:TOOLS}'], env: { HOST: '${config:mcp.host}' } },
+			remote: { type: 'http', url: 'https://example.com/mcp?port=${config:mcp.port}', headers: { 'X-Host': '${config:mcp.host}' } },
+		};
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
+		// User servers move to the user's own configuration, so values from the user's settings are kept.
+		const configurationService = new TestConfigurationService({ 'mcp.command': 'npx', 'mcp.port': 8080, 'mcp.host': 'localhost' });
+		// A workspace folder value doesn't apply to user servers, which VS Code resolves without a folder.
+		await configurationService.setUserConfiguration('mcp.port', 9090, URI.file('/workspace'));
+		const userSupport = (name: string, projectedConfiguration: IMcpServerConfiguration): IAgentHostMcpServerSupport => {
+			const server = support(URI.file('/unused'), name, {
+				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
+				projectedConfiguration,
+			});
+			return { ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri } };
+		};
+		const migrator = createMigrator(fileService, [{ uri: URI.file('/workspace'), name: 'workspace', index: 0 }], { TOOLS: '/opt/tools' }, configurationService);
+
+		const plan = await migrator.createPlan({
+			servers: [
+				userSupport('local', { type: McpServerType.LOCAL, ...servers.local }),
+				userSupport('remote', { type: McpServerType.REMOTE, url: servers.remote.url, headers: servers.remote.headers }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [], CancellationToken.None, targetUri);
+		const result = await migrator.migrate(plan.candidates, { userTarget: targetUri });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => [candidate.name, candidate.storage, candidate.settingVariables?.map(setting => [setting.name, setting.value])]),
+			exclusions: plan.exclusions,
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			candidates: [
+				['local', PromptsStorage.user, [['MCP_COMMAND', 'npx'], ['MCP_PORT', '8080'], ['MCP_HOST', 'localhost']]],
+				['remote', PromptsStorage.user, [['MCP_PORT', '8080'], ['MCP_HOST', 'localhost']]],
+			],
+			exclusions: [],
+			result: { migratedCount: 2, failures: [] },
+			source: { servers: {} },
+			target: {
+				mcpServers: {
+					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--port=${MCP_PORT}', '${TOOLS}'], env: { HOST: 'localhost', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
+					remote: { type: 'http', url: 'https://example.com/mcp?port=${MCP_PORT:-8080}', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
+				},
+			},
+		});
+	});
+
+	test('migrates settings without a usable value to empty environment variables', async () => {
+		const root = URI.file('/settings-empty');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const servers = {
+			// VS Code can't resolve an unset or structured setting, so it projects the server as written.
+			unresolvedLocal: { command: 'node', args: ['--name=${config:mcp.unset}', '--unnamed=${config:}'], env: { OPTIONS: '${config:mcp.object}', TOKEN: '${env:TOKEN}' } },
+			unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${config:mcp.unset}' } },
+			// VS Code resolves these to text, but only strings and numbers are carried over, and a value with a
+			// variable would be resolved by VS Code but not by the destination.
+			resolvedLocal: { command: 'node', args: ['${config:mcp.flag}', '${config:mcp.array}', '${config:mcp.variable}', '${config:mcp.reference}'] },
+			// VS Code can't resolve the `${input:}` in the value without interaction, so it forwards it as text.
+			nestedInput: { command: 'node', args: ['${config:mcp.nested}'] },
+			resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${config:mcp.flag}', headers: { 'X-Variable': '${config:mcp.variable}', 'X-Brace': '${config:mcp.brace}' } },
+		};
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers })));
+		const configurationService = new WorkspaceSettingsTestConfigurationService({
+			'mcp.object': { a: 1 },
+			'mcp.flag': true,
+			'mcp.array': ['a'],
+			'mcp.variable': '${env:HOME}/bin',
+			'mcp.reference': '$HOME/bin',
+			'mcp.brace': 'a}b',
+			'mcp.nested': '${input:token}',
+		});
+		const asWritten = (name: keyof typeof servers, projectedConfiguration: IMcpServerConfiguration) => support(root, name, {
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
+			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
+			projectedConfiguration,
+		});
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'settings-empty', index: 0 }], { HOME: '/home/user', TOKEN: 'secret' }, configurationService);
+
+		const plan = await migrator.createPlan({
+			servers: [
+				asWritten('unresolvedLocal', { type: McpServerType.LOCAL, ...servers.unresolvedLocal }),
+				asWritten('unresolvedRemote', { type: McpServerType.REMOTE, url: servers.unresolvedRemote.url, headers: servers.unresolvedRemote.headers }),
+				support(root, 'resolvedLocal', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['true', 'a', '/home/user/bin', '$HOME/bin'] } }),
+				support(root, 'nestedInput', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] } }),
+				support(root, 'resolvedRemote', { projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?flag=true', headers: { 'X-Variable': '/home/user/bin', 'X-Brace': 'a}b' } } }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		const result = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => [candidate.name, candidate.settingVariables?.map(setting => [setting.name, setting.value])]),
+			exclusions: plan.exclusions,
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+		}, {
+			candidates: [
+				['unresolvedLocal', [['MCP_UNSET', ''], ['MCP_CONFIG', ''], ['MCP_OBJECT', '']]],
+				['unresolvedRemote', [['MCP_UNSET', '']]],
+				['resolvedLocal', [['MCP_FLAG', ''], ['MCP_ARRAY', ''], ['MCP_VARIABLE', ''], ['MCP_REFERENCE', '']]],
+				['nestedInput', [['MCP_NESTED', '']]],
+				['resolvedRemote', [['MCP_FLAG', ''], ['MCP_VARIABLE', ''], ['MCP_BRACE', 'a}b']]],
+			],
+			exclusions: [],
+			result: { migratedCount: 5, failures: [] },
+			source: { servers: {} },
+			target: {
+				mcpServers: {
+					// A reference without a setting name migrates to an empty `MCP_CONFIG`.
+					// In `env` values, a setting is replaced with its value, since they are expanded from the host's environment.
+					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '' }, tools: ['*'] },
+					// Like an input without a default, an empty value is not written as a default.
+					unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${MCP_UNSET}' }, tools: ['*'] },
+					resolvedLocal: { type: 'local', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
+					nestedInput: { type: 'local', command: 'node', args: ['${MCP_NESTED}'], env: { MCP_NESTED: '' }, tools: ['*'] },
+					// A value with a `}` is written as is, even though it ends the default early.
+					resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${MCP_FLAG}', headers: { 'X-Variable': '${MCP_VARIABLE}', 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
+				},
+			},
+		});
+	});
+
+	test('keeps servers with ${config:} references the destination cannot represent', async () => {
+		const root = URI.file('/settings-excluded');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const servers = {
+			// A reference without a setting name migrates to `MCP_CONFIG`, as does `mcp.config`.
+			unnamedCollision: { command: 'node', args: ['${config:}', '${config:mcp.config}'] },
+			// The same file reads `API_KEY` from the environment.
+			environmentCollision: { command: 'node', args: ['${config:api.key}'], env: { OTHER: '${env:API_KEY}' } },
+			inputCollision: { command: 'node', args: ['${config:region}', '${input:region}'] },
+			settingCollision: { command: 'node', args: ['${config:mcp.level}', '${config:mcp_level}'] },
+			// `MCP_MODE` would be declared in `env`, which already sets it to something else.
+			declaredInEnv: { command: 'node', args: ['${config:mcp.mode}'], env: { mcp_mode: 'other' } },
+			envName: { command: 'node', env: { '${config:mcp.name}': 'value' } },
+			headerName: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-${config:mcp.name}': 'value' } },
+			urlHost: { type: 'http', url: 'https://${config:mcp.host}/mcp' },
+			urlPort: { type: 'http', url: 'http://localhost:${config:mcp.port}/mcp' },
+			tooLong: { command: 'node', args: [`${'x'.repeat(995)}\${config:mcp.long}`] },
+			cwd: { command: 'node', cwd: '${config:mcp.dir}' },
+		};
+		const inputs = [{ id: 'region', type: 'promptString', description: 'Region' }];
+		const source = JSON.stringify({ inputs, servers });
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
+		const configurationService = new WorkspaceSettingsTestConfigurationService({
+			'api.key': 'key',
+			'region': 'eu',
+			'mcp.level': 'info',
+			'mcp_level': 'debug',
+			'mcp.mode': 'fast',
+			'mcp.name': 'name',
+			'mcp.host': 'example.com',
+			'mcp.port': 8080,
+			'mcp.long': 'value',
+			'mcp.dir': '/tmp',
+			'mcp.config': 'value',
+		});
+		const names = Object.keys(servers);
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'settings-excluded', index: 0 }], undefined, configurationService);
+
+		const plan = await migrator.createPlan({
+			servers: names.map(name => support(root, name)),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		const result = await migrator.migrate(names.map(name => candidate(root, name)));
+
+		const expected = [
+			['unnamedCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['environmentCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['inputCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['settingCollision', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['declaredInEnv', McpServerCustomizationMigrationFailureReason.VariableNameCollision],
+			['envName', McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName],
+			['headerName', McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName],
+			['urlHost', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
+			['urlPort', McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl],
+			['tooLong', McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong],
+			['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+		];
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			failures: result.failures.map(failure => [failure.name, failure.reason]),
+			source: (await fileService.readFile(sourceUri)).value.toString(),
+			targetExists: await fileService.exists(URI.joinPath(root, '.mcp.json')),
+		}, {
+			candidates: [],
+			exclusions: expected,
+			failures: expected,
+			source,
+			targetExists: false,
+		});
+	});
+
+	test('rejects ${config:} candidates whose setting changed before writing', async () => {
+		const root = URI.file('/settings-changed');
+		const workspaceSourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const { sourceUri: userSourceUri, targetUri: userTargetUri } = userCandidate();
+		const workspaceSource = JSON.stringify({ servers: { workspace: { command: 'node', args: ['--port=${config:mcp.port}'] } } });
+		const userSource = JSON.stringify({ servers: { user: { type: 'http', url: 'https://example.com/mcp?port=${config:mcp.port}' } } });
+		const fileService = createFileService();
+		await fileService.writeFile(workspaceSourceUri, VSBuffer.fromString(workspaceSource));
+		await fileService.writeFile(userSourceUri, VSBuffer.fromString(userSource));
+		const configurationService = new WorkspaceSettingsTestConfigurationService({ 'mcp.port': 8080 });
+		const workspaceServer = support(root, 'workspace', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', args: ['--port=8080'] } });
+		const userServer = support(URI.file('/unused'), 'user', {
+			compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
+			projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp?port=${config:mcp.port}' },
+		});
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'settings-changed', index: 0 }], undefined, configurationService);
+		const plan = await migrator.createPlan({
+			servers: [workspaceServer, { ...userServer, source: { ...userServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: userSourceUri } }],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root], CancellationToken.None, userTargetUri);
+		// The user server is still forwarded the same way, so only the recorded value reveals the change.
+		await configurationService.setUserConfiguration('mcp.port', 9090);
+
+		const result = await migrator.migrate(plan.candidates, { userTarget: userTargetUri });
+
+		assert.deepStrictEqual({
+			planned: plan.candidates.map(candidate => [candidate.name, candidate.settingVariables]),
+			failures: result.failures.map(failure => [failure.name, failure.reason]),
+			sources: [(await fileService.readFile(workspaceSourceUri)).value.toString(), (await fileService.readFile(userSourceUri)).value.toString()],
+			targetsExist: [await fileService.exists(URI.joinPath(root, '.mcp.json')), await fileService.exists(userTargetUri)],
+		}, {
+			planned: [
+				['workspace', [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }]],
+				['user', [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }]],
+			],
+			failures: [
+				['workspace', McpServerCustomizationMigrationFailureReason.SourceChanged],
+				['user', McpServerCustomizationMigrationFailureReason.SourceChanged],
+			],
+			sources: [workspaceSource, userSource],
+			targetsExist: [false, false],
+		});
+	});
+
+	test('restores removed input declarations when rolling back', async () => {
+		const root = URI.file('/inputs-rollback');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const provider = new SourceWriteCommitThenFailProvider();
+		const fileService = createFileService(provider);
+		const source = '{"inputs":[{"id":"token","type":"promptString","description":"Token"}],"servers":{"server":{"command":"node","args":["${input:token}"]}}}';
+		const target = '{"mcpServers":{}}';
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
+		await fileService.writeFile(targetUri, VSBuffer.fromString(target));
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan({
+			servers: [inputSupport(root, 'server', { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] })],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		provider.sourceUri = sourceUri;
+		provider.failAfterSourceWrite = true;
+
+		const failed = await migrator.migrate(plan.candidates);
+		const afterRollback = {
+			source: (await fileService.readFile(sourceUri)).value.toString(),
+			target: (await fileService.readFile(targetUri)).value.toString(),
+		};
+		const retried = await migrator.migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			failed: failed.failures.map(failure => failure.reason),
+			afterRollback,
+			retried,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			failed: [McpServerCustomizationMigrationFailureReason.WriteFailed],
+			afterRollback: { source, target },
+			retried: { migratedCount: 1, failures: [] },
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
+		});
+	});
+
+	test('preserves a concurrent completed migration that also removed its inputs', async () => {
+		const root = URI.file('/inputs-concurrent');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const provider = new InterleavedMigrationProvider();
+		const firstWindow = createFileService(provider);
+		const secondWindow = store.add(new FileService(new NullLogService()));
+		store.add(secondWindow.registerProvider(Schemas.file, provider));
+		await firstWindow.writeFile(sourceUri, VSBuffer.fromString('{"inputs":[{"id":"token","type":"promptString","description":"Token"}],"servers":{"server":{"command":"node","args":["${input:token}"]}}}'));
+		const plan = await createMigrator(firstWindow).createPlan({
+			servers: [inputSupport(root, 'server', { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] })],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		let peerMigratedCount = 0;
+		provider.resource = targetUri;
+		provider.afterWrite = async () => {
+			peerMigratedCount = (await createMigrator(secondWindow).migrate(plan.candidates)).migratedCount;
+		};
+
+		const result = await createMigrator(firstWindow).migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			result,
+			peerMigratedCount,
+			source: parse((await firstWindow.readFile(sourceUri)).value.toString()),
+			target: parse((await firstWindow.readFile(targetUri)).value.toString()),
+		}, {
+			result: { migratedCount: 1, failures: [] },
+			peerMigratedCount: 1,
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
+		});
+	});
+
 	test('accepts the target representation after resolving portable source variables', async () => {
 		const root = URI.file('/existing-variable-target');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
@@ -1065,6 +2067,43 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
+	for (const wrapped of [true, false]) {
+		test(`reads migrated servers from each root's ${wrapped ? 'wrapped' : 'flat'} configuration`, async () => {
+			const roots = [URI.file('/first'), URI.file('/second')];
+			const fileService = createFileService();
+			const configurations: IMcpServerConfiguration[] = roots.map((root, index) => ({
+				type: McpServerType.LOCAL,
+				command: 'node',
+				args: [`${root.path}/server.js`],
+				env: { MODE: `root-${index}` },
+			}));
+			const existing = { type: 'http', url: 'https://example.com/mcp' };
+			for (const [index, root] of roots.entries()) {
+				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
+					servers: { selected: configurations[index], unselected: { command: 'other' } },
+				})));
+				const servers = { existing };
+				await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString(JSON.stringify(wrapped ? { mcpServers: servers } : servers)));
+			}
+
+			const result = await createMigrator(fileService).migrate(roots.map((root, index) => candidate(root, 'selected', configurations[index])));
+
+			assert.deepStrictEqual(JSON.parse(JSON.stringify({
+				result,
+				files: await Promise.all(roots.map(async root => ({
+					source: parse((await fileService.readFile(URI.joinPath(root, '.vscode', 'mcp.json'))).value.toString()),
+					target: parseWorkspaceRootMcpConfiguration((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+				}))),
+			})), {
+				result: { migratedCount: 2, failures: [] },
+				files: configurations.map(configuration => ({
+					source: { servers: { unselected: { command: 'other' } } },
+					target: { wrapped, servers: { existing, selected: configuration } },
+				})),
+			});
+		});
+	}
+
 	test('accepts an equivalent target and rejects a conflicting target', async () => {
 		const root = URI.file('/targets');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
@@ -1111,7 +2150,7 @@ suite('McpServerCustomizationMigration', () => {
 				override info(message: string): void { messages.push(message); }
 			}();
 
-			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService()).migrate([selected]);
+			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService(), new TestConfigurationService(), createSecretStorageService()).migrate([selected]);
 
 			assert.deepStrictEqual({
 				result,

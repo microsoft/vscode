@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../base/common/platform.js';
-import { URI } from '../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
-import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -67,7 +65,11 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 
 /** Resolves the owning session's toggle overrides without changing global settings. */
 export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
-	session = resolveAgentHostSession(URI.parse(session)).toString();
+	const owner = configuration.resolveConfigurationOwner(session);
+	if (owner === undefined) {
+		throw new Error(`No recorded owner for ${session}`);
+	}
+	session = owner;
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
 	const policy = configuration.getSessionSandboxPolicy(session);
