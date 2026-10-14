@@ -1202,6 +1202,15 @@ export class TabbedModelPicker extends Disposable {
 		return true;
 	}
 
+	/**
+	 * Shows a queued effort variant in the model's open Details card and in its row, which
+	 * only changes the row's summary, so the popup keeps its size once Details closes.
+	 */
+	private _refreshWorkflowVariants(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): void {
+		this._getModelCard(model, this._context ?? context).refresh();
+		this._widget.refreshActiveList({ preserveScrollPosition: true, preserveSize: true });
+	}
+
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
@@ -1227,11 +1236,11 @@ export class TabbedModelPicker extends Disposable {
 				list: context.workflow!.getVariants(model.identifier),
 				onAdd: (configuration, label, baseConfiguration) => {
 					context.workflow!.addVariant(model.identifier, configuration, label, baseConfiguration);
-					this.refresh();
+					this._refreshWorkflowVariants(model, context);
 				},
 				onRemove: index => {
 					context.workflow!.removeVariant(model.identifier, index);
-					this.refresh();
+					this._refreshWorkflowVariants(model, context);
 				},
 			} : undefined,
 			modelChoices: ownTiers.length ? {
