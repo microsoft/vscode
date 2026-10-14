@@ -11,7 +11,7 @@ import { ManagedSettingsData } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -101,11 +101,11 @@ suite('ChatConfiguration defaults', () => {
 			return configuration;
 		}
 
-		function requiresAgentHost(configuration: IConfigurationService, sandbox: boolean, permissions: boolean, requireCopilot = false): boolean {
+		function requiresAgentHost(configuration: IConfigurationService, sandbox: boolean, permissions: boolean, allowLocal = true): boolean {
 			const settings: ManagedSettingsData = {
 				[COPILOT_SANDBOX_ENABLED_KEY]: sandbox,
 				...(permissions ? { 'permissions.allow': '[]' } : {}),
-				[COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY]: requireCopilot,
+				[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal,
 				[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true,
 			};
 			return requiresCopilotAgentHost(new class extends NullManagedSettingsService {
@@ -155,12 +155,12 @@ suite('ChatConfiguration defaults', () => {
 			assert.deepStrictEqual(results, types.map(type => ({ explicit: type, remembered: type, current: type, stored: type })));
 		});
 
-		test('explicit Copilot requirement overrides the managed escape hatch without changing stored choices', () => {
+		test('explicit Local prohibition overrides the managed escape hatch without changing stored choices', () => {
 			const configuration = createConfiguration(true);
 			const sessions = createChatSessionsService();
 			const storage = disposables.add(new TestStorageService());
 			storeUserSelectedSessionType(storage, localChatSessionType);
-			const required = requiresAgentHost(configuration, false, false, true);
+			const required = requiresAgentHost(configuration, false, false, false);
 			const results = [localWorkspace, createWorkspace(URI.parse('virtual:/workspace'))].flatMap(workspace =>
 				[false, true].map(enabled => ({
 					computed: getComputedDefaultSessionType(configuration, sessions, workspace, enabled, false, required),

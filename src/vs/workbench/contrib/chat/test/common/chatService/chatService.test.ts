@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
@@ -270,9 +270,9 @@ suite('ChatService', () => {
 		['permissions.defaultMode', 'manual'],
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
-		[COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY, true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
-		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY;
+		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
 		test(`${policyKey} ${allowsEscapeHatch ? 'allows' : 'blocks'} Local with the enterprise escape hatch and blocks it on withdrawal`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let optOut = true;

@@ -28,7 +28,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -1646,13 +1646,13 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('temporary Copilot requirement triggers the existing automatic migration without managed permissions', async () => {
+	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		let required = false;
+		let allowLocal = true;
 		const managedSettings = new class extends NullManagedSettingsService {
-			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY ? required : undefined; }
-			override getManagedSettings() { return { [COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY]: required }; }
+			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
+			override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal }; }
 		}();
 		const fixture = createAutomaticMigrationFixture();
 		let calls = 0;
@@ -1661,7 +1661,7 @@ suite('ChatWidget', () => {
 		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
 		await timeout(0);
 		const before = calls;
-		required = true;
+		allowLocal = false;
 		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
