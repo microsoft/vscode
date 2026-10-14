@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type Customization, type ResponsePart } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionCustomizationKind } from '../../../../../services/sessions/common/session.js';
 import { createIncrementalChatCustomizationRefsParser, CustomizationIndex, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
@@ -53,9 +54,9 @@ suite('Agent Host Session Customizations', () => {
 			{ id: 'skill-1', type: CustomizationType.Skill, uri: URI.file('/repo/.github/skills/sessions/SKILL.md').toString(), name: 'sessions' },
 			{ id: 'rule-1', type: CustomizationType.Rule, uri: URI.file('/repo/.github/instructions/tests.instructions.md').toString(), name: 'writing-tests' },
 			{ id: 'hook-1', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/pre.md').toString(), name: 'pre-commit' },
-			{ id: 'mcp-1', type: CustomizationType.McpServer, uri: URI.file('/repo/.vscode/mcp.json').toString(), name: 'playwright' },
+			{ id: 'mcp-1', type: CustomizationType.McpServer, uri: URI.file('/repo/.vscode/mcp.json').toString(), name: 'playwright', state: { kind: McpServerStatus.Ready } },
 		],
-	} as unknown as Customization];
+	}];
 
 	const index = new CustomizationIndex(customizations, [root]);
 
@@ -165,6 +166,89 @@ suite('Agent Host Session Customizations', () => {
 			resolved: [undefined, undefined, 'hook-1', 'hook-1'],
 			oldRootResolutionCount: 1,
 			updatedRootResolutionCount: 1,
+		});
+	});
+
+	test('reuses unaffected path resolutions when customization paths change', () => {
+		const stableRef = { kind: CustomizationRefKind.Path, value: '.github/hooks/pre.md' } as const;
+		const addedRef = { kind: CustomizationRefKind.Path, value: '.github/hooks/post.md' } as const;
+		const initial = new CountingCustomizationIndex(customizations, [root]);
+		initial.resolve(stableRef);
+		initial.resolve(addedRef);
+		const updatedCustomizations: readonly Customization[] = customizations.map(customization => customization.type === CustomizationType.Directory
+			? {
+				...customization,
+				children: [
+					...(customization.children ?? []),
+					{ id: 'hook-2', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/post.md').toString(), name: 'post-commit' },
+				],
+			}
+			: customization);
+		const updated = new CountingCustomizationIndex(updatedCustomizations, [root], undefined, initial);
+
+		assert.deepStrictEqual({
+			stable: updated.resolve(stableRef)?.id,
+			added: updated.resolve(addedRef)?.id,
+			initialPathResolutionCount: initial.pathResolutionCount,
+			updatedPathResolutionCount: updated.pathResolutionCount,
+		}, {
+			stable: 'hook-1',
+			added: 'hook-2',
+			initialPathResolutionCount: 2,
+			updatedPathResolutionCount: 1,
+		});
+	});
+
+	test('invalidates a cached miss when a matching skill container is added', () => {
+		const ref = { kind: CustomizationRefKind.Path, value: '.github/skills/new/reference.md' } as const;
+		const initial = new CountingCustomizationIndex(customizations, [root]);
+		const initialResult = initial.resolve(ref)?.id;
+		const updatedCustomizations: readonly Customization[] = customizations.map(customization => customization.type === CustomizationType.Directory
+			? {
+				...customization,
+				children: [
+					...(customization.children ?? []),
+					{ id: 'skill-2', type: CustomizationType.Skill, uri: URI.file('/repo/.github/skills/new/SKILL.md').toString(), name: 'new' },
+				],
+			}
+			: customization);
+		const updated = new CountingCustomizationIndex(updatedCustomizations, [root], undefined, initial);
+
+		assert.deepStrictEqual({
+			initialResult,
+			updatedResult: updated.resolve(ref)?.id,
+			initialPathResolutionCount: initial.pathResolutionCount,
+			updatedPathResolutionCount: updated.pathResolutionCount,
+		}, {
+			initialResult: undefined,
+			updatedResult: 'skill-2',
+			initialPathResolutionCount: 1,
+			updatedPathResolutionCount: 1,
+		});
+	});
+
+	test('invalidates a cached hit when its customization is removed', () => {
+		const ref = { kind: CustomizationRefKind.Path, value: '.github/hooks/pre.md' } as const;
+		const initial = new CountingCustomizationIndex(customizations, [root]);
+		const initialResult = initial.resolve(ref)?.id;
+		const updatedCustomizations: readonly Customization[] = customizations.map(customization => customization.type === CustomizationType.Directory
+			? {
+				...customization,
+				children: customization.children?.filter(child => child.id !== 'hook-1'),
+			}
+			: customization);
+		const updated = new CountingCustomizationIndex(updatedCustomizations, [root], undefined, initial);
+
+		assert.deepStrictEqual({
+			initialResult,
+			updatedResult: updated.resolve(ref)?.id,
+			initialPathResolutionCount: initial.pathResolutionCount,
+			updatedPathResolutionCount: updated.pathResolutionCount,
+		}, {
+			initialResult: 'hook-1',
+			updatedResult: undefined,
+			initialPathResolutionCount: 1,
+			updatedPathResolutionCount: 1,
 		});
 	});
 
