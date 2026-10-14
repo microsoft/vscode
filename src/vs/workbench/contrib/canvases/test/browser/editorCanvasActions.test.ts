@@ -165,7 +165,16 @@ suite('EditorCanvasActions', () => {
 		canvases.set([...canvases.get()!], undefined);
 		await timeout(0);
 		const refreshedItems = getItems();
-		const commandIds = [...new Set([...initialCommandIds, ...refreshedItems.map(item => item.command.id)])];
+		const commandIds = new Set([...initialCommandIds, ...refreshedItems.map(item => item.command.id)]);
+		canvasContext.set(undefined, undefined);
+		await timeout(0);
+		const uninitializedItems = getItems();
+		const uninitializedSubmenus = getSubmenus();
+		canvasContext.set(context, undefined);
+		await timeout(0);
+		for (const item of getItems()) {
+			commandIds.add(item.command.id);
+		}
 		enabled.set(false, undefined);
 		const disabledItems = getItems();
 		const disabledSubmenus = getSubmenus();
@@ -182,18 +191,20 @@ suite('EditorCanvasActions', () => {
 			revealed,
 			reopened,
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
+			uninitializedItems: uninitializedItems.length,
+			uninitializedSubmenus: uninitializedSubmenus.length,
 			disabledItems: disabledItems.length,
 			disabledSubmenus: disabledSubmenus.length,
 			itemsAfterDispose: getItems().length,
 			submenusAfterDispose: getSubmenus().length,
-			commandsAfterDispose: commandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
+			commandsAfterDispose: [...commandIds].map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
 			submenuGroups: ['z_canvas'],
 			initialTitles: ['Counter (Project Counter)', 'Counter (User Counter)', 'Preview'],
 			groups: ['1_available', '1_available', '2_open'],
 			requiresChat: [true, true, true],
-			listCalls: 2,
+			listCalls: 3,
 			opened: [{
 				canvas: 'project:counter',
 				instanceId: getCanvasDefinitionInstanceId(projectDefinition),
@@ -201,11 +212,13 @@ suite('EditorCanvasActions', () => {
 			revealed: ['agent-host-canvas:/user-counter'],
 			reopened: ['agent-host-canvas:/preview'],
 			refreshedTitles: ['Chart', 'Counter', 'Preview'],
+			uninitializedItems: 0,
+			uninitializedSubmenus: 0,
 			disabledItems: 0,
 			disabledSubmenus: 0,
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
-			commandsAfterDispose: [false, false, false, false, false],
+			commandsAfterDispose: [false, false, false, false, false, false, false, false],
 		});
 	});
 });
