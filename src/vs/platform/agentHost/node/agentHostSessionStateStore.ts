@@ -12,12 +12,12 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
-import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { IMirrorReadPlan, isProjectedMirrorEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderMirrorEntry, renderMirrorWrites, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { IMirrorReadPlan, isProjectedMirrorEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -152,22 +152,72 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}));
 	}
 
-	async readWithoutImport(session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>> {
+	legacyMetadata(session: URI, keys: readonly string[]): ISessionStateLegacyMetadata {
 		const record = this._records.get(session.toString());
-		if (record) {
-			return this._values(record, keys);
+		if (!record) {
+			throw new Error(`Session state of ${session.toString()} is not loaded`);
 		}
-		const central = (await this._database.readSessionStateValues([session.toString()], keys)).get(session.toString());
-		if (central?.imported) {
-			return central.values;
+		return renderLegacyMetadata(record.model, keys);
+	}
+
+	catalogMetadataReference(exclusive: ISessionStateExclusive): ISessionStateMetadataReference {
+		const session = URI.parse(exclusive.snapshot.session);
+		return {
+			object: {
+				getMetadataObject: async <T extends Record<string, unknown>>(keys: T) => {
+					const rendered = this.legacyMetadata(session, Object.keys(keys));
+					const values: Record<string, string | undefined> = { ...rendered.values, ...await this._readDatabase(session, rendered.unowned) };
+					return values as { [K in keyof T]: string | undefined };
+				},
+			},
+		};
+	}
+
+	async readWithoutImport(session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>> {
+		const key = session.toString();
+		const record = this._records.get(key);
+		let rendered: ISessionStateLegacyMetadata | undefined;
+		if (record) {
+			rendered = renderLegacyMetadata(record.model, keys);
+		} else if (keys.every(entry => SESSION_STATE_VALUE_KEYS.some(value => value.key === entry))) {
+			const central = (await this._database.readSessionStateValues([key], keys)).get(key);
+			rendered = central?.imported ? { values: Object.fromEntries(central.values), unowned: [] } : undefined;
+		} else {
+			const state = await this._database.readSessionState(key);
+			if (state) {
+				const [catalog] = await this._database.readCatalogSnapshot([key]);
+				rendered = renderLegacyMetadata(new SessionStateModel(state, catalog?.authorityVersion ?? 1), keys);
+			}
+		}
+		const values = { ...rendered?.values, ...await this._readDatabase(session, rendered ? rendered.unowned : keys) };
+		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	}
+
+	async readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
+		const central = await this._database.readSessionStateValues(sessions.map(session => session.toString()), keys);
+		const result = new Map<string, ReadonlyMap<string, string>>();
+		for (const session of sessions) {
+			const key = session.toString();
+			const record = this._records.get(key);
+			const imported = central.get(key);
+			result.set(key, record
+				? this._values(record, keys)
+				: imported?.imported ? imported.values : new Map(Object.entries(await this._readDatabase(session, keys)).filter((entry): entry is [string, string] => entry[1] !== undefined)));
+		}
+		return result;
+	}
+
+	/** Reads keys from an existing session.db; a missing database holds nothing and is not created. */
+	private async _readDatabase(session: URI, keys: readonly string[]): Promise<Record<string, string | undefined>> {
+		if (keys.length === 0) {
+			return {};
 		}
 		const reference = await this._sessionDataService.tryOpenDatabase(session);
 		if (!reference) {
-			return new Map();
+			return {};
 		}
 		try {
-			const values = await reference.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
-			return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+			return await reference.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
 		} finally {
 			reference.dispose();
 		}

@@ -108,6 +108,21 @@ export interface ISessionStateExclusive {
 	noteMirrored(revision: number, entries: readonly string[]): void;
 }
 
+/** Old-format session.db values rendered from central state. */
+export interface ISessionStateLegacyMetadata {
+	/** Values of the requested keys the store owns; `undefined` when absent. */
+	readonly values: Readonly<Record<string, string | undefined>>;
+	/** Requested keys the store does not own; callers read them from session.db as before. */
+	readonly unowned: readonly string[];
+}
+
+/** Metadata reads in the old format, the shape the session catalog projection consumes. */
+export interface ISessionStateMetadataReference {
+	readonly object: {
+		getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
+	};
+}
+
 /** Thrown when the store is called for a session whose exclusive section the caller holds. */
 export class SessionStateReentrancyError extends Error {
 	constructor(session: string) {
@@ -144,11 +159,24 @@ export interface IAgentHostSessionStateStore {
 	/** Runs `task` with the loaded session held exclusively. The task must not call the store for the same session. */
 	runExclusive<T>(session: URI, task: (exclusive: ISessionStateExclusive) => Promise<T>): Promise<T>;
 	/**
-	 * Reads session values without importing: central values when the session
-	 * was imported, else the old-format values session.db holds. For sweeps over
-	 * many sessions that must stay cheap.
+	 * What session.db would hold for `keys` if every mirror were current, from
+	 * the loaded state. Lets readers keep their old-format parsing while the
+	 * source is central. The session must be loaded.
+	 */
+	legacyMetadata(session: URI, keys: readonly string[]): ISessionStateLegacyMetadata;
+	/**
+	 * Old-format reads for the session catalog projection inside an exclusive
+	 * section: owned keys from central state, other keys from session.db.
+	 */
+	catalogMetadataReference(exclusive: ISessionStateExclusive): ISessionStateMetadataReference;
+	/**
+	 * Reads old-format keys without importing: rendered from central state when
+	 * the session was imported, else what session.db holds. Never imports and
+	 * never creates storage; for listings and sweeps.
 	 */
 	readWithoutImport(session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>>;
+	/** {@link readWithoutImport} of session values for many sessions, with one central read for all of them. */
+	readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>>;
 	/** Imports session values a provider wrote to session.db itself; differing mirror values win. */
 	refreshFromMirror(session: URI, keys: readonly string[]): Promise<void>;
 	/** Reads one branch-changes blob; `''` is the session folder's. */

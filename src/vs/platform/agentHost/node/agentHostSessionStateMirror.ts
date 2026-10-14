@@ -509,6 +509,96 @@ export function observeLegacyArchived(session: string, reads: MirrorReads): stri
 	return sessionReads[AH_META_IS_ARCHIVED_DB_KEY] ?? sessionReads[LEGACY_IS_DONE_KEY];
 }
 
+function mapFolderKind(mapKey: MirrorMapKey): SessionStateFolderKind {
+	return mapKey === META_GIT_DATA_STATE ? 'git' : 'github';
+}
+
+/** Folder entries a map key holds, with their folder keys: every folder of its kind except the session folder's own git key. */
+function mapEntries(model: SessionStateModel, kind: SessionStateFolderKind): [string, string][] {
+	return [...model.folders.values()]
+		.filter(folder => folder.kind === kind && (kind === 'github' || folder.folderKey !== ''))
+		.map(folder => [mirrorEntryId({ kind: 'folder', folderKind: kind, folderKey: folder.folderKey }), folder.folderKey]);
+}
+
+/** The old-format JSON map of a folder map key, from central state. */
+function renderFolderMap(model: SessionStateModel, kind: SessionStateFolderKind): Record<string, unknown> {
+	const map: Record<string, unknown> = {};
+	for (const folder of model.folders.values()) {
+		if (folder.kind === kind && (kind === 'github' || folder.folderKey !== '') && folder.value !== undefined) {
+			map[folder.folderKey] = JSON.parse(folder.value);
+		}
+	}
+	return map;
+}
+
+/** Session.db keys of a legacy-catalog chat, by key prefix. */
+const LEGACY_CHAT_KEY_FIELDS: readonly (readonly [string, MirroredChatField])[] = [
+	['customChatTitle:', 'title'],
+	['customChatTitleSource:', 'titleSource'],
+	[`${META_CHANGES_SUMMARY}:`, 'changes'],
+];
+
+/** The central entry a session.db key of the old format holds, `'map'` for a folder map, or `undefined` when the store does not own it. */
+function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirrorEntry | MirrorMapKey | 'retired' | undefined {
+	if (getSessionStateValueKey(key)) {
+		return { kind: 'value', key };
+	}
+	switch (key) {
+		case LEGACY_IS_DONE_KEY: return 'retired';
+		case META_GIT_STATE: return { kind: 'folder', folderKind: 'git', folderKey: '' };
+		case META_GIT_DATA_STATE: return META_GIT_DATA_STATE;
+		case META_GITHUB_DATA_STATE: return META_GITHUB_DATA_STATE;
+		case BASE_BRANCH_MIRROR_KEY: return { kind: 'folder', folderKind: 'baseBranch', folderKey: '' };
+	}
+	if (model.authority !== 1) {
+		return undefined;
+	}
+	const defaultChat = [...model.chats.values()].find(chat => chat.isDefault)?.chat;
+	switch (key) {
+		case SESSION_CUSTOM_TITLE_KEY: return defaultChat === undefined ? undefined : { kind: 'chat', field: 'title', chat: defaultChat };
+		case SESSION_CUSTOM_TITLE_SOURCE_KEY: return defaultChat === undefined ? undefined : { kind: 'chat', field: 'titleSource', chat: defaultChat };
+		case AH_META_DEFAULT_CHAT_IS_READ_DB_KEY: return defaultChat === undefined ? undefined : { kind: 'chat', field: 'isRead', chat: defaultChat };
+	}
+	for (const [prefix, field] of LEGACY_CHAT_KEY_FIELDS) {
+		const chat = key.startsWith(prefix) ? key.slice(prefix.length) : undefined;
+		// Chats the store has no row of (e.g. private chats) keep their keys in session.db.
+		if (chat !== undefined && model.chats.has(chat)) {
+			return { kind: 'chat', field, chat };
+		}
+	}
+	return undefined;
+}
+
+/** Old-format session.db values rendered from central state, and the requested keys the store does not own. */
+export interface ILegacyMetadata {
+	readonly values: Record<string, string | undefined>;
+	readonly unowned: readonly string[];
+}
+
+/**
+ * What session.db would hold for `keys` if every mirror were current. Branch
+ * blobs are not rendered (they are read lazily); keys the store does not own
+ * are listed in `unowned` for the caller to read from the database.
+ */
+export function renderLegacyMetadata(model: SessionStateModel, keys: readonly string[]): ILegacyMetadata {
+	const values: Record<string, string | undefined> = {};
+	const unowned: string[] = [];
+	for (const key of keys) {
+		const entry = legacyKeyEntry(model, key);
+		if (entry === undefined) {
+			unowned.push(key);
+		} else if (entry === 'retired') {
+			values[key] = undefined;
+		} else if (entry === META_GIT_DATA_STATE || entry === META_GITHUB_DATA_STATE) {
+			const map = renderFolderMap(model, mapFolderKind(entry));
+			values[key] = Object.keys(map).length > 0 || mapEntries(model, mapFolderKind(entry)).length > 0 ? JSON.stringify(map) : undefined;
+		} else {
+			values[key] = renderMirrorEntry(model, entry);
+		}
+	}
+	return { values, unowned };
+}
+
 // ---- Writing -----------------------------------------------------------------
 
 /** Old-format changes of one database. */
@@ -545,19 +635,18 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 				continue;
 			}
 			renderedMaps.add(location.mapKey);
-			const kind: SessionStateFolderKind = location.mapKey === META_GIT_DATA_STATE ? 'git' : 'github';
-			const map: Record<string, unknown> = {};
+			const kind = mapFolderKind(location.mapKey);
+			const map = renderFolderMap(model, kind);
 			const target = write(location.target.resource);
-			for (const folder of model.folders.values()) {
-				if (folder.kind !== kind || (kind === 'git' && folder.folderKey === '')) {
-					continue;
+			const folderKeys = new Map(mapEntries(model, kind));
+			for (const other of entries) {
+				if (other.kind === 'folder' && other.folderKind === kind && (kind === 'github' || other.folderKey !== '')) {
+					folderKeys.set(mirrorEntryId(other), other.folderKey);
 				}
-				if (folder.value !== undefined) {
-					map[folder.folderKey] = JSON.parse(folder.value);
-				}
-				const folderEntry = mirrorEntryId({ kind: 'folder', folderKind: kind, folderKey: folder.folderKey });
+			}
+			for (const [folderEntry, folderKey] of folderKeys) {
 				target.entries.push(folderEntry);
-				target.written.set(folderEntry, folder.value === undefined ? undefined : JSON.stringify(map[folder.folderKey]));
+				target.written.set(folderEntry, map[folderKey] === undefined ? undefined : JSON.stringify(map[folderKey]));
 			}
 			target.set[location.target.key] = JSON.stringify(map);
 			continue;

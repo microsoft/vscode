@@ -267,6 +267,78 @@ suite('AgentHostSessionStateStore', () => {
 		assert.strictEqual(sessionStore.peek(session), undefined);
 	});
 
+	test('renders exactly the old format older builds wrote, and names the keys it does not own', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		const written = legacySessionMetadata(fixture);
+		const rendered = sessionStore.legacyMetadata(session, [...Object.keys(written), 'isDone', 'agentHost.github']);
+		const owned = Object.fromEntries(Object.entries(written).filter(([key]) => !rendered.unowned.includes(key)));
+		assert.deepStrictEqual({
+			matches: Object.fromEntries(Object.entries(owned).map(([key, value]) => [key, rendered.values[key] === value])),
+			retired: rendered.values.isDone,
+			unowned: [...rendered.unowned].sort(),
+		}, {
+			matches: Object.fromEntries(Object.keys(owned).map(key => [key, true])),
+			retired: undefined,
+			// Provider-owned keys of the default chat, blobs (read lazily), membership, and the legacy GitHub key (C4).
+			unowned: ['agentHost.changeset.branch', `agentHost.changeset.branch.${getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories)}`, 'agentHost.changeset.session', 'agentHost.github',
+				'copilot.customizationDirectory', 'copilot.model', 'copilot.project.displayName', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.sharedCustomizationDirectories',
+				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
+		});
+	});
+
+	test('reads without importing render central state for imported sessions that are not loaded', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const imports = sinon.spy(database, 'importSessionState');
+		const keys = ['configValues', 'agentHost.gitData', `customChatTitle:${fixture.chats[1].uri}`];
+		const before = await createStore().readWithoutImport(session, keys);
+		const writer = createStore();
+		const mirrorWrites = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('crash'));
+		await writer.write(session, sessionStatePatch({ values: { configValues: 'central' }, chats: [{ chat: fixture.chats[1].uri, isDefault: false, fields: { title: 'Central title' } }] }), SessionStateMirrorFlush.Immediate);
+		mirrorWrites.restore();
+		const after = await createStore().readWithoutImport(session, keys);
+		const written = legacySessionMetadata(fixture);
+		assert.deepStrictEqual({ imports: imports.callCount, before: Object.fromEntries(before), after: Object.fromEntries(after) }, {
+			imports: 1,
+			before: Object.fromEntries(keys.map(key => [key, written[key]])),
+			after: { ...Object.fromEntries(keys.map(key => [key, written[key]])), configValues: 'central', [`customChatTitle:${fixture.chats[1].uri}`]: 'Central title' },
+		});
+	});
+
+	test('a sweep over many unimported sessions reads central state once and imports none', async () => {
+		const { fixture, session } = await oldBuildSession();
+		await createStore().write(session, sessionStatePatch({ values: { 'agentHost.autoArchivedAt': '7' } }), SessionStateMirrorFlush.Immediate);
+		const sessions = [session, ...Array.from({ length: 999 }, (_, index) => URI.parse(`copilotcli:/unimported-${index}`))];
+		const imports = sinon.spy(database, 'importSessionState');
+		const centralReads = sinon.spy(database, 'readSessionStateValues');
+		const values = await createStore().readValuesWithoutImport(sessions, ['agentHost.autoArchivedAt', 'configValues']);
+		assert.deepStrictEqual({
+			imports: imports.callCount,
+			centralReads: centralReads.callCount,
+			imported: Object.fromEntries(values.get(fixture.session)!),
+			unimported: values.get('copilotcli:/unimported-0')?.size,
+			databases: sessionData.resources.length,
+		}, {
+			imports: 0,
+			centralReads: 1,
+			imported: { 'agentHost.autoArchivedAt': '7', configValues: legacySessionMetadata(fixture).configValues },
+			unimported: 0,
+			databases: 3,
+		});
+	});
+
+	test('the catalog projection reads owned keys centrally and other keys from session.db', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const mirrorWrites = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('crash'));
+		await sessionStore.write(session, sessionStatePatch({ values: { isArchived: 'true' } }), SessionStateMirrorFlush.Immediate);
+		mirrorWrites.restore();
+		await sessionData.createService().openDatabase(session).object.setMetadata('peerChatBacking', 'backing');
+		const read = await sessionStore.runExclusive(session, exclusive => sessionStore.catalogMetadataReference(exclusive).object.getMetadataObject({ isArchived: true, peerChatBacking: true }));
+		assert.deepStrictEqual(read, { isArchived: 'true', peerChatBacking: 'backing' });
+	});
+
 	test('a Block 2b session imports in runtime spelling and mirrors in storage spelling', async () => {
 		const fixture = createLegacySessionFixture('2b');
 		const compatible = store.add(new CompatibleAgentHostDatabase(':memory:'));

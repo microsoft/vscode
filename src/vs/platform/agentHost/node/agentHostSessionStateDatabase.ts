@@ -469,20 +469,24 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 
 	readSessionStateValues(sessions: readonly string[], keys: readonly string[]): Promise<ReadonlyMap<string, IAgentHostSessionStateValues>> {
 		return this._host.read(async connection => {
-			const result = new Map<string, IAgentHostSessionStateValues>();
-			for (const session of new Set(sessions)) {
-				const imported = !!await connection.get('SELECT 1 AS present FROM metadata WHERE key = ?', [importedMarkerPrefix + session]);
-				const values = new Map<string, string>();
-				if (imported && keys.length > 0) {
-					const rows = await connection.all(`SELECT key, value FROM session_state_values
-						WHERE session_uri = ? AND value IS NOT NULL AND key IN (${keys.map(() => '?').join(', ')})`, [session, ...keys]);
-					for (const row of rows) {
-						values.set(row.key as string, row.value as string);
+			const unique = [...new Set(sessions)];
+			// Two statements for any number of sessions: lifecycle sweeps read many unimported sessions.
+			const imported = new Set((await connection.all(`SELECT substr(key, ${importedMarkerPrefix.length + 1}) AS session_uri FROM metadata
+				WHERE key IN (SELECT ? || value FROM json_each(?))`, [importedMarkerPrefix, JSON.stringify(unique)])).map(row => row.session_uri as string));
+			const values = new Map<string, Map<string, string>>();
+			if (keys.length > 0 && imported.size > 0) {
+				for (const row of await connection.all(`SELECT session_uri, key, value FROM session_state_values
+					WHERE session_uri IN (SELECT value FROM json_each(?1)) AND key IN (SELECT value FROM json_each(?2)) AND value IS NOT NULL`, [JSON.stringify([...imported]), JSON.stringify(keys)])) {
+					const session = row.session_uri as string;
+					let sessionValues = values.get(session);
+					if (!sessionValues) {
+						sessionValues = new Map();
+						values.set(session, sessionValues);
 					}
+					sessionValues.set(row.key as string, row.value as string);
 				}
-				result.set(session, { imported, values });
 			}
-			return result;
+			return new Map(unique.map(session => [session, { imported: imported.has(session), values: values.get(session) ?? new Map<string, string>() }]));
 		});
 	}
 
