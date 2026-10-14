@@ -77,6 +77,22 @@
 					"type": "boolean"
 				}
 			},
+			"vscode": {
+				"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
+				"type": "object",
+				"additionalProperties": false,
+				"x-mdm-delivery": false,
+				"properties": {
+					"temporaryDefaultToLocalHarness": {
+						"description": "Temporary escape hatch: true defaults new VS Code chats to the Local harness without disabling telemetry or preventing users from choosing the Copilot harness. False or absent restores normal rollout behavior. This preference must not override governance requiring the Copilot harness, including enforced sandboxing and runtime-owned permission policies.",
+						"type": "boolean"
+					}
+				},
+				"x-composition": {
+					"strategy": "highest-layer-wins",
+					"description": "The whole vscode block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An explicit false or empty block replaces a lower-priority true; this is a preference, not a security floor."
+				}
+			},
 			"model": {
 				"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. Users may override this startup default. Hosts should match it against the account's available models.",
 				"type": "string",
@@ -1154,5 +1170,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.98-0"
+	"runtimeVersion": "1.0.98-2"
 }
