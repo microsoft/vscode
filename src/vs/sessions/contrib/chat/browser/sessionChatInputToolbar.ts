@@ -43,7 +43,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHA
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
@@ -265,7 +265,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -280,13 +280,13 @@ function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefin
 	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
 }
 
-/**
- * The changeset represented by the Changes pill. A nested chat reports its own
- * Session Changes; the main chat reports Branch Changes for a worktree and
- * Session Changes otherwise.
- */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
-	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
+function isCloudSandboxSession(session: IActiveSession | undefined): boolean {
+	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
+}
+
+/** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IActiveSession | undefined): string {
+	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -546,7 +546,7 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
-			if (isNestedChat(session, this._chat.read(reader), reader)) {
+			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
 				return localize('sessionChatPills.sessionChanges', "Session Changes");
 			}
 			const workspace = session?.workspace.read(reader);
@@ -570,7 +570,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
 						}
 					});
 				},

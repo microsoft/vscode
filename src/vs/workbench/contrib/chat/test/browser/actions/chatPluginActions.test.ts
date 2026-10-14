@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -100,6 +101,8 @@ suite('ManagePluginMarketplacesAction', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = observableValue<URI>(this, URI.parse('local:/session'));
+			override getDescriptorForSession() { return harness; }
 			override getActiveDescriptor() { return harness; }
 		}());
 		instantiationService.stub(IAgentPluginRepositoryService, new class extends mock<IAgentPluginRepositoryService>() {
@@ -204,7 +207,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			add: async () => { throw new Error('Unexpected add'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async (name, force) => {
+			remove: async (_session, name, force) => {
 				removeCalls.push({ name, force });
 				return force ? { removed: true } : { removed: false, dependentPlugins: ['sample-plugin'] };
 			},
@@ -267,7 +270,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			add: async () => { throw new Error('Unexpected add'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async name => {
+			remove: async (_session, name) => {
 				removeCalls.push(name);
 				return { removed: true };
 			},
@@ -304,7 +307,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
 			list: async () => [],
-			add: async source => {
+			add: async (_session, source) => {
 				addCalls.push(source);
 				return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
 			},

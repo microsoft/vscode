@@ -162,14 +162,14 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}
 		const store = new DisposableStore();
 		this.marketplaceManagementBinding.value = store;
-		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(managementProvider, version, true)));
-		void this.refreshProviderMarketplaces(managementProvider, version);
+		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(sessionResource, managementProvider, version, true)));
+		void this.refreshProviderMarketplaces(sessionResource, managementProvider, version);
 	}
 
-	private async refreshProviderMarketplaces(provider: ICustomizationMarketplaceManagementProvider, version: number, forceChangeEvent = false): Promise<void> {
+	private async refreshProviderMarketplaces(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider, version: number, forceChangeEvent = false): Promise<void> {
 		const refreshVersion = ++this.marketplaceManagementRefreshVersion;
 		try {
-			const marketplaces = await provider.list();
+			const marketplaces = await provider.list(sessionResource);
 			if (version !== this.marketplaceManagementVersion || refreshVersion !== this.marketplaceManagementRefreshVersion || this._store.isDisposed) {
 				return;
 			}
@@ -210,7 +210,12 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					getProviderMarketplaceSourceId(marketplace.name),
 					() => ({
 						id: getProviderMarketplaceSourceId(marketplace.name),
-						query: (options, token) => managementProvider.queryMarketplace(marketplace, options, token),
+						query: (options, token) => {
+							const sessionResource = this.marketplaceSessionResource;
+							return sessionResource
+								? managementProvider.queryMarketplace(sessionResource, marketplace, options, token)
+								: Promise.resolve({ items: [], total: 0 });
+						},
 					}),
 				))
 			: [];

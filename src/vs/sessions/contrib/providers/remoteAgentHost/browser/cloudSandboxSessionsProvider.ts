@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, Sequencer } from '../../../../../base/common/async.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
@@ -16,8 +16,8 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
@@ -78,14 +78,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!connection || !rawId || !this._sessionCache.has(rawId)) {
 			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
 		}
-		const config = await raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config: values }), token);
-		for (const [key, value] of Object.entries(values)) {
-			validateSessionConfigWrite(config.schema, config.values, key, value, true);
-			if (config.values[key] !== value) {
-				throw new Error(localize('cloudSandbox.configNotApplied', "The sandbox could not apply the selected {0}. Your prompt was not sent.", key));
-			}
-		}
-		return { ...values };
+		return resolveCloudSandboxSessionConfig(connection, values, token);
 	}
 
 	protected override _adapterOptions() {
@@ -338,6 +331,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {
+		if (this._deleteSessionsOnDemand?.ownsSession(URI.parse(rawId))) {
+			return false;
+		}
 		if (!this._provisionalSessions.has(rawId)) {
 			return true;
 		}

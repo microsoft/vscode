@@ -853,7 +853,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 							_meta: metadata,
 							workingDirectories: targetWorkingDirectories,
 							config,
-							...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+							...(imported ? { model: imported.model, importConversation: imported } : {}),
 							progressToken: generateUuid(),
 						});
 					} catch (err) {

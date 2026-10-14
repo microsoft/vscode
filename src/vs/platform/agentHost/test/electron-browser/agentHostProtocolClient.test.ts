@@ -95,7 +95,7 @@ const syncTestConfigurationNode = {
 };
 import type { DispatchActionParams, Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
-import { AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
@@ -692,7 +692,7 @@ suite('AgentHostProtocolClient', () => {
 			for (const meta of [
 				{ 'vscode.agentHost': true },
 				{ 'vscode.agentHost': true, [AgentHostSessionUrisCapabilityMetaKey]: 'true' },
-				{ [AgentHostSessionUrisCapabilityMetaKey]: true },
+				{ [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true },
 				{},
 			]) {
 				const { client, transport } = createClient();
@@ -942,6 +942,7 @@ suite('AgentHostProtocolClient', () => {
 
 		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'all',
 			'vscode.clientMachineId': 'client-machine-id',
@@ -961,6 +962,7 @@ suite('AgentHostProtocolClient', () => {
 		const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
 		assert.deepStrictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, {
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 			'vscode.telemetryLevel': 'off',
 		});
 		noTelemetryTransport.fireMessage({
@@ -2026,6 +2028,7 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo,
 			_meta: {
 				[AgentHostSessionUrisCapabilityMetaKey]: true,
+				[AgentHostChatUrisCapabilityMetaKey]: true,
 				'vscode.clientConnectionKind': 'dev_tunnel',
 				'vscode.telemetryLevel': 'all',
 				'vscode.clientMachineId': 'client-machine-id',
@@ -2095,6 +2098,7 @@ suite('AgentHostProtocolClient', () => {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'off',
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 		});
 		transport.fireMessage({
 			jsonrpc: '2.0',
@@ -2645,6 +2649,40 @@ suite('AgentHostProtocolClient', () => {
 				assert.deepStrictEqual(transport.sentMessages, []);
 			}
 			await report;
+		}
+	});
+
+	test('saved continuation requires its own capability and forwards exact identities', async () => {
+		const request = { session: URI.parse('ahp-session:/saved'), chat: URI.parse('ahp-chat:/opaque-peer'), identity: 'saved-snapshot', destination: URI.parse('copilotcli:/copy') };
+		for (const supported of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true, supported));
+			transport.sentMessages.length = 0;
+			const completion = client.completeSavedChatContinuation(request);
+			if (supported) {
+				assert.deepStrictEqual(transport.sentMessages, [{ jsonrpc: '2.0', id: 2, method: 'vscode/completeSavedChatContinuation', params: { session: 'ahp-session:/saved', chat: 'ahp-chat:/opaque-peer', identity: 'saved-snapshot', destination: 'copilotcli:/copy' } }]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { archived: false } });
+				assert.deepStrictEqual(await completion, { archived: false });
+			} else {
+				await assert.rejects(completion, /cannot complete saved chat continuations/);
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+		}
+	});
+
+	test('saved reads revive a completed destination and tolerate an older saved response', async () => {
+		for (const current of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+			const pending = client.readSavedChat(URI.parse('ahp-session:/saved'));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: 2, result: {
+					session: 'ahp-session:/saved', chat: 'ahp-chat:/saved', provider: 'claude', title: 'Saved', turns: [], workspace: { kind: 'none' },
+					...(current ? { identity: 'read-identity', availability: { kind: 'continued', destination: 'ahp-session:/copy' } } : {}),
+				}
+			});
+			const saved = await pending;
+			assert.deepStrictEqual(saved.availability, current ? { kind: 'continued', destination: URI.parse('ahp-session:/copy') } : undefined);
 		}
 	});
 
@@ -4791,7 +4829,7 @@ suite('AgentHostProtocolClient', () => {
 					clientId: client.clientId,
 					lastSeenServerSeq: 5,
 					subscriptions: [ROOT_STATE_URI],
-					_meta: { 'vscode.telemetryLevel': 'off', [AgentHostSessionUrisCapabilityMetaKey]: true },
+					_meta: { 'vscode.telemetryLevel': 'off', [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true },
 				});
 				transport.fireMessage({
 					jsonrpc: '2.0', id: request.id,
@@ -4882,6 +4920,7 @@ suite('AgentHostProtocolClient', () => {
 				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
 				assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
 					[AgentHostSessionUrisCapabilityMetaKey]: true,
+					[AgentHostChatUrisCapabilityMetaKey]: true,
 					'vscode.telemetryLevel': 'all',
 					'vscode.clientMachineId': 'client-machine-id',
 					'vscode.clientDevDeviceId': 'client-dev-device-id',
@@ -4902,6 +4941,7 @@ suite('AgentHostProtocolClient', () => {
 					protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 					meta: {
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
+						[AgentHostChatUrisCapabilityMetaKey]: true,
 						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',
 						'vscode.clientDevDeviceId': 'client-dev-device-id',

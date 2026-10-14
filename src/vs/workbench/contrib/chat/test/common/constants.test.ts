@@ -615,6 +615,33 @@ suite('ChatConfiguration defaults', () => {
 		});
 	}
 
+	test('a registered sandbox Cloud type replaces the extension cloud agent in new-chat choices and defaults', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+		});
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([
+			{ type: SessionType.CopilotCloud, name: 'Cloud', displayName: 'Cloud', description: '' },
+			{ type: SessionType.CloudSandbox, name: 'Cloud', displayName: 'Cloud', description: '' },
+		]);
+		const storageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storageService, SessionType.CopilotCloud);
+
+		assert.deepStrictEqual({
+			cloudAgentRegistered: !!chatSessionsService.getChatSessionContribution(SessionType.CopilotCloud),
+			cloudAgentVisible: isVisibleEditorChatSessionType(SessionType.CopilotCloud, configurationService, chatSessionsService, localWorkspace),
+			cloudAgentUsable: isNewChatSessionTypeUsable(SessionType.CopilotCloud, configurationService, chatSessionsService, localWorkspace),
+			sandboxVisible: isVisibleEditorChatSessionType(SessionType.CloudSandbox, configurationService, chatSessionsService, localWorkspace),
+			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			cloudAgentRegistered: true,
+			cloudAgentVisible: false,
+			cloudAgentUsable: false,
+			sandboxVisible: true,
+			remembered: SessionType.CloudSandbox,
+		});
+	});
+
 	test('hidden session types do not prevent the last-resort local fallback', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -158,6 +159,27 @@ suite('Sessions - SessionsList', () => {
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
+	test('uses the large radius token for list hovers even when pointer styles load later', () => {
+		const pointerStyle = $('style');
+		pointerStyle.textContent = '.monaco-hover.workbench-hover.with-pointer { border-radius: 3px; }';
+		append(mainWindow.document.head, pointerStyle);
+		disposables.add(toDisposable(() => pointerStyle.remove()));
+		const hover = $('.monaco-hover.workbench-hover.with-pointer.sessions-list-hover');
+		append(mainWindow.document.body, hover);
+		disposables.add(toDisposable(() => hover.remove()));
+		const readCorners = () => {
+			const style = mainWindow.getComputedStyle(hover);
+			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+		};
+		hover.style.setProperty('--vscode-cornerRadius-large', '8px');
+		const initial = readCorners();
+		hover.style.setProperty('--vscode-cornerRadius-large', '12px');
+		assert.deepStrictEqual({ initial, updated: readCorners() }, {
+			initial: ['8px', '8px', '8px', '8px'],
+			updated: ['12px', '12px', '12px', '12px'],
+		});
+	});
+
 	suite('SessionSectionRenderer', () => {
 
 		test('selects the rendered section before the toolbar handles its context menu', () => {
@@ -262,6 +284,7 @@ suite('Sessions - SessionsList', () => {
 				contentWithMigration: hoverWithMigration?.content,
 				contentWithoutMigration: readHoverOptions()?.content,
 				presentation: hoverWithMigration && {
+					additionalClasses: hoverWithMigration.additionalClasses,
 					appearance: hoverWithMigration.appearance,
 					position: hoverWithMigration.position,
 					persistence: hoverWithMigration.persistence,
@@ -270,6 +293,7 @@ suite('Sessions - SessionsList', () => {
 				contentWithMigration: 'Some customizations need an update to keep working.',
 				contentWithoutMigration: 'Customizations',
 				presentation: {
+					additionalClasses: ['sessions-list-hover'],
 					appearance: { showPointer: true },
 					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 					persistence: { hideOnHover: false },
@@ -3858,6 +3882,41 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session row spacing', () => {
+		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+			test(`flat-list active metadata matches its accessible label when enabled (${status})`, () => {
+				const source = createTestSession('Cloud run', { workspaceLabel: 'owner/repo', status });
+				const updatedAt = observableValue('historyUpdatedAt', new Date(Date.now() - 60_000));
+				const session = { ...source.session, updatedAt };
+				const results = [true, false].map(enabled => {
+					const harness = createListHarness(disposables, [session]);
+					const container = harness.createContainer();
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+						onSessionOpen: () => { },
+						showMetadataWhileActive: () => enabled,
+					}));
+					list.setSessions([session]);
+					list.layout(300, 400);
+					const row = container.querySelector<HTMLElement>('.monaco-list-row')!;
+					const label = row.getAttribute('aria-label')!;
+					const time = row.querySelector('.session-time')?.textContent;
+					updatedAt.set(new Date(Date.now() - 3_600_000), undefined);
+					const updatedLabel = row.getAttribute('aria-label')!;
+					const updatedTime = row.querySelector('.session-time')?.textContent;
+					return {
+						repository: label.includes('in owner/repo'),
+						matchesVisibleTime: !!time && label.includes(`updated ${time}`),
+						updatedRepository: updatedLabel.includes('in owner/repo'),
+						matchesUpdatedVisibleTime: !!updatedTime && updatedLabel.includes(`updated ${updatedTime}`),
+						timeChanged: time !== updatedTime,
+					};
+				});
+				assert.deepStrictEqual(results, [
+					{ repository: true, matchesVisibleTime: true, updatedRepository: true, matchesUpdatedVisibleTime: true, timeChanged: true },
+					{ repository: false, matchesVisibleTime: status === SessionStatus.NeedsInput, updatedRepository: false, matchesUpdatedVisibleTime: status === SessionStatus.NeedsInput, timeChanged: false },
+				]);
+			});
+		}
+
 		test('reserves spacing only in the main sessions list', () => {
 			const sessions = [
 				createTestSession('First').session,
@@ -5236,6 +5295,7 @@ suite('Sessions - SessionsList', () => {
 				const element = content instanceof HTMLElement ? content : undefined;
 				return {
 					presentation: hover && {
+						additionalClasses: hover.additionalClasses,
 						appearance: hover.appearance,
 						position: hover.position,
 						persistence: hover.persistence,
@@ -5257,6 +5317,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				main: {
 					presentation: {
+						additionalClasses: ['sessions-list-hover'],
 						appearance: { showPointer: true },
 						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 						persistence: { hideOnHover: false },
@@ -5269,6 +5330,7 @@ suite('Sessions - SessionsList', () => {
 				},
 				peer: {
 					presentation: {
+						additionalClasses: ['sessions-list-hover'],
 						appearance: { showPointer: true },
 						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 						persistence: { hideOnHover: false },

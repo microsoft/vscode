@@ -11,7 +11,7 @@ import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, isCopilotHydraFusionModelId } from '
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionState, URI as ProtocolURI } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentHostModelSelectionKind, AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
+import { refineModelSelectionKindForLocalModels, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryData } from './codex/codexAccountTelemetry.js';
 
 export interface IAgentHostTurnTelemetryContext {
@@ -44,7 +44,8 @@ export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, contex
 	const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 	const interactionMode = getConfiguredSessionMode(state?.config);
 	const effectiveModelId = modelId ?? agent.chats.getModel?.(URI.parse(chat), context)?.id;
-	const modelSelectionKind = getModelSelectionKind(agent.id, modelId, effectiveModelId);
+	const models = agent.models.get();
+	const modelSelectionKind = refineModelSelectionKindForLocalModels(getModelSelectionKind(agent.id, modelId, effectiveModelId), models.find(model => model.id === effectiveModelId), models);
 	const modelContext = effectiveModelId === undefined || (modelId === undefined && effectiveModelId === 'auto')
 		? { model: undefined, modelTelemetryKind: undefined }
 		: getModelTelemetryContext(agent, effectiveModelId);

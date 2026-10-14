@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../../../base/common/arrays.js';
-import { raceCancellationError, Throttler, timeout } from '../../../../../base/common/async.js';
+import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -209,7 +209,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private _lastRefreshTime = 0;
 	private refreshGeneration = 0;
 	private lastReportedCatalogSnapshot: string | undefined;
-	private readonly agentHostRefresh = this._register(new Throttler());
 
 	constructor(
 		@ICopilotConnectorsRequestService private readonly requestService: ICopilotConnectorsRequestService,
@@ -406,7 +405,11 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			const operation = await this.createOperation(token);
 			try {
 				const connectors = await this.refresh(operation.token);
+				if (operation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+					await this.refreshAgentHostConnectorSessions(name);
 					return;
 				}
 				const { document } = await this.request({ type: 'connect', name }, operation.token, true);
@@ -698,8 +701,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private setConnectors(connectors: readonly ICopilotConnector[], connectionStateKnown = this._connectionStateKnown): boolean {
-		const previousConnected = this._connectionStateKnown ? connectedConnectorNames(this._connectors) : [];
-		const nextConnected = connectionStateKnown ? connectedConnectorNames(connectors) : [];
+		const previousConnected = this._connectionStateKnown ? connectedConnectorConfigurations(this._connectors) : [];
+		const nextConnected = connectionStateKnown ? connectedConnectorConfigurations(connectors) : [];
 		const connectedMembershipChanged = connectionStateKnown && (!this._connectionStateKnown || !equals(previousConnected, nextConnected));
 		if (equals(this._connectors, connectors) && this._connectionStateKnown === connectionStateKnown) {
 			return false;
@@ -710,20 +713,15 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		return connectedMembershipChanged;
 	}
 
-	private refreshAgentHostConnectorSessions(): Promise<void> {
-		if (!this.isEnabled() || !this.agentHostService.refreshCopilotConnectorSessions) {
-			return Promise.resolve();
+	private async refreshAgentHostConnectorSessions(forceConnectorName?: string): Promise<void> {
+		if (!this.isEnabled() || this._store.isDisposed || !this.agentHostService.refreshCopilotConnectorSessions) {
+			return;
 		}
-		return this.agentHostRefresh.queue(async () => {
-			if (!this.isEnabled()) {
-				return;
-			}
-			try {
-				await this.agentHostService.refreshCopilotConnectorSessions?.();
-			} catch (error) {
-				this.logService.warn('[CopilotConnectorsService] Unable to refresh live Agent Host sessions', error);
-			}
-		});
+		try {
+			await this.agentHostService.refreshCopilotConnectorSessions(forceConnectorName);
+		} catch (error) {
+			this.logService.warn('[CopilotConnectorsService] Unable to refresh live Agent Host sessions', error);
+		}
 	}
 
 	override dispose(): void {
@@ -816,10 +814,10 @@ function getAccountIdentity(account: IDefaultAccount | null): string | undefined
 	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
 }
 
-function connectedConnectorNames(connectors: readonly ICopilotConnector[]): string[] {
+function connectedConnectorConfigurations(connectors: readonly ICopilotConnector[]): string[] {
 	return connectors
 		.filter(connector => connector.connectionStatus === 'connected')
-		.map(connector => connector.name)
+		.map(connector => JSON.stringify([connector.name, connector.displayName, connector.mcpServers.map(server => [server.name, server.type, server.url?.toString()]).sort()]))
 		.sort();
 }
 
