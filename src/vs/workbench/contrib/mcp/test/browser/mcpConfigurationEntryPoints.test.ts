@@ -779,19 +779,23 @@ suite('MCP configuration entry points', () => {
 			});
 		});
 
-		for (const failure of ['policy', 'write']) {
+		for (const failure of ['policy', 'provider']) {
 			test(`${failure} failure is surfaced without opening a file or reporting success`, async () => {
 				const fixture = setupGlobal();
 				if (failure === 'policy') {
 					fixture.instantiation.stub(IAllowedMcpServersService, { isAllowed: () => new MarkdownString('Blocked by policy') });
 				} else {
-					fixture.instantiation.stub(IMcpResourceScannerService, { addMcpServers: async () => { throw new Error('Concurrent edit'); } });
+					fixture.instantiation.stub(ICustomizationHarnessService, {
+						getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({
+							mcpConfigurationProvider: { addGlobal: async () => { throw new Error('Provider failed'); } },
+						}),
+					});
 				}
 				fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
 				fixture.quickInput.inputs.push('node server.js', installable.name);
 				await new AddConfigurationAction().run(fixture.instantiation);
 				assert.deepStrictEqual({ errors: fixture.errors.map(String), writes: fixture.writes, opened: fixture.opened, notifications: fixture.notifications },
-					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Concurrent edit'], writes: [], opened: [], notifications: [] });
+					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Provider failed'], writes: [], opened: [], notifications: [] });
 			});
 		}
 
@@ -847,7 +851,7 @@ suite('MCP configuration entry points', () => {
 				assert.deepStrictEqual({
 					format: requests[0].targetFormat,
 					schema: requests[0].targetConfig,
-					config: fixture.writes[0]?.servers[0].config,
+					config: fixture.agentHostGlobalAdds[0]?.config,
 					questions: fixture.quickInput.questionOrder,
 					errors: fixture.errors,
 				}, {
