@@ -1739,7 +1739,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 			await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
 			const session = AgentSession.uri('codex', 'fresh-chat');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.chats.createChat(chat, { resource: session, configurationResource: session }, {
+			await agent.chats.createChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, {
 				workingDirectories: [URI.file('/workspace')],
 				deferBacking: true,
 			});

@@ -354,13 +354,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			};
 
 			// If this turn was auto-started from a pending message, remove it
-			if (action.queuedMessageId) {
+			if (action.queuedMessageId !== undefined) {
 				if (next.steeringMessage?.id === action.queuedMessageId) {
 					next = { ...next, steeringMessage: undefined };
-				}
-				if (next.steeringMessages) {
-					const filtered = next.steeringMessages.filter(m => m.id !== action.queuedMessageId);
-					next = { ...next, steeringMessages: filtered.length > 0 ? filtered : undefined };
 				}
 				if (next.queuedMessages) {
 					const filtered = next.queuedMessages.filter(m => m.id !== action.queuedMessageId);
@@ -881,59 +877,32 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		// ── Pending Messages ──────────────────────────────────────────────────
 
-		case ActionType.ChatSteeringMessageSet: {
-			const existing = state.steeringMessages ?? [];
-			const idx = existing.findIndex(m => m.id === action.steeringMessage.id);
-			const next = existing.slice();
-			if (idx < 0) {
-				next.push(action.steeringMessage);
-			} else {
-				next[idx] = action.steeringMessage;
-			}
-			return { ...state, steeringMessages: next };
-		}
-
-		case ActionType.ChatSteeringMessageRemoved: {
-			const existing = state.steeringMessages ?? [];
-			const idx = existing.findIndex(m => m.id === action.id);
-			if (idx < 0) {
-				return state;
-			}
-			const next = existing.slice();
-			next.splice(idx, 1);
-			return { ...state, steeringMessages: next.length > 0 ? next : undefined };
-		}
-
 		case ActionType.ChatPendingMessageSet: {
-			const entry: PendingMessage = { id: action.id, message: action.message };
-			if (action.kind === PendingMessageKind.Steering) {
-				return { ...state, steeringMessage: entry };
-			}
+			const entry: PendingMessage = { id: action.id, kind: action.kind, message: action.message };
 			const existing = state.queuedMessages ?? [];
 			const idx = existing.findIndex(m => m.id === action.id);
-			if (idx >= 0) {
-				const updated = [...existing];
-				updated[idx] = entry;
-				return { ...state, queuedMessages: updated };
+			const next = existing.slice();
+			if (idx < 0) {
+				next.push(entry);
+			} else {
+				next[idx] = entry;
 			}
-			return { ...state, queuedMessages: [...existing, entry] };
+			return { ...state, queuedMessages: next };
 		}
 
 		case ActionType.ChatPendingMessageRemoved: {
-			if (action.kind === PendingMessageKind.Steering) {
-				if (!state.steeringMessage || state.steeringMessage.id !== action.id) {
-					return state;
-				}
-				return { ...state, steeringMessage: undefined };
+			let next = state;
+			if (action.kind === PendingMessageKind.Steering && state.steeringMessage?.id === action.id) {
+				next = { ...next, steeringMessage: undefined };
 			}
-			const existing = state.queuedMessages;
-			if (!existing) {
-				return state;
+			const existing = state.queuedMessages ?? [];
+			const idx = existing.findIndex(m => m.id === action.id && (m.kind ?? PendingMessageKind.Queued) === action.kind);
+			if (idx < 0) {
+				return next;
 			}
-			const filtered = existing.filter(m => m.id !== action.id);
-			return filtered.length === existing.length
-				? state
-				: { ...state, queuedMessages: filtered.length > 0 ? filtered : undefined };
+			const queuedMessages = existing.slice();
+			queuedMessages.splice(idx, 1);
+			return { ...next, queuedMessages: queuedMessages.length > 0 ? queuedMessages : undefined };
 		}
 
 		case ActionType.ChatQueuedMessagesReordered: {

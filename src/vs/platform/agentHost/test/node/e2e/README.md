@@ -102,6 +102,35 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 
 ---
 
+## CI execution profiles
+
+Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFILE=full` runs every enabled scenario and is the default for local commands and DevOps. `AGENT_HOST_TEST_PROFILE=pr` keeps representative host/provider contracts while skipping explicitly classified full-only variations. Both profiles retain the existing provider, platform, live-test, and recording gates.
+
+```bash
+# Full deterministic E2E coverage (default).
+npm run test-agent-host-e2e
+
+# PR-profile E2E coverage.
+AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+
+# The same profile also applies to neighboring provider integration tests.
+AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
+GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip still applies only to the parallel runner.
+
+New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
+
+The initial full-only list is deliberately small:
+
+- File operations: nested read, JSON read, line count, workspace listing, and Git status.
+- Peer chats: nested read and nested file creation.
+- Copilot native tools: view range, grep, and glob variations.
+- Provider integration: the two native OTel concurrency stress cases.
+
+Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+
 ## Organization
 
 | Path | Role |
@@ -137,6 +166,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
+
+`../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
 
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
@@ -422,7 +453,7 @@ The suite pins `gh` discovery with a temporary executable probe on its test-owne
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
-The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
+The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. Each prompt scenario writes `.github/copilot-instructions.md` and `AGENTS.md` into its isolated workspace and asserts that both marker bodies reach the model before normalizing them. The `<custom_instruction>` wrappers still assert how many instructions are injected and where they sit in the prompt; the test does not rely on discovering files from the Agent Host's own working directory.
 
 The model catalog is the same trade. The CLI inlines the whole `/models` list into the `Task` tool's schema, as a count and a per-model listing, so left verbatim a single new entry in `capiStubs.ts` would rewrite every baseline — including those of models nobody snapshots. The labels survive, so the catalog vanishing from the prompt, or changing shape, still fails.
 

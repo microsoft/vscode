@@ -18,7 +18,7 @@ import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNo
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -645,6 +645,41 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores an on-device Auto pick with its local-model attribution alongside the routing decision', async () => {
+		const local = { chosenModel: 'mai-code-1.1-flash-local' };
+		const cloud = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'session.auto_mode_resolved', data: local },
+			{ type: 'user.message', id: 'turn-local', data: { interactionId: 'm0', content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
+			{ type: 'session.auto_mode_resolved', data: cloud },
+			{ type: 'user.message', id: 'turn-cloud', data: { interactionId: 'm2', content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Second response.' } },
+			{ type: 'user.message', id: 'turn-subagent', data: { interactionId: 'm4', content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: local },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			// Switching the subagent away drops the stale routing and its attribution together.
+			{ type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'gpt-5.5' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, usage: turn.usage })),
+			subagent: subagentTurnsByToolCallId.get('tc-task')?.map(turn => turn.usage),
+		}, {
+			parent: [
+				// What actually ran is not in the SDK history; the persisted turn usage, merged over this on restore, carries it.
+				{ id: 'turn-local', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved: local, 'vscode.localModel': { execution: 'unknown' } } } },
+				{ id: 'turn-cloud', usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved: cloud } } },
+				{ id: 'turn-subagent', usage: undefined },
+			],
+			subagent: [{ model: 'gpt-5.5', _meta: {} }],
+		});
+	});
+
 	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
 		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
 		const events: ISessionEvent[] = [
@@ -1160,7 +1195,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);

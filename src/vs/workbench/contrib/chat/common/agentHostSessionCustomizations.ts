@@ -220,6 +220,7 @@ export class CustomizationIndex {
 	private readonly _byPath = new Map<string, ISessionChatCustomization>();
 	private readonly _byContainerPath = new Map<string, ISessionChatCustomization>();
 	private readonly _bySkillName = new Map<string, ISessionChatCustomization>();
+	private readonly _resolvedPaths = new Map<string, ISessionChatCustomization | undefined>();
 	private readonly _roots: readonly string[];
 
 	constructor(customizations: readonly Customization[] | undefined, workspaceRoots: readonly URI[] = [], mapHostUri?: AgentHostUriMapper) {
@@ -273,6 +274,15 @@ export class CustomizationIndex {
 	}
 
 	private _resolvePath(token: string): ISessionChatCustomization | undefined {
+		if (this._resolvedPaths.has(token)) {
+			return this._resolvedPaths.get(token);
+		}
+		const resolved = this._resolvePathUncached(token);
+		this._resolvedPaths.set(token, resolved);
+		return resolved;
+	}
+
+	protected _resolvePathUncached(token: string): ISessionChatCustomization | undefined {
 		const candidates: string[] = [];
 		const normalized = normalizePath(token.startsWith('file://') ? (toFsPath(token) ?? token) : token);
 		if (!normalized) {

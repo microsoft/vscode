@@ -11,7 +11,7 @@ import type { StringOrMarkdown, FileEditCollection, UsageInfo, URI } from '../co
 import type { CanvasReference } from '../channels-canvas/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundWork, type Message, type PendingMessage, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundWork, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -58,7 +58,11 @@ export interface ChatTurnStartedAction {
 	startedAt: string;
 	/** The new message */
 	message: Message;
-	/** If this turn consumes a queued or steering message, the ID of that message. */
+	/**
+	 * If this turn consumes a pending message, its ID. Removes the matching
+	 * entry from {@link ChatState.queuedMessages} regardless of kind, and clears
+	 * a matching deprecated {@link ChatState.steeringMessage} snapshot slot.
+	 */
 	queuedMessageId?: string;
 	/**
 	 * Additional provider-specific metadata for this action.
@@ -749,12 +753,14 @@ export interface ChatTurnsLoadedAction {
 /**
  * A pending message was set (upsert semantics: creates or replaces).
  *
- * For steering messages, this always replaces the single steering message.
- * It never changes the independent {@link ChatState.steeringMessages} list.
- * For queued messages, if a message with the given `id` already exists it is
- * updated in place; otherwise it is appended to the queue. If the chat is
- * idle when a queued message is set, the server SHOULD immediately consume it
- * and start a new turn.
+ * Both kinds are stored in {@link ChatState.queuedMessages}, including this
+ * action's `kind`. A new `id` appends an entry; an existing `id` replaces its
+ * message and kind in place. Changing kind does not change its position.
+ * A new steering ID never replaces another pending submission. This action
+ * never writes the deprecated {@link ChatState.steeringMessage} snapshot slot.
+ *
+ * If the chat is idle when a queued message is set, the server SHOULD
+ * immediately consume it and start a new turn.
  *
  * A client is only allowed to send {@link MessageKind.User} messages.
  *
@@ -779,6 +785,12 @@ export interface ChatPendingMessageSetAction {
  * it consumes a message (e.g. starting a turn from a queued message or
  * injecting a steering message into the current turn).
  *
+ * Removes an entry from {@link ChatState.queuedMessages} only when both `id`
+ * and effective kind match. An absent entry kind means
+ * {@link PendingMessageKind.Queued}. Unknown IDs and mismatched kinds are
+ * no-ops. A steering removal also clears a matching deprecated
+ * {@link ChatState.steeringMessage} snapshot slot.
+ *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -792,43 +804,14 @@ export interface ChatPendingMessageRemovedAction {
 }
 
 /**
- * Upserts one independently submitted steering message without changing the legacy slot.
- * Requires negotiated {@link InitializeResult.steeringMessages} support.
+ * Reorder the entire shared {@link ChatState.queuedMessages} list.
  *
- * A client is only allowed to send {@link MessageKind.User} messages.
- *
- * @category Chat Actions
- * @version 1.1.0
- * @clientDispatchable
- */
-export interface ChatSteeringMessageSetAction {
-	type: ActionType.ChatSteeringMessageSet;
-	/** Full entry; a new ID appends and an existing ID is replaced in place. */
-	steeringMessage: PendingMessage;
-}
-
-/**
- * Removes one message from {@link ChatState.steeringMessages}, leaving other messages and the legacy slot unchanged.
- * Requires negotiated {@link InitializeResult.steeringMessages} support.
- *
- * @category Chat Actions
- * @version 1.1.0
- * @clientDispatchable
- */
-export interface ChatSteeringMessageRemovedAction {
-	type: ActionType.ChatSteeringMessageRemoved;
-	/** Identifier of the consumed or cancelled steering message. */
-	id: string;
-}
-
-/**
- * Reorder the queued messages.
- *
- * The `order` array contains the IDs of queued messages in their new
- * desired order. IDs not present in the current queue are ignored.
- * Queued messages whose IDs are absent from `order` are appended at
+ * The `order` array contains pending message IDs of either kind in their new
+ * desired raw order. Unknown and duplicate IDs are ignored.
+ * Messages whose IDs are absent from `order` are appended at
  * the end in their original relative order (so a client with a stale
- * view of the queue never silently drops messages).
+ * view of the list never silently drops messages). UIs SHOULD still group
+ * steering messages first, independently of this raw order.
  *
  * @category Chat Actions
  * @version 1
@@ -836,7 +819,7 @@ export interface ChatSteeringMessageRemovedAction {
  */
 export interface ChatQueuedMessagesReorderedAction {
 	type: ActionType.ChatQueuedMessagesReordered;
-	/** Queued message IDs in the desired order */
+	/** Pending message IDs of either kind in the desired raw order */
 	order: string[];
 }
 
@@ -993,8 +976,6 @@ export type ChatAction =
 	| ChatTurnsLoadedAction
 	| ChatPendingMessageSetAction
 	| ChatPendingMessageRemovedAction
-	| ChatSteeringMessageSetAction
-	| ChatSteeringMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
 	| ChatDraftChangedAction
 	| ChatIsReadChangedAction

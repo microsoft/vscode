@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -153,5 +153,17 @@ suite('Files - ExplorerService', () => {
 			whileEditing: ['start editing'],
 			calls: ['start editing', 'finish editing', 'refresh'],
 		});
+	}));
+
+	test('refreshes when a previously deleted root folder is restored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const root = explorerService.roots[0].resource;
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: joinPath(dirname(root), 'outside-workspace'), type: FileChangeType.ADDED }], false));
+		await timeout(500);
+		const afterUnrelatedAdd = [...calls];
+
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: root, type: FileChangeType.ADDED }], false));
+		await timeout(500);
+
+		assert.deepStrictEqual({ afterUnrelatedAdd, calls }, { afterUnrelatedAdd: [], calls: ['refresh'] });
 	}));
 });

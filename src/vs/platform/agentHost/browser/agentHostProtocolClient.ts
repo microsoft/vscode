@@ -15,7 +15,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
-import { AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -38,7 +38,8 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -243,6 +244,15 @@ const mcpAuthenticationRequestValidator = vObj({
 		description: vOptionalProp(vString()),
 	}),
 });
+
+/**
+ * The session state a snapshot carries: the only state with both a
+ * `lifecycle` and a chat catalog. The snapshot's resource is the session.
+ */
+function readSessionStateSnapshot(snapshot: IStateSnapshot): SessionState | undefined {
+	const state: object = snapshot.state;
+	return hasKey(state, { lifecycle: true, chats: true }) ? state as SessionState : undefined;
+}
 
 /**
  * A protocol-level client for a single agent host connection.
@@ -735,7 +745,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
 				protocolVersions: getAgentHostSupportedProtocolVersions(),
-				capabilities: { steeringMessages: {} },
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1109,7 +1118,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: getAgentHostSupportedProtocolVersions(),
-			capabilities: { steeringMessages: {} },
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -1173,10 +1181,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						// failed restore rather than a completed one.
 						throw new Error(`subscribe returned no snapshot for ${resource}`);
 					}
+					const snapshot = this._withOlderHostSnapshot(result.snapshot);
 					this._subscriptionManager.applyReconnectSnapshot(
-						result.snapshot.resource,
-						result.snapshot.state,
-						result.snapshot.fromSeq,
+						snapshot.resource,
+						snapshot.state,
+						snapshot.fromSeq,
 						true,
 					);
 					this._serverSeq = Math.max(this._serverSeq, result.snapshot.fromSeq);
@@ -1301,7 +1310,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				telemetryLevel,
 				sendIdentity ? this._telemetryService.machineId : undefined,
 				sendIdentity ? this._telemetryService.devDeviceId : undefined,
-			), [AgentHostSessionUrisCapabilityMetaKey]: true
+			), [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true,
 		};
 	}
 
@@ -1420,7 +1429,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		} else {
 			let maxSeq = this._serverSeq;
-			for (const snapshot of result.snapshots) {
+			for (const hostSnapshot of result.snapshots) {
+				const snapshot = this._withOlderHostSnapshot(hostSnapshot);
 				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, snapshot.state, snapshot.fromSeq, preservePending);
 				// This snapshot came from the current host, so it settles any
 				// restore still owed for the channel.
@@ -1575,7 +1585,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}
 		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${resource.toString()}`);
-		return result.snapshot;
+		return this._withOlderHostSnapshot(result.snapshot);
 	}
 
 	/**
@@ -1862,7 +1872,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
-		const targetChat = chat && !isDefaultChatUri(chat) ? chat : undefined;
+		const sessionState = this.getSubscriptionUnmanaged<SessionState>(StateComponents.Session, session)?.value;
+		const defaultChat = sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
+		const targetChat = chat && chat.toString() !== defaultChat ? chat : undefined;
 		if (targetChat && !supportsAgentHostChatStateFile(this._initializeResult.get())) {
 			return undefined;
 		}
@@ -2021,7 +2033,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
-		return result.items.map((s: SessionSummary) => {
+		return result.items.map((hostSummary: SessionSummary) => {
+			const s = this._withOlderHostDefaultChat(hostSummary.resource, hostSummary);
 			const model = readCodexSessionModel(s);
 			return {
 				session: URI.parse(s.resource),
@@ -2044,7 +2057,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				chats: s.chats?.map(chat => ({
 					chat: URI.parse(chat.resource),
 					summary: chat.title,
-					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+					kind: s.defaultChat === chat.resource ? 'default' : 'peer',
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(isSessionChatArchived(chat) ? { archived: true } : {}),
@@ -2055,6 +2068,30 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				...(s._meta !== undefined ? { _meta: s._meta } : {}),
 			};
 		});
+	}
+
+	/**
+	 * `value` with the default chat an older VS Code host did not advertise
+	 * ({@link getOlderHostDefaultChat}). Every full session state and summary
+	 * the host sends passes through here (subscribe, reconnect and restore
+	 * snapshots, listings, `root/sessionAdded`), so the rest of the client
+	 * reads `defaultChat` directly. A partial `root/sessionSummaryChanged`
+	 * delta is not filled: an absent field there means unchanged. Returns a
+	 * new object and never replaces an advertised value.
+	 */
+	private _withOlderHostDefaultChat<T extends Pick<SessionSummary, 'defaultChat'>>(session: string, value: T): T {
+		if (value.defaultChat !== undefined) {
+			return value;
+		}
+		const root = this.rootState.value;
+		const defaultChat = getOlderHostDefaultChat(session, this._initializeResult.get(), root instanceof Error ? undefined : root);
+		return defaultChat === undefined ? value : { ...value, defaultChat };
+	}
+
+	/** {@link _withOlderHostDefaultChat} for the session state of a snapshot; other snapshots pass through. */
+	private _withOlderHostSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		const state = readSessionStateSnapshot(snapshot);
+		return state ? { ...snapshot, state: this._withOlderHostDefaultChat(snapshot.resource, state) } : snapshot;
 	}
 
 	private _toClientUri(uri: URI): URI {
@@ -2236,7 +2273,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._onDidAction.fire(normalizeLegacyActionEnvelope(envelope));
 					break;
 				}
-				case 'root/sessionAdded':
+				case 'root/sessionAdded': {
+					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
+					this._onDidNotification.fire({ type: msg.method, ...msg.params, summary: this._withOlderHostDefaultChat(msg.params.summary.resource, msg.params.summary) });
+					break;
+				}
 				case 'root/sessionRemoved':
 				case 'root/sessionSummaryChanged':
 				case 'root/progress':
@@ -2601,7 +2642,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			? resolveManagedSettingsPermissions(this._configurationService)
+			? resolveManagedSettingsPermissions(this._configurationService, this._logService)
 			: {};
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
 	}

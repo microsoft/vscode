@@ -11,7 +11,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -20,6 +20,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest, UTILITY_DEFAULT_TEMPERATURE, UTILITY_DEFAULT_TOP_P } from './shared/copilotApiService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** LM API vendor of Copilot models; an override naming it is not a BYOK model. */
 const COPILOT_VENDOR = 'copilot';
@@ -108,6 +109,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
@@ -213,13 +215,16 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!agent) {
 			return undefined;
 		}
-		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : buildDefaultChatUri(context.session);
-		const state = this._stateManager.getChatState(chat) ?? (isDefaultChatUri(chat) ? this._stateManager.getSessionState(context.session) : undefined);
+		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._chatOwnership.getDefaultChat(context.session);
+		if (chat === undefined) {
+			return undefined;
+		}
+		const state = this._stateManager.getChatState(chat) ?? (this._chatOwnership.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model
 			?? state?.activeTurn?.message.model
-			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat))
+			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat)))
 			?? state?.turns.at(-1)?.message.model;
 		if (!selection) {
 			return undefined;

@@ -12,6 +12,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
@@ -26,15 +27,16 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
-import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
+import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
@@ -44,8 +46,8 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
-import type { ChatPendingMessageSetAction, ChatSteeringMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isDefaultChatUri, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -63,7 +65,7 @@ import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../co
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
@@ -74,6 +76,8 @@ import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDa
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
+import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
@@ -91,9 +95,9 @@ import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, strin
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
+import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCatalogListReader, AgentHostCatalogListResult, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
+import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
 import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
@@ -123,7 +127,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -149,11 +153,27 @@ const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
-function usesStandardSessionUris(provider: AgentProvider): boolean {
-	return provider === COPILOT_CLI_AGENT_PROVIDER_ID || provider === CODEX_AGENT_PROVIDER_ID || provider === CLAUDE_AGENT_PROVIDER_ID;
-}
 
 /** A recent update to one local Agent Host session. */
+/**
+ * Storage resources a normalized catalog snapshot records for its chats. A
+ * normalized row without a storage resource is a legacy source that recorded
+ * none, so its chat falls back to the creation-time rule.
+ */
+function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined, logService: ILogService): ReadonlyMap<string, string> {
+	const storage = new Map<string, string>();
+	if (snapshot?.authorityVersion === 2) {
+		for (const chat of snapshot.chats) {
+			if (chat.storageResource !== undefined) {
+				storage.set(chat.chat, chat.storageResource);
+			} else {
+				logService.trace(`[AgentService] Normalized chat ${chat.chat} has no recorded storage; using the creation-time rule`);
+			}
+		}
+	}
+	return storage;
+}
+
 interface IRecentLocalSessionUpdate {
 	readonly session: string;
 	readonly modifiedTime: number;
@@ -206,7 +226,7 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	eligible: boolean | undefined;
 	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notEvaluated' | 'notReported';
 	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | 'notEvaluated';
-	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
+	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingNonExtensionHostClient' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
 	markerOrigin: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerOrigin'] | 'notReported';
 	sessionIdStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionIdStatus'] | 'notReported';
 	copilotHomeSource: NonNullable<IAgentChatAdoptionResult['diagnostics']>['copilotHomeSource'] | 'notReported';
@@ -234,7 +254,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated, skipped (eligible but not adopted), declined (unregistered and not adoptable), or failed (adoption or restore threw).' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with client probe/open diagnostics; identifies a session, not an individual retry.' };
 	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The migration stage reached: adoption, eligibility, registration, restore, annotations, or complete.' };
-	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion requires positive external provenance with no conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
+	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion covers positive external provenance, absent on-disk session directory or default storage root, or a known non-extension-host client in workspace metadata without a conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
 	advertisedAsAdoptable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the host advertised this session as adoptable before attempting adoption.' };
 	eligible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider eligibility decision; absent if adoption was not attempted or threw before returning.' };
 	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the marker was valid, missing, invalid, unreadable, not evaluated, or not reported by the provider.' };
@@ -247,7 +267,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	sessionDirectoryStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session directory stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
 	eventsFileStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session events file stat result: directory, file, other, missing, readError, notChecked, or notReported. No content is read.' };
 	workspaceMetadataStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded workspace metadata read: valid, missing, invalid, readError, tooLarge, notFile, notChecked, or notReported. No file content is collected.' };
-	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github/cli, github/autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
+	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github-cli, github-autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
 	markerFromCache: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the marker evidence came from the in-memory cache rather than a fresh disk read.' };
 	eligibilityErrorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error code from reading the eligibility marker, separate from any later restore failure.' };
 	eligibilityErrorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error reading the eligibility marker, cleaned by the telemetry service. Marker contents are never collected.' };
@@ -772,7 +792,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
 	private readonly _chatWatches = this._register(new DisposableResourceMap());
-	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
+	/** Owning session of each watched chat, recorded when the watch starts. */
+	private readonly _chatWatchOwners = new ResourceMap<string>();
+	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly session: string; readonly chat: URI; readonly turns: readonly Turn[] }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -874,6 +896,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostChatInputService private readonly _chatInputService: IAgentHostChatInputService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
@@ -941,6 +964,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
 			},
 			createSession: (template, run, activeClient) => this.createSession({
+				legacyChatUris: undefined,
 				provider: template.provider,
 				model: template.model,
 				agent: template.agent,
@@ -991,8 +1015,8 @@ export class AgentService extends Disposable implements IAgentService {
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
 			queueCatalogSync: (session, values) => this._queueCatalogSync(URI.parse(session), values),
-			persistMetadata: (resource, values) => this._peerChatStore.persistMetadata(
-				URI.parse(isAhpChatChannel(resource) ? parseRequiredSessionUriFromChatUri(resource) : resource), URI.parse(resource), values),
+			persistMetadata: async (resource, values) => this._peerChatStore.persistMetadata(
+				URI.parse(isAhpChatChannel(resource) ? this._chatOwnership.requireChatOwner(resource) : resource), URI.parse(resource), values),
 			readNormalizedChat: (session, chat) => this._peerChatStore.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => this._persistSurfacedSessionTitle(URI.parse(session), title),
 		});
@@ -1005,7 +1029,10 @@ export class AgentService extends Disposable implements IAgentService {
 			if (isAhpChatChannel(e.channel) && (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError)) {
 				this._flushAgentMergeNotices(e.channel);
 			} else if (e.action.type === ActionType.SessionChatRemoved) {
-				this._moveAgentMergeNotices(e.action.chat, buildDefaultChatUri(e.channel));
+				const defaultChat = this._defaultChat(e.channel);
+				if (defaultChat !== undefined) {
+					this._moveAgentMergeNotices(e.action.chat, defaultChat);
+				}
 			}
 		}));
 		// Archiving is terminal for Agent Merge, so the index is cleared from the
@@ -1035,7 +1062,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!active) {
 				this._flushAgentMergeNoticesForSession(session);
 				for (const [key, pending] of this._pendingChatHistories) {
-					if (parseRequiredSessionUriFromChatUri(pending.chat) === session) {
+					if (pending.session === session) {
 						this._pendingChatHistories.delete(key);
 						void this._chatHistoryRefreshes.queue(key, () => this._refreshChatHistory(pending.provider, pending.chat, pending.turns)).catch(error => {
 							this._logService.warn('[AgentService] Failed to apply pending external history', error);
@@ -1048,16 +1075,17 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionKey = session.toString();
 			this._restoredSubagentAdmissionRetries.get(sessionKey)?.cancel();
 			this._restoredSubagentAdmissionRetries.delete(sessionKey);
-			for (const chat of this._pendingAgentMergeNotices.keys()) {
-				if (parseRequiredSessionUriFromChatUri(chat) === session) {
+			for (const [chat, pending] of this._pendingAgentMergeNotices) {
+				if (pending.session === session) {
 					this._pendingAgentMergeNotices.delete(chat);
 				}
 			}
 		}));
-		this._register(this._stateManager.onDidRemoveSession(session => {
-			for (const chat of this._chatWatches.keys()) {
-				if (parseRequiredSessionUriFromChatUri(chat) === session) {
+		this._register(this._stateManager.onDidRemoveSession(removed => {
+			for (const [chat, session] of this._chatWatchOwners) {
+				if (session === removed) {
 					this._chatWatches.deleteAndDispose(chat);
+					this._chatWatchOwners.delete(chat);
 					this._pendingChatHistories.delete(chat.toString());
 				}
 			}
@@ -1137,7 +1165,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService,
 			{
 				...options.catalogReconciliationOptions,
-				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
+				canSchedule: () => this._startupSettled.isOpen(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
 				migrateChatCatalog: async (session, token) => { await this._migrateChatCatalog(session, token); },
 				onDidMarkSessionsProvisional: sessions => {
@@ -1157,12 +1185,6 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		));
 		this._runWhenStartupSettled('catalog reconciliation', () => {
-			if (!this._isSessionCatalogEnabled()) {
-				// Mutations made while the catalog is bypassed leave cached payloads stale,
-				// so the next enabled start must re-verify every row.
-				this._storageService.delete(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY);
-				return;
-			}
 			this._catalogReconciliationService.schedule();
 		});
 		this._register(core.disposables);
@@ -1199,7 +1221,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _getStartupContext(): IAgentHostStartupMetrics {
 		return {
-			catalogEnabled: this._sessionCatalogEnabledSnapshot,
 			externalSessionsMode: this._getExternalSessionsMode(),
 			migrateLegacyEnabled: this._migrateLegacyEnabledSnapshot,
 			copilotRegistered: this._providerService.getProvider('copilotcli') !== undefined,
@@ -1341,8 +1362,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return;
 		}
-		const chat = URI.parse(this._defaultChatUri(session));
-		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat));
+		const chat = URI.parse(await this._readDefaultChat(session));
+		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)));
 		const prompt = turns[0]?.message.text.trim();
 		if (prompt) {
 			await this._sideEffects.generateExternalSessionTitle(session.toString(), prompt);
@@ -1404,7 +1425,11 @@ export class AgentService extends Disposable implements IAgentService {
 			return existing;
 		}
 
-		const sessionUri = URI.parse(isAhpChatChannel(resource) ? parseRequiredSessionUriFromChatUri(resource) : resource);
+		const owner = isAhpChatChannel(resource) ? (await this._chatOwnership.resolveChatOwner(resource))?.owner : resource;
+		if (owner === undefined) {
+			throw new Error(`Cannot resolve peer chat attachment: ${resource}`);
+		}
+		const sessionUri = URI.parse(owner);
 		if (!this._stateManager.getSessionState(sessionUri.toString())) {
 			await this.restoreSession(sessionUri);
 		} else {
@@ -1557,6 +1582,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._skillCompletionProviderRegistered = true;
 		const provider = this._register(new AgentHostSkillCompletionProvider(
 			session => this._providerService.getProviderForSession(session),
+			session => {
+				const defaultChat = this._defaultChat(session);
+				return defaultChat === undefined ? undefined : URI.parse(defaultChat);
+			},
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 		));
 		this._register(this._completions.registerProvider(provider));
@@ -1600,7 +1629,7 @@ export class AgentService extends Disposable implements IAgentService {
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
 			getWorktreeRoots: workspace => this._gitService.getWorktreeRoots(workspace),
-			createSession: config => this.createSession(config),
+			createSession: config => this.createSession({ ...config, legacyChatUris: undefined }),
 			getModels: () => {
 				const models: IAgentModelInfo[] = [];
 				for (const provider of this._providerService.getProviders()) {
@@ -1655,7 +1684,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
 		const recordedChat = readSessionArtifacts(this._stateManager.getSessionState(session.toString())?._meta).find(artifact => artifact.id === artifactId)?.chat;
-		const chatUri = recordedChat && parseDefaultChatUri(recordedChat) === session.toString() ? recordedChat : this._defaultChatUri(session);
+		const chatUri = recordedChat && this._chatOwnership.getChatOwner(recordedChat) === session.toString() ? recordedChat : this._requireDefaultChat(session);
 		await new SessionArtifacts(this._stateManager, session.toString(), chatUri, this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
 			if (artifact.type === SessionArtifactType.PullRequest && artifact.link) {
 				try {
@@ -1676,8 +1705,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		// A chat that lists background work is live, so there is nothing to restore first.
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
-		return await this._providerService.getProviderForSession(session)?.stopBackgroundWork?.(chat, id) ?? false;
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if (owner === undefined) {
+			this._logService.trace(`[AgentService] stopBackgroundWork ignored for unregistered chat: ${chat.toString()}`);
+			return false;
+		}
+		return await this._providerService.getProviderForSession(URI.parse(owner))?.stopBackgroundWork?.(chat, id) ?? false;
 	}
 
 	private _isArtifactToolsEnabled(): boolean {
@@ -1784,7 +1817,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _startAutomationMessage(session: URI, message: Message): Promise<void> {
-		await this._startSessionMessage(URI.parse(this._defaultChatUri(session)), message);
+		await this._startSessionMessage(URI.parse(this._requireDefaultChat(session)), message);
 	}
 
 	private async _startSessionMessage(chat: URI, message: Message): Promise<void> {
@@ -1792,9 +1825,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _cancelAutomationSession(session: URI): Promise<boolean> {
-		const chat = this._defaultChatUri(session);
-		const activeTurn = this._stateManager.getChatState(chat)?.activeTurn;
-		if (!activeTurn || this._workspaceConversionService.isConversionTurn(chat, activeTurn.id)) {
+		const chat = this._defaultChat(session);
+		const activeTurn = chat === undefined ? undefined : this._stateManager.getChatState(chat)?.activeTurn;
+		if (chat === undefined || !activeTurn || this._workspaceConversionService.isConversionTurn(chat, activeTurn.id)) {
 			return false;
 		}
 		const startedAt = Date.parse(activeTurn.startedAt);
@@ -1840,9 +1873,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getChatState(chat)?.activeTurn) {
 			const pending = this._pendingAgentMergeNotices.get(chat);
 			if (pending) {
-				pending.push({ kind, content });
+				pending.notices.push({ kind, content });
 			} else {
-				this._pendingAgentMergeNotices.set(chat, [{ kind, content }]);
+				this._pendingAgentMergeNotices.set(chat, { session: this._chatOwnership.requireChatOwner(chat), notices: [{ kind, content }] });
 			}
 			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the chat is idle: chat=${chat}`);
 			return;
@@ -1857,7 +1890,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._pendingAgentMergeNotices.delete(chat);
-		for (const { kind, content } of pending) {
+		for (const { kind, content } of pending.notices) {
 			this._writeAgentMergeNotice(chat, kind, content);
 		}
 	}
@@ -1869,14 +1902,14 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._pendingAgentMergeNotices.delete(from);
-		for (const { kind, content } of pending) {
+		for (const { kind, content } of pending.notices) {
 			this._postAgentMergeNotice(to, kind, content);
 		}
 	}
 
 	private _flushAgentMergeNoticesForSession(session: string): void {
-		for (const chat of [...this._pendingAgentMergeNotices.keys()]) {
-			if (parseRequiredSessionUriFromChatUri(chat) === session && !this._stateManager.getChatState(chat)?.activeTurn) {
+		for (const [chat, pending] of [...this._pendingAgentMergeNotices]) {
+			if (pending.session === session && !this._stateManager.getChatState(chat)?.activeTurn) {
 				this._flushAgentMergeNotices(chat);
 			}
 		}
@@ -1884,7 +1917,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Writes one Agent Merge notice as a completed, host-owned local turn. */
 	private _writeAgentMergeNotice(channel: string, kind: AgentSystemNotificationKind, content: string): void {
-		const session = parseRequiredSessionUriFromChatUri(channel);
+		const session = this._chatOwnership.getChatOwner(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
@@ -1904,7 +1937,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
 		const turns = this._stateManager.getSessionState(channel)?.turns;
 		const recorded = turns?.find(turn => turn.id === turnId);
-		if (turns && recorded) {
+		if (session !== undefined && turns && recorded) {
 			this._localTurns.record(session, channel, recorded, this._localTurns.findAnchorTurnId(channel, turns, turnId));
 		}
 	}
@@ -1926,9 +1959,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * live conversation state exists (e.g. a cold/unsubscribed session).
 	 */
 	private async _getChatContext(session: URI, chatId?: string): Promise<IChatContextSnapshot | undefined> {
-		const chatState = chatId
-			? await this._stateManager.resolveChatState(buildChatUri(session.toString(), chatId))
-			: this._stateManager.getDefaultChatState(session.toString());
+		let chatState: ChatState | undefined;
+		if (chatId) {
+			const chats = (await this._getSessionMetadata(session))?.chats ?? [];
+			const chat = getSessionChatResource({ chats: chats.map(entry => ({ resource: entry.chat.toString() })) }, chatId, this._chatOwnership.getDefaultChat(session.toString()));
+			chatState = chat === undefined ? undefined : await this._stateManager.resolveChatState(chat);
+		} else {
+			chatState = this._stateManager.getDefaultChatState(session.toString());
+		}
 		if (!chatState) {
 			return undefined;
 		}
@@ -1937,8 +1975,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
 			pendingMessages: [
 				...(chatState.steeringMessage ? [{ kind: PendingMessageKind.Steering, pending: chatState.steeringMessage }] : []),
-				...(chatState.steeringMessages?.map(pending => ({ kind: PendingMessageKind.Steering, pending })) ?? []),
-				...(chatState.queuedMessages?.map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
+				...(chatState.queuedMessages?.map(pending => ({ kind: pending.kind ?? PendingMessageKind.Queued, pending })) ?? []),
 			],
 			hasMoreHistory: !!chatState.turnsNextCursor,
 		};
@@ -1946,7 +1983,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
 		validateRenameTitle(title, SessionServerToolName.RenameChat);
-		const isDefaultChat = chat.toString() === this._defaultChatUri(session);
+		const isDefaultChat = this._chatOwnership.isDefaultChat(session.toString(), chat.toString());
 		if (!isDefaultChat && !await this._peerChatExists(session, chat)) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
@@ -1989,12 +2026,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return persisted?.some(candidate => candidate.uri === chat.toString()) === true;
 	}
 
-	private _toSessionMetadata(metadata: IAgentChatMetadata, provider?: AgentProvider): IAgentSessionMetadata {
-		const { chat, changesets: _changesets, ...rest } = metadata;
+	private _toSessionMetadata(metadata: IAgentChatMetadata, session: URI, provider?: AgentProvider): IAgentSessionMetadata {
+		const { chat: _chat, changesets: _changesets, ...rest } = metadata;
 		return {
 			...rest,
-			session: URI.parse(parseRequiredSessionUriFromChatUri(chat)),
-			provider: provider ?? this._providerService.getProviderForSession(parseRequiredSessionUriFromChatUri(chat))?.id,
+			session,
+			provider: provider ?? this._providerService.getProviderForSession(session)?.id,
 		};
 	}
 
@@ -2004,7 +2041,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats === AgentChatMigrationDeferred || chats === undefined) {
 			return chats;
 		}
-		const sessions = chats.map(metadata => this._toSessionMetadata(metadata, provider.id));
+		const sessions = chats.map(({ session, ...metadata }) => this._toSessionMetadata(metadata, session, provider.id));
 		if (!usesStandardSessionUris(provider.id)) {
 			return sessions;
 		}
@@ -2025,11 +2062,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * means "not initialized yet" or "not found".
 	 */
 	private async _registeredSessionMetadata(agent: IAgent, session: URI, external: boolean, fallback?: Pick<IRegisteredSession, 'startTime' | 'modifiedTime'>): Promise<IAgentSessionMetadata | undefined> {
-		const chat = URI.parse(this._defaultChatUri(session));
+		const backing = await this._readDefaultChatBacking(session);
+		const chat = URI.parse(backing.chat);
 		const metadata = await agent.getChatMetadata(
 			chat,
-			this._chatContext(session, chat),
-			await this._readDefaultChatProviderData(session),
+			this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)),
+			backing.providerData,
 			fallback ? { registryFallback: { startTime: fallback.startTime, modifiedTime: fallback.modifiedTime } } : undefined,
 		);
 		if (!metadata) {
@@ -2041,7 +2079,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// in-flight computation into a redundant second pass.
 			await this._advanceSessionModifiedTime(session, metadata.modifiedTime, false);
 		}
-		const sessionMetadata = this._toSessionMetadata(metadata, agent.id);
+		const sessionMetadata = this._toSessionMetadata(metadata, session, agent.id);
 		return {
 			...sessionMetadata,
 			_meta: withSessionExternal(sessionMetadata._meta, external),
@@ -2130,7 +2168,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			try {
 				const session = metadata.session.toString();
-				const defaultChatTitleKey = customChatTitleMetadataKey(this._defaultChatUri(session));
+				const defaultChatTitleKey = customChatTitleMetadataKey(await this._readDefaultChat(metadata.session));
 				const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session);
 				const metadataKeys: Record<string, true> = changesetKeys
 					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
@@ -2295,12 +2333,12 @@ export class AgentService extends Disposable implements IAgentService {
 				: metadata.workingDirectories,
 			changes: liveSummary.changes ?? metadata.changes,
 			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets ?? metadata.changesets,
-			chats: this._sessionChatsFromSummary(liveSummary, this._defaultChatUri(metadata.session)) ?? metadata.chats,
+			chats: this._sessionChatsFromSummary(liveSummary, this._defaultChat(metadata.session)) ?? metadata.chats,
 			...(_meta !== undefined ? { _meta } : {}),
 		};
 	}
 
-	private _sessionChatsFromSummary(summary: SessionSummary, defaultChat: string): IAgentSessionChatMetadata[] | undefined {
+	private _sessionChatsFromSummary(summary: SessionSummary, defaultChat: string | undefined): IAgentSessionChatMetadata[] | undefined {
 		return summary.chats?.map(chat => ({
 			chat: URI.parse(chat.resource),
 			summary: chat.title,
@@ -2396,7 +2434,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		try {
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
-			await this._peerChatStore.persistMetadata(session, URI.parse(snapshot?.header?.defaultChatUri ?? buildDefaultChatUri(session)), {
+			await this._peerChatStore.persistMetadata(session, URI.parse(this._resolveDefaultChat(session, snapshot, undefined)), {
 				[SESSION_CUSTOM_TITLE_KEY]: title,
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
 			});
@@ -2426,6 +2464,7 @@ export class AgentService extends Disposable implements IAgentService {
 		write.promise = this._drainOrderedCatalogStateWrite(
 			session,
 			{ ...deferredOverrides, ...metadataOverrides },
+			metadataOverrides,
 			chatsOverride,
 			source,
 			previous?.promise,
@@ -2434,9 +2473,18 @@ export class AgentService extends Disposable implements IAgentService {
 		await write.promise;
 	}
 
+	/**
+	 * Persists an ordered catalog mutation, then the background writes queued
+	 * while it was in flight. Ordered callers publish their mutation to the
+	 * state manager only after it was persisted, so the sources of those
+	 * trailing writes cannot reflect it yet: a successful mutation's
+	 * `unpublishedOverrides` are therefore carried into each trailing write,
+	 * below the trailing write's own, newer overrides.
+	 */
 	private async _drainOrderedCatalogStateWrite(
 		session: URI,
 		metadataOverrides: Readonly<Record<string, string>>,
+		unpublishedOverrides: Readonly<Record<string, string>>,
 		chatsOverride: readonly ICatalogChat[] | undefined,
 		source: IListVisibleCatalogSource,
 		previous: Promise<void> | undefined,
@@ -2462,7 +2510,7 @@ export class AgentService extends Disposable implements IAgentService {
 				write.trailingSource = undefined;
 				write.trailing = false;
 				try {
-					await this._persistListVisibleSessionStateNow(session, trailingOverrides, undefined, trailingSource);
+					await this._persistListVisibleSessionStateNow(session, orderedFailed ? trailingOverrides : { ...unpublishedOverrides, ...trailingOverrides }, undefined, trailingSource);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to persist list-visible session state for ${sessionKey}`, error);
 				}
@@ -2546,12 +2594,12 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: summary.workingDirectories ?? [],
 			changes: summary.changes,
 			meta: summary._meta,
-			chats: chatsOverride ?? this._catalogChatsFromState(state, this._defaultChatUri(sessionKey)),
+			chats: chatsOverride ?? this._catalogChatsFromState(state, this._requireDefaultChat(sessionKey)),
 		}, metadataOverrides, false, database, metadataFallbacks, normalized && chatCatalogV2ToCatalogChats(normalized), normalized?.header?.revision);
 	}
 
 	private async _registerNewChatCatalog(session: URI, providerData: string | undefined): Promise<void> {
-		if (!this._isSessionCatalogEnabled() || this._stateManager.isEphemeralSession(session.toString())) {
+		if (this._stateManager.isEphemeralSession(session.toString()) || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString())) {
 			return;
 		}
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
@@ -2567,7 +2615,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChat: {
 				chat: chat.resource,
 				order: 0,
-				storageResource: chatStorageUri(chat.resource)?.toString() ?? chat.resource,
+				storageResource: this._chatOwnership.getChatStorageResource(chat.resource) ?? chat.resource,
 				providerData,
 				workingDirectories: chat.workingDirectories,
 				isRead: isSessionStatusRead(chat.status ?? state.status),
@@ -2586,13 +2634,50 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private _defaultChatUri(session: URI | string): string {
-		return this._stateManager.getDefaultChatUri(session.toString());
+	/** The recorded default chat of a session, or `undefined` when none is recorded. */
+	private _defaultChat(session: URI | string): string | undefined {
+		return this._chatOwnership.getDefaultChat(session.toString());
+	}
+
+	/** The recorded default chat of a session that must be known. */
+	private _requireDefaultChat(session: URI | string): string {
+		const defaultChat = this._defaultChat(session);
+		if (defaultChat === undefined) {
+			throw new Error(`Unknown default chat of session ${session.toString()}`);
+		}
+		return defaultChat;
+	}
+
+	/**
+	 * The default chat of a session that may not be resident: the catalog
+	 * header (required for a normalized catalog), the live, evicted or
+	 * announced record, or the default entry of the catalog payload the caller
+	 * read. Only a legacy source that records none falls back to
+	 * {@link deriveLegacyDefaultChat}.
+	 */
+	private _resolveDefaultChat(session: URI, snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined, payloadDefaultChat: string | undefined): string {
+		if (snapshot?.authorityVersion === 2) {
+			if (!snapshot.header?.defaultChatUri) {
+				throw new Error(`Missing normalized default chat of ${session.toString()}`);
+			}
+			return snapshot.header.defaultChatUri;
+		}
+		return snapshot?.header?.defaultChatUri ?? this._defaultChat(session) ?? payloadDefaultChat ?? deriveLegacyDefaultChat(session);
+	}
+
+	/** {@link _resolveDefaultChat} for a session whose catalog the caller has not read. */
+	private async _readDefaultChat(session: URI): Promise<string> {
+		const recorded = this._defaultChat(session);
+		if (recorded !== undefined) {
+			return recorded;
+		}
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		return this._resolveDefaultChat(session, snapshot, undefined);
 	}
 
 	private async _migrateChatMetadataWrite(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
-		if (snapshot?.authorityVersion === 2 || !this._isSessionCatalogEnabled()) {
+		if (snapshot?.authorityVersion === 2) {
 			return values;
 		}
 		let prepared: ReturnType<AgentHostPeerChatStore['prepareMetadataMutation']> | undefined;
@@ -2616,7 +2701,7 @@ export class AgentService extends Disposable implements IAgentService {
 		catalogOverrideFactory?: () => Promise<{ readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined>,
 		lifetimeValidator?: () => boolean,
 	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
-		if (token.isCancellationRequested || !this._isSessionCatalogEnabled() || lifetimeValidator && !lifetimeValidator()) {
+		if (token.isCancellationRequested || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString()) || lifetimeValidator && !lifetimeValidator()) {
 			return;
 		}
 		await this._peerChatStore.reconcileLegacy(session);
@@ -2692,7 +2777,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (snapshot?.authorityVersion === 2) {
 			const source = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
 			if (source?.verified && source.payloadDirty !== 0 && agent) {
-				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
+				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 			}
 			if (source?.verified && !reconciliationMetadata) {
 				const decoded = decodeAgentHostCatalogPayload(source.payload);
@@ -2719,7 +2804,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return { status: 'providerUnavailable' };
 		}
-		const metadata = reconciliationMetadata ?? await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
+		const metadata = reconciliationMetadata ?? await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 		if (!metadata) {
 			if (!this._readableProviderCatalogs.has(registered.provider)) {
 				return { status: 'providerUnavailable' };
@@ -2738,11 +2823,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = snapshot?.authorityVersion === 2 ? [] : database
 			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
-		const defaultChat = buildDefaultChatUri(registered.session);
 		const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
 		const decoded = central && decodeAgentHostCatalogPayload(central.payload);
+		const defaultChat = this._resolveDefaultChat(registered.session, snapshot, decoded?.ok ? decoded.value.data.chats.find(chat => chat.kind === 'default')?.uri : undefined);
 		const defaultChatMetadata = snapshot?.authorityVersion === 2 ? undefined
-			: await this._readLegacyDefaultChatMetadata(registered.session, decoded?.ok ? decoded.value.data : undefined);
+			: await this._readLegacyDefaultChatMetadata(defaultChat, decoded?.ok ? decoded.value.data : undefined);
 		if (!database) {
 			if (decoded?.ok) {
 				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
@@ -2853,7 +2938,7 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: defaultChat === chat.resource ? 'default' : 'peer',
 				title: chat.title,
 				origin: chat.origin,
-				...(chat.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(chat.resource)
+				...(chat.origin?.kind === ChatOriginKind.Tool
 					? { interactivity: ChatInteractivity.Hidden }
 					: chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(isSessionStatusArchived(chat.status) && defaultChat !== chat.resource ? { archived: true } : {}),
@@ -2867,7 +2952,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
 	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
-	private readonly _pendingAgentMergeNotices = new Map<string, { readonly kind: AgentSystemNotificationKind; readonly content: string }[]>();
+	private readonly _pendingAgentMergeNotices = new Map<string, { readonly session: string; readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[] }>();
 
 	/** Test surface: settles once the startup Agent Merge restore pass and the index writes it enqueued have run. */
 	async whenAgentMergeSessionsRestored(): Promise<void> {
@@ -3135,9 +3220,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * coalesced away as a supposed duplicate.
 	 */
 	private _ensureSessionsV2Imported(provider: IAgent, force = false): Promise<void> {
-		if (!this._isSessionCatalogEnabled()) {
-			return Promise.resolve();
-		}
 		return this._ensureProviderCatalog(provider, this._providerMigrations, force, runForce =>
 			this._providerIdentityAdmissionSequencer.queue(provider.id, async () => {
 				const timing = this._startupPerformance.start('sessionMigration', provider.id);
@@ -3217,10 +3299,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation = true, observation?: IDiscoveryRegistrationObservation): Promise<boolean> {
-		const providerMetadata = chats.map(({ external, ...metadata }) => ({
+		const providerMetadata = chats.map(({ external, session, ...metadata }) => ({
 			external,
-			metadata: this._toSessionMetadata(metadata, provider.id),
+			metadata: this._toSessionMetadata(metadata, session, provider.id),
 		}));
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		const resolvedIdentities = usesStandardSessionUris(provider.id)
 			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider.id, providerMetadata.map(candidate => candidate.metadata.session))
 			: new Map();
@@ -3320,7 +3403,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return false;
 				}
 				const persistedExclusion = exclusions.get(providerSession.toString()) ?? exclusions.get(session.toString());
-				if (persistedExclusion?.reason === 'backing' || await this._isChatBacking(providerSession)) {
+				if (persistedExclusion?.reason === 'backing' || await this._isChatBacking(providerSession, findChatBackingOwner)) {
 					queueExclusion({
 						provider: provider.id,
 						session: providerSession.toString(),
@@ -3331,7 +3414,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				const registrationFacts = await this._readSessionRegistrationFacts(providerSession);
+				const registrationFacts = await this._readSessionRegistrationFacts(providerSession, findChatBackingOwner);
 				if (registrationFacts.chatBacking) {
 					suppressed++;
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
@@ -3352,6 +3435,16 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!isEqual(session, providerSession) && await this._sessionRegistry.isTombstoned(providerSession)) {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
+				}
+				if (this._orchestratorDatabase.prepareSessionStorage && resolution?.status === 'resolved' && !resolution.existing) {
+					try {
+						await this._fileService.stat(this._sessionDataService.getSessionDataDir(session));
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
+						await this._orchestratorDatabase.prepareSessionStorage(session.toString(), provider.id);
+					}
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: sessionMetadata.startTime, modifiedTime: sessionMetadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 				const registered = await this._retryRegistryMutation(
@@ -3474,6 +3567,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// reproduce it.
 		const startedAt = Date.now();
 		const storageAccessesAtStart = this._storageAccessCounts();
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		const report = await this._sessionsV2MigrationService.migrateProvider(
 			provider.id,
 			async () => {
@@ -3494,7 +3588,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: candidate.catalog?.isChatBacking === true
 					? { reason: 'backing', fingerprint: candidate.catalog.payloadHash }
 					: undefined,
-			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate),
+			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate, findChatBackingOwner),
 			force,
 			timing ? wasBackfilled => timing.setMetrics({ migrationState: wasBackfilled ? 'backfilled' : 'required' }) : undefined,
 		);
@@ -3573,9 +3667,9 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _resolveSessionsV2ImportCandidate(provider: IAgent, candidate: IAgentHostSessionsV2Candidate<IAgentSessionMetadata>): Promise<AgentHostSessionsV2CandidateResolution<IAgentSessionMetadata>> {
+	private async _resolveSessionsV2ImportCandidate(provider: IAgent, candidate: IAgentHostSessionsV2Candidate<IAgentSessionMetadata>, findChatBackingOwner: (chat: string) => Promise<string | undefined>): Promise<AgentHostSessionsV2CandidateResolution<IAgentSessionMetadata>> {
 		const session = candidate.session;
-		const facts = await this._readSessionRegistrationFacts(session);
+		const facts = await this._readSessionRegistrationFacts(session, findChatBackingOwner);
 		if (facts.chatBacking) {
 			return { status: 'excluded', reason: 'backing', fingerprint: 'backing-v1' };
 		}
@@ -3651,8 +3745,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = authoritativeChats !== undefined ? [] : database
 			? await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(provider, metadata.session);
+		const defaultChat = this._resolveDefaultChat(metadata.session, snapshot, existingCatalogData?.chats.find(chat => chat.kind === 'default')?.uri);
 		const defaultChatMetadata = authoritativeChats !== undefined || existingCatalogData === undefined ? undefined
-			: await this._readLegacyDefaultChatMetadata(metadata.session, existingCatalogData);
+			: await this._readLegacyDefaultChatMetadata(defaultChat, existingCatalogData);
 		const meta = preserveCentralMetadata
 			? { ...existingCatalogData._meta, ...metadata._meta }
 			: metadata._meta;
@@ -3669,7 +3764,7 @@ export class AgentService extends Disposable implements IAgentService {
 			),
 			chats: [
 				{
-					uri: buildDefaultChatUri(metadata.session),
+					uri: defaultChat,
 					kind: 'default',
 					title: metadata.summary,
 					isRead: metadata.chats?.find(chat => chat.kind === 'default')?.isRead,
@@ -3691,10 +3786,10 @@ export class AgentService extends Disposable implements IAgentService {
 			snapshot?.authorityVersion === 2 ? snapshot.header?.revision : undefined);
 	}
 
-	private async _readLegacyDefaultChatMetadata(session: URI, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
+	private async _readLegacyDefaultChatMetadata(defaultChat: string, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
 		const persistedDefault = source?.chats.find(chat => chat.kind === 'default');
 		const [metadata] = await this._peerChatStore.readLocalChatMetadata([{
-			uri: buildDefaultChatUri(session),
+			uri: defaultChat,
 			origin: fromCatalogChatOrigin(persistedDefault?.origin),
 			inheritedTurnId: persistedDefault?.inheritedTurnId,
 			workingDirectories: persistedDefault?.workingDirectories,
@@ -3788,7 +3883,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * single database open — they ask for both per session, and a large catalogue
 	 * makes a second open the dominant cost of the pass.
 	 */
-	private async _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
+	private async _readSessionRegistrationFacts(session: URI, findChatBackingOwner: (chat: string) => Promise<string | undefined>): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
 			return { chatBacking: true, hostCreated: false };
 		}
@@ -3803,7 +3898,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const metadata = await ref.object.getMetadataObject({ [CHAT_BACKING_METADATA_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true });
 			// The workspace-less marker is written when the host creates a session,
 			// so its presence is what identifies a host-created session.
-			return { chatBacking: !!metadata[CHAT_BACKING_METADATA_KEY] && await this._isChatBacking(session), hostCreated: metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined };
+			return { chatBacking: !!metadata[CHAT_BACKING_METADATA_KEY] && await this._isChatBacking(session, findChatBackingOwner), hostCreated: metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined };
 		} finally {
 			ref.dispose();
 		}
@@ -3876,6 +3971,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider, sessions)
 			: new Map();
 		const known = new Set<string>();
+		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
 		for (const session of sessions) {
 			const key = session.toString();
 			const sessionProvider = AgentSession.provider(session);
@@ -3884,7 +3980,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (resolution?.status === 'conflict') {
 				this._logService.warn(`[AgentService] ${resolution.message}; suppressing discovery candidate ${key}`);
 				known.add(key);
-			} else if (registered.has(key) || resolution?.registered || exclusion?.reason === 'backing' || await this._isChatBacking(session)) {
+			} else if (registered.has(key) || resolution?.registered || exclusion?.reason === 'backing' || await this._isChatBacking(session, findChatBackingOwner)) {
 				known.add(key);
 			}
 		}
@@ -3895,7 +3991,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Whether a session is marked as an internal chat backing, either durably
 	 * or in `_unpersistedChatBackings`.
 	 */
-	private async _isChatBacking(session: URI): Promise<boolean> {
+	private async _isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean> {
 		const sessionKey = session.toString();
 		if (this._unpersistedChatBackings.has(sessionKey)) {
 			return true;
@@ -3907,11 +4003,15 @@ export class AgentService extends Disposable implements IAgentService {
 				try {
 					const marker = await ref.object.getMetadata(CHAT_BACKING_METADATA_KEY);
 					if (marker) {
-						const owningSession = parseChatUri(marker)?.session;
 						const legacyProvider = AgentSession.provider(session);
-						const provider = await ref.object.getMetadata(`${CHAT_BACKING_METADATA_KEY}Provider`)
-							?? (owningSession ? this._providerService.getProviderForSession(owningSession)?.id : undefined)
-							?? (marker === 'true' && legacyProvider ? this._providerService.getProviderForSession(session)?.id : undefined);
+						let provider = await ref.object.getMetadata(`${CHAT_BACKING_METADATA_KEY}Provider`);
+						if (provider === undefined && marker !== 'true') {
+							// Only markers written before the provider was recorded need their owner.
+							const owningSession = await findOwner(marker);
+							provider = owningSession ? this._providerService.getProviderForSession(owningSession)?.id : undefined;
+						} else if (provider === undefined && legacyProvider) {
+							provider = this._providerService.getProviderForSession(session)?.id;
+						}
 						if (provider !== undefined && provider === legacyProvider) {
 							return true;
 						}
@@ -4144,9 +4244,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return registeredSession;
 		}))).filter((registeredSession): registeredSession is IRegisteredSession => registeredSession !== undefined);
 		const catalogReadStartedAt = Date.now();
-		const centralRead: AgentHostCatalogListManyResult = this._isSessionCatalogEnabled()
-			? await this._catalogListReader.readMany(catalogCandidates)
-			: { results: catalogCandidates.map((): AgentHostCatalogListResult => ({ eligible: false, chatBacking: false, detail: 'session catalog disabled' })) };
+		const centralRead: AgentHostCatalogListManyResult = await this._catalogListReader.readMany(catalogCandidates);
 		const catalogReadPhaseMs = Date.now() - catalogReadStartedAt;
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
@@ -4246,7 +4344,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// A late listing can still find catalog misses after disposal (a
 		// queued reconciliation resolves after teardown); scheduling a repair
 		// then would leak the timer, since a disposed holder drops its value.
-		if (repairSessions.size > 0 && !this._store.isDisposed && this._isSessionCatalogEnabled()) {
+		if (repairSessions.size > 0 && !this._store.isDisposed) {
 			this._catalogListRepair.value = disposableTimeout(() => {
 				this._catalogListRepair.clear();
 				void Promise.allSettled([...repairSessions].map(session => this._markCatalogPayloadDirty(session))).then(() => {
@@ -4355,7 +4453,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// rows each cost a provider round-trip plus session-database reads. The
 		// storage-access deltas are the machine-independent measure of that cost.
 		const storageAccesses = this._storageAccessCounts();
-		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (catalog ${this._isSessionCatalogEnabled() ? 'enabled' : 'disabled'}, ${catalogServed} catalog-served, ${providerFallback} provider fallback, catalog read ${catalogReadPhaseMs}ms, resolve ${resolvePhaseMs}ms, ${storageAccesses.opens - storageAccessesAtStart.opens} db opens, ${storageAccesses.stats - storageAccessesAtStart.stats} db stats, ${additions.length} state-manager fallback)`;
+		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (${catalogServed} catalog-served, ${providerFallback} provider fallback, catalog read ${catalogReadPhaseMs}ms, resolve ${resolvePhaseMs}ms, ${storageAccesses.opens - storageAccessesAtStart.opens} db opens, ${storageAccesses.stats - storageAccessesAtStart.stats} db stats, ${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
 		} else {
@@ -4398,7 +4496,6 @@ export class AgentService extends Disposable implements IAgentService {
 			...metrics,
 			...counts,
 			registeredSessionCount: registered.length,
-			catalogEnabled: this._isSessionCatalogEnabled(),
 		};
 	}
 
@@ -4643,18 +4740,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// flips mid-process, so there is no live discovery re-run / retract storm
 		// to reconcile.
 		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
-	}
-
-	private _sessionCatalogEnabledSnapshot: boolean | undefined;
-
-	/**
-	 * Whether the central catalog serves the session list. Frozen at the first
-	 * read for the same reason as the migrate gate: the store backing the list
-	 * must not change while the host is running. The gate also controls new
-	 * normalized activation; activated catalogs never return to legacy authority.
-	 */
-	private _isSessionCatalogEnabled(): boolean {
-		return this._sessionCatalogEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostSessionCatalogEnabledConfigKey) !== false;
 	}
 
 	/** Diagnostics-only; an implementation that owns no files reports nothing. */
@@ -4903,7 +4988,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _readPersistedSessionTitle(session: URI): Promise<string | undefined> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		const normalized = snapshot?.authorityVersion === 2;
-		const defaultChat = this._defaultChatUri(session);
+		const defaultChat = this._resolveDefaultChat(session, snapshot, undefined);
 		const defaultChatTitleKey = customChatTitleMetadataKey(defaultChat);
 		let mirroredChatTitle: string | undefined;
 		try {
@@ -4937,7 +5022,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return metadata?.titleSource === 'user' || metadata?.titleSource === 'agent' ? metadata.summary : undefined;
 		}
 		try {
-			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(buildDefaultChatUri(session)));
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(this._resolveDefaultChat(session, snapshot, undefined)));
 			if (!ref) {
 				return fallback;
 			}
@@ -4972,7 +5057,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+	async createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI> {
 		const provider = this._providerService.resolveProvider(config?.provider);
 		if (provider && config?.session && this._providerService.getProviderForSession(config.session) === provider) {
 			this._cancelPendingSessionGc(config.session);
@@ -4982,7 +5067,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: this._createSession(config);
 	}
 
-	private async _createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+	private async _createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI> {
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -5064,7 +5149,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const initiator = readSessionInitiator(config)
 			?? (creationReference ? readSessionInitiator(this._stateManager.getSessionSummary(creationReference.session)) : undefined)
 			?? getLegacySessionInitiator(provider.id, false);
-		config = { ...config, _meta: withSessionInitiator(config?._meta, initiator) };
+		config = { ...config, legacyChatUris: config?.legacyChatUris, _meta: withSessionInitiator(config?._meta, initiator) };
 		if (!isEphemeral) {
 			try {
 				const metadata: Record<string, string> = { [SESSION_INITIATOR_METADATA_KEY]: JSON.stringify(initiator) };
@@ -5179,7 +5264,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const defaultChat = created.defaultChat;
 		const workingDirectories = config?.workingDirectories;
 		const [initialCustomizations, folderPickerDecision] = await Promise.all([
-			provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat), this._hostCustomizations(session)).catch(err => {
+			provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat, this._defaultChatStorageResource(session, defaultChat)), this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
 				return undefined;
 			}),
@@ -5333,12 +5418,12 @@ export class AgentService extends Disposable implements IAgentService {
 		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
 	}
 
-	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void> {
+	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.uninstallPlugin) {
 			throw new Error(`Plugin uninstall is unavailable for provider '${providerId}'.`);
 		}
-		await provider.uninstallPlugin(request);
+		await provider.uninstallPlugin(request, session, chat);
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
@@ -5348,7 +5433,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
 		}
-		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat));
+		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
@@ -5358,7 +5443,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat));
+		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 	}
 
 	private _assertCanvasesEnabled(): void {
@@ -5376,12 +5461,52 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._stateManager.resolveChatState(chat.toString());
 	}
 
-	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.installPlugin) {
 			throw new Error(`Plugin install is unavailable for provider '${providerId}'.`);
 		}
-		await provider.installPlugin(request);
+		await provider.installPlugin(request, session, chat);
+	}
+
+	listPluginMarketplaces(providerId: AgentProvider, session: URI, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listPluginMarketplaces) {
+			throw new Error(`Plugin marketplace inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listPluginMarketplaces(session, chat);
+	}
+
+	addPluginMarketplace(providerId: AgentProvider, session: URI, source: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.addPluginMarketplace) {
+			throw new Error(`Plugin marketplace registration is unavailable for provider '${providerId}'.`);
+		}
+		return provider.addPluginMarketplace(session, source, chat);
+	}
+
+	browsePluginMarketplace(providerId: AgentProvider, session: URI, name: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.browsePluginMarketplace) {
+			throw new Error(`Plugin marketplace browse is unavailable for provider '${providerId}'.`);
+		}
+		return provider.browsePluginMarketplace(session, name, chat);
+	}
+
+	removePluginMarketplace(providerId: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.removePluginMarketplace) {
+			throw new Error(`Plugin marketplace removal is unavailable for provider '${providerId}'.`);
+		}
+		return provider.removePluginMarketplace(session, name, force, chat);
+	}
+
+	refreshPluginMarketplaces(providerId: AgentProvider, session: URI, name?: string, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.refreshPluginMarketplaces) {
+			throw new Error(`Plugin marketplace refresh is unavailable for provider '${providerId}'.`);
+		}
+		return provider.refreshPluginMarketplaces(session, name, chat);
 	}
 
 	searchCustomizationMarketplace(providerId: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
@@ -5427,7 +5552,12 @@ export class AgentService extends Disposable implements IAgentService {
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
-		if (this._workspaceConversionService.isPending(this._defaultChatUri(session), true)) {
+		const defaultChat = this._requireDefaultChat(session);
+		const chatUriError = createChatUriError(defaultChat, this._stateManager.getSessionState(sessionKey)?.chats.map(existing => existing.resource) ?? [], chat.toString());
+		if (chatUriError !== undefined) {
+			throw new Error(`[AgentService] createChat: ${chatUriError}`);
+		}
+		if (this._workspaceConversionService.isPending(defaultChat, true)) {
 			throw new Error('Wait for workspace setup to finish before creating another chat.');
 		}
 		const creationError = this._worktree.getCreationError(AgentSession.id(session));
@@ -5441,6 +5571,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._supportsChats(provider)) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
 		}
+		this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
 		// When forking, resolve the source chat's turns up to the fork point and
 		// mint fresh turn IDs for the new chat. The agent uses the mapping to
 		// remap per-turn data in the forked chat; the seeded turns make
@@ -5546,7 +5677,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
-			if (this._workspaceConversionService.isPending(this._defaultChatUri(session), true)
+			if (this._workspaceConversionService.isPending(defaultChat, true)
 				|| this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0] !== initialPrimaryDirectory) {
 				throw new Error('The session workspace changed while preparing the new chat. Try creating the chat again.');
 			}
@@ -5557,10 +5688,10 @@ export class AgentService extends Disposable implements IAgentService {
 			const title = forkedTitle ?? options?.title;
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			if (!sessionState) {
-				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+				await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 				throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
 			}
-			const existingCatalogChats = this._catalogChatsFromState(sessionState, this._defaultChatUri(sessionKey)).map(existing => (
+			const existingCatalogChats = this._catalogChatsFromState(sessionState, defaultChat).map(existing => (
 				existing.kind === 'default' && !existing.title && sessionState.title
 					? { ...existing, title: sessionState.title }
 					: existing
@@ -5598,7 +5729,7 @@ export class AgentService extends Disposable implements IAgentService {
 					[customChatTitleMetadataKey(chat.toString())]: title,
 					[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
 				}, catalogChats);
-				this._stateManager.addChat(sessionKey, chat.toString(), {
+				this._stateManager.addChat(sessionKey, chat.toString(), creationTimeChatStorageResource(sessionKey, chat.toString(), this._defaultChat(sessionKey)), {
 					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
 					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
 					...(providerData !== undefined ? { providerData } : {}),
@@ -5616,7 +5747,7 @@ export class AgentService extends Disposable implements IAgentService {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
 					try {
-						await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+						await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 					} catch (rollbackError) {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
@@ -5706,15 +5837,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _resolveSessionSourceChat(source: URI): Promise<{ sourceChatKey: string; sourceSessionKey: string; sourceState: ReturnType<AgentHostStateManager['getChatState']> | undefined }> {
 		const sourceKey = source.toString();
-		const sourceSessionKey = isAhpChatChannel(sourceKey) ? parseRequiredSessionUriFromChatUri(sourceKey) : sourceKey;
-		const defaultChatKey = this._stateManager.getSessionState(sourceSessionKey)?.defaultChat ?? buildDefaultChatUri(sourceSessionKey);
-		const isDefaultSource = sourceKey === sourceSessionKey || isDefaultChatUri(sourceKey);
+		const sourceSessionKey = isAhpChatChannel(sourceKey) ? (await this._chatOwnership.resolveChatOwner(sourceKey))?.owner : sourceKey;
+		if (sourceSessionKey === undefined) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Source chat not found: ${sourceKey}`);
+		}
+		const defaultChatKey = this._stateManager.getSessionState(sourceSessionKey)?.defaultChat ?? this._defaultChat(sourceSessionKey);
+		const isDefaultSource = sourceKey === sourceSessionKey || this._chatOwnership.isDefaultChat(sourceSessionKey, sourceKey);
 		const sourceChatKey = isDefaultSource ? defaultChatKey : sourceKey;
+		if (sourceChatKey === undefined) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Source session not found: ${sourceSessionKey}`);
+		}
 		return {
 			sourceSessionKey,
 			sourceChatKey,
 			sourceState: isDefaultSource
-				? (this._stateManager.getChatState(defaultChatKey) ?? this._stateManager.getDefaultChatState(sourceSessionKey))
+				? (this._stateManager.getChatState(sourceChatKey) ?? this._stateManager.getDefaultChatState(sourceSessionKey))
 				: await this._stateManager.resolveChatState(sourceChatKey),
 		};
 	}
@@ -5730,6 +5867,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this._chatWatches.deleteAndDispose(chat);
+		this._chatWatchOwners.delete(chat);
 		this._pendingChatHistories.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
@@ -5743,7 +5881,7 @@ export class AgentService extends Disposable implements IAgentService {
 				try {
 					await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
 					if (provider) {
-						await this._disposeChat(provider, chat);
+						await this._disposeChat(provider, session, chat);
 					}
 					await this._peerChatStore.whenIdle();
 					await this._peerChatStore.remove(session, chat);
@@ -5759,7 +5897,7 @@ export class AgentService extends Disposable implements IAgentService {
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
 								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
-							this._catalogChatsFromState(state, this._defaultChatUri(sessionKey)).filter(candidate => candidate.uri !== chatKey),
+							this._catalogChatsFromState(state, this._requireDefaultChat(sessionKey)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
 					ancillaryCleanupSucceeded = true;
@@ -5801,7 +5939,7 @@ export class AgentService extends Disposable implements IAgentService {
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
 								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
-							this._catalogChatsFromState(state, this._defaultChatUri(session)).filter(candidate => candidate.uri !== chatKey),
+							this._catalogChatsFromState(state, this._requireDefaultChat(session)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
 				} catch (error) {
@@ -5825,8 +5963,24 @@ export class AgentService extends Disposable implements IAgentService {
 		return !!provider.getDescriptor().capabilities?.multipleChats;
 	}
 
-	private _chatContext(session: URI, chat: URI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat);
+	private _chatContext(session: URI, chat: URI, storageResource: string): IAgentChatContext {
+		return createAgentChatContext(this._stateManager, session, chat, storageResource);
+	}
+
+	/** The recorded storage of a registered chat, or the creation-time rule for one not registered yet. */
+	private _chatStorageResource(session: URI, chat: URI): string {
+		return this._chatOwnership.resolveChatStorageResource(session.toString(), chat.toString());
+	}
+
+	/** The storage of a session's default chat, which may not be registered yet (creation, cold reads, teardown). */
+	private _defaultChatStorageResource(session: URI, defaultChat: URI): string {
+		return this._chatOwnership.getChatStorageResource(defaultChat.toString()) ?? creationTimeChatStorageResource(session.toString(), defaultChat.toString(), defaultChat.toString());
+	}
+
+	/** Storage resources the normalized catalog records for a session's chats. */
+	private async _readRecordedChatStorage(session: string): Promise<ReadonlyMap<string, string>> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
+		return recordedChatStorage(snapshot, this._logService);
 	}
 
 	/**
@@ -5838,12 +5992,26 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._stateManager.getSessionState(session.toString())?.customizations;
 	}
 
-	/** Mints the session URI before the collapsed `createChat` path derives its default-chat URI. */
-	private async _mintSessionUri(provider: IAgent, config?: IAgentCreateSessionConfig): Promise<URI> {
+	/** The client that initiated session creation: the source turn's initiator for a fork or side chat, otherwise the active client. */
+	private _creatingClientId(config: IAgentCreateSessionConfig | undefined): string | undefined {
 		const source = readSessionCreationReference(config?._meta);
-		const sourceChat = source?.chat ?? (source ? buildDefaultChatUri(source.session) : undefined);
+		const sourceChat = source?.chat ?? (source ? this._defaultChat(source.session) : undefined);
 		const turnId = source?.turnId ?? (sourceChat ? this._stateManager.getChatState(sourceChat)?.activeTurn?.id : undefined);
-		const clientId = sourceChat && turnId ? this._turnTracker.getInitiatorClientId(sourceChat, turnId) : config?.activeClient?.clientId;
+		return sourceChat && turnId ? this._turnTracker.getInitiatorClientId(sourceChat, turnId) : config?.activeClient?.clientId;
+	}
+
+	/** Whether the creator cannot address opaque chat URIs. No creating client means a host-internal creation, which is opaque. */
+	private _creatorUsesLegacyChatUris(config: IAgentServiceCreateSessionConfig | undefined): boolean {
+		if (config?.legacyChatUris !== undefined) {
+			return config.legacyChatUris;
+		}
+		const clientId = this._creatingClientId(config);
+		return clientId !== undefined && this._clientConnections.usesLegacyChatUris(clientId);
+	}
+
+	/** Mints the session URI before the collapsed `createChat` path derives its default-chat URI. */
+	private async _mintSessionUri(provider: IAgent, config: IAgentServiceCreateSessionConfig | undefined): Promise<URI> {
+		const clientId = this._creatingClientId(config);
 		const legacy = clientId !== undefined && this._clientConnections.usesLegacySessionUris(clientId);
 		if (!usesStandardSessionUris(provider.id)) {
 			return AgentSession.uri(provider.id, generateUuid());
@@ -5858,7 +6026,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return session;
 	}
 
-	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult & { readonly defaultChat: URI }> {
+	private async _createProviderSession(provider: IAgent, config: IAgentServiceCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult & { readonly defaultChat: URI }> {
 		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
 		if (requestedSessionId) {
 			this._worktree.notePending(requestedSessionId);
@@ -5867,12 +6035,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = config?.session ?? await this._mintSessionUri(provider, config);
 		let created: (IAgentCreateSessionResult & { readonly defaultChat: URI }) | undefined;
 		try {
+			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const defaultChatUri = URI.parse(buildDefaultChatUri(session)).with({
-				query: await this._sessionRegistry.isTombstoned(session) ? `generation=${generateUuid()}` : '',
-			});
+			const generation = await this._sessionRegistry.isTombstoned(session) ? generateUuid() : undefined;
+			const defaultChatUri = URI.parse(mintDefaultChatUri(this._creatorUsesLegacyChatUris(config) ? 'shaped' : 'opaque', session.toString(), generation));
+			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
-			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri), this._toCreateChatOptions(boundConfig));
+			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
 			created = {
 				session,
 				defaultChat: defaultChatUri,
@@ -5906,22 +6075,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 * only provisions the default chat, so rollback disposes that one chat and
 	 * the caller rethrows the original error.
 	 */
-	private async _rollbackProviderSession(provider: IAgent, session: URI, defaultChatUri = URI.parse(this._defaultChatUri(session))): Promise<void> {
+	private async _rollbackProviderSession(provider: IAgent, session: URI, defaultChatUri: URI): Promise<void> {
 		try {
-			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri));
+			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
 		} finally {
-			this._titleController.clearSession(session.toString(), []);
+			this._titleController.clearSession(session.toString(), [defaultChatUri.toString()]);
 		}
 	}
 
 	private _getSessionChatsInTeardownOrder(session: URI): URI[] {
 		const state = this._stateManager.getSessionState(session.toString());
-		return this._orderSessionChatsForTeardown(session, state?.chats.map(chat => chat.resource) ?? []);
+		return this._orderSessionChatsForTeardown(session, state?.chats.map(chat => chat.resource) ?? [], this._defaultChat(session));
 	}
 
-	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[], defaultChat = this._defaultChatUri(session)): URI[] {
+	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[], defaultChat: string | undefined): URI[] {
 		const result: URI[] = [];
 		const seen = new Set<string>();
 		for (const chat of chats) {
@@ -5930,7 +6099,7 @@ export class AgentService extends Disposable implements IAgentService {
 				result.push(URI.parse(chat.toString()));
 			}
 		}
-		if (!seen.has(defaultChat)) {
+		if (defaultChat !== undefined && !seen.has(defaultChat)) {
 			result.push(URI.parse(defaultChat));
 		}
 		return result;
@@ -5948,17 +6117,18 @@ export class AgentService extends Disposable implements IAgentService {
 			...(state?.chats.map(chat => chat.resource) ?? []),
 			...(catalog?.map(chat => chat.uri.toString()) ?? []),
 		], defaultChat);
+		const storageOf = (chat: URI) => chat.toString() === defaultChat ? this._defaultChatStorageResource(session, chat) : this._chatStorageResource(session, chat);
 		for (const chat of chats) {
 			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat));
 			if (!this._stateManager.getChatState(chat.toString()) && (chat.toString() === defaultChat || persisted)) {
 				const providerData = chat.toString() === defaultChat ? await this._readDefaultChatProviderData(session) : persisted?.providerData;
-				await provider.materializeChat(chat, this._chatContext(session, chat), providerData);
+				await provider.materializeChat(chat, this._chatContext(session, chat, storageOf(chat)), providerData);
 			}
 		}
 		let firstError: unknown;
 		for (const chat of chats) {
 			try {
-				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+				await provider.chats.disposeChat(chat, this._chatContext(session, chat, storageOf(chat)));
 			} catch (err) {
 				firstError ??= err;
 			}
@@ -5976,7 +6146,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _canReleaseSession(provider: IAgent, session: URI, chats: readonly URI[]): Promise<boolean> {
 		for (const chat of chats) {
-			if (provider.chats.canReleaseChat && !await provider.chats.canReleaseChat(chat, this._chatContext(session, chat))) {
+			if (provider.chats.canReleaseChat && !await provider.chats.canReleaseChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)))) {
 				return false;
 			}
 		}
@@ -5990,7 +6160,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let firstError: unknown;
 		for (const chat of chats) {
 			try {
-				await provider.chats.releaseChat(chat, this._chatContext(session, chat));
+				await provider.chats.releaseChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 			} catch (err) {
 				firstError ??= err;
 			}
@@ -6010,21 +6180,25 @@ export class AgentService extends Disposable implements IAgentService {
 	 * exactly that window; every other caller relies on the exhaustive origin
 	 * {@link _chatContext} stamps.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin, workspaceTransitionsPromise?: Promise<ReadonlyMap<string, string> | undefined>): Promise<readonly Turn[]> {
-		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
-		const transitionsPromise = workspaceTransitionsPromise ?? this._loadWorkspaceTransitions(chat);
+	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, isDefaultChat: boolean, storage: URI, origin?: ChatOrigin, workspaceTransitionsPromise?: Promise<ReadonlyMap<string, string> | undefined>): Promise<readonly Turn[]> {
+		const context = { ...this._chatContext(session, chat, storage.toString()), ...(origin ? { origin } : {}) };
+		const transitionsPromise = workspaceTransitionsPromise ?? this._loadWorkspaceTransitions(storage);
 		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
 		const [providerTurns, workspaceTransitions] = await Promise.all([
 			provider.chats.getMessages(chat, context),
 			transitionsPromise,
 		]);
 		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
-		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), workspaceTransitions }, providerTurns);
+		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isDefaultChat, storageResource: storage.toString(), workspaceTransitions }, providerTurns);
 	}
 
 	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
 	private async _refreshChatHistory(provider: IAgent, chat: URI, providerTurns: readonly Turn[]): Promise<void> {
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if (owner === undefined) {
+			return;
+		}
+		const session = URI.parse(owner);
 		await this._restoreSessionInFlight.get(session.toString());
 		const previous = this._stateManager.getChatState(chat.toString());
 		const watch = this._chatWatches.get(chat);
@@ -6032,10 +6206,11 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (previous.activeTurn) {
-			this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+			this._pendingChatHistories.set(chat.toString(), { provider, session: owner, chat, turns: providerTurns });
 			return;
 		}
-		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), workspaceTransitions: await this._loadWorkspaceTransitions(chat) }, providerTurns);
+		const storage = this._chatStorageResource(session, chat);
+		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isDefaultChat: this._chatOwnership.isDefaultChat(session.toString(), chat.toString()), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
 		const turns = await this._interleaveLocalTurns(session.toString(), chat.toString(), hydrated);
 		const byId = new Map(turns.map(turn => [turn.id, turn]));
 		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
@@ -6044,7 +6219,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatWatches.get(chat) === watch) {
 			const current = this._stateManager.getChatState(chat.toString());
 			if (current?.activeTurn) {
-				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+				this._pendingChatHistories.set(chat.toString(), { provider, session: owner, chat, turns: providerTurns });
 			} else if (current && current.turns !== previous.turns) {
 				void this._chatHistoryRefreshes.queue(chat.toString(), () => this._refreshChatHistory(provider, chat, providerTurns)).catch(error => this._logService.warn('[AgentService] Failed to reconcile external history', error));
 			} else {
@@ -6053,11 +6228,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _loadWorkspaceTransitions(chat: URI): Promise<ReadonlyMap<string, string> | undefined> {
-		const storage = chatStorageUri(chat);
-		if (!storage) {
-			return undefined;
-		}
+	private async _loadWorkspaceTransitions(storage: URI): Promise<ReadonlyMap<string, string> | undefined> {
 		try {
 			const database = await this._sessionDataService.tryOpenDatabase(storage);
 			return database ? this._readWorkspaceTransitions(database, storage, true) : undefined;
@@ -6167,7 +6338,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(placement?.config ? { config: placement.config } : {}),
 			}
 			: undefined;
-		const context = this._chatContext(session, chat);
+		const context = this._chatContext(session, chat, this._chatStorageResource(session, chat));
 		const result = await provider.chats.createChat(chat, context, options?.fork ? { ...convOptions, fork: options.fork } : convOptions);
 		return result;
 	}
@@ -6225,9 +6396,8 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _disposeChat(provider: IAgent, chat: URI): Promise<void> {
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
-		await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+	private async _disposeChat(provider: IAgent, session: URI, chat: URI): Promise<void> {
+		await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 	}
 
 	/**
@@ -6249,7 +6419,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
 	}
 
-	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { defaultChat?: URI; project?: { uri: URI; displayName: string }; resolvedWorkingDirectory?: URI }, title: string): SessionSummary {
+	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { defaultChat: URI; project?: { uri: URI; displayName: string }; resolvedWorkingDirectory?: URI }, title: string): SessionSummary & { readonly defaultChat: string } {
 		const now = new Date().toISOString();
 		// The provider resolved only its process root (index 0), which may
 		// differ from the requested primary (e.g. a workspace-less scratch dir).
@@ -6269,7 +6439,7 @@ export class AgentService extends Disposable implements IAgentService {
 				isArtifact: true,
 				link: pullRequestUrl,
 			}, generateUuid);
-			_meta = withSessionArtifacts(_meta, artifacts.map(artifact => ({ ...artifact, chat: created.defaultChat?.toString() ?? buildDefaultChatUri(session) })));
+			_meta = withSessionArtifacts(_meta, artifacts.map(artifact => ({ ...artifact, chat: created.defaultChat.toString() })));
 		}
 		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot);
 		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);
@@ -6290,13 +6460,12 @@ export class AgentService extends Disposable implements IAgentService {
 			: _meta;
 		_meta = withPublishedWorkingDirectoryIdentities(_meta, workingDirectories, undefined);
 		if (provider.id === CODEX_AGENT_PROVIDER_ID) {
-			const defaultChat = created.defaultChat ?? URI.parse(buildDefaultChatUri(session));
-			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(defaultChat, session) ?? config?.model);
+			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(created.defaultChat, session) ?? config?.model);
 		}
 		return {
 			resource: session.toString(),
 			provider: provider.id,
-			...(created.defaultChat ? { defaultChat: created.defaultChat.toString() } : {}),
+			defaultChat: created.defaultChat.toString(),
 			title,
 			status: SessionStatus.Idle,
 			createdAt: now,
@@ -6325,7 +6494,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * - Lazily attach git state for the (possibly new) working directory.
 	 */
 	private _onDidMaterializeChat(e: IAgentMaterializeChatEvent): void {
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(e.chat));
+		const owner = this._chatOwnership.getChatOwner(e.chat.toString());
+		if (owner === undefined) {
+			this._logService.warn(`[AgentService] onDidMaterializeChat for unknown chat: ${e.chat.toString()}`);
+			return;
+		}
+		const session = URI.parse(owner);
 		const sessionKey = session.toString();
 		// The session is now materialized — its SDK is resolved (any cold
 		// download already finished), so no further progress is expected for it.
@@ -6340,7 +6514,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidMaterializeChat missing summary for session: ${sessionKey}`);
 			return;
 		}
-		if (e.chat.toString() !== this._defaultChatUri(session)) {
+		if (!this._chatOwnership.isDefaultChat(sessionKey, e.chat.toString())) {
 			if (!state.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
 				return;
 			}
@@ -6768,7 +6942,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (chatCatalog?.authorityVersion === 2 && !chatCatalog.header?.defaultChatUri) {
 				throw new Error(`Missing normalized default while deleting ${sessionKey}`);
 			}
-			const defaultChat = chatCatalog?.header?.defaultChatUri ?? this._defaultChatUri(session);
+			const defaultChat = this._resolveDefaultChat(session, chatCatalog, undefined);
 			const persistedPeerChats = await this._peerChatStore.tryRead(session);
 			const configuredWorkingDirectories = [
 				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
@@ -6916,8 +7090,7 @@ export class AgentService extends Disposable implements IAgentService {
 		parsed: INonPtyShellTerminalUri,
 		restoreSession: (session: URI) => Promise<void>,
 	): Promise<TerminalState | undefined> {
-		const parsedChat = parseChatUri(parsed.chat);
-		if (!parsedChat || !isEqual(URI.parse(parsedChat.session), parsed.session)) {
+		if (!isAhpChatChannel(parsed.chat.toString())) {
 			return undefined;
 		}
 		const sessionResource = parsed.session.toString();
@@ -6930,14 +7103,19 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		let chat = this._stateManager.getChatState(parsed.chat.toString());
-		if (!chat) {
-			await this._stateManager.resolveChatState(parsed.chat.toString());
-			chat = this._stateManager.getChatState(parsed.chat.toString());
+		const chatKey = parsed.chat.toString();
+		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
+		if (chatOwner?.owner !== sessionResource) {
+			return undefined;
 		}
-		if (!chat && parsedChat.chatId.startsWith('subagent/')) {
-			await this._restoreSubagentChat(parsed.chat.toString(), parsed.session, parsedChat.chatId.slice('subagent/'.length));
-			chat = this._stateManager.getChatState(parsed.chat.toString());
+		let chat = this._stateManager.getChatState(chatKey);
+		if (!chat) {
+			await this._stateManager.resolveChatState(chatKey);
+			chat = this._stateManager.getChatState(chatKey);
+		}
+		if (!chat && chatOwner.spawnedBy !== undefined) {
+			await this._restoreSubagentChat(chatKey, parsed.session, chatOwner.spawnedBy.toolCallId);
+			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat) {
 			return undefined;
@@ -7009,6 +7187,15 @@ export class AgentService extends Disposable implements IAgentService {
 		const resourceStr = resource.toString();
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
+			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
+				const containing = session ?? (await this._chatOwnership.resolveChatOwner(owner))?.owner;
+				if (containing === undefined) {
+					this._logService.trace(`[AgentService] subscribe: no owner recorded for changeset owner ${owner}`);
+				} else if (!this._stateManager.getSessionState(containing)) {
+					await restoreSession(URI.parse(containing));
+				}
+				return containing;
+			};
 			await this._sessionResidency.waitForRelease(resource);
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
@@ -7038,7 +7225,7 @@ export class AgentService extends Disposable implements IAgentService {
 			telemetry.setServedFromMemory(!!snapshot);
 			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset) {
-				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreSession);
+				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreChangesetOwner);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			const parsedAnnotations = parseAnnotationsUri(resourceStr);
@@ -7046,25 +7233,30 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._ensureAnnotationsRestored(parsedAnnotations.sessionUri);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
-			if (!snapshot && !parsedChangeset) {
-				// Chat channel URIs carry their owning session URI. The chat
-				// snapshot only materializes once that session is restored
-				// (which seeds the default chat state), so restore the parent
-				// session rather than the chat URI itself. This makes the
-				// chat-channel subscribe self-sufficient and independent of
-				// whether the session channel was subscribed first.
-				const parsedChatSession = parseDefaultChatUri(resourceStr);
-				if (parsedChatSession !== undefined) {
-					if (!this._stateManager.getSessionState(parsedChatSession)) {
-						const parentUri = URI.parse(parsedChatSession);
+			let chatOwner: IChatOwnerResolution | undefined;
+			if (!snapshot && !parsedChangeset && isAhpChatChannel(resourceStr)) {
+				// The chat snapshot only materializes once its owning session is
+				// restored (which seeds the default chat state), so restore the
+				// owner rather than the chat itself. This makes the chat-channel
+				// subscribe self-sufficient and independent of whether the
+				// session channel was subscribed first.
+				chatOwner = await this._chatOwnership.resolveChatOwner(resourceStr);
+				if (chatOwner !== undefined) {
+					telemetry.setSession(URI.parse(chatOwner.owner));
+					this._subscriptions.setSubscriptionOwner(resource, chatOwner.owner);
+					this._cancelPendingSessionGc(URI.parse(chatOwner.owner));
+					if (!this._stateManager.getSessionState(chatOwner.owner)) {
+						const parentUri = URI.parse(chatOwner.owner);
 						const parsedSubagentParent = parseSubagentSessionUri(parentUri);
 						if (parsedSubagentParent) {
-							await this._restoreSubagentSession(parsedChatSession, parsedSubagentParent.parentSession);
+							await this._restoreSubagentSession(chatOwner.owner, parsedSubagentParent.parentSession);
 						} else {
 							await restoreSession(parentUri);
 						}
 					}
 					snapshot = this._stateManager.getSnapshot(resourceStr);
+				} else {
+					this._logService.trace(`[AgentService] subscribe: no owner recorded for chat ${resourceStr}`);
 				}
 			}
 			if (!snapshot && !parsedChangeset && isAhpChatChannel(resourceStr)) {
@@ -7073,21 +7265,20 @@ export class AgentService extends Disposable implements IAgentService {
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
-				if (isSubagentChatUri(resource)) {
+				const subagentOwner = isAhpChatChannel(resourceStr) ? chatOwner ?? await this._chatOwnership.resolveChatOwner(resourceStr) : undefined;
+				if (this._pendingSubagentChats.has(resourceStr) || subagentOwner?.spawnedBy !== undefined) {
 					snapshot = await this._awaitPendingSubagentChat(resourceStr);
-					if (!snapshot) {
-						const parsed = parseChatUri(resource);
-						if (parsed?.chatId.startsWith('subagent/')) {
-							await this._restoreSubagentChat(resourceStr, URI.parse(parsed.session), parsed.chatId.slice('subagent/'.length));
-							snapshot = this._stateManager.getSnapshot(resourceStr);
-						}
+					if (!snapshot && subagentOwner?.spawnedBy !== undefined) {
+						telemetry.setSession(URI.parse(subagentOwner.owner));
+						await this._restoreSubagentChat(resourceStr, URI.parse(subagentOwner.owner), subagentOwner.spawnedBy.toolCallId);
+						snapshot = this._stateManager.getSnapshot(resourceStr);
 					}
 				} else {
 					// Changeset URIs are routed through the coordinator (which
 					// owns its URI shape, the unknown-id early throw, and turn
 					// / static seeding). Other URIs fall through to the
 					// subagent / session-default path below.
-					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, restoreSession);
+					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, restoreChangesetOwner);
 					if (handled) {
 						snapshot = this._stateManager.getSnapshot(resourceStr);
 					} else {
@@ -7095,7 +7286,7 @@ export class AgentService extends Disposable implements IAgentService {
 						const parsedSubagent = parseSubagentSessionUri(resource);
 						if (parsedSubagent) {
 							await this._restoreSubagentSession(resourceStr, parsedSubagent.parentSession);
-						} else {
+						} else if (!isAhpChatChannel(resourceStr)) {
 							await restoreSession(resource);
 						}
 						snapshot = this._stateManager.getSnapshot(resourceStr);
@@ -7108,6 +7299,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
 			}
+			this._recordSubscriptionOwner(resource);
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();
 			this._watchChatUpdates(resource);
@@ -7159,6 +7351,21 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Maps a subscribable resource to its owning session; a chat resolves through the live registry only. */
+	private readonly _getChatOwner = (chat: string) => this._chatOwnership.getChatOwner(chat);
+
+	/** Records the registry owner of a subscribed chat while the chat is still registered. */
+	private _recordSubscriptionOwner(resource: URI): void {
+		const session = this._resolveResourceSession(resource);
+		if (session) {
+			this._subscriptions.setSubscriptionOwner(resource, session.toString());
+		}
+	}
+
+	private _resolveResourceSession(resource: URI): URI | undefined {
+		return resolveAgentHostSession(resource, this._getChatOwner);
+	}
+
 	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
 	private async _awaitPendingSubagentChat(subagentChatUri: string): Promise<IStateSnapshot | undefined> {
 		const pending = this._pendingSubagentChats.get(subagentChatUri);
@@ -7178,7 +7385,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// handshake fast-path used by `ProtocolServerHandler` when state is
 		// already cached. The coordinator decides whether the URI is one
 		// it cares about (e.g. uncommitted changeset → trigger refresh).
-		if (this._subscriptions.addSubscriber(resource, clientId)) {
+		const firstSubscriber = this._subscriptions.addSubscriber(resource, clientId);
+		this._recordSubscriptionOwner(resource);
+		if (firstSubscriber) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
 			this._watchChatUpdates(resource);
 		}
@@ -7189,21 +7398,27 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._store.isDisposed) {
 			return;
 		}
+		// Captured before the subscription is dropped: the chat may already have left the registry.
+		const session = this._subscriptions.resolveSubscribedSession(resource);
 		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
 		this._chatWatches.deleteAndDispose(resource);
+		this._chatWatchOwners.delete(resource);
 		this._pendingChatHistories.delete(resource.toString());
-		if (isAhpChatChannel(resource.toString())) {
-			this._chatInputService.clear(parseRequiredSessionUriFromChatUri(resource.toString()), resource.toString());
+		if (isAhpChatChannel(resource.toString()) && session) {
+			this._chatInputService.clear(session.toString(), resource.toString());
 		}
 		this._changesetCoordinator.onLastSubscriber(resource);
 		this._stateManager.onChangesetLivenessChanged();
-		if (this._maybeScheduleEphemeralSessionGc(resource)) {
+		if (!session) {
+			this._logService.trace(`[AgentService] unsubscribe: no owner recorded for ${resource.toString()}`);
+		} else if (this._maybeScheduleEphemeralSessionGc(session)) {
 			return;
+		} else {
+			// Annotation subscribers block destructive GC, but must not suppress residency reconciliation.
+			this._maybeScheduleSessionGc(session);
 		}
-		// Annotation subscribers block destructive GC, but must not suppress residency reconciliation.
-		this._maybeScheduleSessionGc(resource);
 		void this._sessionResidency.reconcile();
 	}
 
@@ -7211,11 +7426,12 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatWatches.has(chat)) {
 			return;
 		}
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
-		const provider = this._providerService.getProviderForSession(session);
+		const owner = this._chatOwnership.requireChatOwner(chat.toString());
+		const provider = this._providerService.getProviderForSession(URI.parse(owner));
 		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
 			const watches = new DisposableStore();
 			this._chatWatches.set(chat, watches);
+			this._chatWatchOwners.set(chat, owner);
 			const history = provider.watchChatHistory?.(chat);
 			if (history) {
 				watches.add(history);
@@ -7231,8 +7447,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Schedules full cleanup for a throwaway surface after all its session and
 	 * chat subscriptions are gone, regardless of whether it has completed turns.
 	 */
-	private _maybeScheduleEphemeralSessionGc(resource: URI): boolean {
-		const session = resolveAgentHostSession(resource);
+	private _maybeScheduleEphemeralSessionGc(session: URI): boolean {
 		const sessionKey = session.toString();
 		if (!this._stateManager.isEphemeralSession(sessionKey)) {
 			return false;
@@ -7267,8 +7482,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * (or createSession on the same URI) cancels the timer via
 	 * {@link _cancelPendingSessionGc}.
 	 */
-	private _maybeScheduleSessionGc(resource: URI): void {
-		const session = resolveAgentHostSession(resource);
+	private _maybeScheduleSessionGc(session: URI): void {
 		if (this._subscriptions.hasSessionSubscribers(session)) {
 			return;
 		}
@@ -7297,12 +7511,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _cancelPendingSessionGc(resource: URI): void {
-		this._pendingSessionGc.deleteAndDispose(resolveAgentHostSession(resource));
+		const session = this._resolveResourceSession(resource);
+		if (session) {
+			this._pendingSessionGc.deleteAndDispose(session);
+		}
 	}
 
 	private _cancelPendingEphemeralSessionGc(resource: URI): void {
-		const session = resolveAgentHostSession(resource);
-		if (this._stateManager.isEphemeralSession(session.toString())) {
+		const session = this._resolveResourceSession(resource);
+		if (session && this._stateManager.isEphemeralSession(session.toString())) {
 			this._pendingSessionGc.deleteAndDispose(session);
 		}
 	}
@@ -7367,7 +7584,12 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!parsed) {
 			return false;
 		}
-		const sessionUri = URI.parse(parsed.sessionUri);
+		const containingSession = changesetSession(parsed, chat => this._chatOwnership.getChatOwner(chat));
+		// A changeset whose chat is no longer registered has no session left to pin it.
+		if (containingSession === undefined) {
+			return true;
+		}
+		const sessionUri = URI.parse(containingSession);
 		// A parent-session subscriber can still receive catalogue count updates
 		// from this changeset, so keep the backing state while the session is observed.
 		if (this._subscriptions.hasSubscribers(sessionUri)) {
@@ -7683,21 +7905,30 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const changesetChannel = parseChangesetUri(channel);
 		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
-		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
-		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
+		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
+		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
-		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
+		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
-			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
+		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
+			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
 
 		const next = (pending ?? Promise.resolve()).then(async () => {
+			const sessionChannel = knownSessionChannel ?? (await this._chatOwnership.resolveChatOwner(channel))?.owner;
+			if (sessionChannel === undefined) {
+				this._logService.trace(`[AgentService] dispatchAction: no owner recorded for chat ${channel}; ${action.type} has no effect`);
+				if (!this._rejectUnknownChatAction(channel, action, { clientId, clientSeq })) {
+					this._stateManager.dispatchClientAction(channel, action, { clientId, clientSeq }, clientContext);
+				}
+				return;
+			}
+			const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 			const sessionUri = URI.parse(sessionChannel);
 			const subagent = parseSubagentSessionUri(sessionUri);
 			let passiveMetadataAction: IIsArchivedChangedAction | IIsReadChangedAction | undefined;
@@ -7883,11 +8114,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
 		if (!state || !summary || (replaceSessionWorkspace
-			? !hasSingleUserChat(state.chats) || !isDefaultChatUri(chat) || !sessionDirectories?.length
+			? !hasSingleUserChat(state.chats) || !this._chatOwnership.isDefaultChat(session.toString(), chat.toString()) || !sessionDirectories?.length
 			: !sessionDirectories?.includes(directories[0]))) {
 			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
 		}
-		if (isDefaultChatUri(chat)) {
+		if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 			await this._peerChatStore.persistMetadata(session, chat, {
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
 			});
@@ -8119,7 +8350,7 @@ export class AgentService extends Disposable implements IAgentService {
 				|| !this._stateManager.getSessionState(sessionKey)?.chats.some(current => current.resource === chat.summary.resource)) {
 				continue;
 			}
-			if (isDefaultChatUri(chat.summary.resource)) {
+			if (this._chatOwnership.isDefaultChat(sessionKey, chat.summary.resource)) {
 				await this._peerChatStore.persistMetadata(session, URI.parse(chat.summary.resource), {
 					[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories),
 				});
@@ -8179,7 +8410,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _withMergedClientAgentMergeFolders(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
 		const state = this._stateManager.getSessionState(session);
-		const defaultChat = this._defaultChatUri(session);
+		const defaultChat = this._defaultChat(session);
 		// The session's folders and each chat's, as a chat may work in a folder the session was not created with.
 		const sessionWorkingDirectories = [
 			...(this._stateManager.getSessionSummary(session)?.workingDirectories ?? []),
@@ -8214,10 +8445,6 @@ export class AgentService extends Disposable implements IAgentService {
 				return action.kind === PendingMessageKind.Steering && isConversionChat(channel)
 					? localize('agentHost.cannotSteerWorkspaceChange', "Cannot steer while the workspace is changing.")
 					: undefined;
-			case ActionType.ChatSteeringMessageSet:
-				return isConversionChat(channel)
-					? localize('agentHost.cannotSteerWorkspaceChange', "Cannot steer while the workspace is changing.")
-					: undefined;
 			case ActionType.ChatTurnStarted:
 				return isConversionChat(channel)
 					? localize('agentHost.cannotStartTurnWorkspaceChange', "Cannot send a message while the workspace is changing.")
@@ -8239,42 +8466,43 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Rejects chat metadata actions that only a known (and, for archiving, independently manageable) chat accepts. */
+	private _rejectUnknownChatAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: { readonly clientId: string; readonly clientSeq: number }): boolean {
+		if (action.type !== ActionType.ChatIsArchivedChanged && action.type !== ActionType.ChatIsReadChanged) {
+			return false;
+		}
+		const chatState = this._stateManager.getChatState(channel);
+		if (action.type === ActionType.ChatIsArchivedChanged
+			&& (!chatState || this._chatOwnership.isDefaultChat(this._chatOwnership.requireChatOwner(channel), channel) || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
+			return true;
+		}
+		if (action.type === ActionType.ChatIsReadChanged && !chatState) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known chat can change its read state.');
+			return true;
+		}
+		return false;
+	}
+
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
-		if (action.type === ActionType.ChatPendingMessageSet) {
+		if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
 			const id = action.id;
-			if (this._stateManager.getChatState(channel)?.steeringMessages?.some(message => message.id === id)) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'A legacy pending message cannot reuse an independent steering message ID.');
-				return;
-			}
-		}
-		if (action.type === ActionType.ChatSteeringMessageSet || action.type === ActionType.ChatSteeringMessageRemoved) {
-			if (action.type === ActionType.ChatSteeringMessageSet && !this._providerService.getProviderForSession(sessionChannel)?.sendSteeringMessage) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support independent steering messages.');
-				return;
-			}
 			const state = this._stateManager.getChatState(channel);
-			const id = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.id : action.id;
-			const existing = state?.steeringMessages?.find(message => message.id === id);
-			if (!state || (action.type === ActionType.ChatSteeringMessageSet && (state.steeringMessage?.id === id || state.queuedMessages?.some(message => message.id === id)))) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Steering requires a known chat and a unique pending message ID.');
+			const existing = state?.queuedMessages?.find(message => message.id === id);
+			if (action.type === ActionType.ChatPendingMessageSet && action.kind === PendingMessageKind.Steering && !this._providerService.getProviderForSession(sessionChannel)?.sendSteeringMessage) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support steering messages.');
 				return;
 			}
-			if (state.activeTurn && existing && (action.type === ActionType.ChatSteeringMessageRemoved || !equals(existing, action.steeringMessage))) {
+			if (state?.activeTurn && existing?.kind === PendingMessageKind.Steering
+				&& (action.type === ActionType.ChatPendingMessageRemoved
+					? action.kind === PendingMessageKind.Steering
+					: action.kind !== existing.kind || !equals(existing.message, action.message))) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot change a steering message while it is being processed.');
 				return;
 			}
 		}
-		const chatState = action.type === ActionType.ChatIsArchivedChanged || action.type === ActionType.ChatIsReadChanged
-			? this._stateManager.getChatState(channel)
-			: undefined;
-		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (isDefaultChatUri(channel) || !chatState || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
-			return;
-		}
-		if (action.type === ActionType.ChatIsReadChanged && !chatState) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known chat can change its read state.');
+		if (this._rejectUnknownChatAction(channel, action, origin)) {
 			return;
 		}
 		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
@@ -8436,13 +8664,12 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction | ChatSteeringMessageSetAction {
-		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet && action.type !== ActionType.ChatSteeringMessageSet) {
+	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
 		const attachmentsRoot = this._attachmentsRoot(sessionURI);
-		const message = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.message : action.message;
-		return !!message.attachments?.some(a =>
+		return !!action.message.attachments?.some(a =>
 			this._isRewritableAttachment(a, attachmentsRoot) || this._isUntaggedSnapshotResource(a, attachmentsRoot));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
@@ -8504,23 +8731,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction | ChatSteeringMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
-		const message = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.message : action.message;
-		const attachments = message.attachments;
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
+		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
 		const attachmentsRoot = this._attachmentsRoot(channel);
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId)));
-		if (action.type === ActionType.ChatSteeringMessageSet) {
-			return {
-				...action,
-				steeringMessage: { ...action.steeringMessage, message: { ...message, attachments: rewritten } },
-			};
-		}
 		return {
 			...action,
-			message: { ...message, attachments: rewritten },
+			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
@@ -8688,6 +8908,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
 		const restore = this._doRestoreSession(session, sessionStr);
 		this._restoreSessionInFlight.set(sessionStr, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 			this._sessionResidency.touch(session);
@@ -8714,14 +8935,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const storageError = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus, diagnostics?.eventsFileStatus].includes('readError');
 		const storageLayoutInvalid = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus].some(status => status === 'file' || status === 'other')
 			|| diagnostics?.eventsFileStatus === 'directory' || diagnostics?.eventsFileStatus === 'other';
+		const environmentRootMissing = diagnostics?.sessionStateRootStatus === 'missing' && diagnostics.copilotHomeSource === 'environment';
+		const missingSessionStorage = (diagnostics?.sessionStateRootStatus === 'missing' && diagnostics.copilotHomeSource !== 'environment')
+			|| diagnostics?.sessionDirectoryStatus === 'missing';
+		const nonExtensionHostClient = diagnostics?.markerStatus === 'missing'
+			&& diagnostics.workspaceMetadataStatus === 'valid'
+			&& (diagnostics.lastKnownClient === 'vscode-agent-host' || diagnostics.lastKnownClient === 'github-cli' || diagnostics.lastKnownClient === 'github-autopilot');
 		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
 		if (outcome === 'migrated') {
 			diagnosticCategory = 'notApplicable';
 		} else if (extra.reason === 'settingDisabled') {
 			diagnosticCategory = 'configurationDisabled';
-		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
+		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || environmentRootMissing || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
 			diagnosticCategory = 'needsInvestigation';
-		} else if (diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') {
+		} else if ((diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') || missingSessionStorage || nonExtensionHostClient) {
 			diagnosticCategory = 'expectedExclusion';
 		}
 		let diagnosticDetail: AgentHostLegacyMigrationEvent['diagnosticDetail'];
@@ -8737,6 +8964,8 @@ export class AgentService extends Disposable implements IAgentService {
 			diagnosticDetail = 'sessionStateRootMissing';
 		} else if (diagnostics?.sessionDirectoryStatus === 'missing') {
 			diagnosticDetail = 'sessionDirectoryMissing';
+		} else if (nonExtensionHostClient) {
+			diagnosticDetail = 'markerMissingNonExtensionHostClient';
 		} else if (diagnostics?.markerStatus === 'missing') {
 			diagnosticDetail = diagnostics.eventsFileStatus === 'file' ? 'markerMissingWithEvents' : diagnostics.eventsFileStatus === 'missing' ? 'markerMissingWithoutEvents' : 'markerMissing';
 		} else if (diagnostics?.markerStatus === 'readError') {
@@ -8860,8 +9089,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!external && migrateLegacyEnabled && agent.ensureChatAdopted) {
 			try {
 				const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
-				const defaultChat = URI.parse(catalog?.header?.defaultChatUri ?? this._defaultChatUri(session));
-				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));
+				const defaultChat = URI.parse(this._resolveDefaultChat(session, catalog, undefined));
+				const defaultChatStorage = recordedChatStorage(catalog, this._logService).get(defaultChat.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChat.toString(), defaultChat.toString());
+				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, defaultChatStorage));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
 				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, error: err });
@@ -8997,7 +9227,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _validateAnnotationsOwner(sessionUri: string): Promise<void> {
-		const owner = resolveAgentHostSession(URI.parse(sessionUri));
+		const owner = this._resolveResourceSession(URI.parse(sessionUri));
+		if (!owner) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
+		}
 		const ownerKey = owner.toString();
 		// Live throwaway sessions are deliberately tombstoned to exclude them from discovery.
 		if (this._stateManager.isEphemeralSession(ownerKey)) {
@@ -9147,14 +9380,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const cachedChatCatalog = await cachedChatCatalogPromise;
 		const cachedDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default');
-		const defaultChatUri = URI.parse(normalizedDefault?.chat ?? cachedDefaultChat?.uri ?? buildDefaultChatUri(sessionStr));
+		const defaultChatUri = URI.parse(normalizedDefault?.chat ?? this._resolveDefaultChat(session, chatSnapshot, cachedDefaultChat?.uri));
+		const recordedStorage = recordedChatStorage(normalizedCatalog, this._logService);
+		const defaultChatStorage = recordedStorage.get(defaultChatUri.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChatUri.toString(), defaultChatUri.toString());
 		const defaultChatWorkingDirectories = normalizedDefault
 			? normalizedDefault.workingDirectories
-			: await this._readDefaultChatWorkingDirectories(defaultChatUri) ?? cachedDefaultChat?.workingDirectories;
+			: await this._readDefaultChatWorkingDirectories(session, defaultChatUri) ?? cachedDefaultChat?.workingDirectories;
 		// Restore host-owned tool strategy before the provider materializes its tool inventory.
 		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
+			isDefaultChat: true,
+			storageResource: defaultChatStorage,
 		}, {});
 		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
 		// Default-chat restore always goes through {@link IAgent.materializeChat};
@@ -9163,7 +9400,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// provider storage and, if they do, persist it once for later restores.
 		// If no backing exists, restore the history but leave the missing live
 		// backing explicit.
-		const chatContext = this._chatContext(session, defaultChatUri);
+		const chatContext = this._chatContext(session, defaultChatUri, defaultChatStorage);
 		const recoveredDefaultChat = !normalizedCatalog && !external && defaultChatProviderData === undefined
 			? await agent.recoverLegacyChat?.(defaultChatUri, chatContext)
 			: undefined;
@@ -9189,7 +9426,10 @@ export class AgentService extends Disposable implements IAgentService {
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
 		let persistedWorkingDirectories: string | undefined;
-		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = Promise.resolve(undefined);
+		// A default chat stored outside its session database keeps its workspace transitions in its own storage.
+		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr
+			? Promise.resolve(undefined)
+			: this._loadWorkspaceTransitions(URI.parse(defaultChatStorage));
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -9219,7 +9459,7 @@ export class AgentService extends Disposable implements IAgentService {
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
-						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') {
+						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true' && defaultChatStorage === sessionStr) {
 							retainedForWorkspaceTransitions = true;
 							workspaceTransitionsPromise = this._readWorkspaceTransitions(db, session);
 						}
@@ -9354,7 +9594,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, defaultChatUri, session, undefined, workspaceTransitionsPromise);
+			turns = await this._getChatMessages(agent, defaultChatUri, session, true, URI.parse(defaultChatStorage), undefined, workspaceTransitionsPromise);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -9388,13 +9628,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const workingDirectories = withChatWorkingDirectories(parseSessionWorkingDirectories(persistedWorkingDirectories) ?? meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
 		restoredMeta = withPublishedWorkingDirectoryIdentities(restoredMeta, workingDirectories, centralChatCatalog);
 		if (agent.id === CODEX_AGENT_PROVIDER_ID) {
-			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri)) ?? meta.model);
+			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri, defaultChatStorage)) ?? meta.model);
 		}
 		const currentRegistration = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 		const effectiveRegistrationSource = currentRegistration?.source ?? registrationSource;
 		const sessionStartTime = currentRegistration?.startTime ?? meta.startTime;
 		const sessionModifiedTime = Math.max(currentRegistration?.modifiedTime ?? meta.modifiedTime, meta.modifiedTime);
-		const summary: SessionSummary = {
+		const summary: SessionSummary & { readonly defaultChat: string } = {
 			resource: sessionStr,
 			provider: agent.id,
 			title,
@@ -9429,7 +9669,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		this._invalidateSessionList();
-		this._stateManager.restoreSession(summary, mergedTurns, {
+		this._stateManager.restoreSession(summary, mergedTurns, (session, chat, defaultChat) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(session, chat, defaultChat), {
 			draft: restoredDraft,
 			defaultChatTitle,
 			defaultChatModifiedAt,
@@ -9470,10 +9710,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const promises: Promise<unknown>[] = [];
 		try {
-			await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
+			await this._registerRestoredSubagentSummaries(agent, session, mergedTurns, recordedStorage);
 		} catch (error) {
 			this._logService.warn(`[AgentService] Restored private chat admission deferred for ${sessionStr}`, error);
-			this._queueRestoredSubagentAdmissionRetry(agent, session, mergedTurns);
+			this._queueRestoredSubagentAdmissionRetry(agent, session, mergedTurns, recordedStorage);
 		}
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
@@ -9549,6 +9789,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
 	private async _restorePeerChats(agent: IAgent, session: URI, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		// A legacy catalog records no storage, and migrating it records only the
+		// creation-time rule, so the storage this snapshot records holds for both paths.
+		const recordedStorage = recordedChatStorage(snapshot, this._logService);
 		if (snapshot?.authorityVersion === 2) {
 			const entries = await this._peerChatStore.tryRead(session, false);
 			if (!entries) {
@@ -9562,7 +9805,7 @@ export class AgentService extends Disposable implements IAgentService {
 				changes: chat.metadata?.changes,
 				workingDirectories: chat.workingDirectories,
 			}));
-			await this._restorePeerChatsFromCatalog(session, entries, chats);
+			await this._restorePeerChatsFromCatalog(session, entries, recordedStorage, chats);
 			await this._persistOrderedListVisibleSessionState(session, {});
 			return;
 		}
@@ -9590,7 +9833,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? { ...entry, workingDirectories: cachedWorkingDirectories.get(entry.uri) }
 			: entry);
 		const toolChatUris = new Set([
-			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(entry.uri)).map(entry => entry.uri),
+			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool).map(entry => entry.uri),
 			...cached?.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.uri) ?? [],
 			...this._stateManager.getSessionState(session.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource) ?? [],
 		]);
@@ -9600,29 +9843,30 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			if (!isDefaultChatUri(chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
+			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, restoredEntries, cached);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
 	private async _readCentralChatCatalog(session: URI): Promise<readonly ICatalogChat[] | undefined> {
-		if ((await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion === 2) {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		if (snapshot?.authorityVersion === 2) {
 			return this._readCachedChatCatalog(session);
 		}
 		const peers = await this._peerChatStore.tryRead(session);
 		if (peers !== undefined) {
-			const defaultChatUri = this._defaultChatUri(session);
-			const defaultChatWorkingDirectories = await this._readDefaultChatWorkingDirectories(URI.parse(defaultChatUri));
+			const defaultChatUri = this._resolveDefaultChat(session, snapshot, undefined);
+			const defaultChatWorkingDirectories = await this._readDefaultChatWorkingDirectories(session, URI.parse(defaultChatUri));
 			return [
 				{
 					uri: defaultChatUri,
 					...(defaultChatWorkingDirectories !== undefined ? { workingDirectories: defaultChatWorkingDirectories } : {}),
 					kind: 'default',
 				},
-				...peers.filter(peer => !isSubagentChatUri(peer.uri) && peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
+				...peers.filter(peer => peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
@@ -9717,7 +9961,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Titles and drafts are metadata-only reads; backing sessions and histories
 	 * are loaded on the first content request.
 	 */
-	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], cachedChats?: readonly ICatalogChat[]): Promise<void> {
+	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const restored = await Promise.all(entries.map(async (entry) => {
 			let chatUri: URI;
 			try {
@@ -9728,12 +9972,17 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const cachedChat = cachedChats?.find(chat => chat.uri === entry.uri);
 			const cachedTitle = cachedChat?.title;
+			// A legacy catalog records no storage, so its chats follow the creation-time rule.
+			const storageResource = recordedStorage.get(chatUri.toString()) ?? creationTimeChatStorageResource(session.toString(), chatUri.toString(), this._defaultChat(session));
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
+				isDefaultChat: false,
+				storageResource,
 			}, cachedTitle ? { title: cachedTitle } : {});
 			return {
 				chatUri,
+				storageResource,
 				title,
 				draft,
 				providerData: entry.providerData,
@@ -9750,11 +9999,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
+			const { chatUri, storageResource, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
 			this._stateManager.registerRestoredChatSummary(session.toString(), chatUri.toString(), {
+				storageResource,
 				title,
 				draft,
 				providerData,
@@ -9765,13 +10015,12 @@ export class AgentService extends Disposable implements IAgentService {
 				archived,
 				isRead,
 				changes,
-				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
+				resolver: (currentProviderData, storageResource) => this._materializeRestoredPeerChat(session, chatUri, currentProviderData, storageResource),
 			});
 		}
 	}
 
-	private async _readDefaultChatWorkingDirectories(defaultChat: URI): Promise<readonly string[] | undefined> {
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(defaultChat.toString()));
+	private async _readDefaultChatWorkingDirectories(session: URI, defaultChat: URI): Promise<readonly string[] | undefined> {
 		const normalized = await this._peerChatStore.readNormalizedChat(session, defaultChat);
 		if (normalized.normalized) {
 			if (!normalized.chat) {
@@ -9814,7 +10063,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * does, with the same retry/suppression semantics, so a restored peer
 	 * chat's backing session cannot leak into the top-level session list.
 	 */
-	private async _materializeRestoredPeerChat(session: URI, chat: URI, providerData: string | undefined): Promise<{ turns: Turn[]; draft?: Message }> {
+	private async _materializeRestoredPeerChat(session: URI, chat: URI, providerData: string | undefined, storageResource: string): Promise<{ turns: Turn[]; draft?: Message }> {
 		const chatKey = chat.toString();
 		const agent = this._providerService.getProviderForSession(session);
 		if (!agent) {
@@ -9826,11 +10075,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._getChatDraft(session, chat),
 			]);
 			const effectiveProviderData = providerData ?? persisted?.providerData;
-			const result = await agent.materializeChat(chat, this._chatContext(session, chat), effectiveProviderData);
+			const result = await agent.materializeChat(chat, this._chatContext(session, chat, storageResource), effectiveProviderData);
 			if (result?.backingSession) {
 				await this._markChatBacking(result.backingSession, chat);
 			}
-			const turns = await this._getChatMessages(agent, chat, session);
+			const turns = await this._getChatMessages(agent, chat, session, false, URI.parse(storageResource));
 			return { turns: await this._interleaveLocalTurns(session.toString(), chatKey, turns), draft };
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to materialize peer chat ${chatKey}: ${toErrorMessage(err)}`);
@@ -9843,19 +10092,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * reports it changed (e.g. per-chat model switch or fork remap).
 	 */
 	private _onChatDataChanged(e: IAgentChatDataChange): void {
-		const sessionStr = parseDefaultChatUri(e.chat);
+		const sessionStr = this._chatOwnership.getChatOwner(e.chat.toString());
 		if (sessionStr === undefined) {
-			this._logService.warn(`[AgentService] onDidChangeChatData for malformed chat URI: ${e.chat.toString()}`);
+			this._logService.warn(`[AgentService] onDidChangeChatData for unknown chat: ${e.chat.toString()}`);
 			return;
 		}
-		if (e.chat.toString() === this._defaultChatUri(sessionStr)) {
+		if (this._chatOwnership.isDefaultChat(sessionStr, e.chat.toString())) {
 			void this._persistDefaultChatBacking({ session: URI.parse(sessionStr), chat: e, defaultChat: e.chat })
 				.catch(err => this._logService.error(err, `[AgentService] Failed to persist default-chat backing for ${e.chat.toString()}`));
 			return;
 		}
 		const session = this._stateManager.getSessionState(sessionStr);
 		const chat = session?.chats.find(chat => chat.resource.toString() === e.chat.toString());
-		if (this._disposingPeerChats.has(e.chat.toString()) || isSubagentChatUri(e.chat) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
+		if (this._disposingPeerChats.has(e.chat.toString()) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
 			if (chat && !this._disposingPeerChats.has(e.chat.toString())) {
 				void this._peerChatStore.persistPrivateChat(URI.parse(sessionStr), {
 					chat: e.chat.toString(), providerData: e.providerData,
@@ -9877,7 +10126,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * spawn bridge is safe because `addChat` is idempotent.
 	 */
 	private _sequenceSpawnedChat(signal: AgentSignal): void {
-		const spawn = SubagentChatSignal.toSpawnEvent(signal);
+		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
+			const owner = this._chatOwnership.getChatOwner(chat);
+			return owner === undefined ? undefined : { owner, format: chatUriFormatOf(this._chatOwnership.getDefaultChat(owner)) };
+		});
 		if (spawn) {
 			this._onChatSpawned(spawn);
 		}
@@ -9957,7 +10209,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Normalized catalogs retain their private lifecycle metadata, including the parent edge.
 	 */
 	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
-		this._stateManager.addChat(e.session.toString(), e.chat.toString(), {
+		if (e.parent) {
+			this._orchestratorDatabase.recordChatStorageIdentity(e.session.toString(), e.chat.toString(), { kind: 'subagent', toolCallId: e.parent.toolCallId });
+		}
+		// A spawned chat is brand new, so its storage follows the creation-time rule.
+		this._stateManager.addChat(e.session.toString(), e.chat.toString(), creationTimeChatStorageResource(e.session.toString(), e.chat.toString(), this._defaultChat(e.session)), {
 			...(e.title !== undefined ? { title: e.title } : {}),
 			...(e.parent ? {
 				origin: { kind: ChatOriginKind.Tool, chat: e.parent.chat.toString(), toolCallId: e.parent.toolCallId },
@@ -10017,14 +10273,21 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _readDefaultChatProviderData(session: URI): Promise<string | undefined> {
+		return (await this._readDefaultChatBacking(session)).providerData;
+	}
+
+	/** A session's default chat and its persisted provider data, from one catalog read. */
+	private async _readDefaultChatBacking(session: URI): Promise<{ readonly chat: string; readonly providerData: string | undefined }> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		const chat = this._resolveDefaultChat(session, snapshot, undefined);
+		return { chat, providerData: await this._readDefaultChatBackingProviderData(session, snapshot, chat) };
+	}
+
+	private async _readDefaultChatBackingProviderData(session: URI, snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined, chat: string): Promise<string | undefined> {
 		if (snapshot?.authorityVersion === 2) {
-			if (!snapshot.header?.defaultChatUri) {
-				throw new Error(`Missing normalized default for ${session.toString()}`);
-			}
-			return (await this._orchestratorDatabase.getChatV2ProviderDetail(snapshot.header.defaultChatUri))?.providerData;
+			return (await this._orchestratorDatabase.getChatV2ProviderDetail(chat))?.providerData;
 		}
-		const defaultChat = URI.parse(this._defaultChatUri(session));
+		const defaultChat = URI.parse(chat);
 		const chatRef = await this._sessionDataService.tryOpenDatabase?.(defaultChat);
 		if (chatRef) {
 			try {
@@ -10155,10 +10418,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI, external: boolean): Promise<IAgentSessionMetadata | undefined> {
 		const sessionStr = session.toString();
-		const chat = URI.parse(this._defaultChatUri(session));
 		try {
-			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session), { activation: 'restore' });
-			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata, agent.id) : undefined);
+			const backing = await this._readDefaultChatBacking(session);
+			const chat = URI.parse(backing.chat);
+			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)), backing.providerData, { activation: 'restore' });
+			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata, session, agent.id) : undefined);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -10796,7 +11060,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const owningSession = resolveAgentHostSession(URI.parse(fields.sessionUri));
+		const owningSession = this._resolveResourceSession(URI.parse(fields.sessionUri));
+		if (!owningSession) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Session not found: ${fields.sessionUri}`);
+		}
 		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
 		try {
 			if (!wasRestored) {
@@ -10905,6 +11172,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const restore = this._doRestoreSubagentChat(chatUri, parentSession, toolCallId);
 		this._restoreSubagentInFlight.set(chatUri, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 		} finally {
@@ -10936,15 +11204,19 @@ export class AgentService extends Disposable implements IAgentService {
 		const spawnPoint = this._findSubagentSpawnPoint(parentSessionKey, chatUri, toolCallId);
 		const origin = {
 			kind: ChatOriginKind.Tool,
-			chat: spawnPoint?.chat ?? parentState.defaultChat ?? buildDefaultChatUri(parentSession),
+			chat: spawnPoint?.chat ?? parentState.defaultChat ?? this._requireDefaultChat(parentSession),
 			toolCallId,
 		} as const;
-		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
+		// A subagent without a recorded storage resource (a legacy one) follows the creation-time rule.
+		const storageResource = this._chatOwnership.getChatStorageResource(chatUri)
+			?? (await this._readRecordedChatStorage(parentSessionKey)).get(chatUri)
+			?? creationTimeChatStorageResource(parentSessionKey, chatUri, this._defaultChat(parentSessionKey));
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, false, URI.parse(storageResource), origin);
 		if (childTurns.length === 0) {
 			return;
 		}
 		const mergedTurns = await this._interleaveLocalTurns(parentSessionKey, chatUri, childTurns);
-		this._stateManager.addChat(parentSessionKey, chatUri, {
+		this._stateManager.addChat(parentSessionKey, chatUri, storageResource, {
 			title: spawnPoint?.title ?? 'Subagent',
 			turns: mergedTurns,
 			origin,
@@ -10964,7 +11236,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!parentState) {
 			return undefined;
 		}
-		const defaultChat = parentState.defaultChat ?? buildDefaultChatUri(parentSessionKey);
+		const defaultChat = parentState.defaultChat ?? this._requireDefaultChat(parentSessionKey);
 		const candidates: { chat: string; turns: readonly Turn[]; activeTurn: Turn | undefined }[] = [
 			{ chat: defaultChat, turns: parentState.turns, activeTurn: parentState.activeTurn as Turn | undefined },
 		];
@@ -11006,6 +11278,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const restore = this._doRestoreSubagentSession(subagentUri, parentSession);
 		this._restoreSubagentInFlight.set(subagentUri, restore);
+		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
 		} finally {
@@ -11073,10 +11346,15 @@ export class AgentService extends Disposable implements IAgentService {
 				const origin = parentState.chats.find(chat => chat.resource === subagentUri)?.origin
 					?? (parsedSubagent ? {
 						kind: ChatOriginKind.Tool,
-						chat: parentState.defaultChat ?? buildDefaultChatUri(parentSession),
+						chat: parentState.defaultChat ?? this._requireDefaultChat(parentSession),
 						toolCallId: parsedSubagent.toolCallId,
 					} : undefined);
-				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, origin);
+				// A registered subagent reads from its recorded storage. An unregistered
+				// legacy subagent session records none, so it follows the creation-time
+				// rule and has no workspace transitions to load.
+				const recordedStorage = this._chatOwnership.getChatStorageResource(subagentUri);
+				const storage = recordedStorage ?? creationTimeChatStorageResource(parentSession.toString(), subagentUri, this._defaultChat(parentSession));
+				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, false, URI.parse(storage), origin, recordedStorage === undefined ? Promise.resolve(undefined) : undefined);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}
@@ -11099,14 +11377,18 @@ export class AgentService extends Disposable implements IAgentService {
 				createdAt: subagentNow,
 				modifiedAt: subagentNow,
 				...(parentState?.project ? { project: parentState.project } : {}),
+				// A legacy subagent session records no default chat.
+				defaultChat: this._defaultChat(subagentUri) ?? deriveLegacyDefaultChat(subagentUri),
 			},
 			mergedChildTurns,
+			// A legacy subagent session records no storage.
+			creationTimeChatStorageResource,
 		);
 		await this._restoreAnnotations(URI.parse(subagentUri));
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
-	private _queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void {
+	private _queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void {
 		const sessionKey = parentSession.toString();
 		const existing = this._restoredSubagentAdmissionRetries.get(sessionKey);
 		if (existing?.isCurrent()) {
@@ -11131,7 +11413,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const retry = this._catalogReconciliationService.runPass()
 					.then(async () => {
 						if (admission.isCurrent()) {
-							await this._registerRestoredSubagentSummaries(agent, parentSession, turns, admission.isCurrent);
+							await this._registerRestoredSubagentSummaries(agent, parentSession, turns, recordedStorage, admission.isCurrent);
 						}
 					});
 				current = retry;
@@ -11158,9 +11440,16 @@ export class AgentService extends Disposable implements IAgentService {
 		void admission.run();
 	}
 
-	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], isCurrent: () => boolean = () => true): Promise<void> {
+	/**
+	 * `recordedStorage` is the storage the restore's catalog snapshot records.
+	 * Admission only adds private rows without storage, so it stays current.
+	 */
+	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>, isCurrent: () => boolean = () => true): Promise<void> {
 		const parentSessionStr = parentSession.toString();
-		const parentChat = this._defaultChatUri(parentSession);
+		const parentChat = this._defaultChat(parentSession);
+		if (parentChat === undefined) {
+			return;
+		}
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {
@@ -11183,32 +11472,44 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const restored = [...discovered.values()].map(child => {
-			const chatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
+			const chatUri = subagentChatUri(chatUriFormatOf(parentChat), parentSessionStr, parentChat, child.toolCallId);
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
 			const existing = this._stateManager.getSessionState(parentSessionStr)?.chats.find(chat => chat.resource === chatUri);
 			return { ...child, chatUri, origin, existing };
 		});
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
+		// A subagent without a recorded private row follows the creation-time rule.
+		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat, parentChat);
+		// Compatibility sessions have no v2 chat catalog to persist private chats
+		// into, so their restored subagent chats are transient: re-derived on every
+		// restore and only registered in memory.
+		const transientOnly = this._orchestratorDatabase.requiresLegacyChatCatalog?.(parentSessionStr) === true;
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;
 			}
-			await this._peerChatStore.persistPrivateChat(parentSession, {
-				chat: child.chatUri,
-				parentChat,
-				origin: JSON.stringify(child.origin),
-				metadata: { interactivity: ChatInteractivity.Hidden },
-			}, true, isCurrent);
+			if (transientOnly) {
+				this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
+			} else {
+				await this._peerChatStore.persistPrivateChat(parentSession, {
+					chat: child.chatUri,
+					parentChat,
+					origin: JSON.stringify(child.origin),
+					metadata: { interactivity: ChatInteractivity.Hidden },
+				}, true, isCurrent);
+			}
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
+				isDefaultChat: false,
+				storageResource: storageOf(child.chatUri),
 			}, {});
 			if (!isCurrent()) {
 				return;
 			}
 			child.title = title ?? child.title;
 		}
-		if (!normalized.normalized && this._isSessionCatalogEnabled() && restored.length > 0) {
+		if (!transientOnly && !normalized.normalized && restored.length > 0) {
 			let result: Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined;
 			try {
 				result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {
@@ -11300,11 +11601,12 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			this._stateManager.registerRestoredChatSummary(parentSessionStr, child.chatUri, {
+				storageResource: storageOf(child.chatUri),
 				title: child.title,
 				origin: child.origin,
 				interactivity: ChatInteractivity.ReadOnly,
-				resolver: async () => ({
-					turns: [...await this._resolveRestoredSubagentTurns(agent, parentSession, child.chatUri, child.origin)],
+				resolver: async (_providerData, storageResource) => ({
+					turns: [...await this._resolveRestoredSubagentTurns(agent, parentSession, child.chatUri, child.origin, storageResource)],
 				}),
 			});
 			if (child.existing && (!child.existing.title || child.existing.title === subagentChatTitle(undefined, undefined))) {
@@ -11313,8 +11615,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }): Promise<readonly Turn[]> {
-		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
+	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }, storageResource: string): Promise<readonly Turn[]> {
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, false, URI.parse(storageResource), origin);
 		if (childTurns.length === 0) {
 			throw new SubagentTranscriptUnavailableError(chatUri);
 		}

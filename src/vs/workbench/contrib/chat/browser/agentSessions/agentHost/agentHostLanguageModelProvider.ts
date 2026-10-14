@@ -11,6 +11,8 @@ import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
+import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
+import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
@@ -192,7 +194,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {
 				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
-				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.", model.name),
+				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models.", model.name),
 			};
 		}
 		return {};
@@ -337,7 +339,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
 		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
-		const groupVendorId = explicitGroupId ?? (slash > 0 ? model.id.slice(0, slash) : model.provider);
+		// An on-device model's direct row is the harness's own model; its id's
+		// `vscode-on-device/` prefix names the sentinel provider that serves it,
+		// not a vendor the user added.
+		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}

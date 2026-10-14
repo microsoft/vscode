@@ -29,7 +29,10 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { AgentPluginEnablementService } from '../../../common/plugins/agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
@@ -56,8 +59,9 @@ const unmeteredConnectionService: IMeteredConnectionService = {
 	onDidChangeIsConnectionMetered: Event.None,
 };
 
-function stubMeteredConnectionService(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
+function stubMarketplaceServices(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
 	instantiationService.stub(IMeteredConnectionService, service);
+	instantiationService.stub(IAgentPluginEnablementService, { copyEnablement: () => { } });
 }
 
 suite('PluginMarketplaceService', () => {
@@ -204,7 +208,7 @@ suite('PluginMarketplaceService', () => {
 			onDidChangeTrust: Event.None,
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -611,7 +615,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const errors: string[] = [];
@@ -658,7 +662,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' } as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const errors: string[] = [];
 		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
@@ -695,7 +699,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const seeded = service.lastFetchedPlugins.get();
@@ -754,7 +758,7 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'off',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
 
@@ -836,7 +840,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => autoUpdate,
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -943,7 +947,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService, options?.meteredConnectionService);
+		stubMarketplaceServices(instantiationService, options?.meteredConnectionService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -1426,12 +1430,12 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		}
 	}
 
-	function createPluginRepositoryStub(): IAgentPluginRepositoryService {
-		const getRepositoryUri = (marketplace: IMarketplaceReference) => URI.joinPath(CACHE_ROOT, ...marketplace.cacheSegments);
+	function createPluginRepositoryStub(cacheRoot: URI = CACHE_ROOT): IAgentPluginRepositoryService {
+		const getRepositoryUri = (marketplace: IMarketplaceReference) => URI.joinPath(cacheRoot, ...marketplace.cacheSegments);
 		const getPluginSourceInstallUri = (descriptor: IPluginSourceDescriptor) => {
 			if (descriptor.kind === PluginSourceKind.GitHub) {
 				const [owner, repo] = descriptor.repo.split('/');
-				const base = URI.joinPath(CACHE_ROOT, 'github.com', owner, repo);
+				const base = URI.joinPath(cacheRoot, 'github.com', owner, repo);
 				return descriptor.path ? URI.joinPath(base, descriptor.path) : base;
 			}
 			if (descriptor.kind === PluginSourceKind.RelativePath) {
@@ -1441,7 +1445,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			throw new Error(`Unhandled source kind in test stub: ${descriptor.kind}`);
 		};
 		return {
-			agentPluginsHome: CACHE_ROOT,
+			agentPluginsHome: cacheRoot,
 			getRepositoryUri,
 			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
 				if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
@@ -1475,6 +1479,42 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				referenceRawValue: marketplaceReference.rawValue,
 			},
 		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	function createPersistedService(fileService: TestFileService, storageService: IStorageService, cacheRoot: URI = CACHE_ROOT): PluginMarketplaceService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') });
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub(cacheRoot));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {});
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		});
+		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' });
+		stubMarketplaceServices(instantiationService);
+		instantiationService.stub(IAgentPluginEnablementService, store.add(new AgentPluginEnablementService(storageService)));
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	async function waitFor(predicate: () => boolean): Promise<void> {
+		for (let i = 0; i < 50; i++) {
+			if (predicate()) {
+				return;
+			}
+			await timeout(10);
+		}
+		assert.fail('Condition not met in time');
 	}
 
 	test('refreshes marketplace catalogs cached before source validation', async () => {
@@ -1519,7 +1559,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			onDidChangeTrust: Event.None,
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None);
 		assert.deepStrictEqual({ requests, plugins: plugins.map(plugin => plugin.name) }, { requests: 1, plugins: ['safe'] });
@@ -1572,7 +1612,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
@@ -1652,7 +1692,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		for (let i = 0; i < 50; i++) {
@@ -1717,7 +1757,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await timeout(100);
@@ -1725,7 +1765,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
 	});
 
-	test('persists plugin name when a plugin is added so it survives a restart', async () => {
+	test('persists plugin name and relative path so a plugin survives relocation', async () => {
 		// First service writes installed.json, second service (sharing the
 		// same file system + storage) reads it back and must reconstruct
 		// the plugin from its stored name plus marketplace data.
@@ -1737,35 +1777,8 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const azurePlugin = makeAzurePlugin(awesomeCopilot);
 		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
 
-		function makeService(): PluginMarketplaceService {
-			const instantiationService = store.add(new TestInstantiationService());
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
-				[ChatConfiguration.PluginsEnabled]: true,
-			}));
-			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
-			instantiationService.stub(IFileService, fileService as unknown as IFileService);
-			instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub());
-			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IRequestService, {} as unknown as IRequestService);
-			instantiationService.stub(IStorageService, storageService);
-			instantiationService.stub(IWorkspacePluginSettingsService, {
-				extraMarketplaces: observableValue('test.extraMarketplaces', []),
-				enabledPlugins: observableValue('test.enabledPlugins', new Map()),
-			} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
-			instantiationService.stub(IWorkspaceTrustManagementService, {
-				isWorkspaceTrusted: () => true,
-				onDidChangeTrust: Event.None,
-			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
-			instantiationService.stub(IExtensionsWorkbenchService, {
-				getAutoUpdateValue: () => 'on',
-			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-			stubMeteredConnectionService(instantiationService);
-			return store.add(instantiationService.createInstance(PluginMarketplaceService));
-		}
-
 		// First session: install the plugin.
-		const first = makeService();
+		const first = createPersistedService(fileService, storageService);
 		// Wait for FileBackedInstalledPluginsStore to finish initialisation
 		// so that subsequent writes are flushed to the file service.
 		await timeout(20);
@@ -1778,24 +1791,146 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.strictEqual(persisted.installed.length, 1);
 		assert.deepStrictEqual(persisted.installed[0], {
 			pluginUri: azurePluginUri.toString(),
+			relativePath: 'github.com/microsoft/azure-skills/.github/plugins/azure-skills',
 			marketplace: awesomeCopilot.rawValue,
 			name: 'azure',
 		});
 
-		// Second session: restart with shared storage + file system. The
-		// plugin must be reconstructed from installed.json + marketplace data.
-		const second = makeService();
-		for (let i = 0; i < 50; i++) {
-			if (second.installedPlugins.get().length === 1) {
-				break;
-			}
-			await timeout(10);
-		}
+		const relocatedHome = URI.file('/relocated/data/agent-plugins');
+		fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), fileService.files.get(installedJson.toString())!);
+		const second = createPersistedService(fileService, storageService, relocatedHome);
+		await waitFor(() => second.installedPlugins.get().length === 1);
 		const installed = second.installedPlugins.get();
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'azure');
 		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+		assert.strictEqual(installed[0].pluginUri.toString(), URI.joinPath(relocatedHome, persisted.installed[0].relativePath).toString());
 	});
+
+	for (const state of [ContributionEnablementState.DisabledProfile, ContributionEnablementState.DisabledWorkspace]) {
+		for (const hasStableIdentity of [true, false]) {
+			test(`preserves target enablement when a stale move commits again (${state}, stable identity: ${hasStableIdentity})`, async () => {
+				const profiles = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];
+				const fileService = new TestFileService();
+				const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+				const plugin = makeAzurePlugin(marketplace);
+				const previousUri = URI.joinPath(CACHE_ROOT, 'previous-revision');
+				const targetUri = URI.joinPath(CACHE_ROOT, 'target-revision');
+				const identity = hasStableIdentity ? URI.file('/original/data/agent-plugins/plugin') : targetUri;
+				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+				for (const profile of profiles) {
+					storeMarketplaceCache(profile, marketplace, plugin);
+					const enablement = store.add(new AgentPluginEnablementService(profile));
+					enablement.setEnabled(identity.toString(), state);
+					if (hasStableIdentity) {
+						enablement.copyEnablement(identity, targetUri);
+					}
+				}
+				fileService.setFile(installedJson, JSON.stringify({
+					version: 1,
+					installed: [{
+						pluginUri: hasStableIdentity ? previousUri.toString() : targetUri.toString(),
+						relativePath: hasStableIdentity ? 'previous-revision' : 'target-revision',
+						...(hasStableIdentity ? { enablementUri: identity.toString() } : {}),
+						marketplace: marketplace.rawValue,
+						name: plugin.name,
+					}],
+				}));
+				const first = createPersistedService(fileService, profiles[0]);
+				await waitFor(() => first.installedPlugins.get().length === 1);
+				if (hasStableIdentity) {
+					first.addInstalledPlugin(targetUri, plugin, previousUri);
+					first.removeInstalledPlugin(previousUri);
+				}
+				first.addInstalledPlugin(targetUri, plugin, previousUri);
+				first.removeInstalledPlugin(previousUri);
+				await waitFor(() => {
+					const content = fileService.files.get(installedJson.toString());
+					return !!content?.includes('"enablementUri"') && content.includes(targetUri.toString());
+				});
+				first.dispose();
+
+				const second = createPersistedService(fileService, profiles[1]);
+				await waitFor(() => second.installedPlugins.get().length === 1);
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				assert.deepStrictEqual({
+					file: JSON.parse(fileService.files.get(installedJson.toString())!),
+					state: enablement.readEnabled(targetUri.toString()),
+				}, {
+					file: {
+						version: 1,
+						installed: [{
+							pluginUri: targetUri.toString(),
+							relativePath: 'target-revision',
+							enablementUri: identity.toString(),
+							marketplace: marketplace.rawValue,
+							name: plugin.name,
+						}],
+					},
+					state,
+				});
+			});
+		}
+
+		for (const previouslyRelocated of [false, true]) {
+			test(`preserves another profile's enablement when an installation moves (${state}, relocated: ${previouslyRelocated})`, async () => {
+				const profiles = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];
+				const fileService = new TestFileService();
+				const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+				const plugin = makeAzurePlugin(marketplace);
+				const previousUri = URI.joinPath(CACHE_ROOT, 'old-revision');
+				const intermediateUri = URI.joinPath(CACHE_ROOT, 'intermediate-revision');
+				const pluginUri = URI.joinPath(CACHE_ROOT, 'new-revision');
+				const identity = previouslyRelocated ? URI.file('/original/data/agent-plugins/old-revision') : previousUri;
+				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+				for (const profile of profiles) {
+					storeMarketplaceCache(profile, marketplace, plugin);
+					store.add(new AgentPluginEnablementService(profile)).setEnabled(identity.toString(), state);
+				}
+				fileService.setFile(installedJson, JSON.stringify({
+					version: 1,
+					installed: [{
+						pluginUri: previousUri.toString(),
+						relativePath: 'old-revision',
+						...(previouslyRelocated ? { enablementUri: identity.toString() } : {}),
+						marketplace: marketplace.rawValue,
+						name: plugin.name,
+					}],
+				}));
+				const first = createPersistedService(fileService, profiles[0]);
+				await waitFor(() => first.installedPlugins.get().length === 1);
+				first.addInstalledPlugin(intermediateUri, plugin, previousUri);
+				first.removeInstalledPlugin(previousUri);
+				first.addInstalledPlugin(pluginUri, plugin, intermediateUri);
+				first.removeInstalledPlugin(intermediateUri);
+				first.addInstalledPlugin(pluginUri, plugin);
+				await waitFor(() => !!fileService.files.get(installedJson.toString())?.includes(pluginUri.toString()));
+				first.dispose();
+
+				const second = createPersistedService(fileService, profiles[1]);
+				await waitFor(() => second.installedPlugins.get().length === 1);
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				assert.deepStrictEqual({
+					file: JSON.parse(fileService.files.get(installedJson.toString())!),
+					installed: second.installedPlugins.get().map(entry => entry.pluginUri.toString()),
+					state: enablement.readEnabled(pluginUri.toString()),
+				}, {
+					file: {
+						version: 1,
+						installed: [{
+							pluginUri: pluginUri.toString(),
+							relativePath: 'new-revision',
+							enablementUri: identity.toString(),
+							marketplace: marketplace.rawValue,
+							name: plugin.name,
+						}],
+					},
+					installed: [pluginUri.toString()],
+					state,
+				});
+			});
+		}
+	}
 });
 
 suite('parsePluginSource', () => {

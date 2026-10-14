@@ -375,8 +375,14 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item, index) => {
 			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+				return false;
+			}
+			if (isResponseVM(item) && index < this._items.length - 1
+				&& item.isComplete && !item.isCanceled && !item.errorDetails
+				&& item.response.value.length === 0 && item.contentReferences.length === 0 && item.codeCitations.length === 0
+				&& !item.replyFollowups?.length && !item.result?.details) {
 				return false;
 			}
 			return true;
@@ -588,8 +594,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get dataId() {
 		return this._model.id +
-			`_${this._modelChangeCount}` +
-			(this.isLast ? '_last' : '');
+			`_${this._modelChangeCount}`;
 	}
 
 	get sessionResource(): URI {
@@ -694,11 +699,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
-		// NOTE: this is used in `dataId` to force a re-render when the response transitions
-		// between being the last row and not, e.g. when a queued/steering row is added below
-		// it. It must reflect the actual last row so the row re-renders and drops the
-		// reserved-space filler class. Progressive rendering targets the streaming response
-		// separately (see `getStickyScrollTargetItem`).
+		// NOTE: this scans the whole transcript, so it must not be part of `dataId`. The list widget
+		// re-renders the old and new tail rows through its own last-item identity suffix.
 		return this.session.getItems().at(-1) === this;
 	}
 

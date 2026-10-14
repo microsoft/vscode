@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildDefaultChatUri, ChatState, createChatState, createErrorResponsePart, MessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, Turn, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChatState, createChatState, createErrorResponsePart, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, Turn, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { maxRemoteSessionResponseLength, parseGetRemoteSessionOptions, remoteSessionSnapshot } from '../../common/remoteSessionInspection.js';
 
 suite('RemoteSessionInspection', () => {
@@ -86,7 +86,7 @@ suite('RemoteSessionInspection', () => {
 			chat(),
 			chat({ queuedMessages: [pending] }),
 			chat({ steeringMessage: pending }),
-			chat({ steeringMessages: [pending] }),
+			chat({ queuedMessages: [{ ...pending, kind: PendingMessageKind.Steering }] }),
 			chat({ activeTurn, status: SessionStatus.InProgress | SessionStatus.IsRead }),
 			chat({ activeTurn, status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }),
 			chat({ turns: [turn()], status: SessionStatus.Idle | SessionStatus.IsArchived }),

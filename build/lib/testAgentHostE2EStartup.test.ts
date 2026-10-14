@@ -17,7 +17,13 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 		for (const directory of ['scripts', 'test/integration/agentHost', 'build/lib', 'node_modules', '.build/electron']) {
 			await fs.mkdir(path.join(repoRoot, directory), { recursive: true });
 		}
-		for (const file of ['test/integration/agentHost/runner.ts', 'test/integration/agentHost/child.ps1', 'build/lib/electronVersion.ts']) {
+		for (const file of [
+			'test/integration/agentHost/runner.ts',
+			'test/integration/agentHost/child.ps1',
+			'build/lib/electronVersion.ts',
+			'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts',
+		]) {
+			await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
 			await fs.copyFile(path.join(sourceRoot, file), path.join(repoRoot, file));
 		}
 		await fs.writeFile(path.join(repoRoot, 'test/integration/agentHost/package.json'), '{"type":"commonjs"}');
@@ -50,6 +56,8 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 			AGENT_HOST_UPDATE_AHP_SNAPSHOTS: '',
 			AGENT_HOST_UPDATE_SNAPSHOTS: '',
 			AGENT_HOST_PROTOCOL_SURFACE_OUT: '',
+			AGENT_HOST_TEST_PROFILE: undefined,
+			AGENT_HOST_TEST_PROFILE_REASON: undefined,
 			VSCODE_SKIP_PRELAUNCH: '',
 			VSCODE_FORCE_PRELAUNCH: '',
 			ELECTRON_RUN_AS_NODE: '',
@@ -71,11 +79,14 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 		run();
 		run({ VSCODE_FORCE_PRELAUNCH: '1' });
 		run({ VSCODE_SKIP_PRELAUNCH: '1', VSCODE_FORCE_PRELAUNCH: '1' });
+		const prRun = run({ AGENT_HOST_TEST_PROFILE: 'pr', VSCODE_SKIP_PRELAUNCH: '1' });
 		assert.deepStrictEqual({
 			reused: firstPreparationMissing,
 			suitesPassed: (firstRun.match(/PASS /g) ?? []).length,
+			defaultFullProfile: firstRun.includes('Agent Host test profile: full (default)'),
+			prProfile: prRun.includes('Agent Host test profile: pr (default)'),
 			preparations: await fs.readFile(path.join(repoRoot, '.build/preparations'), 'utf8'),
-		}, { reused: true, suitesPassed: 6, preparations: 'prepared\nprepared\n' });
+		}, { reused: true, suitesPassed: 6, defaultFullProfile: true, prProfile: true, preparations: 'prepared\nprepared\n' });
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}
