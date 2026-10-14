@@ -36,7 +36,6 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly canMoveView = true;
-	readonly when = TimelineHasProviderContext;
 
 	focusCommand = { id: 'timeline.focus' };
 }
