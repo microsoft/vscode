@@ -16,12 +16,12 @@
  * pattern (not `display: none`) because some AT/screen-reader combos
  * skip aria-labelledby targets when `display: none` is in effect.
  * Same treatment for the unused dialog icon slot.
+ *
+ * The wrapper is hidden too (not just the text) so the Modern UI dialog
+ * margins and heading line-height on `.dialog-message` don't reserve
+ * empty space above our titlebar.
  */
-.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
-	margin: 0;
-	padding: 0;
-}
-
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
 	position: absolute;
 	width: 1px;
