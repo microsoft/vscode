@@ -46,8 +46,6 @@ export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: AH_META_WORKSPACELESS_DB_KEY, projected: true },
 	{ key: AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, projected: false },
 	{ key: AH_META_CREATED_BY_SESSION_DB_KEY, projected: true },
-	{ key: AH_META_EHCLI_ADOPTED_DB_KEY, projected: true },
-	{ key: AH_META_EHCLI_LAST_TURN_DB_KEY, projected: false },
 	{ key: SESSION_WORKING_DIRECTORIES_KEY, projected: true },
 	{ key: 'agentHost.additionalWorktrees', projected: false },
 	{ key: 'copilot.worktree.branchName', projected: false },
@@ -227,6 +225,8 @@ function applyChatPatch(current: IAgentHostSessionChatState | undefined, patch: 
 		workingDirectories: pick('workingDirectories', current?.workingDirectories),
 		launchWorkingDirectories: pick('launchWorkingDirectories', current?.launchWorkingDirectories),
 		changes: pick('changes', current?.changes),
+		ehcliAdopted: pick('ehcliAdopted', current?.ehcliAdopted),
+		ehcliLastMigratedTurn: pick('ehcliLastMigratedTurn', current?.ehcliLastMigratedTurn),
 		revision,
 	};
 }
@@ -409,6 +409,9 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	for (const key of COPILOT_LAUNCH_DIRECTORY_KEYS) {
 		sessionPlan.keys.add(key);
 	}
+	// Read once, to import the adoption markers of the default chat.
+	sessionPlan.keys.add(AH_META_EHCLI_ADOPTED_DB_KEY);
+	sessionPlan.keys.add(AH_META_EHCLI_LAST_TURN_DB_KEY);
 	const isDefault = new Map(chats.map(chat => [chat.chat, chat.isDefault]));
 	for (const chat of chats) {
 		if (!chat.isDefault) {
@@ -603,6 +606,37 @@ export function legacyMapWritePatch(model: SessionStateModel, key: string, value
 }
 
 /**
+ * The default chat's adoption marker that a write of an extension-host CLI key to the session database
+ * sets. These markers are central only: `undefined` when `key` is not one, or the store does not
+ * own the session's markers yet (the write then stays in the database for the import).
+ */
+export function legacyEhcliWritePatch(model: SessionStateModel, key: string, value: string | null): Partial<ISessionStatePatch> | undefined {
+	const field = EHCLI_LEGACY_FIELDS.get(key);
+	const defaultChat = model.authority === 1 ? [...model.chats.values()].find(chat => chat.isDefault)?.chat : undefined;
+	if (field === undefined || defaultChat === undefined) {
+		return undefined;
+	}
+	const fields: ISessionStateChatPatch['fields'] = field === 'ehcliAdopted' ? { ehcliAdopted: value === 'true' ? true : null } : { ehcliLastMigratedTurn: value || null };
+	return { chats: [{ chat: defaultChat, isDefault: true, fields }] };
+}
+
+/** The extension-host CLI keys of the old format, held by the default chat's central state. */
+const EHCLI_LEGACY_FIELDS: ReadonlyMap<string, 'ehcliAdopted' | 'ehcliLastMigratedTurn'> = new Map([
+	[AH_META_EHCLI_ADOPTED_DB_KEY, 'ehcliAdopted'],
+	[AH_META_EHCLI_LAST_TURN_DB_KEY, 'ehcliLastMigratedTurn'],
+]);
+
+/** The old-format value of an extension-host CLI key from the default chat, `'unowned'` while central state holds none (the database's own value, if any, then stays). */
+function renderEhcli(model: SessionStateModel, key: string): string | undefined | 'unowned' {
+	const field = EHCLI_LEGACY_FIELDS.get(key);
+	const defaultChat = model.authority === 1 ? [...model.chats.values()].find(chat => chat.isDefault) : undefined;
+	if (field === undefined || defaultChat === undefined) {
+		return 'unowned';
+	}
+	return (field === 'ehcliAdopted' ? (defaultChat.ehcliAdopted ? 'true' : undefined) : defaultChat.ehcliLastMigratedTurn) ?? 'unowned';
+}
+
+/**
  * The central entry that a write of `key` to the database opened by `resource`
  * changes, or `undefined` when the store does not own that key there.
  */
@@ -639,7 +673,10 @@ export function renderLegacyMetadata(model: SessionStateModel, keys: readonly st
 	const unowned: string[] = [];
 	for (const key of keys) {
 		const entry = legacyKeyEntry(model, key);
-		if (key === META_GITHUB_STATE) {
+		const ehcli = renderEhcli(model, key);
+		if (ehcli !== 'unowned') {
+			values[key] = ehcli;
+		} else if (key === META_GITHUB_STATE) {
 			// Never deleted: without central state, the database's own value stays.
 			const rendered = renderLegacySessionFolderGitHub(model);
 			if (rendered === undefined) {

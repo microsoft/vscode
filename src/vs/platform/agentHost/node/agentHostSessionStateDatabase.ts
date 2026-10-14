@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS session_chat_state (
 	working_directories        TEXT,
 	launch_working_directories TEXT,
 	changes_summary            TEXT,
+	ehcli_adopted              INTEGER CHECK (ehcli_adopted IS NULL OR ehcli_adopted IN (0, 1)),
+	ehcli_last_turn            TEXT,
 	revision                   INTEGER NOT NULL CHECK (revision >= 0),
 	PRIMARY KEY (session_uri, chat_uri)
 ) WITHOUT ROWID;
@@ -151,6 +153,8 @@ export interface IAgentHostSessionChatStateData {
 	/** Directories the provider launches the chat in when its own storage has none. */
 	readonly launchWorkingDirectories: readonly string[] | undefined;
 	readonly changes: string | undefined;
+	readonly ehcliAdopted: boolean | undefined;
+	readonly ehcliLastMigratedTurn: string | undefined;
 }
 
 export interface IAgentHostSessionChatState extends IAgentHostSessionChatStateData {
@@ -191,6 +195,8 @@ export interface IAgentHostSessionChatStateFields {
 	readonly workingDirectories?: readonly string[] | null;
 	readonly launchWorkingDirectories?: readonly string[] | null;
 	readonly changes?: string | null;
+	readonly ehcliAdopted?: boolean | null;
+	readonly ehcliLastMigratedTurn?: string | null;
 }
 
 export interface IAgentHostSessionChatStatePatch {
@@ -385,6 +391,8 @@ function toChatState(row: SqlRow): IAgentHostSessionChatState {
 		workingDirectories: decodeDirectories(row.working_directories),
 		launchWorkingDirectories: decodeDirectories(row.launch_working_directories),
 		changes: optionalString(row.changes_summary),
+		ehcliAdopted: row.ehcli_adopted === null || row.ehcli_adopted === undefined ? undefined : row.ehcli_adopted === 1,
+		ehcliLastMigratedTurn: optionalString(row.ehcli_last_turn),
 		revision: row.revision as number,
 	};
 }
@@ -406,11 +414,14 @@ const chatColumns: Readonly<Record<keyof IAgentHostSessionChatStateFields, strin
 	workingDirectories: 'working_directories',
 	launchWorkingDirectories: 'launch_working_directories',
 	changes: 'changes_summary',
+	ehcliAdopted: 'ehcli_adopted',
+	ehcliLastMigratedTurn: 'ehcli_last_turn',
 };
 
 function chatColumnValue(field: keyof IAgentHostSessionChatStateFields, fields: IAgentHostSessionChatStateFields): unknown {
 	switch (field) {
 		case 'isRead': return fields.isRead === undefined || fields.isRead === null ? null : fields.isRead ? 1 : 0;
+		case 'ehcliAdopted': return fields.ehcliAdopted === undefined || fields.ehcliAdopted === null ? null : fields.ehcliAdopted ? 1 : 0;
 		case 'workingDirectories': return encodeDirectories(fields.workingDirectories);
 		case 'launchWorkingDirectories': return encodeDirectories(fields.launchWorkingDirectories);
 		default: return fields[field] ?? null;
@@ -418,8 +429,8 @@ function chatColumnValue(field: keyof IAgentHostSessionChatStateFields, fields: 
 }
 
 const chatInsertSql = `INSERT INTO session_chat_state (
-	session_uri, chat_uri, is_default, storage_resource, title, title_source, is_read, working_directories, launch_working_directories, changes_summary, revision
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+	session_uri, chat_uri, is_default, storage_resource, title, title_source, is_read, working_directories, launch_working_directories, changes_summary, ehcli_adopted, ehcli_last_turn, revision
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /** {@link IAgentHostSessionStateDatabase} over the agent-host.db connection. */
 export class AgentHostSessionStateTables implements IAgentHostSessionStateDatabase {
@@ -518,7 +529,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				await connection.run(chatInsertSql, [
 					session, chat.chat, chat.isDefault ? 1 : 0, chat.storageResource ?? null, chat.title ?? null, chat.titleSource ?? null,
 					chat.isRead === undefined ? null : chat.isRead ? 1 : 0, encodeDirectories(chat.workingDirectories), encodeDirectories(chat.launchWorkingDirectories),
-					chat.changes ?? null, revision,
+					chat.changes ?? null, chat.ehcliAdopted === undefined ? null : chat.ehcliAdopted ? 1 : 0, chat.ehcliLastMigratedTurn ?? null, revision,
 				]);
 			}
 			for (const blob of data.branchChangesets) {
@@ -560,7 +571,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			for (const chat of patch.chats) {
 				await connection.run(`${chatInsertSql}
 					ON CONFLICT(session_uri, chat_uri) DO UPDATE SET is_default = excluded.is_default, revision = excluded.revision`, [
-					session, chat.chat, chat.isDefault ? 1 : 0, null, null, null, null, null, null, null, revision,
+					session, chat.chat, chat.isDefault ? 1 : 0, null, null, null, null, null, null, null, null, null, revision,
 				]);
 				const fields = (Object.keys(chatColumns) as (keyof IAgentHostSessionChatStateFields)[]).filter(field => chat.fields[field] !== undefined);
 				if (fields.length > 0) {

@@ -87,8 +87,8 @@ function importData(session: string, chat: string, peer: string): IAgentHostSess
 			{ folderKey: 'scope', kind: 'baseBranch', value: 'main', storageResource: peer },
 		],
 		chats: [
-			{ chat, isDefault: true, storageResource: session, title: 'Default', titleSource: 'user', isRead: true, workingDirectories: undefined, launchWorkingDirectories: ['file:///app'], changes: '{"files":1}' },
-			{ chat: peer, isDefault: false, storageResource: peer, title: 'Peer', titleSource: 'agent', isRead: undefined, workingDirectories: [], launchWorkingDirectories: ['file:///lib'], changes: undefined },
+			{ chat, isDefault: true, storageResource: session, title: 'Default', titleSource: 'user', isRead: true, workingDirectories: undefined, launchWorkingDirectories: ['file:///app'], changes: '{"files":1}', ehcliAdopted: true, ehcliLastMigratedTurn: 'turn-1' },
+			{ chat: peer, isDefault: false, storageResource: peer, title: 'Peer', titleSource: 'agent', isRead: undefined, workingDirectories: [], launchWorkingDirectories: ['file:///lib'], changes: undefined, ehcliAdopted: undefined, ehcliLastMigratedTurn: undefined },
 		],
 		branchChangesets: [{ scopeKey: '', diffs: '[]' }],
 		legacyMirrorBase: '{"v":2}',
@@ -225,7 +225,7 @@ suite('AgentHostDatabase session state', () => {
 				{ folderKey: 'scope', kind: 'baseBranch', value: 'main', storageResource: peer, revision: 1 },
 				{ folderKey: 'scope', kind: 'git', value: '{"branchName":"docs"}', storageResource: undefined, revision: 2 },
 			],
-			peer: { chat: peer, isDefault: false, storageResource: peer, title: 'Renamed', titleSource: 'agent', isRead: false, workingDirectories: undefined, launchWorkingDirectories: ['file:///lib'], changes: undefined, revision: 2 },
+			peer: { chat: peer, isDefault: false, storageResource: peer, title: 'Renamed', titleSource: 'agent', isRead: false, workingDirectories: undefined, launchWorkingDirectories: ['file:///lib'], changes: undefined, ehcliAdopted: undefined, ehcliLastMigratedTurn: undefined, revision: 2 },
 			// The unchanged blob keeps its revision: it was not rewritten.
 			blobs: [['', 1], ['scope', 2]],
 			blob: '[{"a":1}]',

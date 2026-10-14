@@ -275,6 +275,31 @@ suite('AgentHostSessionStateStore', () => {
 		}, { value: 'true', mirrorWrites: 0, acknowledged: true });
 	});
 
+	test('the extension-host CLI adoption state is per-chat central data: imported once for the default chat, never mirrored', async () => {
+		const { fixture, session } = await oldBuildSession();
+		await oldBuildEdit(fixture.session, { 'agentHost.ehcliAdopted': 'true', 'agentHost.ehcliLastMigratedTurn': 'turn-9' });
+		const sessionStore = createStore();
+		const snapshot = await sessionStore.load(session);
+		const mirrorWrites = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+		await sessionStore.writeMetadata(session, session, { 'agentHost.ehcliLastMigratedTurn': 'turn-10' }, SessionStateMirrorFlush.Immediate);
+		const rendered = sessionStore.legacyMetadata(session, ['agentHost.ehcliAdopted', 'agentHost.ehcliLastMigratedTurn']);
+		assert.deepStrictEqual({
+			chats: fixture.chats.map(({ uri }) => { const entry = snapshot.chats.get(uri); return [entry?.ehcliAdopted, entry?.ehcliLastMigratedTurn]; }),
+			after: [sessionStore.peek(session)?.chats.get(fixture.chats[0].uri)?.ehcliLastMigratedTurn],
+			rendered: rendered.values,
+			mirrorWrites: mirrorWrites.callCount,
+			sessionDb: await sessionDb(session, ['agentHost.ehcliAdopted', 'agentHost.ehcliLastMigratedTurn']),
+			sessionValues: [snapshot.values.has('agentHost.ehcliAdopted'), snapshot.values.has('agentHost.ehcliLastMigratedTurn')],
+		}, {
+			chats: [[true, 'turn-9'], [undefined, undefined], [undefined, undefined]],
+			after: ['turn-10'],
+			rendered: { 'agentHost.ehcliAdopted': 'true', 'agentHost.ehcliLastMigratedTurn': 'turn-10' },
+			mirrorWrites: 0,
+			sessionDb: { 'agentHost.ehcliAdopted': 'true', 'agentHost.ehcliLastMigratedTurn': 'turn-9' },
+			sessionValues: [false, false],
+		});
+	});
+
 	test('a session being deleted refuses writes until the deletion ends', async () => {
 		const { session } = await oldBuildSession();
 		const sessionStore = createStore();

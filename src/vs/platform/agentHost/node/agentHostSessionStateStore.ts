@@ -10,7 +10,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { AgentSession } from '../common/agentService.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../common/state/sessionState.js';
+import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../common/state/sessionState.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -21,7 +21,7 @@ import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { AgentHostCheckpointIndex } from './agentHostCheckpointIndex.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostTurnCheckpoint, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyEhcliWritePatch, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -241,7 +241,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const unowned: Record<string, string> = {};
 		const unownedRemovals: string[] = [];
 		for (const [key, value] of Object.entries(values)) {
-			const mapPatch = resource.toString() === record.key ? legacyMapWritePatch(record.model, key, value) : undefined;
+			const mapPatch = resource.toString() === record.key ? legacyMapWritePatch(record.model, key, value) ?? legacyEhcliWritePatch(record.model, key, value) : undefined;
 			if (mapPatch) {
 				patches.push(mapPatch);
 				continue;
@@ -678,6 +678,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					: (isCopilot ? copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session)) : undefined)
 					?? (patch.workingDirectories?.length ? patch.workingDirectories : undefined) ?? (chat.normalized?.directories?.length ? chat.normalized.directories : undefined) ?? sessionDirectories,
 				changes: patch.changes ?? undefined,
+				// The old format's session-wide markers belong to the chat that was the default when it was adopted.
+				ehcliAdopted: chat.isDefault && reads.get(session)?.[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true' ? true : undefined,
+				ehcliLastMigratedTurn: chat.isDefault ? reads.get(session)?.[AH_META_EHCLI_LAST_TURN_DB_KEY] || undefined : undefined,
 			};
 		});
 		return {
@@ -922,6 +925,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				workingDirectories: chat.workingDirectories,
 				launchWorkingDirectories: chat.launchWorkingDirectories,
 				changes: chat.changes,
+				ehcliAdopted: chat.ehcliAdopted,
+				ehcliLastMigratedTurn: chat.ehcliLastMigratedTurn,
 			});
 		}
 		record.snapshot = { session: record.key, authority: model.authority, revision: model.revision, values, folders, chats };

@@ -5073,11 +5073,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		try {
-			const [existingMarker, existingBaseBranch, existingLastTurn] = await Promise.all([
-				ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY),
+			const [markers, existingBaseBranch] = await Promise.all([
+				this._sessionStateStore.readWithoutImport(session, [AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY]),
 				ref.object.getMetadata(META_DIFF_BASE_BRANCH),
-				ref.object.getMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY),
 			]);
+			const existingMarker = markers.get(AH_META_EHCLI_ADOPTED_DB_KEY);
+			const existingLastTurn = markers.get(AH_META_EHCLI_LAST_TURN_DB_KEY);
 			if (existingMarker !== undefined && existingBaseBranch !== undefined && existingLastTurn !== undefined) {
 				return;
 			}

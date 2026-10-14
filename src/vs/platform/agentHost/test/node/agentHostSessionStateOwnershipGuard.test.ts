@@ -78,8 +78,6 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'agentServiceComposition.ts', key: 'AH_META_AUTO_ARCHIVED_AT_DB_KEY', count: 1, removedBy: 'C4', reason: 'auto-archive sweep still reads the session db marker' },
 	{ file: 'claude/claudeSessionMetadataStore.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 1, removedBy: 'permanent', reason: 'provider hasKnownSession reads its own default-chat db (design §4.5)' },
 	{ file: 'codex/codexSessionMetadataStore.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 1, removedBy: 'permanent', reason: 'provider hasKnownSession reads its own default-chat db (design §4.5)' },
-	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_EHCLI_ADOPTED_DB_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
-	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_EHCLI_LAST_TURN_DB_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_READ_DB_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
