@@ -10037,7 +10037,7 @@ suite('AgentHostChatContribution', () => {
 						const original = sandbox.history.sessions[0];
 						await sandbox.fresh.complete({
 							truncated: true,
-							sessions: recorded === 'truncated' ? [] : [{ ...original, session: otherSession, state: { ...original.state, resource: otherSession } }],
+							sessions: recorded === 'truncated' ? [] : [{ ...original, session: otherSession, state: original.state }],
 						});
 					} else {
 						await sandbox.fresh.complete(recorded === 'existing' ? sandbox.history : undefined);
