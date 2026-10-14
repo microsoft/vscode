@@ -7,7 +7,7 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.
 import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 
-const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2']);
+const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2', 'HYDRAFUSION_STICKY_ROOT']);
 /** Copilot CLI runtime flags that would make it declare on-device models to Auto and start its own `llama-server`; VS Code serves them itself, so they are forced off. */
 const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS'] as const;
 /** An environment declaration of on-device Auto models the Copilot CLI runtime reads; never inherited. */

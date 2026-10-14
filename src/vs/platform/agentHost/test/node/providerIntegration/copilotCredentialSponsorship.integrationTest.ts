@@ -398,7 +398,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		}, {
 			tokensByProbe: { A: ['A'], B: ['B'], L: ['L'], 'A-ROTATED': ['AR'], 'B-UNCHANGED': ['B'], 'L-UNCHANGED': ['L'], 'A-CONFIG': ['AR'], 'B-CONFIG': ['B'], 'L-CONFIG': ['L'], 'L-AFTER-DISPOSAL': ['L'] },
 			toolsByProbe: { A: [...codingTools], B: [...codingTools], L: [...codingTools] },
-			files: [0, 1, 2].map(() => ({ edited: 'after\n', created: 'created-proof\n', shellExecuted: true })),
+			files: [0, 1, 2].map(() => ({ edited: 'after\n', created: `created-proof${isWindows ? '\r\n' : '\n'}`, shellExecuted: true })),
 			toolOutcomes: ['A', 'B', 'L'].map(probe => ({ view: true, glob: true, rg: true, shell: true, scopedSentinelsAbsent: probe === 'L' ? undefined : true })),
 			promptContexts: [0, 1, 2].map(() => ({ instructions: true, environment: true, ancestorInstructions: false })),
 			scopedOptionsUpdates: [0, 1, 2, 3, 4].map(() => ({
