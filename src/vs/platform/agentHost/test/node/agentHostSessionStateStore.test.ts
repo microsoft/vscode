@@ -457,6 +457,46 @@ suite('AgentHostSessionStateStore', () => {
 		]);
 	});
 
+	test('import records the storage a normalized catalog records for its chats, not the creation-time one', async () => {
+		const session = URI.parse('copilotcli:/recorded-storage');
+		const defaultChat = 'ahp-chat://recorded-storage/default';
+		const peer = 'ahp-chat://recorded-storage/peer';
+		const moved = 'ahp-chat://recorded-storage/moved-storage';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, storageResource: session.toString(), metadata: { summary: 'Default', titleSource: 'user' } },
+			peers: [{ chat: peer, order: 1, storageResource: moved, metadata: { summary: 'Peer', titleSource: 'user' } }],
+			privateDescendants: [],
+		});
+		assert.strictEqual(registered.status, 'applied');
+		await oldBuildEdit(session.toString(), { 'agentHost.sessionWorkingDirectories': JSON.stringify(['file:///workspace/app']) });
+		const store = createStore();
+
+		const snapshot = await store.load(session);
+		await store.chatRows.setDraft(session, URI.parse(peer), { text: 'Peer draft', origin: { kind: MessageKind.User } });
+		const draftIn = async (resource: string) => {
+			const reference = await sessionData.createService().tryOpenDatabase(URI.parse(resource));
+			return reference && (await reference.object.getChatDraft(URI.parse(peer)))?.text;
+		};
+
+		assert.deepStrictEqual({
+			snapshot: [defaultChat, peer].map(chat => snapshot.chats.get(chat)?.storage),
+			central: (await database.readSessionState(session.toString()))?.chats.filter(chat => chat.chat === peer).map(chat => chat.storageResource),
+			storageOf: (await store.chatRows.storageOf(session, URI.parse(peer)))?.storage.toString(),
+			draftInMovedStorage: await draftIn(moved),
+			draftUnderChatUri: await draftIn(peer),
+			// The delete guard keeps the moved storage: the catalog and the imported central entry both record it.
+			references: await database.countStorageReferences(moved, 'copilotcli:/another-session'),
+		}, {
+			snapshot: [session.toString(), moved],
+			central: [moved],
+			storageOf: moved,
+			draftInMovedStorage: 'Peer draft',
+			draftUnderChatUri: undefined,
+			references: 2,
+		});
+	});
+
 	test('import records launch folders for the chats of a normalized-catalog session in session_chat_state only', async () => {
 		const session = URI.parse('copilotcli:/normalized-launch');
 		const defaultChat = 'ahp-chat://normalized-launch/default';

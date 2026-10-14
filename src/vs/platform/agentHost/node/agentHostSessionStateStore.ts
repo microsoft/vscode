@@ -664,6 +664,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			peers.add(peer);
 		}
 		peers.delete(defaultChat);
+		// A legacy catalog records no chat storage, so the creation-time rule is the only source here.
 		return [defaultChat, ...peers].map(chat => ({ chat, isDefault: chat === defaultChat, storage: creationTimeChatStorageResource(key, chat, defaultChat), isTool: toolChats.has(chat) }));
 	}
 
@@ -672,10 +673,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const key = session.toString();
 		const defaultChat = catalog?.header?.defaultChatUri ?? deriveLegacyDefaultChat(key);
 		const peers = (await this._database.getSessionChatCatalog(key))?.chats ?? [];
+		const recorded = new Map((catalog?.chats ?? (await this._database.readCatalogSnapshot([key]))[0]?.chats ?? []).map(chat => [chat.chat, chat.storageResource]));
+		// The storage the catalog records (a chat's storage can move); the creation-time rule only when it records none.
+		const storageOf = (chat: string) => recorded.get(chat) ?? creationTimeChatStorageResource(key, chat, defaultChat);
 		return [
-			{ chat: defaultChat, isDefault: true, storage: creationTimeChatStorageResource(key, defaultChat, defaultChat), isTool: false, normalized: { directories: undefined } },
+			{ chat: defaultChat, isDefault: true, storage: storageOf(defaultChat), isTool: false, normalized: { directories: undefined } },
 			...peers.filter(peer => peer.chat !== defaultChat).map(peer => ({
-				chat: peer.chat, isDefault: false, storage: creationTimeChatStorageResource(key, peer.chat, defaultChat), isTool: isToolChatOrigin(peer.origin), normalized: { directories: peer.workingDirectories },
+				chat: peer.chat, isDefault: false, storage: storageOf(peer.chat), isTool: isToolChatOrigin(peer.origin), normalized: { directories: peer.workingDirectories },
 			})),
 		];
 	}
