@@ -192,7 +192,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				return [{
 					id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 					name: localize('cloudSandbox.repositoryGroup', "Repository"),
-					description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
+					description: localize('cloudSandbox.repositoryGroupDescription', "Select repository..."),
 					icon: Codicon.repo,
 					items,
 				}];
@@ -202,7 +202,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			return [{
 				id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 				name: localize('cloudSandbox.repositoryGroup', "Repository"),
-				description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
+				description: localize('cloudSandbox.repositoryGroupDescription', "Select repository..."),
 				icon: Codicon.repo,
 				selected: {
 					id: SELECT_REPOSITORY_PLACEHOLDER_ID,
