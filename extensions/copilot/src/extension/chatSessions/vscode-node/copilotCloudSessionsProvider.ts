@@ -1599,6 +1599,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const metadata = {
 			...getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr),
 			event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (external ? 'github/autopilot' : 'vscode'),
+			...(entry.automationId ? { isAutomation: true } : {}),
+			...(external ? { external: true } : {}),
 		};
 		return {
 			...getCloudSessionResources(entry.taskId, pr?.number),
@@ -1606,7 +1608,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			status: taskStateToChatSessionStatus(entry.state),
 			...(pr ? { badge: this.getPullRequestBadge(repoIds, pr), tooltip: this.createPullRequestTooltip(pr) } : {}),
 			...(changes?.length ? { changes } : {}),
-			...(metadata || entry.automationId || external ? { metadata: { ...metadata, ...(entry.automationId ? { isAutomation: true } : {}), ...(external ? { external: true } : {}) } } : {}),
+			metadata,
 			...(Number.isFinite(createdAt) && createdAt > 0 ? {
 				timing: { created: createdAt, startTime: createdAt, endTime: Number.isFinite(completedAt) && completedAt > 0 ? completedAt : undefined },
 			} : {}),
