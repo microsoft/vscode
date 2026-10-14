@@ -564,8 +564,8 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.writeChatRowMirror(this.identity.toStorage(session), this.identity.toStorage(chat), kind, base);
 	}
 
-	async deleteSessionChatState(...[session, chat, expectedRevision]: Parameters<IAgentHostDatabase['deleteSessionChatState']>): ReturnType<IAgentHostDatabase['deleteSessionChatState']> {
-		return this.raw.deleteSessionChatState(this.identity.toStorage(session), this.identity.toStorage(chat), expectedRevision);
+	async deleteSessionChatState(...[session, chat, expectedRevision, folders]: Parameters<IAgentHostDatabase['deleteSessionChatState']>): ReturnType<IAgentHostDatabase['deleteSessionChatState']> {
+		return this.raw.deleteSessionChatState(this.identity.toStorage(session), this.identity.toStorage(chat), expectedRevision, folders);
 	}
 
 	async countStorageReferences(...[storage, excludingSession]: Parameters<IAgentHostDatabase['countStorageReferences']>): ReturnType<IAgentHostDatabase['countStorageReferences']> {

@@ -14,7 +14,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../com
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -406,26 +406,45 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					sessionDb.dispose();
 				}
 			}
-			let result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision);
+			// Base branches older builds read from this chat's database move to the folder's next source chat (main's rule:
+			// peers in catalog order), or go with the last chat that used the folder.
+			const order = new Map((await this._database.getSessionChatCatalog(record.key))?.chats.map(entry => [entry.chat, entry.order ?? Number.MAX_SAFE_INTEGER]) ?? []);
+			const redirected: ISessionStateFolderPatch[] = [];
+			const removedFolders: { readonly kind: SessionStateFolderKind; readonly folderKey: string }[] = [];
+			for (const folder of record.model.folders.values()) {
+				if (folder.kind !== 'baseBranch' || folder.storage !== chatKey) {
+					continue;
+				}
+				const [source] = record.model.baseBranchSources(folder.folderKey, chatKey).sort((a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER));
+				if (source === undefined) {
+					removedFolders.push({ kind: folder.kind, folderKey: folder.folderKey });
+				} else {
+					redirected.push({ folderKey: folder.folderKey, kind: folder.kind, value: folder.value ?? null, storage: source });
+				}
+			}
+			let result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision, removedFolders);
 			if (result.status === 'conflict') {
 				const state = await this._database.readSessionState(record.key);
 				if (state) {
 					record.model = new SessionStateModel(state, record.model.authority);
 				}
-				result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision);
+				result = await this._database.deleteSessionChatState(record.key, chatKey, record.model.revision, removedFolders);
 			}
 			if (result.status !== 'applied') {
 				throw new Error(`Cannot delete the chat state of ${chatKey}: ${result.status}`);
 			}
-			record.model.removeChat(chatKey, result.revision);
+			record.model.removeChat(chatKey, removedFolders, result.revision);
 			record.snapshot = undefined;
+			const removedFolderIds = new Set(removedFolders.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.folderKey })));
 			for (const id of [...record.dirty, ...record.base.keys()]) {
 				const entry = parseMirrorEntryId(id);
-				if (entry.kind === 'chat' && entry.chat === chatKey) {
+				if ((entry.kind === 'chat' && entry.chat === chatKey) || removedFolderIds.has(id)) {
 					record.dirty.delete(id);
 					record.base.delete(id);
 				}
 			}
+			// The new source chat's database gets the folder's current value right away.
+			await this._writeCentral(record, sessionStatePatch({ folders: redirected }), true, false);
 			await this._flushLocked(record);
 		}));
 	}
@@ -780,6 +799,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		let failure: unknown;
 		if (record.dirty.size > 0) {
 			const entries = [...record.dirty].map(parseMirrorEntryId);
+			for (const entry of entries) {
+				// A base branch no live chat's folder uses has no old-format home.
+				if (entry.kind === 'folder' && entry.folderKind === 'baseBranch' && record.model.baseBranchTarget(record.key, entry.folderKey) === undefined) {
+					record.dirty.delete(mirrorEntryId(entry));
+				}
+			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault);
 			for (const [resource, write] of writes) {

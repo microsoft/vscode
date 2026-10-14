@@ -552,6 +552,90 @@ suite('AgentHostSessionStateStore', () => {
 			}, { peer: 'peer-base', session: 'main', sameFolderPeer: undefined, peerDb: 'peer-base', sessionDb: 'main', reloaded: 'peer-base' });
 		});
 
+		/** A store whose service records every database it opens, and a second peer in the folder of `fixture.chats[2]`. */
+		async function folderPeers(): Promise<{ fixture: ILegacySessionFixture; session: URI; writer: AgentHostSessionStateStore; opened: string[]; peer: string; next: string; folderKey: string }> {
+			const { fixture, session } = await oldBuildSession();
+			const opened: string[] = [];
+			const base = sessionData.createService();
+			const writer = createStore(MANUAL_FLUSH, { ...base, openDatabase: resource => { opened.push(resource.toString()); return base.openDatabase(resource); } });
+			const peer = fixture.chats[2];
+			const next = `${fixture.session}#next-peer`.replace('#', '/');
+			await writer.write(session, sessionStatePatch({ chats: [{ chat: next, isDefault: false, fields: { storage: next, workingDirectories: peer.workingDirectories } }] }), SessionStateMirrorFlush.Immediate);
+			await writer.writeMetadata(session, URI.parse(peer.uri), { [baseBranchKey]: 'peer-base' }, SessionStateMirrorFlush.Immediate);
+			return { fixture, session, writer, opened, peer: peer.uri, next, folderKey: getWorkingDirectoryScopeId(peer.workingDirectories!) };
+		}
+
+		test('deleting the chat a folder\'s base branch is mirrored into moves it to the folder\'s next chat and writes it there right away', async () => {
+			const { session, writer, opened, peer, next, folderKey } = await folderPeers();
+			opened.length = 0;
+
+			await writer.deleteChat(session, URI.parse(peer));
+			const afterDelete = [...opened];
+			const redirected = (await database.readSessionState(session.toString()))?.folders.find(row => row.folderKey === folderKey && row.kind === 'baseBranch');
+			const nextDbAfterDelete = (await sessionDb(URI.parse(next), [baseBranchKey]))[baseBranchKey];
+			await writer.writeMetadata(session, URI.parse(next), { [baseBranchKey]: 'next-base' }, SessionStateMirrorFlush.Immediate);
+			await writer.writeMetadata(session, session, { [baseBranchKey]: 'release' }, SessionStateMirrorFlush.Immediate);
+
+			const folder = (await writer.load(session)).folders.get(folderKey);
+			assert.deepStrictEqual({
+				// Only the next chat's database is written by the delete: the folder's value lands there at once.
+				afterDelete,
+				redirected: [redirected?.value, redirected?.storageResource],
+				nextDbAfterDelete,
+				baseBranch: [folder?.baseBranch, folder?.baseBranchStorage],
+				nextDb: (await sessionDb(URI.parse(next), [baseBranchKey]))[baseBranchKey],
+				deletedChatOpened: opened.includes(peer),
+			}, {
+				afterDelete: [next],
+				redirected: ['peer-base', next],
+				nextDbAfterDelete: 'peer-base',
+				baseBranch: ['next-base', next],
+				nextDb: 'next-base',
+				deletedChatOpened: false,
+			});
+		});
+
+		test('deleting the last chat in a folder deletes the folder\'s base branch row and a later write creates no database for that chat', async () => {
+			const { session, writer, opened, peer, next, folderKey } = await folderPeers();
+			await writer.deleteChat(session, URI.parse(next));
+			opened.length = 0;
+
+			await writer.deleteChat(session, URI.parse(peer));
+			await writer.writeMetadata(session, session, { [baseBranchKey]: 'release' }, SessionStateMirrorFlush.Immediate);
+			const reloaded = await createStore().load(session);
+
+			const folder = (await writer.load(session)).folders.get(folderKey);
+			assert.deepStrictEqual({
+				baseBranch: [folder?.baseBranch, folder?.baseBranchStorage],
+				centralRow: (await database.readSessionState(session.toString()))?.folders.some(row => row.folderKey === folderKey && row.kind === 'baseBranch'),
+				reloaded: reloaded.folders.get(folderKey)?.baseBranch,
+				opened,
+			}, {
+				baseBranch: [undefined, undefined],
+				centralRow: false,
+				reloaded: undefined,
+				opened: [session.toString()],
+			});
+		});
+
+		test('a base branch recorded for a chat that is gone is mirrored into a live chat of its folder, never into the gone chat\'s database', async () => {
+			const { session, writer, opened, peer, next, folderKey } = await folderPeers();
+			const gone = `${session.toString()}/gone-peer`;
+			opened.length = 0;
+
+			await writer.write(session, sessionStatePatch({ folders: [{ folderKey, kind: 'baseBranch', value: 'stale-target', storage: gone }] }), SessionStateMirrorFlush.Immediate);
+
+			assert.deepStrictEqual({
+				opened,
+				firstLiveChatDb: (await sessionDb(URI.parse(peer), [baseBranchKey]))[baseBranchKey],
+				nextDb: (await sessionDb(URI.parse(next), [baseBranchKey]))[baseBranchKey],
+			}, {
+				opened: [peer],
+				firstLiveChatDb: 'stale-target',
+				nextDb: undefined,
+			});
+		});
+
 		test('agentHost.github is retained and never deleted by a restore', async () => {
 			const { session } = await oldBuildSession();
 			await oldBuildEdit(session.toString(), { 'agentHost.github': JSON.stringify({ owner: 'o', repo: 'r' }) });

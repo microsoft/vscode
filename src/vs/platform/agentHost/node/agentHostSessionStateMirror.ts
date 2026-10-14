@@ -181,10 +181,33 @@ export class SessionStateModel {
 		}
 	}
 
-	/** Removes a chat whose central rows were deleted at `revision`. */
-	removeChat(chat: string, revision: number): void {
+	/** Removes a chat, and folder rows only it used, whose central rows were deleted at `revision`. */
+	removeChat(chat: string, folders: readonly { readonly kind: SessionStateFolderKind; readonly folderKey: string }[], revision: number): void {
 		this.revision = revision;
 		this.chats.delete(chat);
+		for (const folder of folders) {
+			this.folders.delete(folderModelKey(folder.kind, folder.folderKey));
+		}
+	}
+
+	/**
+	 * The database a folder's base branch is mirrored into, from the live chats at write time:
+	 * the recorded chat while it is live, else the first live peer in that folder; `undefined`
+	 * when no live chat uses the folder. The session folder's is the session database.
+	 */
+	baseBranchTarget(session: string, folderKey: string): string | undefined {
+		const storage = this.folder('baseBranch', folderKey)?.storage;
+		if (storage === undefined || storage === session || this.chats.has(storage)) {
+			return storage ?? session;
+		}
+		return this.baseBranchSources(folderKey)[0];
+	}
+
+	/** Live peers whose own folders are `folderKey`, in recorded order. */
+	baseBranchSources(folderKey: string, excluding?: string): string[] {
+		return [...this.chats.values()]
+			.filter(chat => chat.chat !== excluding && !chat.isDefault && chat.workingDirectories?.length && baseBranchFolderKey(chat) === folderKey)
+			.map(chat => chat.chat);
 	}
 
 	/** Central revision of an entry; `0` when it has no central row. */
@@ -262,8 +285,11 @@ function folderLocation(session: string, model: SessionStateModel | undefined, k
 				: { kind: 'map', target: { resource: session, key: META_GIT_DATA_STATE }, mapKey: META_GIT_DATA_STATE, entryKey: folderKey };
 		case 'github':
 			return { kind: 'map', target: { resource: session, key: META_GITHUB_DATA_STATE }, mapKey: META_GITHUB_DATA_STATE, entryKey: folderKey };
-		case 'baseBranch':
-			return { kind: 'key', targets: [{ resource: model?.folder('baseBranch', folderKey)?.storage ?? session, key: BASE_BRANCH_MIRROR_KEY }] };
+		case 'baseBranch': {
+			const resource = model ? model.baseBranchTarget(session, folderKey) : session;
+			// A folder no live chat uses has nowhere to be mirrored: never into a deleted chat's database.
+			return { kind: 'key', targets: resource === undefined ? [] : [{ resource, key: BASE_BRANCH_MIRROR_KEY }] };
+		}
 	}
 }
 
@@ -710,6 +736,9 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 			if (sessionFolder !== undefined) {
 				target.set[META_GITHUB_STATE] = sessionFolder;
 			}
+			continue;
+		}
+		if (location.targets.length === 0) {
 			continue;
 		}
 		const rendered = renderMirrorEntry(model, entry);

@@ -221,8 +221,11 @@ export interface IAgentHostSessionStateDatabase {
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined>;
 	/** Stores the merge base of a chat's mirrored rows; `undefined` removes it. */
 	writeChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind, base: string | undefined): Promise<AgentHostSessionStateUpdateResult>;
-	/** Deletes a non-default chat's central rows (its chat state and row mirror bases) when the session's revision still is `expectedRevision`, bumping it. */
-	deleteSessionChatState(session: string, chat: string, expectedRevision: number): Promise<AgentHostSessionStateWriteResult>;
+	/**
+	 * Deletes a non-default chat's central rows (its chat state and row mirror bases) and the
+	 * folder rows only it used, when the session's revision still is `expectedRevision`, bumping it.
+	 */
+	deleteSessionChatState(session: string, chat: string, expectedRevision: number, folders: readonly { readonly folderKey: string; readonly kind: AgentHostSessionFolderStateKind }[]): Promise<AgentHostSessionStateWriteResult>;
 	/**
 	 * Counts the live references to `storage` other than from `excludingSession`:
 	 * recorded chat storage of registered, non-tombstoned sessions and registered
@@ -545,7 +548,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 		return this._updateImported(session, 'mark rows moved', connection => this._setMarker(connection, rowsMovedPrefix + session, progress));
 	}
 
-	deleteSessionChatState(session: string, chat: string, expectedRevision: number): Promise<AgentHostSessionStateWriteResult> {
+	deleteSessionChatState(session: string, chat: string, expectedRevision: number, folders: readonly { readonly folderKey: string; readonly kind: AgentHostSessionFolderStateKind }[]): Promise<AgentHostSessionStateWriteResult> {
 		validateRevision(expectedRevision, 'Expected session state revision');
 		return this._host.write(`Failed to delete the chat state of ${chat}`, async connection => {
 			const header = await this._header(connection, session);
@@ -562,6 +565,9 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [revision, session]);
 			await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [session, chat]);
 			await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [session, chat]);
+			for (const folder of folders) {
+				await connection.run('DELETE FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [session, folder.folderKey, folder.kind]);
+			}
 			return { status: 'applied', revision };
 		});
 	}
