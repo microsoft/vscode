@@ -364,6 +364,33 @@ suite('TabbedModelPicker', () => {
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
 		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
+		const workflowAction = element(popup, '[data-id="workflow"]');
+		const searchAction = element(popup, '[data-id="search"]');
+		assert.deepStrictEqual({
+			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			workflow: {
+				ariaLabel: workflowAction.getAttribute('aria-label'),
+				htmlTitle: workflowAction.getAttribute('title'),
+				pressed: workflowAction.getAttribute('aria-pressed'),
+			},
+			search: {
+				ariaLabel: searchAction.getAttribute('aria-label'),
+				htmlTitle: searchAction.getAttribute('title'),
+				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
+			},
+		}, {
+			actions: ['workflow', 'search'],
+			workflow: {
+				ariaLabel: 'Compare Models',
+				htmlTitle: null,
+				pressed: 'false',
+			},
+			search: {
+				ariaLabel: 'Search Models',
+				htmlTitle: 'Search Models',
+				marginLeft: '0px',
+			},
+		});
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);

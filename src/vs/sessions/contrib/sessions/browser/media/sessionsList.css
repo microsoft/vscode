@@ -1361,10 +1361,12 @@
 		justify-content: center;
 		align-items: flex-start;
 		line-height: normal;
+		overflow: hidden;
 	}
 
 	.session-section-label {
 		display: block;
+		max-width: 100%;
 		color: var(--vscode-strongForeground);
 		font-size: var(--vscode-fontSize-label1);
 		font-weight: var(--vscode-fontWeight-semiBold);
@@ -1372,11 +1374,8 @@
 	}
 
 	.session-section-chevron.collapsible {
-		order: 4;
 		display: flex;
 		align-items: center;
-		margin-right: 0;
-		margin-left: var(--vscode-spacing-size40);
 	}
 
 	.session-section-toolbar {
