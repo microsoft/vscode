@@ -23,6 +23,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -215,6 +216,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
@@ -4568,7 +4570,7 @@ suite('ChatService', () => {
 				kind: 'history', message: 'Recent messages may be missing.',
 				action: { label: 'Refresh', run: async () => { refreshes++; } },
 			}, undefined);
-			await ref.object.historyStatus!.get()!.action.run();
+			await ref.object.historyStatus!.get()!.action!.run();
 			changes.fire([...first,
 			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
 			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Partial') }], participant: remoteScheme },
@@ -5298,6 +5300,49 @@ suite('ChatService', () => {
 		let idCounter = 0;
 		function generateId(): string {
 			return `${Date.now()}-${idCounter++}`;
+		}
+
+		for (const provider of ['claude', 'codex']) {
+			for (const path of ['/saved', '/untitled-draft']) {
+				test(`policy revocation keeps a held ${provider} ${path} model read-only after removal`, async () => {
+					const setting = `chat.agentHost.${provider}Agent.enabled`;
+					const configurationService = new class extends TestConfigurationService {
+						policyBlocked = false;
+						override inspect<T>(key: string) {
+							const value = super.inspect<T>(key);
+							return { ...value, policyValue: key === setting && this.policyBlocked ? value.value : undefined };
+						}
+					}({ [setting]: false });
+					instantiationService.stub(IConfigurationService, configurationService);
+					const sessionsService = new MockChatSessionsService();
+					instantiationService.stub(IChatSessionsService, sessionsService);
+					const resource = URI.from({ scheme: `agent-host-${provider}`, path });
+					testDisposables.add(sessionsService.registerChatSessionContentProvider(resource.scheme, {
+						provideChatSessionContent: async () => ({ sessionResource: resource, history: path === '/saved' ? [{ type: 'request', prompt: 'Saved question', participant: resource.scheme }] : [], onWillDispose: Event.None, dispose() { } }),
+					}));
+					const service = createChatService();
+					const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+					assert.ok(ref);
+					testDisposables.add(ref);
+					ref.object.inputModel.setState({ inputText: 'Unsent draft' });
+					const requests = ref.object.getRequests();
+					const states = [ref.object.isReadOnly.get()];
+					for (const blocked of [true, false, true]) {
+						configurationService.policyBlocked = blocked;
+						configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === setting, affectedKeys: new Set([setting]), change: { keys: [setting], overrides: [] }, source: ConfigurationTarget.MEMORY });
+						states.push(ref.object.isReadOnly.get());
+					}
+					assert.deepStrictEqual({ states, draft: ref.object.inputModel.state.get()?.inputText, requests: ref.object.getRequests().length }, { states: [false, true, true, true], draft: 'Unsent draft', requests: path === '/saved' ? 1 : 0 });
+					assert.strictEqual(ref.object.getRequests()[0], requests[0]);
+					const historyStatus = ref.object.historyStatus?.get();
+					assert.deepStrictEqual({ kind: historyStatus?.kind, message: historyStatus?.message, action: historyStatus?.action?.label }, {
+						kind: 'history',
+						message: 'Your organization has disabled this agent. This conversation is read-only. Continue in Copilot to copy the conversation and keep the original.',
+						action: 'Continue in Copilot',
+					});
+					assert.deepStrictEqual(await service.sendRequest(resource, 'Do not send'), { kind: 'rejected', reason: 'Session is read-only' });
+				});
+			}
 		}
 
 		test('contributed session read-only state is preserved on the chat model', async () => {

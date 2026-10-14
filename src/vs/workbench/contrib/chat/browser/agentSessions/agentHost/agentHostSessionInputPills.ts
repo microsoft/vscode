@@ -11,6 +11,7 @@ import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
@@ -22,6 +23,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -50,6 +52,7 @@ import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChat
 import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -539,11 +542,19 @@ export class AgentHostSessionInputPills extends Disposable {
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
+		const policyChanged = observableSignalFromEvent(this, Event.filter(this._configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)));
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
 			if (!resource) {
 				return undefined;
+			}
+			const localProvider = getLocalAgentHostSessionProvider(resource);
+			if (localProvider) {
+				policyChanged.read(reader);
+				if (isLocalAgentHostProviderDisabledByPolicy(localProvider, this._configurationService)) {
+					return undefined;
+				}
 			}
 			provisionalSessionChanged.read(reader);
 			const provisionalBackend = provisionalSessions.get(resource);

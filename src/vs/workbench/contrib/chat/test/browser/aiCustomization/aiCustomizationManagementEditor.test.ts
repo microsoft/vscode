@@ -155,6 +155,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor();
 		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
 		const states: boolean[] = [];
+		const listCandidates: (readonly IMcpServerCustomizationMigrationCandidate[])[] = [];
 		editor.viewMode = 'mcpDetail';
 		editor.mcpDetailInput = {
 			id: 'server-row',
@@ -165,7 +166,8 @@ suite('aiCustomizationManagementEditor', () => {
 			source: { uri: sourceUri },
 		};
 		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
-		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: candidates => listCandidates.push(candidates) };
+		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
 			storage: PromptsStorage.local,
 			id: 'server-id',
@@ -173,13 +175,16 @@ suite('aiCustomizationManagementEditor', () => {
 			sourceUri,
 			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'server' },
-		}]);
-		editor.refreshMcpDetailMigrationState();
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [candidate]]]), new Map());
 		editor.mcpDetailInput = { ...editor.mcpDetailInput, source: { uri: URI.file('/other/.vscode/mcp.json') } };
 		editor.refreshMcpDetailMigrationState();
 		editor.editorPreviewDisposables.dispose();
 
-		assert.deepStrictEqual(states, [true, false]);
+		assert.deepStrictEqual({ states, listCandidates }, {
+			states: [true, false],
+			listCandidates: [[candidate]],
+		});
 	});
 
 	type TestQuickPickItem = {
@@ -257,6 +262,7 @@ suite('aiCustomizationManagementEditor', () => {
 		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
+		mcpListWidget: { setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
 		dimension: undefined;
 		hoverService: IHoverService;

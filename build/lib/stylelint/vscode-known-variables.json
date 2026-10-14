@@ -1035,6 +1035,7 @@
 		"--chat-input-notification-line-height",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
+		"--sessions-editor-content-right-inset",
 		"--sessions-voice-icon-glow-color",
 		"--dictation-mic-glow-radius",
 		"--dictation-mic-level",

@@ -190,7 +190,7 @@ const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_should
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
-const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as (storageService: IStorageService) => number;
 
 interface IWelcomeAnnouncementHarness {
 	_welcomePhraseAnnounced: boolean;
@@ -1250,9 +1250,10 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('rotates welcome phrase indices across composers', () => {
+	test('rotates welcome phrase indices across composers and reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
 		assert.deepStrictEqual(
-			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex(storageService)),
 			[0, 1, 2, 3, 4, 5],
 		);
 	});
@@ -1291,7 +1292,7 @@ suite('NewChatWidget', () => {
 			],
 			hidden: { text: '', hidden: true },
 			wrapped: 'Two',
-			empty: { text: '', hidden: false },
+			empty: { text: '', hidden: true },
 		});
 	});
 

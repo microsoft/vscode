@@ -227,3 +227,36 @@ function isPersistedTurn(value: unknown): value is Turn {
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
+
+/** Merges saved local turns into visible history without indexing them for live execution. */
+export function interleaveLocalTurns(turns: readonly Turn[], records: readonly IPersistedTurnRecord[], logService: ILogService): Turn[] {
+	if (records.length === 0) {
+		return [...turns];
+	}
+	const knownIds = new Set(turns.map(t => t.id));
+	const byAnchor = new Map<string, Turn[]>();
+	const head: Turn[] = [];
+	for (const record of records) {
+		const turn = parsePersistedTurn(record, logService, AgentHostLocalTurns.name);
+		if (!turn) {
+			continue;
+		}
+		if (record.anchorTurnId === undefined) {
+			head.push(turn);
+		} else if (knownIds.has(record.anchorTurnId)) {
+			const list = byAnchor.get(record.anchorTurnId) ?? [];
+			list.push(turn);
+			byAnchor.set(record.anchorTurnId, list);
+		}
+		// else: orphaned (anchor truncated away) → drop.
+	}
+	const merged: Turn[] = [...head];
+	for (const turn of turns) {
+		merged.push(turn);
+		const locals = byAnchor.get(turn.id);
+		if (locals) {
+			merged.push(...locals);
+		}
+	}
+	return merged;
+}

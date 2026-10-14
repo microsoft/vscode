@@ -434,7 +434,7 @@ export class ModelCard extends DisposableStore {
 	private _renderEffortSection(effort: IModelConfigProperty, isAuto: boolean): void {
 		this._renderChoiceSection(effort, MODEL_CONFIG_GROUP_EFFORT, effort.schema.title ?? (isAuto
 			? localize('models.optimizeFor', "Optimize for")
-			: localize('chat.effort.header', "Thinking Effort")));
+			: localize('chat.effort.header', "Effort Level")));
 	}
 
 	/**

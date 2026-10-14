@@ -1454,6 +1454,55 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('batches multiple chat read changes when the provider supports it', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'batch-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const batches: { sessionId: string; chats: string[]; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadStates(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void> {
+					batches.push({ sessionId, chats: chatResources.map(resource => resource.toString()), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(batches, [{
+				sessionId: 'batch-read',
+				chats: ['test:/first', 'test:/second'],
+				isRead: true,
+			}]);
+		});
+
+		test('falls back to individual chat read changes when batching is unsupported', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'individual-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: chatResource.toString(), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(changes, [
+				{ sessionId: 'individual-read', chat: 'test:/first', isRead: true },
+				{ sessionId: 'individual-read', chat: 'test:/second', isRead: true },
+			]);
+		});
+
 		test('retries marking the active chat read after provider loading completes', async () => {
 			const mainIsRead = observableValue('mainIsRead', false);
 			const loading = observableValue('loading', false);

@@ -217,6 +217,119 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* Empty groups hide the tab bar, so they render the Add Tab menu themselves:
+ * a `+` at the top-left and a centered list that replaces the logo watermark. */
+.agent-sessions-workbench .part.editor > .content .editor-group-container > :is(.sessions-empty-group-add-tab, .sessions-empty-group-add-tab-watermark) {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty {
+	position: relative;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .sessions-empty-group-add-tab {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 35px; /* aligns with the watermark toolbar row */
+	display: flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size80);
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .sessions-empty-group-add-tab > .tabs-bar-add-tab.hidden {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .editor-group-watermark-wrapper > .editor-group-watermark {
+	display: none;
+}
+
+/* Covers the visible part of the group (excluding a docked detail panel) to center the list there.
+ * The overlay ignores the pointer so the empty group's double-click and context menu keep working around the list. */
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .sessions-empty-group-add-tab-watermark {
+	position: absolute;
+	inset: 0 var(--sessions-editor-content-right-inset, 0px) 0 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark > .sessions-add-tab-watermark-list {
+	width: calc(100% - 2 * var(--vscode-spacing-size240));
+	max-width: 320px;
+	pointer-events: auto;
+	container-type: inline-size;
+}
+
+/* Labels matter more than shortcuts: drop the keybinding column when the list is too narrow for both. */
+@container (max-width: 240px) {
+	.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-keybinding {
+		display: none;
+	}
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size320);
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry:hover,
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry.submenu-open {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-keybinding {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-submenu-indicator {
+	flex: 0 0 auto;
+	/* The chevron glyph sits inset in its icon box; offset that so it visually ends with the keycaps above. */
+	margin-inline-end: calc(-1 * var(--vscode-spacing-size40));
+	color: var(--vscode-descriptionForeground);
+}
+
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {
 	flex: 1 1 auto;
 	min-width: 0;

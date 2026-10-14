@@ -2525,7 +2525,7 @@ suite('CodexAgent prewarm eviction', () => {
 				configSchema: {
 					type: 'object',
 					properties: {
-						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
+						thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'high'], default: 'low' },
 						contextSize: { type: 'number', title: 'Context Size', enum: [272_000, longContextSize], default: 272_000 },
 					},
 				},

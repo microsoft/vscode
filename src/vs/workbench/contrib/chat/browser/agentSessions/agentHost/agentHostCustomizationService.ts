@@ -5,14 +5,14 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
@@ -25,6 +25,7 @@ import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, g
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -37,6 +38,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -630,6 +632,7 @@ interface ISessionStateSubscriptionEntry extends IDisposable {
 	readonly connection: IAgentConnection;
 	readonly backendSession: URI;
 	readonly sub: IAgentSubscription<SessionState>;
+	readonly token: CancellationToken;
 	readiness?: Promise<void>;
 }
 
@@ -645,6 +648,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		@IChatService private readonly _chatService: IChatService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(instantiationService, logService);
 
@@ -679,6 +683,19 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			for (const sessionResource of e.sessionResources) {
 				this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
 				this._disposeMcpDiagnostics(sessionResource);
+			}
+			this._fireCustomizationsChanged();
+			this._fireCustomAgentsChanged();
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (!affectsAgentHostProviderPreference(e, false)) {
+				return;
+			}
+			for (const sessionResource of this._sessionStateSubscriptions.keys()) {
+				if (this._isDisabledByPolicy(sessionResource)) {
+					this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
+					this._disposeMcpDiagnostics(sessionResource);
+				}
 			}
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
@@ -799,9 +816,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 
 		// Each caller races the shared wait against its own token, so one
 		// cancellation cannot settle the wait for the others.
-		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
+		entry.readiness ??= this._awaitFirstSnapshot(entry.sub, entry.token);
 		await raceCancellation(entry.readiness, token);
-		return hasSessionSnapshot(entry.sub);
+		return this._sessionStateSubscriptions.get(sessionResource) === entry && hasSessionSnapshot(entry.sub);
 	}
 
 	getBackendChatResource(sessionResource: URI): URI | undefined {
@@ -817,7 +834,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		return resource ? URI.parse(resource.toString()) : undefined;
 	}
 
-	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {
+	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>, token: CancellationToken): Promise<void> {
 		const store = new DisposableStore();
 		try {
 			const firstSnapshot = new Promise<void>(resolve => {
@@ -827,7 +844,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					store.add(onDidError(() => resolve()));
 				}
 			});
-			await firstSnapshot;
+			await raceCancellation(firstSnapshot, token);
 		} finally {
 			store.dispose();
 		}
@@ -839,22 +856,21 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			return existing;
 		}
 
-		const ref = target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService');
+		const store = new DisposableStore();
+		const ref = store.add(target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService'));
 		const sub = ref.object;
-		const listener = Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
+		store.add(Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
-		});
+		}));
 		// A new generation starts with no memoized readiness, so the untitled →
 		// real rebind that backs a first send always gets a full wait.
 		const entry: ISessionStateSubscriptionEntry = {
 			connection: target.connection,
 			backendSession: target.backendSession,
 			sub,
-			dispose: () => {
-				listener.dispose();
-				ref.dispose();
-			},
+			token: cancelOnDispose(store),
+			dispose: () => store.dispose(),
 		};
 		this._sessionStateSubscriptions.set(sessionResource, entry);
 		return entry;
@@ -866,6 +882,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 	 * `undefined` for sessions not backed by an agent host.
 	 */
 	private _resolveSessionTarget(sessionResource: URI): IAgentHostSessionResolution | undefined {
+		if (this._isDisabledByPolicy(sessionResource)) {
+			return undefined;
+		}
 		const provisionalSession = this._provisionalSessionService.get(sessionResource);
 		if (provisionalSession) {
 			// Provisional (untitled) sessions are always backed by the ambient host.
@@ -881,6 +900,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		}
 
 		return this._connectionsService.resolveSessionResource(sessionResource);
+	}
+
+	private _isDisabledByPolicy(sessionResource: URI): boolean {
+		const provider = getLocalAgentHostSessionProvider(sessionResource);
+		return provider !== undefined && isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService);
 	}
 }
 

@@ -18,6 +18,8 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
+export const MAX_TOOL_RESULT_RESOURCE_BYTES = 8 * 1024 * 1024;
+
 /**
  * Subdirectory under a session's data directory that holds snapshotted
  * user-message attachments (e.g. pasted content, fetched file references).
@@ -68,6 +70,16 @@ export interface IFileEditContent {
 	beforeContent?: Uint8Array;
 	/** File content after the edit. Absent for file deletions. */
 	afterContent?: Uint8Array;
+}
+
+/** Metadata for an MCP tool result resource, without its embedded content. */
+export interface IToolResultResource {
+	ordinal: number;
+	kind: 'embedded' | 'link';
+	name: string;
+	mimeType?: string;
+	uri: string;
+	size?: number;
 }
 
 // ---- Reviewed-file types ------------------------------------------------
@@ -370,6 +382,15 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no output exists for the given tool call.
 	 */
 	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
+
+	/** Atomically replaces the resources for a tool invocation within an existing turn. */
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void>;
+
+	/** Retrieves resource metadata by tool call, ordered by ordinal, without loading content. */
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>>;
+
+	/** Reads one embedded resource's bytes and stored MIME type on demand. */
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
 
 	// ---- Session metadata ------------------------------------------------
 
