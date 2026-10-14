@@ -65,6 +65,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly selectedCount?: number;
 	readonly destinationLabel?: string;
 	readonly destinationAriaLabel?: string;
+	readonly actionLabel?: string;
 	readonly items: readonly ICustomizationMigrationDashboardItem[];
 }
 
@@ -104,6 +105,7 @@ interface IMigrationGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly destinationLabel?: string;
 	readonly destinationAriaLabel?: string;
 	readonly manualReview: boolean;
+	readonly actionLabel: string;
 	selectedCount: number;
 	migrateDisabled: boolean;
 }
@@ -429,8 +431,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const categoryOrder = new Map<CustomizationMigrationCategoryId, number>([
 			[CustomizationMigrationCategoryId.PromptFiles, 0],
 			[CustomizationMigrationCategoryId.McpServers, 1],
-			[CustomizationMigrationCategoryId.UserData, 2],
-			[CustomizationMigrationCategoryId.ConfiguredLocations, 3],
+			[CustomizationMigrationCategoryId.PluginMarketplaces, 2],
+			[CustomizationMigrationCategoryId.UserData, 3],
+			[CustomizationMigrationCategoryId.ConfiguredLocations, 4],
 		]);
 		const migrationGroups = overview.scopes.flatMap(scope => scope.categories
 			.filter(category => category.items.length > 0)
@@ -528,6 +531,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					collapsed: this.collapsedMigrationGroups.has(groupKey),
 					hasConfigurableDestination: false,
 					manualReview: true,
+					actionLabel: localize('migrate', "Migrate"),
 					selectedCount: 0,
 					migrateDisabled: true,
 				};
@@ -561,10 +565,13 @@ export class CustomizationMigrationDashboard extends Disposable {
 				collapsed: this.collapsedMigrationGroups.has(groupId),
 				categoryId: category.id,
 				storage: scope.storage,
-				hasConfigurableDestination: scope.hasConfigurableDestinations && category.id !== CustomizationMigrationCategoryId.McpServers,
+				hasConfigurableDestination: scope.hasConfigurableDestinations
+					&& category.id !== CustomizationMigrationCategoryId.McpServers
+					&& category.id !== CustomizationMigrationCategoryId.PluginMarketplaces,
 				destinationLabel: category.destinationLabel,
 				destinationAriaLabel: category.destinationAriaLabel,
 				manualReview: false,
+				actionLabel: category.actionLabel ?? localize('migrate', "Migrate"),
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
 			};
@@ -621,6 +628,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				return promptIcon;
 			case CustomizationMigrationCategoryId.McpServers:
 				return mcpServerIcon;
+			case CustomizationMigrationCategoryId.PluginMarketplaces:
+				return Codicon.globe;
 			default:
 				return workspaceIcon;
 		}
@@ -636,8 +645,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.button(actions, `ignore:${storage}:${categoryId}`, localize('ignoreMigrationGroup', "Ignore"),
 			localize('ignoreMigrationCategory', "Ignore {0}", entry.label),
 			() => this.callbacks.ignoreCategory(categoryId, storage), 'secondary', undefined, disposables);
-		const migrateButton = this.button(actions, `migrate:${storage}:${categoryId}`, localize('migrate', "Migrate"),
-			localize('migrateMigrationCategory', "Migrate {0}", entry.label),
+		const migrateButton = this.button(actions, `migrate:${storage}:${categoryId}`, entry.actionLabel,
+			localize('runMigrationCategoryAction', "{0} {1}", entry.actionLabel, entry.label),
 			() => this.migrateMigrationGroup(categoryId, storage), 'secondary', undefined, disposables);
 		this.migrateButtons.set(entry.groupKey, migrateButton);
 		this.updateMigrateButton(entry);
@@ -699,8 +708,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 			return;
 		}
 		button.label = entry.selectedCount === entry.count
-			? localize('migrate', "Migrate")
-			: localize('migrateSelectedCount', "Migrate {0}", entry.selectedCount);
+			? entry.actionLabel
+			: localize('migrationActionSelectedCount', "{0} {1}", entry.actionLabel, entry.selectedCount);
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;
 	}
 

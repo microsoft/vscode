@@ -40,9 +40,9 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, McpServerCustomizationMigrationFailureReason, PluginMarketplaceCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
@@ -50,6 +50,7 @@ import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mc
 import { TestEnablementModel, TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
+import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
@@ -154,6 +155,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 	override readonly activeSessionResource;
 	override readonly activeHarness;
 	mcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider | undefined;
+	marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined;
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
@@ -174,6 +176,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			label: this.harnessLabel,
 			icon: Codicon.copilot,
 			mcpServerMigrationProvider: this.mcpServerMigrationProvider,
+			marketplaceManagementProvider: this.marketplaceManagementProvider,
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: async () => [],
@@ -343,6 +346,121 @@ suite('CustomizationMigrationService', () => {
 		store.add(instantiationService.createInstance(BaseCustomizationMigrationService));
 	});
 
+	test('copies configured plugin marketplaces without removing Local harness configuration', async () => {
+		const addedSources: string[] = [];
+		const configurationUpdates: unknown[] = [];
+		const configuredValues = [
+			DEFAULT_PLUGIN_MARKETPLACE,
+			'microsoft/vscode-team-kit',
+			'https://example.com/team/plugins.git#stable',
+			'file:///marketplaces/local-marketplace',
+			'invalid marketplace',
+		];
+		const configurationService = store.add(new class extends DisposableTestConfigurationService {
+			constructor() {
+				super({
+					[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+					[ChatConfiguration.PluginMarketplaces]: configuredValues,
+				});
+			}
+
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return key === ChatConfiguration.PluginMarketplaces
+					? { ...inspected, defaultValue: [DEFAULT_PLUGIN_MARKETPLACE] as T, applicationValue: configuredValues as T, userValue: undefined }
+					: inspected;
+			}
+
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				configurationUpdates.push({ key, value });
+			}
+		}());
+		const harnessService = new TestCustomizationHarnessService();
+		const providerMarketplaces = [{
+			name: 'local-marketplace',
+			source: `Directory: ${URI.file('/marketplaces/local-marketplace').fsPath}`,
+			isDefault: false,
+			managed: false,
+			available: true,
+		}];
+		harnessService.marketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => providerMarketplaces,
+			add: async source => {
+				addedSources.push(source);
+				if (source.startsWith('https://')) {
+					throw new Error('Marketplace unavailable');
+				}
+				const marketplace = { name: 'vscode-team-kit', source: `GitHub: ${source}`, isDefault: false, managed: false, available: true };
+				providerMarketplaces.push(marketplace);
+				return marketplace;
+			},
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const service = store.add(new class extends BaseCustomizationMigrationService {
+			protected override generateMigrationFlowId(): string {
+				return 'test-migration-flow-id';
+			}
+		}(
+			store.add(new TestPromptsService([])),
+			harnessService,
+			configurationService,
+			new TestMcpService(),
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+
+		const migration = await service.computeMigration(sessionResource, CustomizationMigrationType.PluginMarketplaces);
+		const hint = await service.computeMigrationHint(sessionResource);
+		const result = await service.migratePluginMarketplaces(sessionResource, migration.candidates);
+		const remainingMigration = await service.computeMigration(sessionResource, CustomizationMigrationType.PluginMarketplaces);
+
+		assert.deepStrictEqual({
+			candidates: migration.candidates.map(candidate => ({
+				name: candidate.name,
+				source: candidate.source,
+				storage: candidate.storage,
+			})),
+			addedSources,
+			configurationUpdates,
+			result: {
+				migratedCount: result.migratedCount,
+				failures: result.failures.map(failure => ({
+					name: failure.name,
+					reason: failure.reason,
+					error: failure.error?.message,
+				})),
+			},
+			remainingCandidates: remainingMigration.candidates.map(candidate => candidate.source),
+			hint,
+		}, {
+			candidates: [
+				{ name: 'microsoft/vscode-team-kit', source: 'microsoft/vscode-team-kit', storage: PromptsStorage.user },
+				{ name: 'https://example.com/team/plugins.git#stable', source: 'https://example.com/team/plugins.git#stable', storage: PromptsStorage.user },
+			],
+			addedSources: [
+				'microsoft/vscode-team-kit',
+				'https://example.com/team/plugins.git#stable',
+			],
+			configurationUpdates: [],
+			result: {
+				migratedCount: 1,
+				failures: [{
+					name: 'https://example.com/team/plugins.git#stable',
+					reason: PluginMarketplaceCustomizationMigrationFailureReason.AddFailed,
+					error: 'Marketplace unavailable',
+				}],
+			},
+			remainingCandidates: ['https://example.com/team/plugins.git#stable'],
+			hint: {
+				migrationFlowId: 'test-migration-flow-id',
+				message: '2 user customizations need an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PluginMarketplaces, count: 2 }],
+			},
+		});
+	});
+
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
 		const promptsService = store.add(new TestPromptsService([
@@ -463,10 +581,14 @@ suite('CustomizationMigrationService', () => {
 						discoveryComplete: migration.discoveryComplete,
 						coverage: migration.coverage,
 					}
-					: {
-						files: migration.files.map(file => file.path),
-						candidates: migration.candidates.map(candidate => candidate.uri.path),
-					}),
+					: migration.type === CustomizationMigrationType.PluginMarketplaces
+						? {
+							candidates: migration.candidates.map(candidate => candidate.source),
+						}
+						: {
+							files: migration.files.map(file => file.path),
+							candidates: migration.candidates.map(candidate => candidate.uri.path),
+						}),
 			})),
 			localMigrations,
 			hint,
@@ -474,7 +596,7 @@ suite('CustomizationMigrationService', () => {
 			requestedTypes: promptsService.requestedTypes,
 			requestedSourceFolderTypes: harnessService.requestedSourceFolderTypes.toSorted(),
 			workspaceGroupIds: migrations
-				.filter(migration => migration.type !== CustomizationMigrationType.McpServers)
+				.filter(migration => migration.type !== CustomizationMigrationType.McpServers && migration.type !== CustomizationMigrationType.PluginMarketplaces)
 				.flatMap(migration => migration.candidates.map(candidate => candidate.workspaceGroupId)),
 			requestedSessionType,
 			requestedRoots: requestedRoots?.map(requestedRoot => requestedRoot.path),
@@ -521,6 +643,10 @@ suite('CustomizationMigrationService', () => {
 						restrictedByCustomizationPolicy: false,
 					},
 				},
+				{
+					type: 'pluginMarketplaces',
+					candidates: [],
+				},
 			],
 			localMigrations: [
 				{ type: 'userData', files: [], candidates: [] },
@@ -537,6 +663,7 @@ suite('CustomizationMigrationService', () => {
 						restrictedByCustomizationPolicy: false,
 					},
 				},
+				{ type: 'pluginMarketplaces', candidates: [] },
 			],
 			hint: {
 				migrationFlowId: 'test-migration-flow-id',
@@ -1211,7 +1338,11 @@ suite('CustomizationMigrationService', () => {
 			disabledMigrations: disabledMigrations.map(migration => ({
 				type: migration.type,
 				candidates: migration.candidates.length,
-				...(migration.type === CustomizationMigrationType.McpServers ? { servers: migration.servers.length } : { files: migration.files.length }),
+				...(migration.type === CustomizationMigrationType.McpServers
+					? { servers: migration.servers.length }
+					: migration.type === CustomizationMigrationType.PluginMarketplaces
+						? {}
+						: { files: migration.files.length }),
 			})),
 			disabledHint,
 			disabledRequestedTypes,
@@ -1225,6 +1356,7 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'promptFiles', candidates: 0, files: 0 },
 				{ type: 'configuredLocations', candidates: 0, files: 0 },
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
+				{ type: 'pluginMarketplaces', candidates: 0 },
 			],
 			disabledHint: undefined,
 			disabledRequestedTypes: [],

@@ -61,7 +61,7 @@ import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarket
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -1130,8 +1130,11 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly openFirstMigrationItem?: boolean;
-	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning';
+	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
+	readonly pluginMarketplaceMigration?: boolean;
+	readonly pluginMarketplaceMigrationOnly?: boolean;
+	readonly pluginMarketplaceMigrationDeselected?: boolean;
 }
 
 // ============================================================================
@@ -1164,6 +1167,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Prompts,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
+	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
+		onDidChange: Event.None,
+		list: async () => [],
+		add: async source => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
+		queryMarketplace: async () => ({ items: [], total: 0 }),
+		remove: async () => ({ removed: true }),
+		refresh: async () => [],
+	} : undefined;
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
 		{
@@ -1173,6 +1184,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
 			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			marketplaceManagementProvider,
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
 					servers: constObservable(mcpServerCompatibility),
@@ -1191,7 +1203,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
 					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
 						: undefined;
-	const fixtureFiles = (options.files ?? allFiles)
+	const fixtureFiles = (options.files ?? (options.pluginMarketplaceMigrationOnly ? [] : allFiles))
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
@@ -1282,6 +1294,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
+				[ChatConfiguration.PluginMarketplaces]: options.pluginMarketplaceMigration ? ['microsoft/vscode-team-kit'] : undefined,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
@@ -1497,7 +1510,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
-						servers: [{
+						servers: options.pluginMarketplaceMigrationOnly ? [] : [{
 							id: 'mcp.config.ws0.remote-browser',
 							name: 'Remote Browser',
 							collectionId: 'mcp.config.ws0',
@@ -2243,6 +2256,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.showCustomizationMigrationDashboard();
 	}
 
+	if (options.pluginMarketplaceMigrationDeselected) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]') !== null,
+			'The plugin marketplace migration checkbox did not render.',
+		);
+		ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]')!.click();
+	}
+
 	if (options.openFirstMigrationItem) {
 		await waitForFixtureCondition(
 			() => ctx.container.querySelector('.migration-tree-item') !== null,
@@ -2267,6 +2288,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
 			.find(button => button.textContent?.trim().startsWith('Migrate'))!;
+		migrateButton.click();
+	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
+		await waitForFixtureCondition(
+			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.some(button => button.getAttribute('aria-label') === 'Migrate Plugin Marketplaces (User)'),
+			'The plugin marketplace migration action did not render.',
+		);
+		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+			.find(button => button.getAttribute('aria-label') === 'Migrate Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
@@ -3489,6 +3519,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	PluginMarketplaceMigrationDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Profile-scoped Plugin Marketplaces group lists the chat.plugins.marketplaces source, the fixed ~/.copilot/settings.json destination, and a Copy action without offering destination configuration.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDashboardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a constrained editor, the Plugin Marketplaces migration source, destination, selection control, and actions remain readable without horizontal overflow.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['When the marketplace is deselected, its checkbox is off and the group action reads Migrate 0 in a disabled state.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			pluginMarketplaceMigrationDeselected: true,
+		}),
+	}),
+
 	MigrationPromptDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -3520,6 +3586,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			migrationDashboard: true,
 			migrationConfirmation: 'promptFiles',
 			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationConfirmation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A concise confirmation dialog explains that migration adds the marketplace to Copilot and that the Local agent keeps using the existing VS Code setting.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			migrationConfirmation: 'pluginMarketplaces',
 		}),
 	}),
 

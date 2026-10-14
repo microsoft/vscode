@@ -32,7 +32,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -213,6 +213,8 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		selectedMcpServerMigrationItems: Set<string>;
 		knownMcpServerMigrationItems: Set<string>;
+		selectedPluginMarketplaceMigrationItems: Set<string>;
+		knownPluginMarketplaceMigrationItems: Set<string>;
 		recentlyMigratedCustomizationItems: Set<string>;
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
@@ -270,7 +272,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editorService: Pick<IEditorService, 'openEditor'>;
 		agentPluginService: IAgentPluginService;
 		mcpWorkbenchService: Pick<IMcpWorkbenchService, 'local'>;
-		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'> & {
+		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers' | 'migratePluginMarketplaces'> & {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
 		};
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
@@ -354,7 +356,7 @@ suite('aiCustomizationManagementEditor', () => {
 	};
 
 	type MutableConfigurationInspection = {
-		-readonly [Key in keyof IConfigurationValue<boolean>]?: IConfigurationValue<boolean>[Key];
+		-readonly [Key in keyof IConfigurationValue<unknown>]?: IConfigurationValue<unknown>[Key];
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService & {
@@ -404,6 +406,8 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.selectedMcpServerMigrationItems = new Set();
 		editor.knownMcpServerMigrationItems = new Set();
+		editor.selectedPluginMarketplaceMigrationItems = new Set();
+		editor.knownPluginMarketplaceMigrationItems = new Set();
 		editor.recentlyMigratedCustomizationItems = new Set();
 		editor.migrationFlowId = undefined;
 		editor.migrationDashboard = undefined;
@@ -469,6 +473,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.mcpWorkbenchService = { local: [] };
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+			migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 		};
 		editor.customizationMigrationTelemetryService = {
 			_serviceBrand: undefined,
@@ -1873,7 +1878,7 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			refreshedSessions,
 			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat()
-				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+				.filter(isFileCustomizationMigrationCandidate)
 				.map(candidate => candidate.uri.path),
 			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
 		}, {
@@ -2123,6 +2128,8 @@ suite('aiCustomizationManagementEditor', () => {
 						discoveryComplete: true,
 						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					};
+				case CustomizationMigrationType.PluginMarketplaces:
+					return { type, candidates: [] };
 				default:
 					return { type, files: [], candidates: [] };
 			}
@@ -2341,6 +2348,7 @@ suite('aiCustomizationManagementEditor', () => {
 				migrated.push([...candidates]);
 				return { migratedCount: candidates.length, failures: [] };
 			},
+			migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 		};
 		editor.notificationService = {
 			error: message => notifications.push(`error:${message}`),
@@ -2437,6 +2445,7 @@ suite('aiCustomizationManagementEditor', () => {
 					calls.push('migrate');
 					return { migratedCount: 1, failures: [] };
 				},
+				migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 			};
 			editor.notificationService = {
 				error: () => calls.push('error'),
@@ -2466,6 +2475,70 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.editorPreviewDisposables.dispose();
 		});
 	}
+
+	test('copies plugin marketplaces after confirmation and returns to the dashboard', async () => {
+		const configurationService = createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode-team-kit'],
+		});
+		configurationService.inspectValues.applicationValue = ['microsoft/vscode-team-kit'];
+		const editor = createTestEditor(undefined, configurationService);
+		const marketplace: IPluginMarketplaceCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.PluginMarketplaces,
+			storage: PromptsStorage.user,
+			name: 'microsoft/vscode-team-kit',
+			source: 'microsoft/vscode-team-kit',
+			canonicalId: 'https://github.com/microsoft/vscode-team-kit.git',
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PluginMarketplaces, [marketplace]]]), new Map());
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			},
+		};
+		const migrated: IPluginMarketplaceCustomizationMigrationCandidate[][] = [];
+		editor.customizationMigrationService = {
+			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+			migratePluginMarketplaces: async (_sessionResource, candidates) => {
+				migrated.push([...candidates]);
+				return { migratedCount: 1, failures: [] };
+			},
+		};
+		editor.refreshCustomizationMigrationInfo = async () => { };
+		let dashboardShown = 0;
+		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
+		const notifications: string[] = [];
+		editor.notificationService.info = message => notifications.push(message);
+		const migrationCompleted: unknown[][] = [];
+		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
+		editor.migrationFlowId = 'migration-flow-id';
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces), [marketplace]);
+
+		assert.deepStrictEqual({
+			confirmations,
+			migrated,
+			migrationCompleted,
+			notifications,
+			dashboardShown,
+			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces)),
+		}, {
+			confirmations: [{
+				type: 'question',
+				message: 'Migrate 1 plugin marketplace to Copilot?',
+				detail: 'This adds the marketplace to Copilot. The Local agent will keep using the existing VS Code setting.',
+				primaryButton: 'Migrate',
+			}],
+			migrated: [[marketplace]],
+			migrationCompleted: [[CustomizationMigrationType.PluginMarketplaces, 1, 1, 0, [], 'migration-flow-id']],
+			notifications: ['Migrated 1 plugin marketplace to Copilot.'],
+			dashboardShown: 1,
+			remainingCandidates: [],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
 
 	test('keeps migration hint attribution within its originating flow', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
