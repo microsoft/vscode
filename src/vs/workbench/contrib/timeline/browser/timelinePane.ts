@@ -893,7 +893,7 @@ export class TimelinePane extends ViewPane {
 					this.message = localize('timeline.noTimelineSourcesEnabled', "All timeline sources have been filtered out.");
 				} else if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
 					this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
-				} else if (sources.length !== 0 && this.excludedSources.size > 0) {
+				} else if (sources.some(({ id }) => this.excludedSources.has(id))) {
 					this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
 				} else {
 					this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");

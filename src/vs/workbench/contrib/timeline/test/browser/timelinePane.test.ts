@@ -194,11 +194,13 @@ suite('TimelinePane', () => {
 		assert.deepStrictEqual({
 			noProviders: messageFor([], []),
 			noProvidersWithStaleFilter: messageFor([], ['git']),
+			staleFilterWithOtherProvider: messageFor(['other'], ['git']),
 			allProvidersFiltered: messageFor(['git'], ['git']),
 			someProvidersFiltered: messageFor(['git', 'other'], ['git']),
 		}, {
 			noProviders: 'No timeline information was provided. Source Control has not been configured.',
 			noProvidersWithStaleFilter: 'No timeline information was provided. Source Control has not been configured.',
+			staleFilterWithOtherProvider: 'No timeline information was provided. Source Control has not been configured.',
 			allProvidersFiltered: 'All timeline sources have been filtered out. Source Control has not been configured.',
 			someProvidersFiltered: 'No filtered timeline information was provided. Source Control has not been configured.',
 		});
