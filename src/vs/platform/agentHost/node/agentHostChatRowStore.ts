@@ -50,6 +50,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		private readonly _database: IAgentHostDatabase,
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _logService: ILogService,
+		private readonly _isDeleted: (session: URI, chat: string) => boolean = () => false,
 	) { }
 
 	getDraft(session: URI, chat: URI): Promise<Message | undefined> {
@@ -77,15 +78,32 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 
 	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean } | undefined> {
 		return this._runExclusive(session, async exclusive => {
-			const entry = exclusive.snapshot.chats.get(chat.toString());
-			return entry && { storage: resolveStorage(session, exclusive.snapshot, chat.toString()).storage, isDefault: entry.isDefault };
+			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			return owner && { storage: owner.storage, isDefault: owner.isDefault };
 		});
+	}
+
+	/**
+	 * The storage of a chat the session records and whether it is the recorded default chat: from
+	 * the session's central state, else from its chat catalog (a peer added after the import).
+	 * `undefined` for a chat neither records: one not registered yet, or one deleted.
+	 */
+	private async _owner(session: URI, snapshot: ISessionStateSnapshot, chat: string): Promise<{ readonly storage: URI; readonly mirrored: boolean; readonly isDefault: boolean } | undefined> {
+		const entry = snapshot.chats.get(chat);
+		if (entry) {
+			return { ...resolveStorage(session, snapshot, chat), isDefault: entry.isDefault };
+		}
+		const normalized = await this._database.readChatV2(session.toString(), chat);
+		const recorded = normalized.normalized
+			? normalized.chat && (normalized.chat.storageResource ?? chat)
+			: (await this._database.getSessionChatCatalog(session.toString()))?.chats.some(row => row.chat === chat) ? chat : undefined;
+		return recorded === undefined ? undefined : { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
 	}
 
 	private _read<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T> {
 		return this._runExclusive(session, async exclusive => {
-			// A chat the central state does not know has no authoritative storage yet; its rows, if any, are in the session database.
-			const storage = exclusive.snapshot.chats.has(chat.toString()) ? resolveStorage(session, exclusive.snapshot, chat.toString()).storage : session;
+			// A chat the session does not record has no authoritative storage; its rows, if any, are in the session database.
+			const storage = (await this._owner(session, exclusive.snapshot, chat.toString()))?.storage ?? session;
 			const ref = await this._sessionDataService.tryOpenDatabase(storage);
 			if (!ref) {
 				return fallback;
@@ -100,7 +118,14 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 
 	private _write(session: URI, chat: URI, kind: 'draft' | 'localTurns', apply: (db: ISessionDatabase) => Promise<void>, base: (db: ISessionDatabase, chat: string) => Promise<string | undefined>, removal: boolean): Promise<void> {
 		return this._runExclusive(session, async exclusive => {
-			const { storage, mirrored } = resolveStorage(session, exclusive.snapshot, chat.toString());
+			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			if (!removal && !owner && this._isDeleted(session, chat.toString())) {
+				// A late write of a chat that was deleted (or whose session is being deleted) never recreates its storage.
+				this._logService.trace(`[AgentHostChatRowStore] Dropping a late ${kind} write of deleted chat ${chat.toString()}`);
+				return;
+			}
+			// A chat not recorded yet (a fork copying its rows before it is registered) follows the creation-time rule.
+			const { storage, mirrored } = owner ?? resolveStorage(session, exclusive.snapshot, chat.toString());
 			let revision: number | undefined;
 			if (mirrored) {
 				// Recorded before either write: a crash in between only costs a repair on the next load.

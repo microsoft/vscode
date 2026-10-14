@@ -130,6 +130,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _held = new AsyncLocalStorage<ReadonlySet<string>>();
 	private readonly _deleting = new Set<string>();
+	/** Chats deleted by {@link deleteChat}, by session, so a late row write cannot recreate their storage. Dropped with the session. */
+	private readonly _deletedChats = new Map<string, Set<string>>();
 	readonly chatRows: AgentHostChatRowStore;
 
 	constructor(
@@ -139,7 +141,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this.chatRows = new AgentHostChatRowStore((session, task) => this.runExclusive(session, task), _database, _sessionDataService, _logService);
+		this.chatRows = new AgentHostChatRowStore((session, task) => this.runExclusive(session, task), _database, _sessionDataService, _logService,
+			(session, chat) => this._deleting.has(session.toString()) || !!this._deletedChats.get(session.toString())?.has(chat));
 		this._register({ dispose: () => this._records.forEach(record => record.scheduler.dispose()) });
 	}
 
@@ -460,6 +463,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				throw new Error(`Cannot delete the chat state of ${chatKey}: ${result.status}`);
 			}
 			record.model.removeChat(chatKey, removedFolders, result.revision);
+			let deleted = this._deletedChats.get(record.key);
+			if (!deleted) {
+				deleted = new Set();
+				this._deletedChats.set(record.key, deleted);
+			}
+			deleted.add(chatKey);
 			record.snapshot = undefined;
 			const removedFolderIds = new Set(removedFolders.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.folderKey })));
 			for (const id of [...record.dirty, ...record.base.keys()]) {
@@ -490,6 +499,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			whenDrained: this.whenIdle(session),
 			dispose: () => {
 				this._deleting.delete(key);
+				this._deletedChats.delete(key);
 				this._forget(key);
 			},
 		};

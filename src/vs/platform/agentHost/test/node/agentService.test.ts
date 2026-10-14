@@ -9150,6 +9150,45 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a peer created after its session was imported is its own chat to the row store, and a late write after its delete recreates nothing', async () => {
+			class ChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> { return { providerData: 'peer-backing' }; }
+			}
+			const perSession = createPerSessionDataService();
+			const deleted = new Set<string>();
+			const service: ISessionDataService = {
+				...perSession.service,
+				openDatabase: resource => { deleted.delete(resource.toString()); return perSession.service.openDatabase(resource); },
+				tryOpenDatabase: async resource => deleted.has(resource.toString()) ? undefined : perSession.service.tryOpenDatabase(resource),
+				deleteSessionData: async resource => { deleted.add(resource.toString()); },
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new ChatAgent('copilot')));
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const store = getTestSessionStateStore(svc);
+			await store.load(session);
+			const peer = URI.parse(buildChatUri(session, 'after-import'));
+			await svc.createChat(session, peer, { title: 'After import' });
+			const owner = await store.chatRows.storageOf(session, peer);
+
+			await svc.disposeChat(session, peer);
+			await store.chatRows.setDraft(session, peer, { text: 'late', origin: { kind: MessageKind.User } });
+			await store.chatRows.insertPersistedTurn(session, { kind: 'local', turnId: 'late-turn', chatUri: peer.toString(), anchorTurnId: undefined, payload: '{}' });
+
+			assert.deepStrictEqual({
+				owner: owner && [owner.storage.toString(), owner.isDefault],
+				// Its own database stays deleted: nothing opened it again.
+				peerDatabaseDeleted: deleted.has(peer.toString()),
+				sessionDraft: (await perSession.database(session).getChatDraft(peer))?.text,
+				sessionTurns: (await perSession.database(session).getPersistedTurnsForChat(peer.toString())).length,
+			}, {
+				owner: [peer.toString(), false],
+				peerDatabaseDeleted: true,
+				sessionDraft: undefined,
+				sessionTurns: 0,
+			});
+		});
+
 		test('dispatches to the correct provider and cleans up tracking', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 
