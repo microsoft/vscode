@@ -180,11 +180,11 @@ suite('Session Artifact Removal', () => {
 
 	test('reports successful removal when pending-association cleanup fails', async () => {
 		class FailingCleanupDatabase extends TestSessionDatabase {
-			override async deleteMetadata(keys: readonly string[]): Promise<void> {
-				if (keys.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (remove.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
 					throw new Error('cleanup unavailable');
 				}
-				return super.deleteMetadata(keys);
+				return super.applyMetadataChanges(set, remove);
 			}
 		}
 		const warnings: string[] = [];
