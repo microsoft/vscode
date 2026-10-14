@@ -1341,6 +1341,41 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ resolved }, { resolved: true });
 	});
 
+	test('collapsing the grid preserves pending chat navigation in a loading session', async () => {
+		const loading = observableValue('loading', true);
+		const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+		const staleA = stubSession({ sessionId: 'stale-a', providerId: 'test' });
+		const staleB = stubSession({ sessionId: 'stale-b', providerId: 'test' });
+		const target = stubSession({
+			sessionId: 'target',
+			providerId: 'test',
+			loading,
+			chats: constObservable([stubChat, peer]),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [staleA, staleB, target]; }
+		}(staleA);
+		const { view } = createSessionsManagementService(staleA, disposables, provider);
+		await view.openSessionsInGrid([staleA, staleB]);
+
+		const openPromise = view.openChat(target, peer.resource);
+		await Promise.resolve();
+		view.collapseToSession(view.activeSession.get());
+
+		loading.set(false, undefined);
+		await openPromise;
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			active: view.activeSession.get()?.sessionId,
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+		}, {
+			visible: ['target'],
+			active: 'target',
+			activeChat: peer.resource.toString(),
+		});
+	});
+
 	suite('read state', () => {
 		function createReadStateSessions() {
 			const isRead = observableValue('isRead', false);
@@ -1452,6 +1487,55 @@ suite('SessionsManagementService', () => {
 				peerIsRead: true,
 				readChanges: [{ sessionId: 'multi-chat', chat: 'test:/main', isRead: true }],
 			});
+		});
+
+		test('batches multiple chat read changes when the provider supports it', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'batch-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const batches: { sessionId: string; chats: string[]; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadStates(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void> {
+					batches.push({ sessionId, chats: chatResources.map(resource => resource.toString()), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(batches, [{
+				sessionId: 'batch-read',
+				chats: ['test:/first', 'test:/second'],
+				isRead: true,
+			}]);
+		});
+
+		test('falls back to individual chat read changes when batching is unsupported', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'individual-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: chatResource.toString(), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(changes, [
+				{ sessionId: 'individual-read', chat: 'test:/first', isRead: true },
+				{ sessionId: 'individual-read', chat: 'test:/second', isRead: true },
+			]);
 		});
 
 		test('retries marking the active chat read after provider loading completes', async () => {

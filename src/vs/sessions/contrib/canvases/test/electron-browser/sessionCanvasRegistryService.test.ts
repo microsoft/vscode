@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -45,12 +46,16 @@ suite('SessionCanvasRegistryService', () => {
 		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
 		let currentDefinitions = definitions;
+		let listingGate: DeferredPromise<void> | undefined;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
 			onDidDeleteChat: Event.None,
 			listCanvases: async (_session, targetChat) => {
 				listedChats.push(targetChat.resource);
 				didListCanvases.fire(targetChat.resource);
+				if (listingGate) {
+					await listingGate.p;
+				}
 				return currentDefinitions;
 			},
 			openCanvas: async (_session, targetChat, canvas, instanceId) => {
@@ -78,6 +83,15 @@ suite('SessionCanvasRegistryService', () => {
 			opened,
 			registryService,
 			setDefinitions: (value: readonly ISessionCanvasDefinition[]) => currentDefinitions = value,
+			holdListing: () => {
+				listingGate = new DeferredPromise<void>();
+			},
+			releaseListing: (value: readonly ISessionCanvasDefinition[]) => {
+				currentDefinitions = value;
+				const gate = listingGate;
+				listingGate = undefined;
+				gate?.complete();
+			},
 		};
 	}
 
@@ -211,6 +225,72 @@ suite('SessionCanvasRegistryService', () => {
 				canvasId: 'main',
 				instanceId: getSessionCanvasDefinitionInstanceId(definitions[0]),
 			}],
+		});
+	});
+
+	test('keeps shown Add Tab canvas commands registered while the focused chat refreshes', async () => {
+		const plan: ISessionCanvasDefinition = {
+			canvasId: 'plan',
+			extensionId: 'user:plan',
+			extensionSource: 'user',
+			displayName: 'Plan',
+			description: 'A plan canvas.',
+			requiresInput: false,
+		};
+		const board: ISessionCanvasDefinition = {
+			canvasId: 'board',
+			extensionId: 'project:board',
+			extensionSource: 'project',
+			displayName: 'Board',
+			description: 'A board canvas.',
+			requiresInput: false,
+		};
+		const harness = createHarness([plan]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService));
+		const getCommandIds = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTabCanvas)
+			.filter(isIMenuItem)
+			.map(item => item.command.id)
+			.filter(id => id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`));
+		// An open Add Tab menu runs the command id it was rendered with.
+		const [shownCommandId] = getCommandIds();
+		const listCallsBeforeRefresh = harness.listedChats.length;
+
+		// Chat updates keep signalling refreshes while a listing request is still pending.
+		harness.holdListing();
+		const pendingList = Event.toPromise(Event.once(harness.onDidListCanvases));
+		harness.canvases.set([], undefined);
+		await pendingList;
+		harness.canvases.set([], undefined);
+		harness.canvases.set([], undefined);
+		const whileRefreshing = {
+			commandIds: getCommandIds(),
+			available: harness.registryService.availableCanvases.get().map(canvas => canvas.canvasId),
+			listCalls: harness.listedChats.length - listCallsBeforeRefresh,
+		};
+
+		harness.releaseListing([plan, board]);
+		await timeout(0);
+		const commandIdsAfterRefresh = getCommandIds();
+		await CommandsRegistry.getCommand(shownCommandId)?.handler(upcastPartial<ServicesAccessor>({}));
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			whileRefreshing,
+			shownCommandKeptAfterRefresh: commandIdsAfterRefresh.includes(shownCommandId),
+			commandsAfterRefresh: commandIdsAfterRefresh.length,
+			listCalls: harness.listedChats.length - listCallsBeforeRefresh,
+			opened: harness.opened.map(entry => entry.canvas.canvasId),
+		}, {
+			whileRefreshing: {
+				commandIds: [shownCommandId],
+				available: ['plan'],
+				listCalls: 1,
+			},
+			shownCommandKeptAfterRefresh: true,
+			commandsAfterRefresh: 2,
+			listCalls: 2,
+			opened: ['plan'],
 		});
 	});
 });

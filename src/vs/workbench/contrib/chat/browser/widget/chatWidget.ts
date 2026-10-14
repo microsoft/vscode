@@ -39,7 +39,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
@@ -73,6 +73,7 @@ import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocation
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -107,6 +108,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { IChatTipService } from '../chatTipService.js';
 import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
+import { animateChatProgress } from './chatProgressAnimation.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -642,6 +644,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAgentHostPolicyContinuationService private readonly policyContinuationService: IAgentHostPolicyContinuationService,
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
@@ -1569,6 +1572,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (message) {
 			const store = new DisposableStore();
 			this.transcriptProgressPart.value = store;
+			store.add(animateChatProgress(this.transcriptProgress.part.domNode));
 			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
 			renderedMessage.element.classList.add('progress-step');
@@ -2152,8 +2156,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private observeLocalSessionArchived(model: IChatModel): IObservable<boolean> {
-		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)
+	private observeSessionArchived(model: IChatModel): IObservable<boolean> {
+		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || model.sessionResource.scheme === 'agent-host-claude' || model.sessionResource.scheme === 'agent-host-codex'
 			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () => this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true)
 			: constObservable(false);
 	}
@@ -2164,30 +2168,57 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setReadOnly(model.isReadOnly.read(reader) || policyRequired, !policyRequired && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
 
-	private autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
-		if (model.initialLocation !== ChatAgentLocation.Chat || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)) {
+	private autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
+		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
+		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
 			return Disposable.None;
 		}
+		const providerDisabled = provider ? observableFromEvent(Event.filter(this.configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)), () => isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService)) : constObservable(true);
+		const hasRequests = observableFromEvent(model.onDidChange, () => model.hasRequests);
 		let attempted = false;
 		return autorun(reader => {
-			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !model.hasRequests) {
+			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (provider && !model.isReadOnly.read(reader))) {
 				return;
 			}
 			// Let the widget finish binding the transcript and restoring the draft first.
 			reader.store.add(disposableTimeout(async () => {
+				if (this.viewModel?.model !== model) {
+					return;
+				}
 				attempted = true;
-				this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…"));
+				const movingMessage = localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…");
+				if (this.readOnlyBanner) {
+					this.readOnlyBanner.setMessage(movingMessage);
+				} else {
+					status(movingMessage);
+				}
 				try {
-					await this.readOnlyBanner?.runAction();
+					if (provider) {
+						const run = () => this.policyContinuationService.continueInCopilot(model.sessionResource, 'automatic');
+						await (this.readOnlyBanner ? this.readOnlyBanner.runAction(run) : run());
+					} else {
+						await this.readOnlyBanner?.runAction();
+					}
 				} catch (error) {
 					if (isCancellationError(error)) {
 						if (this.viewModel?.model === model) {
 							this.setReadOnly(this._readOnly);
+							const historyStatus = model.historyStatus?.read(undefined);
+							if (!this.readOnlyBanner && historyStatus) {
+								status(historyStatus.message);
+							}
 						}
 					} else {
-						this.logService.error('Failed to automatically move Local chat to Copilot', error);
+						this.logService.error(provider ? 'Failed to automatically continue Agent Host chat in Copilot' : 'Failed to automatically move Local chat to Copilot', error);
 						if (this.viewModel?.model === model) {
-							this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again."));
+							const failedMessage = provider
+								? localize('chatReadOnlyBanner.continueFailed', "Couldn't move this chat to Copilot. Use Continue in Copilot to try again.")
+								: localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again.");
+							if (this.readOnlyBanner) {
+								this.readOnlyBanner.setMessage(failedMessage);
+							} else {
+								status(failedMessage);
+							}
 						}
 					}
 				}
@@ -2993,11 +3024,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0, model.sessionResource);
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
+		const archived = this.observeSessionArchived(model);
 		if (!this.viewOptions.isSessionsWindow) {
-			const archived = this.observeLocalSessionArchived(model);
 			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, archived.read(reader), reader)));
-			this.viewModelDisposables.add(this.autoMigrateLocalSession(model, archived));
 		}
+		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 
 		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');

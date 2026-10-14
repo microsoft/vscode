@@ -114,6 +114,8 @@ suite('SessionBackgroundShellsControl', () => {
 			sameDetails,
 			expandable: updated.hover?.expandable,
 			aboveInput: updated.hover?.alignToParentBottom,
+			bounded: details.classList.contains('chat-background-shell-details'),
+			panelClassName: updated.hover?.panelClassName,
 			empty: control.sections.get(),
 		}, {
 			entry: { id: 'silent', label: 'Run tests', detached: false },
@@ -124,6 +126,8 @@ suite('SessionBackgroundShellsControl', () => {
 			sameDetails: true,
 			expandable: true,
 			aboveInput: true,
+			bounded: true,
+			panelClassName: 'chat-pill-hover-panel',
 			empty: [],
 		});
 	});

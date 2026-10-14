@@ -131,13 +131,13 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 	}
 
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
-		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri) });
+		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;
 	}
 
 	async getPersistedTurns(...[]: Parameters<ISessionDatabase['getPersistedTurns']>): ReturnType<ISessionDatabase['getPersistedTurns']> {
 		const result = await this.raw.getPersistedTurns();
-		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri) }));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
 	}
 
 	async deletePersistedTurns(...[turnIds]: Parameters<ISessionDatabase['deletePersistedTurns']>): ReturnType<ISessionDatabase['deletePersistedTurns']> {
@@ -187,6 +187,21 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async readTerminalOutput(...[toolCallId]: Parameters<ISessionDatabase['readTerminalOutput']>): ReturnType<ISessionDatabase['readTerminalOutput']> {
 		const result = await this.raw.readTerminalOutput(toolCallId);
+		return result;
+	}
+
+	async storeToolResultResources(...[turnId, toolCallId, rows]: Parameters<ISessionDatabase['storeToolResultResources']>): ReturnType<ISessionDatabase['storeToolResultResources']> {
+		const result = await this.raw.storeToolResultResources(turnId, toolCallId, rows);
+		return result;
+	}
+
+	async getToolResultResources(...[toolCallIds]: Parameters<ISessionDatabase['getToolResultResources']>): ReturnType<ISessionDatabase['getToolResultResources']> {
+		const result = await this.raw.getToolResultResources(toolCallIds);
+		return result;
+	}
+
+	async readToolResultResourceContent(...[toolCallId, ordinal]: Parameters<ISessionDatabase['readToolResultResourceContent']>): ReturnType<ISessionDatabase['readToolResultResourceContent']> {
+		const result = await this.raw.readToolResultResourceContent(toolCallId, ordinal);
 		return result;
 	}
 

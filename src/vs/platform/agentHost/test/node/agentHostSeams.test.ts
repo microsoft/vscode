@@ -165,11 +165,13 @@ suite('Agent Host provider seams', () => {
 				resource: peerChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
+				subagentChatUriFormat: 'shaped' as const,
 			};
 			const tool: IAgentChatContext = {
 				resource: subagentChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
+				subagentChatUriFormat: 'shaped' as const,
 			};
 			assert.deepStrictEqual({
 				fork: resolveSubagentChatParent(fork),

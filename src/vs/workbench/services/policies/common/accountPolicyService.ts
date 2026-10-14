@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, isManagedSettingGovernanceActive, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -281,7 +281,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		// Share channel resolution, including the force-on sandbox floor, with Policy Diagnostics.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
-		const activeSources = new Set(pick.activeSources);
+		const activeSources = new Set(Array.from(pick.resolutions)
+			.filter(([key]) => isManagedSettingGovernanceActive(key))
+			.map(([, resolution]) => resolution.source));
 		if (accountPolicyData?.managedSettingsActive === true) {
 			activeSources.add('server');
 		}

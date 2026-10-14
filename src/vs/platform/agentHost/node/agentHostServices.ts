@@ -48,6 +48,7 @@ import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
+import { AgentHostResourceProviders, IAgentHostResourceProviders } from './agentHostResourceProviders.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
@@ -117,6 +118,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
+	services.set(IAgentHostResourceProviders, new SyncDescriptor(AgentHostResourceProviders));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));

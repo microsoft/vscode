@@ -33,12 +33,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
-import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
@@ -155,6 +155,9 @@ suite('Agent Host E2E — Copilot prompts', function () {
 
 			const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-prompt-snap-`);
 			tempDirs.push(workspaceDir);
+			mkdirSync(join(workspaceDir, '.github'));
+			writeFileSync(join(workspaceDir, '.github', 'copilot-instructions.md'), 'COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS');
+			writeFileSync(join(workspaceDir, 'AGENTS.md'), 'COPILOT_PROMPT_WORKSPACE_AGENTS');
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await driveTurnWithModel(client, sessionUri, model);
@@ -162,8 +165,14 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			const request = JSON.parse(body) as IWireRequest;
+			const systemPrompt = readSystemPrompt(request);
+			assert.deepStrictEqual({
+				copilotInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS'),
+				agentsInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_AGENTS'),
+			}, { copilotInstructions: true, agentsInstructions: true });
 			assert.deepStrictEqual(
-				(JSON.parse(body) as IWireRequest).tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
+				request.tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
 				[],
 				'Dynamic workflow tools must not be exposed to the model',
 			);
@@ -257,7 +266,7 @@ function countIncludedBudgetSkills(rawBody: string): { skills: number; descripti
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
-	const chatUri = buildDefaultChatUri(sessionUri);
+	const chatUri = defaultChatChannel(sessionUri);
 	c.clearReceived();
 	c.dispatch({
 		channel: chatUri,

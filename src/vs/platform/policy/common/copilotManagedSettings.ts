@@ -17,9 +17,19 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
-/** Whether a raw managed-settings document contains at least one top-level setting. */
+/** The Local-only harness control does not contribute governance for other features or providers. */
+export function isManagedSettingGovernanceActive(key: string): boolean {
+	return key !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY && !key.startsWith(`${COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY}.`);
+}
+
+/** Detect raw governance without counting the Local-only harness control or its containing object. */
 export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
-	return data !== undefined && Object.keys(data).length > 0;
+	return data !== undefined && Object.entries(data).some(([key, value]) => {
+		if (key === 'vscode' && isManagedSettingsObject(value) && Object.hasOwn(value, 'temporaryAllowLocalHarness')) {
+			return Object.keys(value).some(key => isManagedSettingGovernanceActive(`vscode.${key}`));
+		}
+		return isManagedSettingGovernanceActive(key);
+	});
 }
 
 /** Windows registry root for GitHub Copilot policies. */
@@ -66,6 +76,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
 
 /** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
 export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
+
+/** Temporary managed permission for the Local chat harness; only false prohibits it. */
+export const COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY = 'vscode.temporaryAllowLocalHarness';
 
 /** Policy-only configuration projection of the Local harness escape hatch. */
 export const TemporaryDefaultToLocalHarnessSettingId = 'chat.temporaryDefaultToLocalHarness';
@@ -130,6 +143,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
@@ -298,8 +312,11 @@ export function isTemporaryDefaultToLocalHarnessEnabled(configurationService: IC
 	return configurationService.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue === true;
 }
 
-/** Whether effective policy requires Agent Host, unless the administrator enables the Local escape hatch. */
+/** Whether effective policy requires Agent Host; explicit Local disablement overrides the temporary Local escape hatch. */
 export function requiresCopilotAgentHost(service: IManagedSettingsService, configurationService: IConfigurationService): boolean {
+	if (service.getManagedSettingValue(COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY) === false) {
+		return true;
+	}
 	const temporaryDefaultToLocal = configurationService?.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue
 		?? service.getManagedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY);
 	if (temporaryDefaultToLocal === true) {

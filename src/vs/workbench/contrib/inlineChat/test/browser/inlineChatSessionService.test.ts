@@ -19,6 +19,8 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -162,6 +164,7 @@ suite('InlineChatSessionService', () => {
 
 	setup(() => {
 		const collection = new ServiceCollection();
+		collection.set(ICommandService, NullCommandService);
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());

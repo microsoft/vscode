@@ -16,6 +16,8 @@ import { mockObject, upcastPartial } from '../../../../../../base/test/common/mo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +28,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -47,7 +50,7 @@ import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequ
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -1378,7 +1381,7 @@ suite('ChatWidget', () => {
 		});
 		const selected = observableValue('selected', local);
 		const widget: {
-			observeLocalSessionArchived(model: IChatModel): IObservable<boolean>;
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
 			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
 			_viewModel: { sessionResource: URI; model: IChatModel };
 		} = Object.assign(Object.create(ChatWidget.prototype), {
@@ -1396,7 +1399,7 @@ suite('ChatWidget', () => {
 		store.add(autorun(reader => {
 			const model = selected.read(reader);
 			widget._viewModel = { sessionResource: model.sessionResource, model };
-			const archived = widget.observeLocalSessionArchived(model);
+			const archived = widget.observeSessionArchived(model);
 			reader.store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
 		}));
 		const snapshot = () => ({
@@ -1465,7 +1468,7 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean } = {}) {
+	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean; isSessionsWindow?: boolean; providerDisabled?: boolean } = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
@@ -1474,23 +1477,123 @@ suite('ChatWidget', () => {
 		const policy = observableValue('policy', false);
 		const archived = observableValue('archived', false);
 		const requestInProgress = observableValue('requestInProgress', false);
+		const readOnly = observableValue('readOnly', true);
+		const modelChanges = store.add(new Emitter<IChatChangeEvent>());
+		let providerDisabled = options.providerDisabled ?? true;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: providerDisabled && (key === AgentHostClaudeAgentEnabledSettingId || key === AgentHostCodexAgentEnabledSettingId) ? value.value : undefined };
+			}
+		}({ [AgentHostClaudeAgentEnabledSettingId]: false, [AgentHostCodexAgentEnabledSettingId]: false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
 		let hasRequests = options.hasRequests ?? true;
 		const model = upcastPartial<IChatModel>({
 			sessionResource: options.resource ?? LocalChatSessionUri.forSession('automatic-migration'),
 			initialLocation: options.location ?? ChatAgentLocation.Chat,
 			get hasRequests() { return hasRequests; },
 			requestInProgress,
+			isReadOnly: readOnly,
+			onDidChange: modelChanges.event,
 		});
 		const errors: string[] = [];
-		const widget: { autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
-			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+		const automaticCalls: { resource: string; trigger: string }[] = [];
+		let automaticRun = async () => { };
+		const widget: { autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: options.isSessionsWindow ? undefined : banner,
 			_viewModel: { model },
+			viewOptions: { isSessionsWindow: options.isSessionsWindow },
+			configurationService,
+			policyContinuationService: { continueInCopilot: async (resource: URI, trigger: string) => { automaticCalls.push({ resource: resource.toString(), trigger }); await automaticRun(); } },
 			logService: { error: (message: string) => errors.push(message) },
 			setReadOnly: () => banner.setMessage(),
 		});
-		const observation = store.add(widget.autoMigrateLocalSession(model, archived));
-		return { banner, visible, policy, archived, requestInProgress, errors, observation, setHasRequests: (value: boolean) => { hasRequests = value; } };
+		const observation = store.add(widget.autoMigratePolicySession(model, archived));
+		return {
+			banner, visible, policy, archived, requestInProgress, readOnly, errors, observation, automaticCalls,
+			setHasRequests: (value: boolean) => { hasRequests = value; modelChanges.fire({ kind: 'initialize' }); },
+			setAutomaticRun: (run: () => Promise<void>) => { automaticRun = run; },
+			setProviderDisabled: (value: boolean) => { providerDisabled = value; configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true })); },
+			moveAway: () => Object.assign(widget, { _viewModel: undefined }),
+		};
 	}
+
+	for (const provider of ['claude', 'codex'] as const) {
+		test(`automatically migrates displayed policy-disabled ${provider} history after the active request settles`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.from({ scheme: `agent-host-${provider}`, path: '/policy-disabled' }) });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.policy.set(true, undefined);
+			fixture.requestInProgress.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			const activeCalls = fixture.automaticCalls.length;
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			fixture.visible.set(false, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ activeCalls, calls: fixture.automaticCalls }, { activeCalls: 0, calls: [{ resource: `agent-host-${provider}:/policy-disabled`, trigger: 'automatic' }] });
+		});
+	}
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`starts automatic recovery when provider policy and history arrive in the ${isSessionsWindow ? 'Agents' : 'Editor'} window`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/hot-policy'), hasRequests: false, providerDisabled: false, isSessionsWindow });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.visible.set(true, undefined);
+			fixture.policy.set(true, undefined);
+			fixture.setHasRequests(true);
+			await timeout(0);
+			const beforeProviderPolicy = fixture.automaticCalls.length;
+			fixture.setProviderDisabled(true);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeProviderPolicy, calls: fixture.automaticCalls }, {
+				beforeProviderPolicy: 0, calls: [{ resource: 'agent-host-claude:/hot-policy', trigger: 'automatic' }],
+			});
+		});
+	}
+
+	for (const scenario of ['hidden', 'busy', 'unmanaged', 'provider-available', 'writable', 'history-not-ready', 'archived'] as const) {
+		test(`waits while the policy-disabled source is ${scenario}`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-codex:/waiting'), hasRequests: scenario !== 'history-not-ready', providerDisabled: scenario !== 'provider-available' });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.archived.set(scenario === 'archived', undefined);
+			fixture.readOnly.set(scenario !== 'writable', undefined);
+			fixture.requestInProgress.set(scenario === 'busy', undefined);
+			fixture.policy.set(scenario !== 'unmanaged', undefined);
+			fixture.visible.set(scenario !== 'hidden', undefined);
+			await timeout(0);
+			const deferred = fixture.automaticCalls.length;
+			fixture.archived.set(false, undefined);
+			fixture.readOnly.set(true, undefined);
+			fixture.requestInProgress.set(false, undefined);
+			fixture.policy.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			fixture.setProviderDisabled(true);
+			fixture.setHasRequests(true);
+			await timeout(0);
+			assert.deepStrictEqual({ deferred, calls: fixture.automaticCalls }, { deferred: 0, calls: [{ resource: 'agent-host-codex:/waiting', trigger: 'automatic' }] });
+		});
+	}
+
+	test('a failed Agent Host automatic continuation retains the manual banner action', async () => {
+		const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/failure') });
+		let manualCalls = 0;
+		fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { manualCalls++; } });
+		fixture.setAutomaticRun(async () => { throw new Error('Import failed'); });
+		fixture.policy.set(true, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const link = fixture.banner.domNode.querySelector('a')!;
+		link.click();
+		await timeout(0);
+		assert.deepStrictEqual({ automaticCalls: fixture.automaticCalls.length, manualCalls, message: fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent, disabled: link.getAttribute('aria-disabled') }, {
+			automaticCalls: 1, manualCalls: 1, message: 'Couldn\'t move this chat to Copilot. Use Continue in Copilot to try again.', disabled: 'false',
+		});
+	});
 
 	for (const policyDuringRequest of [false, true]) {
 		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
@@ -1543,6 +1646,27 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let allowLocal = true;
+		const managedSettings = new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
+			override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal }; }
+		}();
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		const before = calls;
+		allowLocal = false;
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
+	});
+
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
 		test(`does not automatically migrate ${scenario} chats`, async () => {
 			const fixture = createAutomaticMigrationFixture({
@@ -1560,7 +1684,7 @@ suite('ChatWidget', () => {
 		});
 	}
 
-	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived'] as const) {
+	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived', 'moved'] as const) {
 		test(`cancels scheduled automatic migration when ${scenario}`, async () => {
 			const fixture = createAutomaticMigrationFixture();
 			let calls = 0;
@@ -1573,6 +1697,8 @@ suite('ChatWidget', () => {
 				fixture.observation.dispose();
 			} else if (scenario === 'policy-removed') {
 				fixture.policy.set(false, undefined);
+			} else if (scenario === 'moved') {
+				fixture.moveAway();
 			} else {
 				fixture.archived.set(true, undefined);
 			}

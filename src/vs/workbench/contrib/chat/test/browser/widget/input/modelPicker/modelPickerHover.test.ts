@@ -152,7 +152,7 @@ suite('ModelPickerHover', () => {
 					properties: {
 						navigationOption: {
 							type: 'string',
-							title: id === 'auto' ? undefined : id === 'ensemble' ? 'Thinking Level' : 'Thinking Effort',
+							title: id === 'auto' ? undefined : id === 'ensemble' ? 'Effort Level' : 'Effort Level',
 							enum: ['efficiency', 'intelligence'],
 							group: 'navigation',
 						},
@@ -174,8 +174,8 @@ suite('ModelPickerHover', () => {
 
 		assert.deepStrictEqual(results, [
 			['Optimize for', 'Context Size'],
-			['Thinking Level', 'Context Size'],
-			['Thinking Effort', 'Context Size'],
+			['Effort Level', 'Context Size'],
+			['Effort Level', 'Context Size'],
 		]);
 	});
 });

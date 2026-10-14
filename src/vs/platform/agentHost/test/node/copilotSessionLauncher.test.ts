@@ -22,7 +22,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers } from '../../common/autoModeTiers.js';
@@ -130,6 +130,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
+		getRootConfigValues: () => rootValues,
 		getSessionConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
@@ -955,13 +956,16 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		}
 	});
 
-	for (const { authInfo, reconcileError } of [
-		{ authInfo: { type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } } },
-		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' } },
-		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' }, reconcileError: new Error('MCP server requires authentication') },
-	]) {
-		test(`${reconcileError ? 'recovers connector MCP names when reconciliation requires authentication' : 'reconciles connector MCP servers through the Copilot runtime before launch completes'} (${authInfo.type})`, async () => {
+});
+
+suite('CopilotSessionLauncher Connectors', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scenario of ['create', 'resume', 'reconcileError', 'unsupported', 'noAccount', 'disabled'] as const) {
+		test(`uses session-owned Connector accounts: ${scenario}`, async () => {
 			const connectorCalls: string[] = [];
+			const logService = new CapturingLogService();
 			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
 			let featureFlags: Record<string, boolean> | undefined;
 			const connectorStatus = {
@@ -981,16 +985,20 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				disconnect: async () => { },
 				rpc: {
 					options: { update: async () => ({ success: true }) },
-					gitHubAuth: {
-						getStatus: async () => {
-							connectorCalls.push('auth');
-							return { isAuthenticated: true, authType: authInfo.type, host: 'github.com', login: 'octocat' };
-						},
-					},
 					connectors: {
 						getCapabilities: async () => {
 							connectorCalls.push('capabilities');
-							return { availability: 'enabled' as const };
+							return {
+								availability: 'enabled' as const,
+								...(scenario === 'unsupported' ? {} : { sessionAccountSelection: true }),
+							};
+						},
+						getAccount: async () => {
+							connectorCalls.push('account');
+							return scenario === 'noAccount' ? null : {
+								accountId: 'session-account',
+								authInfo: { type: 'token', host: 'https://github.com', login: 'octocat' },
+							};
 						},
 						getStatus: async () => {
 							connectorCalls.push('status');
@@ -998,8 +1006,8 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 						},
 						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
 							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
-							if (reconcileError) {
-								throw reconcileError;
+							if (scenario === 'reconcileError') {
+								throw new Error('MCP server requires authentication');
 							}
 							return connectorStatus;
 						},
@@ -1012,13 +1020,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					account: {
 						getAllUsers: async () => {
 							connectorCalls.push('accounts');
-							return [{
-								authInfo: { ...authInfo, login: 'another-user', copilotUser: { login: 'another-user' } },
-								selectionId: 'another-account',
-							}, {
-								authInfo,
-								selectionId: 'account-1',
-							}];
+							throw new Error('Connector launch must not inspect global accounts');
 						},
 					},
 				},
@@ -1027,11 +1029,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					featureFlags = config.featureFlags;
 					return session;
 				},
-				resumeSession: async () => { throw new Error('Unexpected resume'); },
+				resumeSession: async (_sessionId: string, config: ResumeSessionConfig | undefined) => {
+					reportManagedSettings(config);
+					featureFlags = config?.featureFlags;
+					return session;
+				},
 			} as unknown as CopilotClient;
-			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: scenario !== 'disabled' }, logService);
 			const plan: CopilotSessionLaunchPlan = {
-				kind: 'create',
+				...(scenario === 'resume' ? { kind: 'resume', fallback: { model: undefined } } as const : { kind: 'create', model: undefined } as const),
 				client,
 				extensionSdkPath: '/copilot-sdk',
 				sessionId: 'connector-session',
@@ -1041,7 +1047,6 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
-				model: undefined,
 			};
 
 			const launched = await launcher.launch(plan, {
@@ -1053,10 +1058,18 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					featureFlags,
 					connectorCalls,
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+					warnings: logService.warnings.map(warning => warning.message),
 				}, {
-					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
-					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
-					connectorDisplayName: 'Work IQ Mail',
+					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+					connectorCalls: scenario === 'disabled' ? []
+						: scenario === 'unsupported' ? ['capabilities']
+							: scenario === 'noAccount' ? ['capabilities', 'account']
+								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
+					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' ? undefined : 'Work IQ Mail',
+					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
+						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
+							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
+								: [],
 				});
 			} finally {
 				launched.dispose();
@@ -1468,6 +1481,53 @@ suite('CopilotSessionLauncher local index', () => {
 			assert.deepStrictEqual(configs.map(config => config.enableSessionStore), [
 				localIndexEnabled !== false, localIndexEnabled !== false, false, false,
 			]);
+		});
+	}
+});
+
+suite('CopilotSessionLauncher ExP assignment context', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const assignmentContext of [undefined, '', 'vscode-flight-a:1;vscode-flight-b:2;']) {
+		test(`forwards the VS Code assignment context on create and resume (${JSON.stringify(assignmentContext)})`, async () => {
+			const configs: ResumeSessionConfig[] = [];
+			const session = {
+				sessionId: 'session-1',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
+				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
+				override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+				override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+			};
+			const launcher = createTestLauncher(undefined, { [CopilotCliVSCodeAssignmentContextKey]: assignmentContext });
+			const basePlan = {
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+
+			store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
+			store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
+
+			const expected = assignmentContext ? { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } : undefined;
+			assert.deepStrictEqual(configs.map(config => (config as { expAssignments?: unknown }).expAssignments), [expected, expected]);
 		});
 	}
 });
@@ -2406,6 +2466,25 @@ suite('CopilotSessionLauncher resume config', () => {
 			defaultExperimentalMode: undefined,
 			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+		});
+	});
+
+	test('sends the HydraFusion multi-root flag only with HydraFusion v2', async () => {
+		const store = disposables.add(new DisposableStore());
+		const configs = {
+			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
+			ensemble: await buildResumeConfig(createLauncher(store, { ensemble: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
+			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
+			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
+		};
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, config.featureFlags?.HYDRAFUSION_STICKY_ROOT])), {
+			v2: true,
+			ensemble: true,
+			v1: undefined,
+			withoutHydraFusion: undefined,
+			notOptedIn: undefined,
 		});
 	});
 

@@ -33,6 +33,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -500,6 +501,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session);
 	}
 
+	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
+		return this._requireClient().readSavedChat(session, chat);
+	}
+
+	completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {
+		return this._requireClient().completeSavedChatContinuation(request);
+	}
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}
@@ -516,8 +525,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
-		return this._getManagementService().refreshCopilotConnectorSessions();
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions(forceConnectorName);
 	}
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
