@@ -38,6 +38,7 @@ suite('CustomizationMigrationDashboard', () => {
 			showItemActions: () => { },
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
+			retryCategory: () => { },
 			openCustomization: () => { },
 			...callbacks,
 		}));
@@ -338,6 +339,35 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {
+		const retried: string[] = [];
+		const { parent, dashboard, telemetryActions } = createDashboard({
+			retryCategory: id => retried.push(id),
+		});
+		dashboard.showOverview({
+			...overview(),
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
+		});
+
+		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+
+		assert.deepStrictEqual({
+			error: parent.querySelector('.migration-category-error')?.textContent,
+			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
+			retried,
+			telemetryActions,
+		}, {
+			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			hasPromptMigration: true,
+			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
+			telemetryActions: ['retryClicked:pluginMarketplaces'],
+		});
 	});
 
 	test('focuses refresh errors and restores the prior overview target after retry', () => {

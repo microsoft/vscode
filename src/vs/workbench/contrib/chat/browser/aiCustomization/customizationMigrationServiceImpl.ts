@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -24,6 +25,7 @@ import { parseMarketplaceReferences } from '../../common/plugins/marketplaceRefe
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomizations: Event<void>;
+	private readonly _onDidChangeMarketplaceInventory = this._register(new Emitter<void>());
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -32,14 +34,25 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		@IMcpService mcpService: IMcpService,
 	) {
 		super();
+		const marketplaceProviderListeners = this._register(new DisposableStore());
+		this._register(autorun(reader => {
+			const providers = new Set(customizationHarnessService.availableHarnesses.read(reader)
+				.flatMap(harness => harness.marketplaceManagementProvider ? [harness.marketplaceManagementProvider] : []));
+			marketplaceProviderListeners.clear();
+			for (const provider of providers) {
+				marketplaceProviderListeners.add(provider.onDidChange(() => this._onDidChangeMarketplaceInventory.fire()));
+			}
+		}));
 		this.onDidChangeCustomizations = Event.any(
 			promptsService.onDidChangeSlashCommands,
 			promptsService.onDidChangeInstructions,
 			promptsService.onDidChangeAgentInstructions,
 			promptsService.onDidChangeSkills,
 			customizationHarnessService.onDidChangeCustomAgents,
+			Event.fromObservableLight(customizationHarnessService.availableHarnesses),
 			Event.fromObservableLight(mcpService.servers),
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.PluginMarketplaces)),
+			this._onDidChangeMarketplaceInventory.event,
 		);
 	}
 
@@ -80,12 +93,9 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			}
 			case CustomizationMigrationType.PluginMarketplaces: {
 				const marketplaceManagementProvider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.marketplaceManagementProvider;
-				return {
-					type,
-					candidates: marketplaceManagementProvider
-						? await this.getPluginMarketplaceCandidates(marketplaceManagementProvider)
-						: [],
-				};
+				return marketplaceManagementProvider
+					? this.computePluginMarketplaceMigration(marketplaceManagementProvider)
+					: { type, candidates: [] };
 			}
 		}
 	}
@@ -133,7 +143,18 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			};
 		}
 
-		const configuredCandidates = new Map((await this.getPluginMarketplaceCandidates(provider)).map(candidate => [candidate.canonicalId, candidate]));
+		const migration = await this.computePluginMarketplaceMigration(provider);
+		if (migration.discoveryError) {
+			return {
+				migratedCount: 0,
+				failures: requestedCandidates.map(candidate => ({
+					...candidate,
+					reason: PluginMarketplaceCustomizationMigrationFailureReason.ProviderUnavailable,
+					error: migration.discoveryError,
+				})),
+			};
+		}
+		const configuredCandidates = new Map(migration.candidates.map(candidate => [candidate.canonicalId, candidate]));
 		const failures: IPluginMarketplaceCustomizationMigrationResult['failures'][number][] = [];
 		let copiedCount = 0;
 		for (const requestedCandidate of requestedCandidates) {
@@ -281,13 +302,27 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			}));
 	}
 
-	private async getPluginMarketplaceCandidates(provider: ICustomizationMarketplaceManagementProvider): Promise<IPluginMarketplaceCustomizationMigrationCandidate[]> {
-		const providerCanonicalIds = new Set((await provider.list()).flatMap(marketplace => {
-			const canonicalId = this.getProviderMarketplaceCanonicalId(marketplace.source);
-			return canonicalId ? [canonicalId] : [];
-		}));
-		return this.getConfiguredPluginMarketplaceCandidates()
-			.filter(candidate => !providerCanonicalIds.has(candidate.canonicalId));
+	private async computePluginMarketplaceMigration(provider: ICustomizationMarketplaceManagementProvider): Promise<PluginMarketplaceCustomizationMigration> {
+		const configuredCandidates = this.getConfiguredPluginMarketplaceCandidates();
+		if (configuredCandidates.length === 0) {
+			return { type: CustomizationMigrationType.PluginMarketplaces, candidates: [] };
+		}
+		try {
+			const providerCanonicalIds = new Set((await provider.list()).flatMap(marketplace => {
+				const canonicalId = this.getProviderMarketplaceCanonicalId(marketplace.source);
+				return canonicalId ? [canonicalId] : [];
+			}));
+			return {
+				type: CustomizationMigrationType.PluginMarketplaces,
+				candidates: configuredCandidates.filter(candidate => !providerCanonicalIds.has(candidate.canonicalId)),
+			};
+		} catch (error) {
+			return {
+				type: CustomizationMigrationType.PluginMarketplaces,
+				candidates: [],
+				discoveryError: error instanceof Error ? error : new Error(String(error)),
+			};
+		}
 	}
 
 	private getProviderMarketplaceCanonicalId(source: string): string | undefined {

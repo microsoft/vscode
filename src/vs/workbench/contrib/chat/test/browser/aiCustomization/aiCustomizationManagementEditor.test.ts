@@ -198,6 +198,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
+		pluginMarketplaceMigrationDiscoveryError: Error | undefined;
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
@@ -320,7 +321,7 @@ suite('aiCustomizationManagementEditor', () => {
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
 		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsWithFailureReasonsResult>;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[]): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[], pluginMarketplaceMigrationDiscoveryError?: Error): void;
 		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
 		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
 		resolveCustomizationMigrationTargetFolders(
@@ -395,6 +396,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
+		editor.pluginMarketplaceMigrationDiscoveryError = undefined;
 		editor.mcpServerMigrationExclusions = [];
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
@@ -1474,6 +1476,40 @@ suite('aiCustomizationManagementEditor', () => {
 			ignored: true,
 			hasIgnoredGroups: true,
 			visibleCategories: [],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('preserves a plugin marketplace discovery error alongside valid migration categories', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode-team-kit'],
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		editor.setCustomizationsToMigrate(
+			new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]),
+			new Map(),
+			[],
+			new Error('Marketplace inventory unavailable'),
+		);
+
+		const overview = editor.getCustomizationMigrationDashboardOverview();
+
+		assert.deepStrictEqual({
+			categories: overview.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			categoryErrors: overview.categoryErrors,
+		}, {
+			categories: [CustomizationMigrationCategoryId.PromptFiles],
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

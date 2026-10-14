@@ -216,6 +216,7 @@ export interface IPluginMarketplaceCustomizationMigrationCandidate {
 export interface PluginMarketplaceCustomizationMigration {
 	readonly type: CustomizationMigrationType.PluginMarketplaces;
 	readonly candidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[];
+	readonly discoveryError?: Error;
 }
 
 /** Bounded reasons a plugin marketplace migration can fail. */

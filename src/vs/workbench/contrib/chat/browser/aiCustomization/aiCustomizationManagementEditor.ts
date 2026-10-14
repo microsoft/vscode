@@ -466,6 +466,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	// Welcome page
 	private welcomePage: AICustomizationWelcomePage | undefined;
 	private customizationsByMigrationCategory = new Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>();
+	private pluginMarketplaceMigrationDiscoveryError: Error | undefined;
 	private mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[] = [];
 	private customizationMigrationTargetFoldersByType = new Map<PromptsType, readonly ICustomizationSourceFolder[]>();
 	private customizationMigrationRefreshSequence = 0;
@@ -1096,6 +1097,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				showItemActions: (item, storage, anchor) => this.showMigrationItemActions(item, storage, anchor),
 				ignoreCategory: (id, storage) => void this.ignoreMigrationCategory(id, storage),
 				restoreIgnoredCategories: () => void this.restoreIgnoredMigrationCategories(),
+				retryCategory: () => void this.refreshCustomizationMigrationInfo(),
 				openCustomization: (item, storage) => {
 					void this.openMigrationCustomization(item, storage);
 				},
@@ -1118,6 +1120,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		)(() => this.refreshCustomizationMigrationInfoFromPromptChange()));
 		this.editorDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.refreshCustomizationMigrationInfoFromMcpChange()));
 		this.editorDisposables.add(Event.any(this.mcpWorkbenchService.onChange, this.mcpWorkbenchService.onReset)(() => this.refreshCustomizationMigrationInfoFromMcpChange()));
+		this.editorDisposables.add(this.customizationMigrationService.onDidChangeCustomizations(() => this.refreshCustomizationMigrationInfoFromPromptChange()));
 		this.editorDisposables.add(autorun(reader => {
 			for (const server of this.mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
@@ -1378,6 +1381,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectedCustomizationMigrationTargets.clear();
 			this.explicitlySelectedCustomizationMigrationTargets.clear();
 			this.customizationsByMigrationCategory.clear();
+			this.pluginMarketplaceMigrationDiscoveryError = undefined;
 			this.mcpServerMigrationExclusions = [];
 			this.customizationMigrationTargetFoldersByType.clear();
 			this.customizationMigrationResultsSettled = false;
@@ -1428,6 +1432,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			);
 			const mcpServerMigrationExclusions = migrationsByCategory
 				.flatMap(([, migration]) => migration.type === CustomizationMigrationType.McpServers ? migration.exclusions : []);
+			const pluginMarketplaceMigrationDiscoveryError = migrationsByCategory
+				.find(([, migration]) => migration.type === CustomizationMigrationType.PluginMarketplaces)?.[1];
 			const provider = this.harnessService.findHarnessById(activeHarnessId)?.itemProvider;
 			const targetTypes = new Set([...candidatesByCategory.values()].flat()
 				.filter(isFileCustomizationMigrationCandidate)
@@ -1441,7 +1447,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const targetFoldersByType = new Map<PromptsType, readonly ICustomizationSourceFolder[]>(targetFolderEntries);
 			this.customizationMigrationLoading = false;
-			this.setCustomizationsToMigrate(candidatesByCategory, targetFoldersByType, mcpServerMigrationExclusions);
+			this.setCustomizationsToMigrate(
+				candidatesByCategory,
+				targetFoldersByType,
+				mcpServerMigrationExclusions,
+				pluginMarketplaceMigrationDiscoveryError?.type === CustomizationMigrationType.PluginMarketplaces
+					? pluginMarketplaceMigrationDiscoveryError.discoveryError
+					: undefined,
+			);
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;
@@ -1459,6 +1472,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		candidatesByCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>,
 		targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>,
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[] = this.mcpServerMigrationExclusions,
+		pluginMarketplaceMigrationDiscoveryError: Error | undefined = this.pluginMarketplaceMigrationDiscoveryError,
 	): void {
 		const discoveredCandidateKeys = new Set([...candidatesByCategory.values()].flat().map(candidate => this.getCustomizationMigrationCandidateKey(candidate)));
 		for (const key of this.recentlyMigratedCustomizationItems) {
@@ -1491,6 +1505,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.selectedCustomizationMigrationItems = selectedItems;
 		this.customizationsByMigrationCategory = candidatesByCategory;
 		this.mcpServerMigrationExclusions = mcpServerMigrationExclusions;
+		this.pluginMarketplaceMigrationDiscoveryError = pluginMarketplaceMigrationDiscoveryError;
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
 		this.refreshMcpDetailMigrationState();
 		this.customizationMigrationResultsSettled = true;
@@ -1757,7 +1772,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const candidates = homepageMigrationCategories.flatMap(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id))
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
 		const count = candidates.length;
-		const hasPendingMigrations = homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
+		const hasPendingMigrations = this.pluginMarketplaceMigrationDiscoveryError !== undefined
+			|| homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
 			&& hasPendingMigrations;
@@ -2406,6 +2422,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				localize('migrationAccessibleManualReview', "Needs manual review"),
 				...overview.manualReviewItems.map(item => localize('migrationAccessibleItemWithStatus', "{0}, needs manual review: {1}, source {2}", item.label, item.manualReviewReason ?? '', item.sourceLabel)),
 			].join('\n')] : []),
+			...(overview.categoryErrors ?? []).map(error => localize(
+				'migrationAccessibleCategoryError',
+				"{0}. {1} Use Retry to check again.",
+				error.label,
+				error.description,
+			)),
 		].join('\n\n');
 	}
 
@@ -2437,6 +2459,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			scopes,
 			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get())
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
+			categoryErrors: this.pluginMarketplaceMigrationDiscoveryError ? [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: localize('pluginMarketplaceMigrationLoadError', "Plugin marketplaces could not be checked"),
+				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+			}] : undefined,
 			manualReviewItems: storages.flatMap(storage => this.getMcpMigrationExclusions(storage).map(exclusion => ({
 				id: `${CustomizationMigrationCategoryId.McpServers}:${storage}:exclusion:${exclusion.id}`,
 				label: exclusion.name,

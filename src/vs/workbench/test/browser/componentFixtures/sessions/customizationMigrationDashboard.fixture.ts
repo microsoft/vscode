@@ -144,6 +144,7 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 		showItemActions: () => { },
 		ignoreCategory: () => { },
 		restoreIgnoredCategories: () => { },
+		retryCategory: () => { },
 		openCustomization: () => { },
 	}));
 	dashboard.showOverview(model);

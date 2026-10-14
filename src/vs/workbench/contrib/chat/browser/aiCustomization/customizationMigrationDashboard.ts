@@ -80,8 +80,15 @@ export interface ICustomizationMigrationDashboardScope {
 export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
+	readonly categoryErrors?: readonly ICustomizationMigrationDashboardCategoryError[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
+}
+
+export interface ICustomizationMigrationDashboardCategoryError {
+	readonly id: CustomizationMigrationCategoryId;
+	readonly label: string;
+	readonly description: string;
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
@@ -93,6 +100,7 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly showItemActions: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage, anchor: HTMLElement) => void;
 	readonly ignoreCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly restoreIgnoredCategories: () => void;
+	readonly retryCategory: (id: CustomizationMigrationCategoryId) => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
 	readonly onDidChangeContent?: () => void;
 }
@@ -294,7 +302,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
-		this.allMigrationsComplete = migrationGroups.length === 0 && !overview.hasIgnoredGroups;
+		const categoryErrors = overview.categoryErrors ?? [];
+		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups;
 		this.prepareRender();
 		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
@@ -311,10 +320,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 			} : undefined,
 		);
 
+		this.renderCategoryErrors(page, categoryErrors);
 		if (migrationGroups.length) {
 			this.renderMigrationWarnings(page, migrationGroups);
 			this.renderMigrationTree(page, migrationGroups);
-		} else {
+		} else if (categoryErrors.length === 0) {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
 				? localize('noActiveMigrations', "No active migrations. Restore ignored migrations to review them.")
 				: localize('noMigrations', "No migrations are needed.")));
@@ -329,6 +339,30 @@ export class CustomizationMigrationDashboard extends Disposable {
 			this.focus();
 		} else if (focusedKey) {
 			(this.focusTargets.get(focusedKey) ?? this.focusTargets.get('title'))?.focus();
+		}
+	}
+
+	private renderCategoryErrors(parent: HTMLElement, errors: readonly ICustomizationMigrationDashboardCategoryError[]): void {
+		for (const error of errors) {
+			const card = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.error.migration-category-error'));
+			const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
+			const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+			icon.setAttribute('aria-hidden', 'true');
+			DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, error.label));
+			const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
+			DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, error.description));
+			this.button(
+				details,
+				`retryCategory:${error.id}`,
+				localize('retry', "Retry"),
+				localize('retryMigrationCategory', "Retry loading {0}", error.label),
+				() => {
+					this.callbacks.actionClicked('retryClicked', error.id);
+					this.callbacks.retryCategory(error.id);
+				},
+				'secondary',
+			);
 		}
 	}
 

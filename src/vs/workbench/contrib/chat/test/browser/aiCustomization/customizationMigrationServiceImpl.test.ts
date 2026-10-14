@@ -155,7 +155,17 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 	override readonly activeSessionResource;
 	override readonly activeHarness;
 	mcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider | undefined;
-	marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined;
+	override readonly availableHarnesses;
+	private _marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined;
+
+	get marketplaceManagementProvider(): ICustomizationMarketplaceManagementProvider | undefined {
+		return this._marketplaceManagementProvider;
+	}
+
+	set marketplaceManagementProvider(provider: ICustomizationMarketplaceManagementProvider | undefined) {
+		this._marketplaceManagementProvider = provider;
+		this.availableHarnesses.set([this.createDescriptor()], undefined);
+	}
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
@@ -165,14 +175,19 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 		super();
 		this.activeSessionResource = observableValue('activeSessionResource', URI.from({ scheme: sessionType, path: '/session' }));
 		this.activeHarness = observableValue('activeHarness', sessionType);
+		this.availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [this.createDescriptor()]);
 	}
 
 	override findHarnessById(sessionType: string): IHarnessDescriptor | undefined {
 		if (sessionType !== this.sessionType) {
 			return undefined;
 		}
+		return this.createDescriptor();
+	}
+
+	private createDescriptor(): IHarnessDescriptor {
 		return {
-			id: sessionType,
+			id: this.sessionType,
 			label: this.harnessLabel,
 			icon: Codicon.copilot,
 			mcpServerMigrationProvider: this.mcpServerMigrationProvider,
@@ -336,6 +351,36 @@ suite('CustomizationMigrationService', () => {
 		assert.strictEqual(changeCount, 6);
 	});
 
+	test('reports active harness marketplace inventory and provider changes', () => {
+		const firstProviderChanges = store.add(new Emitter<void>());
+		const secondProviderChanges = store.add(new Emitter<void>());
+		const harnessService = new TestCustomizationHarnessService();
+		const createProvider = (onDidChange: Event<void>): ICustomizationMarketplaceManagementProvider => ({
+			onDidChange,
+			list: async () => [],
+			add: async source => ({ name: source, source, isDefault: false, managed: false, available: true }),
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		});
+		harnessService.marketplaceManagementProvider = createProvider(firstProviderChanges.event);
+		const service = store.add(new BaseCustomizationMigrationService(
+			store.add(new TestPromptsService([])),
+			harnessService,
+			store.add(createMigrationConfiguration()),
+			new TestMcpService(),
+		));
+		let changeCount = 0;
+		store.add(service.onDidChangeCustomizations(() => changeCount++));
+
+		firstProviderChanges.fire();
+		harnessService.marketplaceManagementProvider = createProvider(secondProviderChanges.event);
+		firstProviderChanges.fire();
+		secondProviderChanges.fire();
+
+		assert.strictEqual(changeCount, 3);
+	});
+
 	test('uses provider-neutral service dependencies', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IPromptsService, store.add(new TestPromptsService([])));
@@ -457,6 +502,91 @@ suite('CustomizationMigrationService', () => {
 				migrationFlowId: 'test-migration-flow-id',
 				message: '2 user customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PluginMarketplaces, count: 2 }],
+			},
+		});
+	});
+
+	test('isolates plugin marketplace discovery failures and skips unnecessary provider reads', async () => {
+		let listCalls = 0;
+		const configurationService = store.add(new class extends DisposableTestConfigurationService {
+			private configuredValues: readonly unknown[] = [];
+
+			constructor() {
+				super({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
+			}
+
+			setConfiguredValues(values: readonly unknown[]): void {
+				this.configuredValues = values;
+			}
+
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return key === ChatConfiguration.PluginMarketplaces
+					? { ...inspected, defaultValue: [DEFAULT_PLUGIN_MARKETPLACE] as T, applicationValue: this.configuredValues as T }
+					: inspected;
+			}
+		}());
+		const harnessService = new TestCustomizationHarnessService();
+		harnessService.marketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => {
+				listCalls++;
+				throw new Error('Marketplace inventory unavailable');
+			},
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const promptsService = store.add(new TestPromptsService([{
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		}]));
+		const service = store.add(new BaseCustomizationMigrationService(
+			promptsService,
+			harnessService,
+			configurationService,
+			new TestMcpService(),
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+
+		const emptyMigration = await service.computeMigration(sessionResource, CustomizationMigrationType.PluginMarketplaces);
+		configurationService.setConfiguredValues(['microsoft/vscode-team-kit']);
+		const migrations = await service.computeMigrations(sessionResource);
+		const marketplaceMigration = migrations.find(migration => migration.type === CustomizationMigrationType.PluginMarketplaces);
+		const promptMigration = migrations.find(migration => migration.type === CustomizationMigrationType.PromptFiles);
+		const hint = await service.computeMigrationHint(sessionResource);
+
+		assert.deepStrictEqual({
+			emptyMigration,
+			listCalls,
+			marketplaceMigration: marketplaceMigration?.type === CustomizationMigrationType.PluginMarketplaces ? {
+				candidates: marketplaceMigration.candidates,
+				error: marketplaceMigration.discoveryError?.message,
+			} : undefined,
+			promptCandidates: promptMigration?.type === CustomizationMigrationType.PromptFiles
+				? promptMigration.candidates.map(candidate => candidate.uri.path)
+				: [],
+			hint: hint && {
+				message: hint.message,
+				counts: hint.counts,
+			},
+		}, {
+			emptyMigration: {
+				type: CustomizationMigrationType.PluginMarketplaces,
+				candidates: [],
+			},
+			listCalls: 2,
+			marketplaceMigration: {
+				candidates: [],
+				error: 'Marketplace inventory unavailable',
+			},
+			promptCandidates: ['/workspace/.github/prompts/review.prompt.md'],
+			hint: {
+				message: '1 workspace customization needs an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
 		});
 	});
