@@ -10,8 +10,9 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement.js';
 import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
-import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
+import { deriveGitHubEndpoints, GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../platform/github/common/githubEndpoints.js';
 import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
 import { GitHubService, IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, IGitHubCredentialProvider } from '../../../../platform/github/common/githubTypes.js';
@@ -226,6 +227,10 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			authorization: { providerId, sessionId: session.id, scopes: session.scopes, ...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}) },
 			apiBaseUri: endpoints.apiBaseUri,
 			graphQlUri: endpoints.graphQlUri,
+			missionControl: providerId === 'github' && endpoints.enterpriseHost === undefined ? {
+				endpoint: { apiBaseUri: `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`, integrationId: COPILOT_INTEGRATION_ID },
+				copilotEndpoint: { apiBaseUri: GITHUB_DOT_COM_COPILOT_API_BASE_URI, integrationId: COPILOT_INTEGRATION_ID },
+			} : undefined,
 		};
 	}
 }

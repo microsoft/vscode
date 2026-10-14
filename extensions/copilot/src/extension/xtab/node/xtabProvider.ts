@@ -371,7 +371,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const currentDocument = new CurrentDocument(activeDocument.documentAfterEdits, cursorPosition);
 
-		this._configureDebounceTimings(request, currentDocument, promptOptions, modelServiceConfig, telemetry, delaySession, tracer);
+		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
+
+		this._configureDebounceTimings(request, currentDocument, promptOptions, modelServiceConfig, aggressivenessLevel, telemetry, delaySession, tracer);
 
 		const areaAroundEditWindowLinesRange = computeAreaAroundEditWindowLinesRange(currentDocument);
 
@@ -428,8 +430,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 			);
 		};
-
-		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
 
 		// Log user's raw aggressiveness setting when explicitly changed from default
 		const userAggressivenessSetting = this.configService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsAggressiveness, this.expService);
@@ -591,6 +591,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		currentDocument: CurrentDocument,
 		promptOptions: ModelConfig,
 		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+		aggressivenessLevel: xtabPromptOptions.AggressivenessLevel,
 		telemetry: StatelessNextEditTelemetryBuilder,
 		delaySession: DelaySession,
 		tracer: ILogger,
@@ -618,8 +619,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 		}
 
-		// Adjust debounce based on user aggressiveness setting for non-aggressiveness models
-		if (!isEagernessPrompt(promptOptions)) {
+		// Use timing-based eagerness when the prompt does not handle this level.
+		if (!isEagernessPrompt(promptOptions, aggressivenessLevel)) {
 			this._applyAggressivenessSettings(delaySession, tracer);
 		}
 	}
@@ -894,6 +895,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
+			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
+			// ChatMLFetcher adds { max_tokens: endpoint.maxOutputTokens, ...requestOptions } when not using prediction.
+			// Explicit undefined overrides that default. JSON serialization then omits max_tokens
+			requestOptions.max_tokens = undefined;
+		}
+
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
 			{
@@ -915,11 +924,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				},
 				location: ChatLocation.Other,
 				source: undefined,
-				requestOptions: {
-					temperature: 0,
-					stream: true,
-					prediction,
-				} satisfies OptionalChatRequestParams,
+				requestOptions,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
 					requestId,
@@ -1823,6 +1828,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagerness:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagernessLowMedium:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

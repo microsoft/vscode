@@ -18,6 +18,8 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
+export const MAX_TOOL_RESULT_RESOURCE_BYTES = 8 * 1024 * 1024;
+
 /**
  * Subdirectory under a session's data directory that holds snapshotted
  * user-message attachments (e.g. pasted content, fetched file references).
@@ -68,6 +70,16 @@ export interface IFileEditContent {
 	beforeContent?: Uint8Array;
 	/** File content after the edit. Absent for file deletions. */
 	afterContent?: Uint8Array;
+}
+
+/** Metadata for an MCP tool result resource, without its embedded content. */
+export interface IToolResultResource {
+	ordinal: number;
+	kind: 'embedded' | 'link';
+	name: string;
+	mimeType?: string;
+	uri: string;
+	size?: number;
 }
 
 // ---- Reviewed-file types ------------------------------------------------
@@ -138,7 +150,13 @@ export interface ISessionCatalogSyncAcknowledgement {
 }
 
 /** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
-export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed' | 'cancelled';
+
+/** Outcome of atomically transitioning catalog synchronization generations. */
+export type SessionCatalogSyncTransitionResult = 'applied' | 'generationMismatch' | 'cancelled';
+
+/** Synchronous lifetime check evaluated at catalog receipt write boundaries. */
+export type SessionCatalogSyncWriteValidator = () => boolean;
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -365,6 +383,15 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
 
+	/** Atomically replaces the resources for a tool invocation within an existing turn. */
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void>;
+
+	/** Retrieves resource metadata by tool call, ordered by ordinal, without loading content. */
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>>;
+
+	/** Reads one embedded resource's bytes and stored MIME type on demand. */
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
+
 	// ---- Session metadata ------------------------------------------------
 
 	/**
@@ -382,6 +409,9 @@ export interface ISessionDatabase extends IDisposable {
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/** Atomically replaces a metadata value using its latest stored value. */
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
 
 	/**
 	 * Atomically store multiple metadata key-value pairs.
@@ -402,12 +432,12 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Atomically stores metadata and advances the durable catalog relay snapshot.
 	 */
-	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult>;
 
 	/**
 	 * Atomically transitions to a new session generation when the stored generation matches.
 	 */
-	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult>;
 
 	/**
 	 * Returns the durable catalog relay snapshot, if one has been stored.

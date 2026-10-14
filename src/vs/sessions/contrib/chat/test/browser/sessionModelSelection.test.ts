@@ -155,8 +155,6 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 		},
 		getModelPickerOptions(): ISessionModelPickerOptions {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: true,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 			};
@@ -1249,6 +1247,32 @@ suite('SessionModelSelection', () => {
 			// Nothing is shown while the draft's own model might still arrive.
 			whilePending: undefined,
 			afterResolve: second.identifier,
+		});
+	});
+
+	test('moves a chat whose model is gone for good to the configured default instead of a stand-in', () => {
+		// The chat's model, also the last explicit pick, has been dropped from a settled catalog.
+		const gone = 'test/gone';
+		const testSession = createSession('provider', SessionStatus.Completed, gone);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [auto, first, second];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, gone);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(second.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			writes: provider.writes,
+		}, {
+			current: second.identifier,
+			writes: [second.identifier],
 		});
 	});
 

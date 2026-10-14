@@ -104,7 +104,7 @@ It already composes:
 - [Repository/issue/commit and PR queries](common/githubQueryService.ts#L221).
 - [PR mutations and workflow operations](common/githubPullRequestMutationService.ts#L166).
 - [Shared PR subscriptions and polling](common/pullRequestResourceService.ts#L38).
-- Opt-in [shared-process anonymous reads](common/githubIpc.ts). Workbench engines remain per window; fetch integration and authenticated-client migration are separate work.
+- Service-owned [fetch helpers and host networking](README.md#host-networking), plus opt-in [shared-process anonymous reads](common/githubIpc.ts). Workbench engines remain per window; neither fetch forwarding nor authenticated-client migration is enabled by this hosting preparation.
 
 ### What it replaces and what remains with callers
 
@@ -127,7 +127,16 @@ It already composes:
 
 1. **Identity:** the engine supports explicit provider/session/scope/endpoint clients and credential-independent anonymous public JSON reads, with shared quota coordination and isolated private resources. Current workbench features retain default-account selection in their binding. Extension consent, Copilot anonymous/device token issuance, additional issuers and CAPI-specific bootstrap credentials still need integration.
 2. **Transport shapes:** the current contract is primarily JSON plus bounded text download, not yet the general binary, multipart, SSE/WebSocket and response-metadata contract these clients require.
-3. **Operation coverage:** existing typed APIs cover much of PR work, but not everything. Repository discovery/search and pending-review creation, for example, need additional coverage or governed REST/GraphQL access.
+3. **Operation coverage:** typed repository metadata, accessible-repository listing and repository search are available alongside the existing PR APIs. Discovery is explicitly paged and preserves incomplete-search and result-ceiling metadata; query scoping and selection remain caller-owned. Repository creation/fork/branch operations and pending-review creation still need additional coverage or governed REST/GraphQL access.
 4. **Aggregate protection:** per-engine bounded admission, caller fairness, request deadlines and response limits are implemented. Credential invalidation preserves live cooldowns and reclaims expired inactive-account state. Request-rate budgets, aggregate pagination/fan-out budgets, live subscription caps and cross-window coordination remain to be implemented.
 
 The key boundary is to **consolidate request execution, protection and shared resources**, not entire feature services or the generic HTTP service used for unrelated destinations.
+
+### Repository contract follow-up
+
+The follow-up was checked against VS Code `5983cda0c8126417e5a9cdf33d0be2f4000d3f04` after the merged Agent Host migration (#338992), and the read-only Pull Requests extension checkout `596a9bbd4a36c482cbe1faa862fa8e4ec5a8a345`.
+
+- Core link presentations already consume repository/issue/PR resources directly. The shared-process binding remains anonymous-only; authenticated relocation is not part of these domain additions.
+- The [Sessions repository fetcher](../../sessions/contrib/github/browser/fetchers/githubRepositoryFetcher.ts) needs repository metadata, accessible-repository pages and qualified search. The [built-in remote-source provider](../../../../extensions/github/src/remoteSourceProvider.ts) additionally needs server-provided HTTPS/SSH clone URLs. The [Pull Requests extension metadata reader](https://github.com/microsoft/vscode-pull-request-github/blob/596a9bbd4a36c482cbe1faa862fa8e4ec5a8a345/src/github/githubRepository.ts#L414) uses repository identity and the default branch.
+- `getRepository`, `listRepositories` and `searchRepositories` address those proven gaps without a new client facade, token handling, independent cache or polling. The legacy consumers above are contract evidence, not newly migrated clients.
+- Existing branch/SHA association, PR creation, repository merge settings and auto-merge already use the shared domain. Their fork/ambiguity handling, caller-approved selection, metadata, cancellation and no-replay creation behavior are unchanged.

@@ -1365,12 +1365,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-instructions ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1388,12 +1389,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-prompt ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1411,12 +1413,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-skill ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1434,12 +1437,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-agent ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1457,12 +1461,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-hook ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1539,13 +1544,12 @@ export function registerChatActions() {
 		}
 	});
 
-	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
 			title: localize2('openChatCustomizations', "Open Customizations"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.gear
+			icon: Codicon.extensions
 		},
 		group: 'navigation',
 		when: ContextKeyExpr.and(

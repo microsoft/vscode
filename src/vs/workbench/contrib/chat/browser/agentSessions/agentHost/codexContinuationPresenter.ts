@@ -45,7 +45,7 @@ export class CodexContinuationPresenter extends Disposable {
 		this._register(autorun(reader => { _nudge.candidate.read(reader); _nudge.revision.read(reader); schedule(); }));
 		this._register(_host.onDidChangeFocus(schedule));
 		this._register(_delegate.onDidChangePresentability(schedule));
-		this._register(toDisposable(() => { void _nudge.releasePresentation(); }));
+		this._register(toDisposable(() => { void _nudge.releasePresentation(); _nudge.endPreview(); }));
 	}
 
 	private async _update(): Promise<void> {
@@ -58,6 +58,7 @@ export class CodexContinuationPresenter extends Disposable {
 				this._presentation.clear();
 				this._visible = false;
 				void this._nudge.releasePresentation();
+				this._nudge.endPreview();
 			}
 			return;
 		}
@@ -76,6 +77,15 @@ export class CodexContinuationPresenter extends Disposable {
 			let visibilityClaim: Promise<boolean> | undefined;
 			let actionPending = false;
 			const isVisible = () => !presentation.isDisposed && !this._store.isDisposed && this._host.hasFocus && this._delegate.isPresentable();
+			const close = (reason: 'action' | 'dismissed' | 'unavailable') => {
+				// A late callback belongs only to the presentation that created it.
+				if (this._presentation.value !== presentation) { return; }
+				if (this._visible && reason === 'dismissed') { this._nudge.dismiss(this._delegate.surface); }
+				this._presentation.clear();
+				this._visible = false;
+				void this._nudge.releasePresentation();
+				if (reason !== 'action') { this._nudge.endPreview(); }
+			};
 			const claimVisibility = (): Promise<boolean> => {
 				if (!isVisible()) { return Promise.resolve(false); }
 				return visibilityClaim ??= (async () => {
@@ -84,20 +94,14 @@ export class CodexContinuationPresenter extends Disposable {
 						if (presentation.isDisposed) { return false; }
 						this._visible = visible;
 						if (visible) { presentation.add(this._nudge.trackVisibility()); }
-						else { this._presentation.clear(); }
+						else { close('unavailable'); }
 						return visible;
 					} catch (error) {
+						close('unavailable');
 						onUnexpectedError(error);
-						presentation.dispose();
 						return false;
 					}
 				})();
-			};
-			const close = (reason: 'action' | 'dismissed') => {
-				if (this._visible && reason === 'dismissed') { this._nudge.dismiss(this._delegate.surface); }
-				this._presentation.clear();
-				this._visible = false;
-				void this._nudge.releasePresentation();
 			};
 			presentation.add(this._delegate.show(candidate, claimVisibility, close, async action => {
 				if (actionPending || !isVisible()) { return; }
@@ -107,11 +111,14 @@ export class CodexContinuationPresenter extends Disposable {
 				if (!await claimVisibility() || !isVisible()) { return; }
 				close('action');
 				try { await action(); } catch (error) { onUnexpectedError(error); }
+				finally { this._nudge.endPreview(); }
 			}));
 
 		} catch {
 			this._presentation.clear();
+			this._visible = false;
 			await this._nudge.releasePresentation();
+			this._nudge.endPreview();
 		} finally {
 			this._opening = false;
 			if (generation !== this._generation && !this._store.isDisposed) { this._schedule.schedule(); }

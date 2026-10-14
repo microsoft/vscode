@@ -384,11 +384,11 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 		|| (schema.readOnly && ['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(property))) {
 		return false;
 	}
-	if (
-		property === SessionConfigKey.SandboxEnabled ||
-		property === SessionConfigKey.WorktreeBranchTrack ||
-		property === SessionConfigKey.WorktreeCreateNewBranch
-	) {
+	if (property === SessionConfigKey.SandboxEnabled) {
+		return false;
+	}
+	// TODO: Consolidate timeout configuration UI with other clients.
+	if (property === 'inputRequestTimeout') {
 		return false;
 	}
 	if (presentation === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
@@ -1275,7 +1275,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					? worktreeDisabled
 						? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
 						: localize('agentHostSessionConfig.isolation.worktreeDescription', "Creates a separate copy for this session")
-					: localize('agentHostSessionConfig.isolation.branchDescription', "Works in the repository already on your machine"),
+					: localize('agentHostSessionConfig.isolation.branchDescription', "Works in the repository already on this computer"),
 				disabled: value === 'worktree' && worktreeDisabled,
 			}));
 		}

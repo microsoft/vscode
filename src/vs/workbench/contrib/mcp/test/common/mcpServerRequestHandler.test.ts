@@ -39,6 +39,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 		return Promise.resolve(launch);
 	}
 
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
+
 	canStart(): boolean {
 		return true;
 	}

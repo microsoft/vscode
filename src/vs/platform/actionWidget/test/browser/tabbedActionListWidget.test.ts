@@ -23,12 +23,13 @@ import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { ActionList, ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
-import { TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
+import { getTabbedActionListKeybindingLabels, TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
 import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } from '../../browser/actionWidgetMotion.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ITestItem {
@@ -99,13 +100,13 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	}
 }
 
-function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService) {
+function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService, hoverService: IHoverService = NullHoverService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextView = new FakeContextViewService();
 	const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
 	instantiationService.stub(IContextViewService, contextViewService ?? contextView as IContextViewService);
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
-	instantiationService.set(IHoverService, NullHoverService);
+	instantiationService.set(IHoverService, hoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
 	instantiationService.set(IAccessibilityService, new class extends TestAccessibilityService {
 		override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
@@ -224,6 +225,38 @@ suite('TabbedActionListWidget', () => {
 		assert.strictEqual(widget.isVisible, false);
 	});
 
+	test('tab bar actions use managed hovers', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', useManagedHover: true, run: () => { } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.deepStrictEqual({
+			managedHovers: setupManagedHover.getCalls().map(call => ({
+				action: call.args[1].dataset.id,
+				content: call.args[2],
+				nativeTitle: call.args[1].getAttribute('title'),
+			})),
+			searchTitle: document.querySelector<HTMLElement>('[data-id="search"]')?.title,
+		}, {
+			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
+			searchTitle: 'Search Models',
+		});
+	});
+
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;
@@ -299,7 +332,7 @@ suite('TabbedActionListWidget', () => {
 		});
 		const popup = input.closest<HTMLElement>('.action-widget')!;
 		popup.style.setProperty('--vscode-button-border', '#0069cc');
-		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label^="Back"]')!;
 		back.focus();
 		assert.deepStrictEqual({
 			inlineBorder: back.style.border,
@@ -308,6 +341,86 @@ suite('TabbedActionListWidget', () => {
 			textButton: back.classList.contains('monaco-text-button'),
 			focused: document.activeElement === back,
 		}, { inlineBorder: '', borderWidth: '0px', iconAction: true, textButton: false, focused: true });
+	});
+
+	test('the Go Back keys leave details and return focus to the requested row', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')] }),
+			delegate: { onSelect: () => assert.fail('Back must not select'), onHide: () => { } },
+		});
+		let radio: Radio | undefined;
+		widget.showDetails({
+			label: 'Details',
+			backLabel: 'Back',
+			render: container => {
+				radio = new Radio({ items: [{ text: 'Low', isActive: true }, { text: 'High' }], arrowKeyBehavior: 'focus' });
+				container.appendChild(radio.domNode);
+				return radio;
+			},
+			restoreFocus: () => widget.focusItem('second'),
+		});
+		assert.ok(radio);
+		radio.focusActiveItem();
+		const backKey = isWindows
+			? { key: 'ArrowLeft', keyCode: 37, altKey: true }
+			: { key: '-', keyCode: 189, ctrlKey: true, altKey: !isMacintosh };
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...backKey });
+		radio.optionElements[0].dispatchEvent(event);
+		await settleLayout();
+		const popup = contextView.getContextViewElement();
+		assert.deepStrictEqual({
+			prevented: event.defaultPrevented,
+			visible: widget.isVisible,
+			details: widget.isShowingDetails,
+			listFocused: document.activeElement === popup.querySelector('.monaco-list'),
+			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+		}, { prevented: true, visible: true, details: false, listFocused: true, focusedRow: 'second' });
+	});
+
+	test('Left and Right belong to list rows, and the editor tab keys switch tabs', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const tabChanges: string[] = [];
+		disposables.add(widget.onDidChangeTab(tab => tabChanges.push(tab)));
+		const requested: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('plain'), action('details')] }),
+			openItemDetails: item => {
+				requested.push(item.item!.id);
+				return item.item?.id === 'details';
+			},
+			delegate: { onSelect: () => assert.fail('Arrows must not select'), onHide: () => { } },
+		});
+		const list = contextView.getContextViewElement().querySelector<HTMLElement>('.monaco-list')!;
+		const press = (init: KeyboardEventInit) => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			list.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const withoutDetails = { left: press({ key: 'ArrowLeft', keyCode: 37 }), right: press({ key: 'ArrowRight', keyCode: 39 }) };
+		press({ key: 'ArrowDown', keyCode: 40 });
+		const withDetails = press({ key: 'ArrowRight', keyCode: 39 });
+		const tabsBeforeShortcut = [...tabChanges];
+		const nextTab = press(isMacintosh
+			? { key: 'ArrowRight', keyCode: 39, metaKey: true, altKey: true }
+			: { key: 'PageDown', keyCode: 34, ctrlKey: true });
+		assert.deepStrictEqual({ withoutDetails, withDetails, requested, tabsBeforeShortcut, nextTab, tabChanges }, {
+			withoutDetails: { left: false, right: false },
+			withDetails: true,
+			requested: ['plain', 'details'],
+			tabsBeforeShortcut: [],
+			nextTab: true,
+			tabChanges: ['Remote'],
+		});
+		widget.hide();
 	});
 
 	test('details defer list updates and restore toolbar focus after pin-like changes', async () => {
@@ -445,6 +558,51 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('keeps its rows when the page leaves no room beside the anchor', () => {
+		const { widget, contextView } = createWidget(disposables);
+		// A long page, like the one a full test run leaves behind, pushes the anchor's free space out of view.
+		const filler = document.createElement('div');
+		filler.style.height = '5000px';
+		document.body.prepend(filler);
+		disposables.add({ dispose: () => filler.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')], listOptions: { showFilter: true } }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
+		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
+	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const changes: boolean[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+			}),
+			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
+		});
+		const toggle = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.action-list-item-inline-toggle .monaco-switch')!;
+		toggle.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		toggle.dispatchEvent(enter);
+		// A synthetic keydown has no default action, so emulate the button's native activation.
+		if (!enter.defaultPrevented) {
+			toggle.click();
+		}
+		assert.deepStrictEqual({ enterPrevented: enter.defaultPrevented, changes, checked: toggle.getAttribute('aria-checked'), visible: widget.isVisible }, {
+			enterPrevented: false, changes: [false], checked: 'false', visible: true,
+		});
+	});
+
 	test('details scroll independently and retain a fixed Back button', async () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('button');
@@ -475,7 +633,7 @@ suite('TabbedActionListWidget', () => {
 		});
 		await settleLayout();
 		const popup = contextView.getContextViewElement();
-		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label^="Back"]')!;
 		const title = popup.querySelector<HTMLElement>('.tabbed-action-list-details-header > span')!;
 		const viewport = popup.querySelector<HTMLElement>('.tabbed-action-list-details-viewport')!;
 		const buttonBounds = back.getBoundingClientRect();
@@ -493,7 +651,7 @@ suite('TabbedActionListWidget', () => {
 			backLabel: back.getAttribute('aria-label'),
 			details: widget.isShowingDetails,
 			mainHidden: popup.querySelector('.tabbed-action-list-main')?.getAttribute('aria-hidden'),
-		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: 'Back', details: true, mainHidden: 'true' });
+		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: `Back (${getTabbedActionListKeybindingLabels(new MockKeybindingService()).back})`, details: true, mainHidden: 'true' });
 	});
 
 	test('details stay anchored after their rendered header height settles', async () => {

@@ -28,7 +28,7 @@ import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -44,6 +44,8 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
+import { CloudSandboxModels } from './cloudSandboxModels.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -261,7 +263,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (connection.registerMcpAuthenticationHandler) {
 			// Remote chat URIs encode the host in their scheme, not their authority.
 			store.add(connection.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
+					{ authenticate: this._authenticateCallback(address, connection) },
+					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
 		}
 		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
@@ -352,19 +356,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
 		const prepareSession = connState.prepareSession;
 
-		// Capture the working directory from the session that is being created.
-		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
+		// Capture the working directory from the session that is being created. An explicit
+		// `null` from the session type is preserved so the host chooses the directory.
+		const resolveWorkingDirectory = (sessionResource: URI): RequestedWorkingDirectory => {
 			const resourceKey = sessionResource.toString();
 			const cached = sessionWorkingDirs.get(resourceKey);
 			if (cached) {
 				return cached;
 			}
-			const workingDirectory = this._workingDirectoryResolver.resolve(sessionResource);
+			const workingDirectory = this._workingDirectoryResolver.resolveRequested(sessionResource);
 			if (workingDirectory) {
 				sessionWorkingDirs.set(resourceKey, workingDirectory);
-				return workingDirectory;
 			}
-			return undefined;
+			return workingDirectory;
 		};
 		const isNewSession = (sessionResource: URI): boolean => this._workingDirectoryResolver.isNewSession(sessionResource);
 
@@ -424,11 +428,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
+		const customization = this._connectionCustomizations.get(address);
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
-			requiresWorkspaceTrust: this._connectionCustomizations.get(address)?.requiresWorkspaceTrust,
+			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
+			requiresWorkspaceTrust: customization?.requiresWorkspaceTrust,
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -439,15 +444,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
 			prepareSession: prepareSession ? async (sessionResource, token) => {
-				const directory = await prepareSession(resolveWorkingDirectory(sessionResource), token);
+				const directory = await prepareSession(resolveWorkingDirectory(sessionResource) ?? undefined, token);
 				if (directory) {
 					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
 				}
 			} : undefined,
 			isNewSession,
+			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
+			modelIdentifierAliases: customization?.modelIdentifierAliases,
+			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
-		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
+		agentStore.add(customization?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
+			?? this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
@@ -460,6 +469,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 		modelProvider.updateModels(agent.models);
+		if (isCloudSandboxConnectionAddress(address) && agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER) {
+			// Sandbox runtimes can accept cloud-service models omitted from their AHP catalog.
+			const cloudModels = agentStore.add(this._instantiationService.createInstance(CloudSandboxModels, sessionType, vendor, modelProvider));
+			cloudModels.load();
+		}
 
 		this._logService.info(`[RemoteAgentHost] Registered agent ${agent.provider} from ${address} as ${sessionType}`);
 	}
@@ -541,9 +555,20 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (!connState) {
 			return;
 		}
+		const renewAuthentication = reason === AuthRequiredReason.Expired
+			? this._connectionCustomizations.get(address)?.renewAuthentication
+			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
+			isCurrent: () => this._connections.get(address) === connState,
+			renewAuthentication: renewAuthentication ? async resource => {
+				const request = await renewAuthentication(resource);
+				if (this._connections.get(address) !== connState) {
+					throw new CancellationError();
+				}
+				await connection.authenticate(request);
+			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
 		}))
 			.catch(err => {

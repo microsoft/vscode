@@ -220,6 +220,8 @@ export interface IRemoteAgentHostWSLConnection {
  * on demand with freshly-minted, short-lived credentials.
  */
 export interface IRemoteAgentHostCloudSandboxConnection {
+	/** User-local environments use the same MC transport but not sandbox-specific providers. */
+	readonly environmentKind?: 'user-local';
 	readonly type: RemoteAgentHostEntryType.CloudSandbox;
 	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
 	readonly address: string;
@@ -718,6 +720,9 @@ export interface IRemoteAgentHostService {
 	/** Sets a machine-local display-name override. An empty or undefined name restores the default. */
 	setDisplayName(address: string, name: string | undefined): void;
 
+	/** Delegates local labels to an inventory owner with its own account/profile persistence. */
+	registerDisplayName(address: string, name: IObservable<string | undefined>, setName: (name: string | undefined) => void): IDisposable;
+
 	/**
 	 * Known remote addresses with metadata. This is a status catalog, not a
 	 * liveness list: an entry is retained after a failed dial so its
@@ -844,6 +849,9 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly onDidChangeConfiguredEntries = Event.None;
 	getDisplayNameOverride(): string | undefined { return undefined; }
 	setDisplayName(): void {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
+	registerDisplayName(): IDisposable {
 		throw new Error('Remote agent host display names are not supported in this environment.');
 	}
 	registerConnectionFactory(): IDisposable {

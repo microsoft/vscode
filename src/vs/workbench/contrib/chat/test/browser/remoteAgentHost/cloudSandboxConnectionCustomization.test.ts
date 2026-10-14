@@ -39,9 +39,38 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 			}
 		}();
 		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
-		assert.ok(customization?.authenticate);
-		return { authenticate: customization.authenticate, requests };
+		assert.ok(customization?.authenticate && customization.renewAuthentication);
+		return { authenticate: customization.authenticate, renewAuthentication: customization.renewAuthentication, requests };
 	}
+
+	test('renews a protected resource without a user authentication token', async () => {
+		const fixture = createFixture();
+		const result = await fixture.renewAuthentication({
+			resource: 'https://api.github.com',
+			scopes_supported: ['repo', 'read:user'],
+		});
+		assert.deepStrictEqual({ result, requests: fixture.requests }, {
+			result: { resource: 'https://api.github.com', scopes: ['repo', 'read:user'], token: 'copilot-sealed.v1.key.fresh' },
+			requests: ['refresh:env-1'],
+		});
+	});
+
+	test('user-local MCP renewal stays on the trusted workbench sealing path', async () => {
+		const requests: string[] = [];
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true, async request => {
+			requests.push(request.resource);
+			return { ...request, token: 'copilot-sealed.v1.mcp.fresh' };
+		});
+		assert.ok(customization?.authenticate);
+		const request = { resource: 'https://mcp.example.test', scopes: ['mcp'], token: 'test-mcp-token' };
+		const result = await customization.authenticate(request, AuthRequiredReason.Expired);
+		assert.deepStrictEqual({ result, requests, renewal: customization.renewAuthentication }, {
+			result: { ...request, token: 'copilot-sealed.v1.mcp.fresh' },
+			requests: ['https://mcp.example.test'],
+			renewal: undefined,
+		});
+	});
 
 	for (const token of ['plaintext', 'copilot-sealed.v1.key.challenged']) {
 		test(`renews an expired challenge instead of forwarding ${token}`, async () => {
@@ -76,14 +105,16 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		const failure = new Error('refresh unavailable');
 		const fixture = createFixture(async () => { throw failure; });
 		await assert.rejects(fixture.authenticate({ resource: 'https://api.github.com', token: 'plaintext' }, AuthRequiredReason.Expired), failure);
-		assert.deepStrictEqual(fixture.requests, ['refresh:env-1']);
+		await assert.rejects(fixture.renewAuthentication({ resource: 'https://api.github.com' }), failure);
+		assert.deepStrictEqual(fixture.requests, ['refresh:env-1', 'refresh:env-1']);
 	});
 
 	for (const token of [undefined, 'plaintext']) {
 		test(`rejects an unusable renewed credential: ${token}`, async () => {
 			const fixture = createFixture(async () => token);
 			await assert.rejects(fixture.authenticate({ resource: 'https://api.github.com', token: 'plaintext' }, AuthRequiredReason.Expired), /No sealed GitHub token/);
-			assert.deepStrictEqual(fixture.requests, ['refresh:env-1']);
+			await assert.rejects(fixture.renewAuthentication({ resource: 'https://api.github.com' }), /No sealed GitHub token/);
+			assert.deepStrictEqual(fixture.requests, ['refresh:env-1', 'refresh:env-1']);
 		});
 	}
 
@@ -91,6 +122,7 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		const fixture = createFixture();
 		for (const resource of ['https://example.com', 'https://github.com.example.com', 'not a URL']) {
 			await assert.rejects(fixture.authenticate({ resource, token: 'copilot-sealed.v1.key.challenged' }, AuthRequiredReason.Expired), /non-GitHub resource/);
+			await assert.rejects(fixture.renewAuthentication({ resource }), /non-GitHub resource/);
 		}
 		assert.deepStrictEqual(fixture.requests, []);
 	});

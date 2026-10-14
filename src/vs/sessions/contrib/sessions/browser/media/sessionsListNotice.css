@@ -29,29 +29,10 @@
 	color: var(--vscode-foreground);
 }
 
-.agent-sessions-list-notice-dismiss {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.agent-sessions-list-notice .agent-sessions-list-notice-dismiss {
 	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	outline: none;
-}
-
-.agent-sessions-list-notice-dismiss:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.agent-sessions-list-notice-dismiss:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	width: auto;
+	padding: var(--vscode-spacing-size20);
 }
 
 .agent-sessions-list-notice-actions {

@@ -89,6 +89,27 @@ suite('Sessions - External Session Banner', () => {
 		});
 	});
 
+	test('uses the session content inset for its width', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = append(mainWindow.document.body, $('div'));
+		container.style.width = '800px';
+		container.style.setProperty('--session-view-content-horizontal-padding', '24px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		disposables.add(toDisposable(() => container.remove()));
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {}));
+		banner.setSession(externalSession('codex'));
+
+		const containerBounds = container.getBoundingClientRect();
+		const bannerBounds = banner.domNode.getBoundingClientRect();
+		assert.deepStrictEqual({
+			containerWidth: containerBounds.width,
+			bannerWidth: bannerBounds.width,
+		}, {
+			containerWidth: 800,
+			bannerWidth: 752,
+		});
+	});
+
 	test('closing permanently dismisses every external session banner and restores focus', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const container = append(mainWindow.document.body, $('div'));

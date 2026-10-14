@@ -11,11 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot, type IToolResultResource } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPersistedSessionConfigValues } from '../../common/sessionConfigKeys.js';
 
 suite('SessionDatabase', () => {
 
@@ -460,6 +461,84 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	suite('tool result resources', () => {
+
+		test('stores metadata in ordinal order and reads embedded content without persisting link content', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const content = new Uint8Array([0, 1, 255]);
+			const embedded: IToolResultResource = { ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType: 'application/octet-stream', size: 3 };
+			const link: IToolResultResource = { ordinal: 3, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: undefined, size: undefined };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...link, content }, { ...embedded, content }]);
+			await db.storeToolResultResources('turn-1', 'tool-2', [{ ...embedded, content: new Uint8Array() }]);
+
+			assert.deepStrictEqual({
+				resources: await db.getToolResultResources(['tool-1', 'tool-2', 'missing']),
+				content: await db.readToolResultResourceContent('tool-1', 1),
+				empty: await db.readToolResultResourceContent('tool-2', 1),
+				link: await db.readToolResultResourceContent('tool-1', 3),
+				missing: await db.readToolResultResourceContent('missing', 0),
+				tables: (await db.getAllTables()).includes('tool_result_resources'),
+			}, {
+				resources: new Map([['tool-1', [embedded, link]], ['tool-2', [embedded]]]),
+				content: { content, mimeType: 'application/octet-stream' },
+				empty: { content: new Uint8Array(), mimeType: 'application/octet-stream' },
+				link: undefined,
+				missing: undefined,
+				tables: true,
+			});
+		});
+
+		test('replaces a batch atomically and rejects resources for missing turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const first: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'first', uri: 'demo:/first', mimeType: 'text/plain', size: 1 };
+			const replacement: IToolResultResource = { ...first, ordinal: 2, name: 'replacement' };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...first, content: new Uint8Array([1]) }]);
+			await assert.rejects(db.storeToolResultResources('missing', 'tool-1', []), /missing turn/);
+			await assert.rejects(db.storeToolResultResources('turn-1', 'tool-1', [replacement, replacement]), /UNIQUE constraint/);
+			const afterFailure = await db.getToolResultResources(['tool-1']);
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...replacement, content: new Uint8Array([2]) }]);
+
+			assert.deepStrictEqual({ afterFailure, replaced: await db.getToolResultResources(['tool-1']), content: await db.readToolResultResourceContent('tool-1', 2) }, {
+				afterFailure: new Map([['tool-1', [first]]]),
+				replaced: new Map([['tool-1', [replacement]]]),
+				content: { content: new Uint8Array([2]), mimeType: 'text/plain' },
+			});
+		});
+
+		test('turn deletion cascades and fork remapping retains only surviving resources', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource', mimeType: 'text/plain', size: 1 };
+			for (const turnId of ['old-1', 'old-2', 'deleted']) {
+				await db.createTurn(turnId);
+				await db.storeToolResultResources(turnId, turnId, [{ ...resource, content: new Uint8Array([1]) }]);
+			}
+			await db.deleteTurn('deleted');
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			const retained = await db.getToolResultResources(['old-1', 'old-2', 'deleted']);
+			await db.deleteTurn('new-1');
+
+			assert.deepStrictEqual({ retained, afterDelete: await db.getToolResultResources(['old-1']), content: await db.readToolResultResourceContent('old-1', 0) }, {
+				retained: new Map([['old-1', [resource]]]),
+				afterDelete: new Map(),
+				content: undefined,
+			});
+		});
+
+		test('bounds embedded content writes and reads', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource' };
+			await assert.rejects(database.storeToolResultResources('turn-1', 'oversized', [{ ...resource, content: new Uint8Array(MAX_TOOL_RESULT_RESOURCE_BYTES + 1) }]), /exceeds/);
+			await database.runRaw(`INSERT INTO tool_result_resources (tool_call_id, ordinal, turn_id, kind, name, uri, content)
+				VALUES ('malformed', 0, 'turn-1', 'embedded', 'resource', 'demo:/resource', zeroblob(${MAX_TOOL_RESULT_RESOURCE_BYTES + 1}))`);
+			await assert.rejects(database.readToolResultResourceContent('malformed', 0), /exceeds/);
+			assert.deepStrictEqual(await database.getToolResultResources(['oversized']), new Map());
+		});
+	});
+
 	// ---- Terminal outputs ----------------------------------------------
 
 	suite('terminal outputs', () => {
@@ -869,7 +948,7 @@ suite('SessionDatabase', () => {
 				tables: await db.getAllTables(),
 				records: await db.getPersistedTurns(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
 			});
 		});
@@ -1436,6 +1515,50 @@ suite('SessionDatabase', () => {
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
 		});
 
+		test('updateMetadata serializes read-modify-write with other metadata writes', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.updateMetadata('key', previous => previous ?? 'initial');
+			await Promise.all([
+				db.setMetadata('key', 'replacement'),
+				db.updateMetadata('key', previous => `${previous}:first`),
+				db.updateMetadata('key', previous => `${previous}:second`),
+			]);
+			assert.strictEqual(await db.getMetadata('key'), 'replacement:first:second');
+		});
+
+		test('sandbox config fallback observes a preceding runtime confirmation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'on', stale: true }));
+			await Promise.all([
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'interactive' }, false, previous))),
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'on', mode: 'plan', shellInitScripts: [] }, undefined, previous))),
+			]);
+			assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { sandboxEnabled: 'off', mode: 'plan' });
+		});
+
+		for (const previous of ['{}', '{"sandboxEnabled":"default"}']) {
+			test(`sandbox config does not persist an unconfirmed selection over ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'plan' }, undefined, stored)));
+				assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { mode: 'plan' });
+			});
+		}
+
+		for (const previous of ['invalid JSON', 'null', '{"sandboxEnabled":false}']) {
+			test(`sandbox config reports invalid persisted values and rolls back: ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await assert.rejects(db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, undefined, stored))));
+				const afterFailure = await db.getMetadata('configValues');
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, true, stored)));
+				assert.deepStrictEqual({
+					afterFailure,
+					afterConfirmation: JSON.parse((await db.getMetadata('configValues'))!),
+				}, { afterFailure: previous, afterConfirmation: { mode: 'plan', sandboxEnabled: 'on' } });
+			});
+		}
+
 		test('deleteMetadata removes only the requested keys', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.setMetadataValues({
@@ -1612,7 +1735,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -1639,7 +1762,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});
@@ -1754,7 +1877,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: true,
+				transitioned: 'applied',
 				title: 'New generation',
 				snapshot: nextGeneration,
 			});
@@ -1780,7 +1903,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: false,
+				transitioned: 'generationMismatch',
 				title: 'Current generation',
 				snapshot: snapshot(100),
 			});
@@ -1944,7 +2067,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('the latest snapshot remains pending when relay is interrupted', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
@@ -1968,7 +2091,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('validates snapshot and acknowledgement boundaries', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));

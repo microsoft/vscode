@@ -16,6 +16,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { NotificationViewItem } from '../../../common/notifications.js';
 import { LinkedTextNode } from '../../../../base/common/linkedText.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
+import { NotificationService } from '../../../services/notification/common/notificationService.js';
+import { NotificationActionRunner } from '../../../browser/parts/notifications/notificationsCommands.js';
+import { logNotificationShown } from '../../../common/notificationTelemetry.js';
+import { TestNotificationTelemetryService } from '../../../test/common/testNotificationTelemetry.js';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -103,6 +109,45 @@ class EmptyNotificationService implements INotificationService {
 }
 
 suite('ExtHostMessageService', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('notification telemetry', () => {
+		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
+			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
+				const telemetry = new TestNotificationTelemetryService();
+				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
+				store.add(toDisposable(() => {
+					for (const item of [...notifications.model.notifications]) {
+						item.close();
+					}
+				}));
+				const service = store.add(new MainThreadMessageService(null!, notifications, emptyCommandService, new TestDialogService(), new TestExtensionService()));
+				const runner = store.add(new NotificationActionRunner(undefined, telemetry, notifications));
+				const promise = service.$showMessage(Severity.Warning, 'private message', {
+					source: identifier ? { identifier: new ExtensionIdentifier(identifier), label: 'private source label' } : undefined
+				}, [{ handle: 2, title: 'Sign in to private server', isCloseAffordance: true }]);
+				const item = notifications.model.notifications[0];
+				logNotificationShown(telemetry, item, 'toast');
+				if (identifier) {
+					await runner.run(item.actions!.secondary![0], item);
+				}
+				await runner.run(item.actions!.primary![0], item);
+				item.close();
+				const selected = await promise;
+				assert.deepStrictEqual({
+					selected,
+					attribution: item.telemetry,
+					actions: telemetry.interactions.map(event => [event.interaction, event.actionId, event.extensionButtonIndex]),
+					privatePayload: JSON.stringify([...telemetry.shown, ...telemetry.interactions]).includes('private')
+				}, {
+					selected: 2,
+					attribution: { origin: 'extension', notificationId: 'extension.message', extensionId: identifier === 'Publisher.Extension' ? 'publisher.extension' : 'unknown' },
+					actions: [...(identifier ? [['secondaryAction', 'manageExtension', -1]] : []), ['primaryAction', 'unknown', 2]],
+					privatePayload: false
+				});
+			});
+		}
+	});
 
 	test('preserves command and web links in extension notifications', async () => {
 		const store = new DisposableStore();
@@ -191,5 +236,4 @@ suite('ExtHostMessageService', function () {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

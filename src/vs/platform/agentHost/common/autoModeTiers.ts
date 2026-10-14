@@ -86,6 +86,13 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
+/** Localized picker label for a routing profile when Auto is presented as Ensemble, which names Intelligence High. */
+export function getEnsembleAutoModeTierLabel(tier: string): string {
+	return tier === 'intelligence'
+		? localize('autoModeTier.ensembleIntelligence', "High")
+		: getAutoModeTierLabel(tier);
+}
+
 /** Localized picker description, or nothing for an unrecognized value so callers can omit it. */
 export function getAutoModeTierDescription(tier: string): string | undefined {
 	switch (tier) {

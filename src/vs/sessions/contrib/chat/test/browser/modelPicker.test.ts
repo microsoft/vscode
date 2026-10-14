@@ -37,8 +37,6 @@ suite('ModelPicker selectability', () => {
 
 	test('returns true when models are available', () => {
 		assert.strictEqual(hasSelectableModel([aModel], normalizeModelPickerOptions({
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
 			showAutoModel: false,
@@ -47,8 +45,6 @@ suite('ModelPicker selectability', () => {
 
 	test('returns false when empty and Auto is unavailable', () => {
 		assert.strictEqual(hasSelectableModel([], normalizeModelPickerOptions({
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
 			showAutoModel: false,
@@ -57,8 +53,6 @@ suite('ModelPicker selectability', () => {
 
 	test('returns true when empty and Auto support is omitted', () => {
 		assert.strictEqual(hasSelectableModel([], normalizeModelPickerOptions({
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
 		})), true);
@@ -67,8 +61,6 @@ suite('ModelPicker selectability', () => {
 	test('allows an unresolved selection only when Auto is available', () => {
 		const pendingSelection = { reference: 'pending-model' };
 		const options = {
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
 		};
