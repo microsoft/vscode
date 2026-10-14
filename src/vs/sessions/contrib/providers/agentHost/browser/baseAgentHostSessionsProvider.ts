@@ -4329,6 +4329,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected abstract get authenticationPending(): IObservable<boolean>;
 	protected abstract registerBackendSession(backendSession: URI, provider: string): void;
 
+	/** Coalesces the session-resolution notifications of many {@link registerBackendSession} calls. */
+	protected batchBackendRegistrations<T>(fn: () => T): T {
+		return fn();
+	}
+
 	/** Connection state for remote-host sessions. */
 	protected get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> | undefined {
 		return undefined;
@@ -8087,44 +8092,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// first: a fragment row such as an older host's `<parent>#subagent/<id>` must not claim its
 			// parent's key just because it was listed earlier.
 			const ordered = [...sessions].sort((a, b) => Number(!!a.session.fragment) - Number(!!b.session.fragment));
-			for (const rawMeta of ordered) {
-				let rawId = rawMeta.session.toString();
-				try {
-					const meta = this._adoptSessionMeta(rawMeta);
-					rawId = meta.session.toString();
-					currentKeys.add(rawId);
-					const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
-					if (agentProvider) {
-						listedAgentProviders.add(agentProvider);
-					}
+			let createdAdapter = false;
+			this.batchBackendRegistrations(() => {
+				for (const rawMeta of ordered) {
+					let rawId = rawMeta.session.toString();
+					try {
+						const meta = this._adoptSessionMeta(rawMeta);
+						rawId = meta.session.toString();
+						currentKeys.add(rawId);
+						const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
+						if (agentProvider) {
+							listedAgentProviders.add(agentProvider);
+						}
 
-					const existing = this._sessionCache.get(rawId);
-					if (existing) {
-						if (announceExistingAsAdded) {
+						const existing = this._sessionCache.get(rawId);
+						if (existing) {
+							if (announceExistingAsAdded) {
+								added.push(existing);
+							}
+							if (this.updateAdapter(existing, meta)) {
+								changed.push(existing);
+							}
+						} else {
+							const cached = this.createAdapter(meta);
+							this._sessionCache.set(rawId, cached);
+							createdAdapter = true;
+							added.push(cached);
+						}
+					} catch (error) {
+						// A listed session that failed to apply is not a deletion.
+						currentKeys.add(rawId);
+						const existing = this._sessionCache.get(rawId);
+						const agentProvider = existing?.agentProvider ?? rawMeta.provider ?? AgentSession.provider(rawMeta.session);
+						if (agentProvider) {
+							listedAgentProviders.add(agentProvider);
+						}
+						if (announceExistingAsAdded && existing && !added.includes(existing)) {
 							added.push(existing);
 						}
-						if (this.updateAdapter(existing, meta)) {
-							changed.push(existing);
-						}
-					} else {
-						const cached = this.createAdapter(meta);
-						this._sessionCache.set(rawId, cached);
-						this._backendSessionsChanged.trigger(undefined);
-						added.push(cached);
+						failed.push(`${rawId} (${error})`);
 					}
-				} catch (error) {
-					// A listed session that failed to apply is not a deletion.
-					currentKeys.add(rawId);
-					const existing = this._sessionCache.get(rawId);
-					const agentProvider = existing?.agentProvider ?? rawMeta.provider ?? AgentSession.provider(rawMeta.session);
-					if (agentProvider) {
-						listedAgentProviders.add(agentProvider);
-					}
-					if (announceExistingAsAdded && existing && !added.includes(existing)) {
-						added.push(existing);
-					}
-					failed.push(`${rawId} (${error})`);
 				}
+			});
+			if (createdAdapter) {
+				this._backendSessionsChanged.trigger(undefined);
 			}
 			if (failed.length > 0) {
 				this._logService.warn(`[AgentHostSessionsProvider] Skipped ${failed.length} listed session(s) that could not be applied: ${failed.join(', ')}`);

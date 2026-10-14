@@ -666,12 +666,29 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		private readonly _resources = new ResourceMap<URI>();
 		private readonly _changed = disposables.add(new Emitter<void>());
 		override readonly onDidChangeSessionResolution = this._changed.event;
+		private _batchDepth = 0;
+		private _batchDirty = false;
 		override findSessionResource(backend: URI): URI | undefined { return this._resources.get(backend); }
+		override batchSessionResolutionChanges<T>(fn: () => T): T {
+			this._batchDepth++;
+			try {
+				return fn();
+			} finally {
+				if (--this._batchDepth === 0 && this._batchDirty) {
+					this._batchDirty = false;
+					this._changed.fire();
+				}
+			}
+		}
 		override registerSessionResource(backend: URI, authority = 'local', provider = backend.scheme): URI {
 			const resource = backend.with({ scheme: authority === 'local' ? `agent-host-${provider}` : `remote-${authority}-${provider}` });
 			if (!this._resources.has(backend)) {
 				this._resources.set(backend, resource);
-				this._changed.fire();
+				if (this._batchDepth > 0) {
+					this._batchDirty = true;
+				} else {
+					this._changed.fire();
+				}
 			}
 			return resource;
 		}
@@ -4654,6 +4671,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 			marked: true,
 			afterDelete: false,
 			changed: [true, false],
+		});
+	}));
+
+	test('refreshing many sessions recomputes automation runs once and marks the right sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const count = 60;
+		const ids = Array.from({ length: count }, (_, i) => `bulk-${i}`);
+		const automationIds = new Set(ids.filter((_, i) => i % 10 === 0));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
+		agentHost.setAutomationCatalog({
+			entries: [{
+				resource: 'ahp-automation:/automation',
+				definition: {
+					title: 'Automation',
+					message: { text: 'Run', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'copilotcli' },
+					enabled: true,
+					triggers: [],
+				},
+				operations: [],
+				createdAt: '2026-01-01T00:00:00Z',
+				modifiedAt: '2026-01-01T00:00:00Z',
+				runs: [...automationIds].map(id => ({
+					resource: `ahp-automation-run:/${id}`,
+					automation: 'ahp-automation:/automation',
+					origin: { kind: AutomationRunOriginKind.Manual },
+					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
+					primarySession: createSession(id).session.toString(),
+					sessionCount: 1,
+				})),
+			}],
+		});
+		for (const id of ids) {
+			agentHost.addSession(createSession(id, { summary: id }));
+		}
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
+		});
+		let runEvaluations = 0;
+		disposables.add(autorun(reader => {
+			provider.automations.runs.read(reader);
+			runEvaluations++;
+		}));
+		const evaluationsBeforeRefresh = runEvaluations;
+
+		provider.getSessions();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			runEvaluations: runEvaluations - evaluationsBeforeRefresh,
+			sessions: provider.getSessions().length,
+			markedAutomations: provider.getSessions().filter(session => session.isAutomation?.get()).map(session => session.title.get()).sort(),
+		}, {
+			runEvaluations: 1,
+			sessions: count,
+			markedAutomations: [...automationIds].sort(),
 		});
 	}));
 
