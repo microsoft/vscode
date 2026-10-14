@@ -82,25 +82,20 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	private _updateAllDecorations(): void {
 		const model = this.editor.getModel();
-		const lineHeightMultiplier = this._lineHeightMultiplier;
 		let decorations: IModelDeltaDecoration[] = [];
-		if (model && lineHeightMultiplier > 0 && lineHeightMultiplier < 1) {
-			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }], lineHeightMultiplier);
+		if (model && this._lineHeightMultiplier > 0 && this._lineHeightMultiplier < 1) {
+			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }], this._lineHeightMultiplier);
 		}
 		this._replaceDecorations(Array.from(this._decorationIds), decorations);
 	}
 
 	private _updateDecorations(event: IModelContentChangedEvent): void {
-		if (this._lineHeightMultiplier <= 0 || this._lineHeightMultiplier >= 1) {
-			return;
-		}
 		if (event.isFlush) {
 			this._updateAllDecorations();
 			return;
 		}
 		const model = this.editor.getModel();
-		const lineHeightMultiplier = this._lineHeightMultiplier;
-		if (!model || !lineHeightMultiplier) {
+		if (!model || this._lineHeightMultiplier === 0 || this._lineHeightMultiplier === 1) {
 			return;
 		}
 		const changedRanges = event.changes.map(change => ({
@@ -116,7 +111,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				}
 			}
 		}
-		const newDecorations = this._getDecorations(model, changedRanges, lineHeightMultiplier);
+		const newDecorations = this._getDecorations(model, changedRanges, this._lineHeightMultiplier);
 		this._replaceDecorations(Array.from(oldDecorations), newDecorations);
 	}
 

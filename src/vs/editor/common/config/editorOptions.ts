@@ -2138,7 +2138,7 @@ class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption
 class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, number> {
 
 	constructor() {
-		super(EditorOption.effectiveShrinkEmptyLines, 0);
+		super(EditorOption.effectiveShrinkEmptyLines, 1);
 	}
 
 	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): number {

@@ -31,7 +31,6 @@ export class TestConfiguration extends EditorConfiguration {
 	}
 
 	protected override _readFontInfo(styling: BareFontInfo): FontInfo {
-		const useLineHeightFromSettings = (this.getRawOptions() as TestCodeEditorCreationOptions).useLineHeightFromSettings;
 		return new FontInfo({
 			pixelRatio: 1,
 			fontFamily: 'mockFont',
@@ -39,7 +38,7 @@ export class TestConfiguration extends EditorConfiguration {
 			fontSize: 14,
 			fontFeatureSettings: EditorFontLigatures.OFF,
 			fontVariationSettings: EditorFontVariations.OFF,
-			lineHeight: useLineHeightFromSettings ? styling.lineHeight : 19,
+			lineHeight: 19,
 			letterSpacing: 1.5,
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
