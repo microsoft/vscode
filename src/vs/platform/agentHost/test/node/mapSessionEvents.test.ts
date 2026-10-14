@@ -1400,23 +1400,26 @@ suite('mapSessionEvents — history replay', () => {
 	});
 
 	for (const hasContents of [false, true]) {
-		test(`restores stored MCP resource references ${hasContents ? 'without duplicating SDK contents' : 'when SDK contents are absent'}`, async () => {
+		test(`restores stored MCP resource references with completion-only server metadata ${hasContents ? 'without duplicating SDK contents' : 'when SDK contents are absent'}`, async () => {
 			const database = new TestSessionDatabase();
 			await database.createTurn('turn-1');
 			await database.storeToolResultResources('turn-1', 'tc-resources', [
-				{ ordinal: 2, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: 'text/plain', size: 10 },
+				{ ordinal: 3, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: 'text/plain', size: 10 },
 				{ ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType: 'text/plain', size: 8, content: VSBuffer.fromString('Document').buffer },
+				{ ordinal: 2, kind: 'embedded', name: 'Image.png', uri: 'demo:/Image.png', mimeType: 'image/png', size: 5, content: VSBuffer.fromString('image').buffer },
 			]);
 			const { turns } = await mapSessionEvents(session, database, toSessionEvents([
 				{ type: 'user.message', data: { content: 'Read resources' } },
-				{ type: 'tool.execution_start', data: { toolCallId: 'tc-resources', toolName: 'read-resources', mcpServerName: 'everything' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'tc-resources', toolName: 'read-resources' } },
 				{
 					type: 'tool.execution_complete', data: {
-						toolCallId: 'tc-resources', success: true, result: {
+						toolCallId: 'tc-resources', success: true, mcpServerName: 'everything', result: {
 							content: 'Summary',
 							...(hasContents ? {
 								contents: [
+									{ type: 'shell_exit', shellId: '0', exitCode: 0 },
 									{ type: 'resource', resource: { uri: 'demo:/a\\b', text: 'Document' } },
+									{ type: 'resource', resource: { uri: 'demo:/Image.png', blob: 'aW1hZ2U=' } },
 									{ type: 'resource_link', uri: 'demo:/linked', name: 'Linked.txt', mimeType: 'text/plain', size: 10 },
 								]
 							} : {}),
@@ -1427,13 +1430,41 @@ suite('mapSessionEvents — history replay', () => {
 			const channel = buildMcpChannel(URI.parse(buildChatUri(session, 'default')), 'everything', 'copilot');
 			assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : []), [
 				{ type: ToolResultContentType.Text, text: 'Summary' },
-				hasContents
-					? { type: ToolResultContentType.Text, text: 'Document' }
-					: { type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-resources', 1, 'a\\b'), contentType: 'text/plain', sizeHint: 8 },
+				{ type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-resources', 1, 'a\\b'), contentType: 'text/plain', sizeHint: 8 },
+				{ type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-resources', 2, 'Image.png'), contentType: 'image/png', sizeHint: 5 },
 				{ type: ToolResultContentType.Resource, uri: buildMcpResourceUri(channel, 'demo:/linked', 'Linked.txt'), contentType: 'text/plain', sizeHint: 10 },
 			]);
 		});
 	}
+
+	test('keeps unmatched SDK resources inline on replay', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('turn-1');
+		await database.storeToolResultResources('turn-1', 'tc-resources', [
+			{ ordinal: 0, kind: 'embedded', name: 'Document.txt', uri: 'demo:/document', mimeType: 'text/plain', size: 8, content: VSBuffer.fromString('Document').buffer },
+		]);
+		const { turns } = await mapSessionEvents(session, database, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Read resources' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-resources', toolName: 'read-resources' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-resources', success: true, result: {
+						content: 'Summary',
+						contents: [
+							{ type: 'text', text: 'Summary' },
+							{ type: 'resource', resource: { uri: 'demo:/document', text: 'Document' } },
+							{ type: 'resource', resource: { uri: 'demo:/image', blob: 'aW1hZ2U=', mimeType: 'image/png' } },
+						],
+					},
+				},
+			},
+		]));
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : []), [
+			{ type: ToolResultContentType.Text, text: 'Summary' },
+			{ type: ToolResultContentType.Text, text: 'Document' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+		]);
+	});
 
 	test('does not advertise opaque SDK resource links as readable host content on replay', async () => {
 		const uri = 'generated-images:/session/generated-image.png?version=1';
