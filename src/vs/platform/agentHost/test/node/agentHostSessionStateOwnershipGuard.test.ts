@@ -70,23 +70,23 @@ const CHAT_DATA_KEYS: readonly { readonly identifier: string; readonly key: stri
 	{ identifier: 'AH_META_EHCLI_LAST_TURN_DB_KEY', key: AH_META_EHCLI_LAST_TURN_DB_KEY },
 ];
 
-const TITLES = 'title strategy/seed reads and writes still go to the db that older builds read';
-
+/**
+ * The final allowlist: every remaining direct access of an owned key, each a read or write of a
+ * database that is not the store's mirror target for that key, or that the store cannot serve.
+ */
 const ALLOWLIST: readonly IAllowance[] = [
-	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 2, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleSourceMetadataKey', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'AH_META_IS_READ_DB_KEY', count: 2, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
-	{ file: 'agentHostSessionTitleController.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentHostSessionTitleController.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentHostSessionTitleController.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentHostSessionTitleController.ts', key: 'customChatTitleSourceMetadataKey', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentService.ts', key: 'configValues', count: 1, removedBy: 'C4', reason: 'changeset-summary migration reads the legacy aggregate from the session db' },
-	{ file: 'agentService.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'C4', reason: TITLES },
-	{ file: 'agentServiceComposition.ts', key: 'AH_META_AUTO_ARCHIVED_AT_DB_KEY', count: 1, removedBy: 'C4', reason: 'auto-archive sweep still reads the session db marker' },
+	// Peer store: legacy-catalog (v1) peers' own databases, which older builds overlay over `peerChats` (goes away with v1), and
+	// the one-time title adoption of chats central state does not know yet.
+	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title in its own database' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 2, removedBy: 'permanent', reason: 'restoring a private chat adopts its own-db title source; a normalized default title snapshot adopts the source main writes to session.db' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title an older build wrote to session.db' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleSourceMetadataKey', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title source an older build wrote to session.db' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'AH_META_IS_READ_DB_KEY', count: 2, removedBy: 'permanent', reason: 'v1 peer read state in its own database, read and written as on main (group 6)' },
+	// Chat-own data: the peer's own title (group 6) and the default chat's own database, neither a session.db mirror.
+	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'hydration fallback: the chat\'s own title in its own database' },
+	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'hydration fallback for chats central state never imported (provider-discovered legacy chats): only an older build wrote their title, to session.db' },
+	{ file: 'agentService.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'fallback read of the default chat\'s own database, not the session database' },
+	// Provider-owned databases (design §4.5).
 	{ file: 'claude/claudeSessionMetadataStore.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 1, removedBy: 'permanent', reason: 'provider hasKnownSession reads its own default-chat db (design §4.5)' },
 	{ file: 'codex/codexSessionMetadataStore.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 1, removedBy: 'permanent', reason: 'provider hasKnownSession reads its own default-chat db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_READ_DB_KEY', count: 1, removedBy: 'permanent', reason: 'adoption flow reads the provider-owned db (design §4.5)' },
@@ -95,6 +95,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_WORKSPACELESS_DB_KEY', count: 2, removedBy: 'permanent', reason: 'fork source and adoption reads of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgent.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'fork source read of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgentSession.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'own-db diffBaseBranch for restricted telemetry (design §4.5)' },
+	// Detached worktree records are their own databases, not session.db.
 	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
 	{ file: 'shared/worktreeIsolation.ts', key: 'META_DIFF_BASE_BRANCH', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },

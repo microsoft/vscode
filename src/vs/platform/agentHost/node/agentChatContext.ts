@@ -51,7 +51,7 @@ function parseDirectories(raw: string | undefined): URI[] | undefined {
 }
 
 /** The session-wide settings of the session's central state, `undefined` while that is not loaded. */
-export function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefined): IAgentChatSessionSettings | undefined {
+function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefined): IAgentChatSessionSettings | undefined {
 	if (!snapshot) {
 		return undefined;
 	}

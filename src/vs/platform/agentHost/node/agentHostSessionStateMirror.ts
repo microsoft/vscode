@@ -540,7 +540,7 @@ function renderFolderMap(model: SessionStateModel, kind: SessionStateFolderKind)
 }
 
 /** The old-format value of `agentHost.github`: the GitHub state of the session folder, which older builds read as the primary one. */
-export function renderLegacySessionFolderGitHub(model: SessionStateModel): string | undefined {
+function renderLegacySessionFolderGitHub(model: SessionStateModel): string | undefined {
 	return model.folder('github', sessionFolderKey(model.values.get(SESSION_WORKING_DIRECTORIES_KEY)?.value) ?? '\0')?.value;
 }
 

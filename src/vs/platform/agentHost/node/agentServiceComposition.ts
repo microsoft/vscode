@@ -98,6 +98,7 @@ export function createAgentServiceComposition(
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
+		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
 		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, accessor.get(IAgentHostSessionStateStore));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
@@ -226,17 +227,10 @@ export function createAgentServiceComposition(
 				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
 				restoreSession: session => agentService!.restoreSession(session),
 				getAutoArchivedAt: async session => {
-					const ref = await sessionDataService.tryOpenDatabase(session);
-					if (!ref) {
-						return undefined;
-					}
-					try {
-						const value = await ref.object.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
-						const timestamp = value ? Number(value) : Number.NaN;
-						return Number.isFinite(timestamp) ? timestamp : undefined;
-					} finally {
-						ref.dispose();
-					}
+					// A sweep must not import the sessions it visits.
+					const value = (await sessionStateStore.readWithoutImport(session, [AH_META_AUTO_ARCHIVED_AT_DB_KEY])).get(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+					const timestamp = value ? Number(value) : Number.NaN;
+					return Number.isFinite(timestamp) ? timestamp : undefined;
 				},
 				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(accessor.get(IAgentHostSessionStateStore), session.toString(), {
 					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),

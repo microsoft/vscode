@@ -12,7 +12,7 @@ import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 
 /** Progress recorded by `sessionStateRowsMoved:<session>` once the per-chat rows were copied. */
-export const ROWS_MOVED_PROGRESS = 'rows';
+const ROWS_MOVED_PROGRESS = 'rows';
 
 /** The chat's storage and whether its rows are mirrored into the session database. */
 function resolveStorage(session: URI, snapshot: ISessionStateSnapshot, chat: string): { readonly storage: URI; readonly mirrored: boolean } {

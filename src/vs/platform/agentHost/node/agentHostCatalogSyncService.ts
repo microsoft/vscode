@@ -376,7 +376,6 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	/** The database reference with the metadata the store owns served from central state. */
 	/** Runs in the store's exclusive section; a deleted session has no central state, so the operation runs against session.db alone. */
 	private async _withCentral<T>(session: URI, operation: (exclusive: ISessionStateExclusive | undefined) => Promise<T>): Promise<T> {
 		let started = false;
@@ -393,6 +392,7 @@ export class AgentHostCatalogSyncService {
 		}
 	}
 
+	/** The database reference with the metadata the store owns served from central state. */
 	private _projectFromCentral(database: AgentHostCatalogDatabaseReference, withCentral: <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => Promise<R>): AgentHostCatalogDatabaseReference {
 		const object = new Proxy(database.object, {
 			get: (target, property) => {

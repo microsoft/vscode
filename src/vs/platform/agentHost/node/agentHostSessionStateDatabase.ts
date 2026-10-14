@@ -79,7 +79,7 @@ const launchDirsBackfilledPrefix = 'sessionStateLaunchDirsBackfilled:';
 const rowsMovedPrefix = 'sessionStateRowsMoved:';
 
 /** Prefixes of the per-session `metadata` rows of the session state, each followed by the session. */
-export const SESSION_STATE_MARKER_PREFIXES = [importedMarkerPrefix, legacyMirrorPrefix, launchDirsBackfilledPrefix, rowsMovedPrefix] as const;
+const SESSION_STATE_MARKER_PREFIXES = [importedMarkerPrefix, legacyMirrorPrefix, launchDirsBackfilledPrefix, rowsMovedPrefix] as const;
 
 export type AgentHostSessionFolderStateKind = 'git' | 'github' | 'baseBranch';
 export type AgentHostSessionChatRowMirrorKind = 'draft' | 'localTurns';

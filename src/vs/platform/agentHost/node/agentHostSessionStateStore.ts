@@ -666,8 +666,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	 * Imports older builds' edits of the mirrors and marks stale mirrors dirty:
 	 * per entry, a mirror that differs from the merge base was edited after this
 	 * build last wrote it, so it wins; otherwise central state wins.
+	 * Returns whether an old build edited any mirrored entry since the recorded merge base.
 	 */
-	/** Returns whether an old build edited any mirrored entry since the recorded merge base. */
 	private async _reconcileLocked(record: ISessionRecord, observedReads: MirrorReads | undefined): Promise<boolean> {
 		const model = record.model;
 		const chats = model.authority === 1 ? [...model.chats.values()].map(chat => ({ chat: chat.chat, isDefault: chat.isDefault })) : [];
@@ -793,8 +793,10 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
-	/** Writes the dirty entries' old format, then acknowledges the revision once nothing is dirty. */
-	/** Resolves to the first mirror write failure of this flush, which stays dirty and is retried. */
+	/**
+	 * Writes the dirty entries' old format, then acknowledges the revision once nothing is dirty.
+	 * Resolves to the first mirror write failure of this flush, which stays dirty and is retried.
+	 */
 	private async _flushLocked(record: ISessionRecord): Promise<unknown> {
 		let failure: unknown;
 		if (record.dirty.size > 0) {

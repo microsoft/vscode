@@ -107,6 +107,14 @@ class TestGitHubQuery extends mock<IGitHubQuery>() {
 
 }
 
+/** Reads session values straight from `db`, standing in for a session that has no central state. */
+function readDatabaseValues(db: TestSessionDatabase): (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>> {
+	return async (_session, keys) => {
+		const values = await db.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	};
+}
+
 suite('AgentHostSessionTitleController', () => {
 	const disposables = new DisposableStore();
 
@@ -290,6 +298,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -652,6 +661,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));

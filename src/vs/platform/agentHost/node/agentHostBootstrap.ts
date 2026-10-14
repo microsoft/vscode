@@ -182,11 +182,13 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
 		const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
+		const sessionStateStore = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
 			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
 			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
+			readSessionValues: (session, keys) => sessionStateStore.readWithoutImport(session, keys),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 			getGitHubToken: () => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();

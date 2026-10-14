@@ -163,12 +163,6 @@ export class SessionStateDeletedError extends Error {
 	}
 }
 
-/**
- * The single owner of session-level state, per-folder state and per-chat
- * summaries. agent-host.db holds them authoritatively; the store keeps the
- * old format older builds read in session.db (the mirror) and imports edits
- * those builds make there. Nothing else reads or writes these session.db keys.
- */
 /** The part of a session's catalog row the store needs to import it. */
 export interface ISessionStateKnownCatalog {
 	readonly authorityVersion: 1 | 2;
@@ -197,6 +191,12 @@ export interface IAgentHostChatRowStore {
 	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean }>;
 }
 
+/**
+ * The single owner of session-level state, per-folder state and per-chat
+ * summaries. agent-host.db holds them authoritatively; the store keeps the
+ * old format older builds read in session.db (the mirror) and imports edits
+ * those builds make there. Nothing else reads or writes these session.db keys.
+ */
 export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
 	/** Per-chat drafts and persisted turns. */

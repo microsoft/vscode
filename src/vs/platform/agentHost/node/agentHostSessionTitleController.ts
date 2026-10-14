@@ -108,6 +108,8 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
 	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
+	/** Reads a legacy-catalog session's title keys from its central state (or session.db before it is imported), without importing. */
+	readonly readSessionValues?: (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubToken?: () => string | undefined;
@@ -1102,12 +1104,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (normalized?.normalized && !normalized.chat) {
 					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
 				}
+				const titleKey = independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY;
+				const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
+				const values = normalized?.normalized ? undefined : await this._options.readSessionValues?.(URI.parse(channel), [titleKey, sourceKey]);
 				const [title, source] = normalized?.normalized
 					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
-					: await Promise.all([
-						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
-						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
-					]);
+					: [values?.get(titleKey), values?.get(sourceKey)];
 				const key = independentChat ?? channel;
 				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || !isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel)) || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
 					return;

@@ -487,7 +487,7 @@ suite('AgentHostSessionStateStore', () => {
 			}, { central: ['file:///b'], mirrored: { 'file:///b': { owner: 'o', repo: 'b' } } });
 		});
 	});
-	suite('per-folder git and GitHub state, base branches and branch-changes blobs', () => {
+	suite('per-folder git and GitHub state and base branches', () => {
 		const gitDataKey = 'agentHost.gitData';
 		const githubDataKey = 'agentHost.githubData';
 		const baseBranchKey = 'agentHost.diffBaseBranch';

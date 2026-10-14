@@ -3032,7 +3032,10 @@ export class AgentService extends Disposable implements IAgentService {
 			return metadata.changes;
 		}
 		try {
-			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys }) as Record<string, string | undefined>;
+			const persisted: Record<string, string | undefined> = {
+				...await database.object.getMetadataObject(changesetKeys),
+				configValues: (await this._sessionStateStore.readWithoutImport(session, ['configValues'])).get('configValues'),
+			};
 			return this._changesetCoordinator.decorateListEntry(metadata, persisted, false).changes;
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);
