@@ -77,12 +77,6 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				this.accountInitialized.set(true, undefined);
 			}
 		})();
-		void this.accountInitialization.catch(error => {
-			if (!this._store.isDisposed) {
-				this.refreshError.set(error instanceof Error ? error.message : localize('cloudAutomations.refreshFailed', "Cloud automations could not be refreshed."), undefined);
-				this.logService.warn('[CloudAutomations] Account initialization failed', error);
-			}
-		});
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
 			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),

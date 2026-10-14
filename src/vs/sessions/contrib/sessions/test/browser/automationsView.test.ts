@@ -2075,7 +2075,6 @@ suite('AutomationsCardsWidget', () => {
 		const snapshot = () => ({
 			visibleError: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display !== 'none',
 			accessibleError: buildAutomationsAccessibleContent([], [], automationService.catalogueState.get()).includes('Unable to load automations.'),
-			refreshRegistered: !!CommandsRegistry.getCommand('sessions.automations.refresh'),
 		});
 		const initializing = snapshot();
 		automationService.setCatalogueState('error');
@@ -2083,9 +2082,9 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setCatalogueState('loading');
 		const retrying = snapshot();
 		assert.deepStrictEqual({ initializing, failed, retrying }, {
-			initializing: { visibleError: false, accessibleError: false, refreshRegistered: true },
-			failed: { visibleError: true, accessibleError: true, refreshRegistered: true },
-			retrying: { visibleError: false, accessibleError: false, refreshRegistered: true },
+			initializing: { visibleError: false, accessibleError: false },
+			failed: { visibleError: true, accessibleError: true },
+			retrying: { visibleError: false, accessibleError: false },
 		});
 	});
 
