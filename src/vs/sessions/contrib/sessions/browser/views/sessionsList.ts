@@ -607,6 +607,7 @@ interface IInlineRenameValueState {
 function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'>): IDelayedHoverOptions {
 	return {
 		...hover,
+		additionalClasses: ['sessions-list-hover'],
 		appearance: { showPointer: true },
 		position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 		persistence: { hideOnHover: false },

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -158,6 +159,23 @@ suite('Sessions - SessionsList', () => {
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
+	test('uses the large radius token for list hovers with a pointer', () => {
+		const hover = $('.monaco-hover.workbench-hover.with-pointer.sessions-list-hover');
+		append(mainWindow.document.body, hover);
+		disposables.add(toDisposable(() => hover.remove()));
+		const readCorners = () => {
+			const style = mainWindow.getComputedStyle(hover);
+			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+		};
+		hover.style.setProperty('--vscode-cornerRadius-large', '8px');
+		const initial = readCorners();
+		hover.style.setProperty('--vscode-cornerRadius-large', '12px');
+		assert.deepStrictEqual({ initial, updated: readCorners() }, {
+			initial: ['8px', '8px', '8px', '8px'],
+			updated: ['12px', '12px', '12px', '12px'],
+		});
+	});
+
 	suite('SessionSectionRenderer', () => {
 
 		test('selects the rendered section before the toolbar handles its context menu', () => {
@@ -262,6 +280,7 @@ suite('Sessions - SessionsList', () => {
 				contentWithMigration: hoverWithMigration?.content,
 				contentWithoutMigration: readHoverOptions()?.content,
 				presentation: hoverWithMigration && {
+					additionalClasses: hoverWithMigration.additionalClasses,
 					appearance: hoverWithMigration.appearance,
 					position: hoverWithMigration.position,
 					persistence: hoverWithMigration.persistence,
@@ -270,6 +289,7 @@ suite('Sessions - SessionsList', () => {
 				contentWithMigration: 'Some customizations need an update to keep working.',
 				contentWithoutMigration: 'Customizations',
 				presentation: {
+					additionalClasses: ['sessions-list-hover'],
 					appearance: { showPointer: true },
 					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 					persistence: { hideOnHover: false },
@@ -5214,6 +5234,7 @@ suite('Sessions - SessionsList', () => {
 				const element = content instanceof HTMLElement ? content : undefined;
 				return {
 					presentation: hover && {
+						additionalClasses: hover.additionalClasses,
 						appearance: hover.appearance,
 						position: hover.position,
 						persistence: hover.persistence,
@@ -5235,6 +5256,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				main: {
 					presentation: {
+						additionalClasses: ['sessions-list-hover'],
 						appearance: { showPointer: true },
 						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 						persistence: { hideOnHover: false },
@@ -5247,6 +5269,7 @@ suite('Sessions - SessionsList', () => {
 				},
 				peer: {
 					presentation: {
+						additionalClasses: ['sessions-list-hover'],
 						appearance: { showPointer: true },
 						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 						persistence: { hideOnHover: false },
