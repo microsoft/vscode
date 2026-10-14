@@ -1,0 +1,295 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as sinon from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import type { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
+import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
+import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+
+/** Long enough that no mirror flush runs unless a test asks for it. */
+const MANUAL_FLUSH = 60_000;
+
+suite('AgentHostSessionStateStore', () => {
+	const store = new DisposableStore();
+	let database: AgentHostDatabase;
+	let sessionData: InMemorySessionDataService;
+
+	setup(() => {
+		database = store.add(new AgentHostDatabase(':memory:'));
+		sessionData = store.add(new InMemorySessionDataService());
+	});
+	teardown(() => {
+		sinon.restore();
+		store.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createStore(flushDelay = MANUAL_FLUSH, service: ISessionDataService = sessionData.createService(), db: IAgentHostDatabase = database): AgentHostSessionStateStore {
+		return store.add(new AgentHostSessionStateStore(flushDelay, db, service, new NullLogService()));
+	}
+
+	async function oldBuildSession(build: ILegacySessionFixture['build'] = '1.143'): Promise<{ fixture: ILegacySessionFixture; session: URI }> {
+		const fixture = createLegacySessionFixture(build, { historical: true });
+		await writeLegacySessionState(sessionData.createService(), database, fixture);
+		return { fixture, session: URI.parse(fixture.session) };
+	}
+
+	async function sessionDb(session: URI, keys: readonly string[]): Promise<Record<string, string | undefined>> {
+		const reference = sessionData.createService().openDatabase(session);
+		try {
+			return await reference.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+		} finally {
+			reference.dispose();
+		}
+	}
+
+	async function oldBuildEdit(resource: string, set: Record<string, string>, remove: readonly string[] = []): Promise<void> {
+		const reference = sessionData.createService().openDatabase(URI.parse(resource));
+		try {
+			await reference.object.applyMetadataChanges(set, remove);
+		} finally {
+			reference.dispose();
+		}
+	}
+
+	test('imports an older build\'s session once, without changing what older builds read', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const before = await readOldBuildView(sessionData.createService(), database, fixture);
+		const imports = sinon.spy(database, 'importSessionState');
+		const first = createStore();
+		const [snapshot] = await Promise.all([first.load(session), first.load(session)]);
+		const second = createStore();
+		await second.load(session);
+		const [defaultChat, sameFolder, otherFolder] = fixture.chats;
+
+		assert.deepStrictEqual({
+			imports: imports.callCount,
+			authority: snapshot.authority,
+			configValues: snapshot.values.get('configValues'),
+			missionControl: snapshot.values.get(`missionControl.sdkSequence.${fixture.missionControlEnvironment}`),
+			folders: [...snapshot.folders.keys()].sort(),
+			chats: fixture.chats.map(({ uri }) => snapshot.chats.get(uri)).map(entry => entry && [entry.isDefault, entry.storage, entry.title, entry.isRead, entry.workingDirectories, entry.changes]),
+			blob: (await first.readBranchChangeset(session, getWorkingDirectoryScopeId(otherFolder.workingDirectories)))?.length,
+			oldBuildViewUnchanged: JSON.stringify(await readOldBuildView(sessionData.createService(), database, fixture)) === JSON.stringify(before),
+			header: (await database.readSessionState(fixture.session))?.header,
+		}, {
+			imports: 1,
+			authority: 1,
+			configValues: legacySessionMetadata(fixture).configValues,
+			missionControl: '42',
+			folders: ['', getWorkingDirectoryScopeId(otherFolder.workingDirectories), 'file:///workspace/app'].sort(),
+			chats: [
+				// The default chat's changes are the session's aggregate value, not a per-chat key.
+				[true, fixture.session, defaultChat.title, true, undefined, undefined],
+				[false, sameFolder.uri, sameFolder.title, undefined, undefined, JSON.stringify(sameFolder.changes)],
+				[false, otherFolder.uri, otherFolder.title, undefined, otherFolder.workingDirectories, JSON.stringify(otherFolder.changes)],
+			],
+			blob: legacySessionMetadata(fixture)[`agentHost.changeset.branch.${getWorkingDirectoryScopeId(otherFolder.workingDirectories)}`].length,
+			oldBuildViewUnchanged: true,
+			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1, checkpointSequence: 0 },
+		});
+	});
+
+	test('a session without any stored state imports empty and creates no storage', async () => {
+		const session = URI.parse('copilotcli:/new');
+		const snapshot = await createStore().load(session);
+		assert.deepStrictEqual({ values: snapshot.values.size, chats: [...snapshot.chats.keys()], databases: sessionData.resources }, {
+			values: 0,
+			// The creation rule names the default chat of a session that records none.
+			chats: ['ahp-chat://default/Y29waWxvdGNsaTovbmV3'],
+			databases: [],
+		});
+	});
+
+	test('an import that fails before committing is retried on the next load', async () => {
+		const { session } = await oldBuildSession();
+		const importSessionState = database.importSessionState.bind(database);
+		const imports = sinon.stub(database, 'importSessionState');
+		imports.callsFake(importSessionState);
+		imports.onFirstCall().rejects(new Error('crash'));
+		const sessionStore = createStore();
+		await assert.rejects(() => sessionStore.load(session), /crash/);
+		const snapshot = await sessionStore.load(session);
+		assert.deepStrictEqual({ calls: imports.callCount, configValues: snapshot.values.has('configValues') }, { calls: 2, configValues: true });
+	});
+
+	test('older builds\' mirror edits win per entry; otherwise central state wins and stale mirrors are repaired', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const [, sameFolder, otherFolder] = fixture.chats;
+		const otherScope = getWorkingDirectoryScopeId(otherFolder.workingDirectories);
+		const first = createStore();
+		await first.load(session);
+		await first.write(session, sessionStatePatch({ values: { configValues: '{"central":true}' } }), SessionStateMirrorFlush.Immediate);
+		// The process ends between the central write and its mirror.
+		const mirrorWrites = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('crash'));
+		await first.write(session, sessionStatePatch({ values: { customizationEnablement: '{"central":"unmirrored"}' } }), SessionStateMirrorFlush.Immediate);
+		mirrorWrites.restore();
+		const crashed = (await database.readSessionState(fixture.session))!.header;
+		first.dispose();
+
+		// An older build then edits the mirrors.
+		const gitData = JSON.parse(legacySessionMetadata(fixture)['agentHost.gitData']);
+		await oldBuildEdit(fixture.session, {
+			isArchived: 'true',
+			'agentHost.gitData': JSON.stringify({ ...gitData, [otherScope]: { branchName: 'old-build' } }),
+			[`customChatTitle:${sameFolder.uri}`]: 'Renamed by an older build',
+		}, ['sessionArtifacts']);
+
+		const second = createStore();
+		const snapshot = await second.load(session);
+		const state = await database.readSessionState(fixture.session);
+		assert.deepStrictEqual({
+			configValues: snapshot.values.get('configValues'),
+			customizationEnablement: snapshot.values.get('customizationEnablement'),
+			isArchived: snapshot.values.get('isArchived'),
+			artifacts: snapshot.values.has('sessionArtifacts'),
+			otherFolderGit: snapshot.folders.get(otherScope)?.git,
+			sessionFolderGit: snapshot.folders.get('')?.git === legacySessionMetadata(fixture)['agentHost.git'],
+			peerTitle: snapshot.chats.get(sameFolder.uri)?.title,
+			mirror: await sessionDb(session, ['configValues', 'customizationEnablement', 'isArchived', 'sessionArtifacts']),
+			crashed: [crashed.revision, crashed.legacyMirroredRevision],
+			acknowledged: state?.header.legacyMirroredRevision === state?.header.revision,
+		}, {
+			// The mirror is recorded as behind the unmirrored write.
+			crashed: [3, 2],
+			configValues: '{"central":true}',
+			customizationEnablement: '{"central":"unmirrored"}',
+			isArchived: 'true',
+			artifacts: false,
+			otherFolderGit: '{"branchName":"old-build"}',
+			sessionFolderGit: true,
+			peerTitle: 'Renamed by an older build',
+			mirror: { configValues: '{"central":true}', customizationEnablement: '{"central":"unmirrored"}', isArchived: 'true', sessionArtifacts: undefined },
+			acknowledged: true,
+		});
+	});
+
+	test('the store refuses re-entrant calls for a session it holds', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const other = URI.parse('copilotcli:/other');
+		const result = await sessionStore.runExclusive(session, async () => {
+			const reentrant = await sessionStore.load(session).then(() => 'loaded', error => error instanceof SessionStateReentrancyError ? 'refused' : String(error));
+			await sessionStore.load(other);
+			return reentrant;
+		});
+		assert.strictEqual(result, 'refused');
+	});
+
+	test('entries the caller mirrored are not rewritten, and the revision is acknowledged only once every entry is mirrored', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const header = async () => (await database.readSessionState(fixture.session))!.header;
+		await sessionStore.runExclusive(session, async exclusive => {
+			await exclusive.write(sessionStatePatch({ values: { configValues: 'noted' } }), SessionStateMirrorFlush.Coalesced);
+			const revision = await exclusive.write(sessionStatePatch({ values: { customizationEnablement: 'pending' } }), SessionStateMirrorFlush.Coalesced);
+			exclusive.noteMirrored(revision, [mirrorEntryId({ kind: 'value', key: 'configValues' })]);
+		});
+		const afterSection = { header: await header(), mirror: await sessionDb(session, ['configValues', 'customizationEnablement']) };
+		await sessionStore.whenIdle(session);
+		const original = legacySessionMetadata(fixture);
+		assert.deepStrictEqual({ afterSection, afterIdle: { header: await header(), mirror: await sessionDb(session, ['configValues', 'customizationEnablement']) } }, {
+			afterSection: { header: { ...afterSection.header, revision: 3, legacyMirroredRevision: 1 }, mirror: { configValues: original.configValues, customizationEnablement: original.customizationEnablement } },
+			afterIdle: { header: { ...afterSection.header, revision: 3, legacyMirroredRevision: 3 }, mirror: { configValues: original.configValues, customizationEnablement: 'pending' } },
+		});
+	});
+
+	test('writes within the coalescing window reach session.db in one transaction', async () => {
+		const { session } = await oldBuildSession();
+		const coalesced = createStore();
+		await coalesced.load(session);
+		const mirrorWrites = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+		for (let i = 0; i < 50; i++) {
+			await coalesced.update(session, 'agentHost.autoArchivedAt', () => String(i), SessionStateMirrorFlush.Coalesced);
+		}
+		const beforeIdle = mirrorWrites.callCount;
+		await coalesced.whenIdle(session);
+		const manual = mirrorWrites.callCount;
+		const timed = createStore(5);
+		await timed.update(session, 'agentHost.autoArchivedAt', () => 'timed', SessionStateMirrorFlush.Coalesced);
+		await timeout(50);
+		assert.deepStrictEqual({ beforeIdle, manual, timed: mirrorWrites.callCount, mirror: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
+			beforeIdle: 0, manual: 1, timed: 2, mirror: { 'agentHost.autoArchivedAt': 'timed' },
+		});
+	});
+
+	test('reads without importing use central values once imported and the mirror before', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const imports = sinon.spy(database, 'importSessionState');
+		const before = await createStore().readWithoutImport(session, ['configValues', 'agentHost.autoArchivedAt']);
+		const importing = createStore();
+		await importing.write(session, sessionStatePatch({ values: { configValues: 'central' } }), SessionStateMirrorFlush.Coalesced);
+		const after = await createStore().readWithoutImport(session, ['configValues']);
+		assert.deepStrictEqual({ before: [...before], after: [...after], imports: imports.callCount }, {
+			before: [['configValues', legacySessionMetadata(fixture).configValues]],
+			after: [['configValues', 'central']],
+			imports: 1,
+		});
+	});
+
+	test('values a provider wrote to session.db itself are refreshed into central state without rewriting them', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		await oldBuildEdit(fixture.session, { 'agentHost.ehcliAdopted': 'true' });
+		const mirrorWrites = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+		await sessionStore.refreshFromMirror(session, ['agentHost.ehcliAdopted']);
+		const state = await database.readSessionState(fixture.session);
+		assert.deepStrictEqual({
+			value: sessionStore.peek(session)?.values.get('agentHost.ehcliAdopted'),
+			mirrorWrites: mirrorWrites.callCount,
+			acknowledged: state?.header.legacyMirroredRevision === state?.header.revision,
+		}, { value: 'true', mirrorWrites: 0, acknowledged: true });
+	});
+
+	test('a session being deleted refuses writes until the deletion ends', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		const deletion = sessionStore.beginDeletion(session);
+		await deletion.whenDrained;
+		await assert.rejects(() => sessionStore.write(session, sessionStatePatch({ values: { configValues: 'late' } }), SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
+		deletion.dispose();
+		assert.strictEqual(sessionStore.peek(session), undefined);
+	});
+
+	test('a Block 2b session imports in runtime spelling and mirrors in storage spelling', async () => {
+		const fixture = createLegacySessionFixture('2b');
+		const compatible = store.add(new CompatibleAgentHostDatabase(':memory:'));
+		await writeLegacySessionState(sessionData.createService(), compatible.raw, fixture);
+		await compatible.initialize();
+		const before = await readOldBuildView(sessionData.createService(), compatible.raw, fixture);
+		const sessionStore = createStore(MANUAL_FLUSH, sessionData.createService(compatible.identity), compatible);
+		const session = URI.parse(fixture.runtimeSession);
+		const snapshot = await sessionStore.load(session);
+		await sessionStore.write(session, sessionStatePatch({ chats: [{ chat: fixture.chats[1].runtimeUri, isDefault: false, fields: { title: 'Renamed' } }] }), SessionStateMirrorFlush.Immediate);
+		const after = await readOldBuildView(sessionData.createService(), compatible.raw, fixture);
+
+		assert.deepStrictEqual({
+			chats: fixture.chats.map(chat => snapshot.chats.has(chat.runtimeUri)),
+			storage: fixture.chats.map(chat => snapshot.chats.get(chat.runtimeUri)?.storage),
+			renamed: after.sessionDb[`customChatTitle:${fixture.chats[1].uri}`],
+			unchangedOtherwise: JSON.stringify({ ...after, sessionDb: { ...after.sessionDb, [`customChatTitle:${fixture.chats[1].uri}`]: undefined }, agentHost: undefined })
+				=== JSON.stringify({ ...before, sessionDb: { ...before.sessionDb, [`customChatTitle:${fixture.chats[1].uri}`]: undefined }, agentHost: undefined }),
+		}, {
+			chats: [true, true, true],
+			storage: [fixture.runtimeSession, ...fixture.chats.slice(1).map(chat => chat.runtimeUri)],
+			renamed: 'Renamed',
+			unchangedOtherwise: true,
+		});
+	});
+});

@@ -330,7 +330,8 @@ export async function deleteSessionStateRows(connection: Pick<ISessionStateSqlCo
 	}
 }
 
-function hashDiffs(diffs: string): string {
+/** Content hash of a branch-changes blob, as stored in `session_branch_changesets.content_hash`. */
+export function hashBranchChangeset(diffs: string): string {
 	const sha = new StringSHA1();
 	sha.update(diffs);
 	return sha.digest();
@@ -518,7 +519,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			}
 			for (const blob of data.branchChangesets) {
 				await connection.run(`INSERT INTO session_branch_changesets (session_uri, scope_key, content_hash, diffs, revision)
-					VALUES (?, ?, ?, ?, ?)`, [session, blob.scopeKey, hashDiffs(blob.diffs), blob.diffs, revision]);
+					VALUES (?, ?, ?, ?, ?)`, [session, blob.scopeKey, hashBranchChangeset(blob.diffs), blob.diffs, revision]);
 			}
 			await this._upsertTurnCheckpoints(connection, session, data.checkpoints);
 			await this._addCheckpointRepositories(connection, session, data.checkpointRepositories);
@@ -571,7 +572,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				// An unchanged blob is not rewritten: diff lists are large and recomputed often.
 				await connection.run(`INSERT INTO session_branch_changesets (session_uri, scope_key, content_hash, diffs, revision) VALUES (?, ?, ?, ?, ?)
 					ON CONFLICT(session_uri, scope_key) DO UPDATE SET content_hash = excluded.content_hash, diffs = excluded.diffs, revision = excluded.revision
-					WHERE content_hash <> excluded.content_hash`, [session, blob.scopeKey, hashDiffs(blob.diffs), blob.diffs, revision]);
+					WHERE content_hash <> excluded.content_hash`, [session, blob.scopeKey, hashBranchChangeset(blob.diffs), blob.diffs, revision]);
 			}
 			if (patch.markPayloadDirty) {
 				await connection.markPayloadDirty(session);
