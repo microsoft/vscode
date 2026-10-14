@@ -49,7 +49,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
@@ -2360,6 +2360,63 @@ suite('AgentService (node dispatcher)', () => {
 		test('registers a provider successfully', () => {
 			registerTestAgentProvider(service, copilotAgent);
 			// No throw - success
+		});
+
+		suite('restore from central session state', () => {
+			async function restoreWith(database: TestSessionDatabase, orchestrator: AgentHostDatabase, session: URI): Promise<boolean> {
+				const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(restarted, copilotAgent);
+				await restarted.restoreSession(session);
+				const state = getStateManager(restarted).getSessionState(session.toString());
+				return ((state?.status ?? 0) & SessionStatus.IsArchived) !== 0;
+			}
+
+			test('restoring an unimported session imports its state and applies it', async () => {
+				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const database = new TestSessionDatabase();
+				await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+				const archived = await restoreWith(database, orchestrator, session);
+				const central = (await orchestrator.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY])).get(session.toString());
+				assert.deepStrictEqual({ archived, imported: central?.imported, value: central?.values.get(AH_META_IS_ARCHIVED_DB_KEY) }, { archived: true, imported: true, value: 'true' });
+			});
+
+			test('listing reads imported state from the central store, not the session.db', async () => {
+				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const database = new TestSessionDatabase();
+				await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+				await restoreWith(database, orchestrator, session);
+				await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'false');
+
+				const listing = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(listing, copilotAgent);
+				const listed = (await listing.listSessions()).find(entry => entry.session.toString() === session.toString());
+				assert.strictEqual(((listed?.status ?? 0) & SessionStatus.IsArchived) !== 0, true);
+			});
+
+			test('listing never opens a session.db and never imports', async () => {
+				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const database = new TestSessionDatabase();
+				await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+				const base = createSessionDataService(database);
+				const opened: string[] = [];
+				const sessionDataService: ISessionDataService = {
+					...base,
+					openDatabase: resource => { opened.push(`open ${resource.toString()}`); return base.openDatabase(resource); },
+					tryOpenDatabase: async resource => { opened.push(`tryOpen ${resource.toString()}`); return base.tryOpenDatabase(resource); },
+				};
+				const listing = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
+				registerTestAgentProvider(listing, copilotAgent);
+				opened.length = 0;
+				await listing.listSessions();
+				const central = (await orchestrator.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY])).get(session.toString());
+				assert.deepStrictEqual({ opened: opened.filter(entry => entry.includes('session.db') || entry.includes(session.toString())), imported: central?.imported ?? false }, { opened: [], imported: false });
+			});
 		});
 
 		suite('failed turn resume', () => {
@@ -6826,7 +6883,7 @@ suite('AgentService (node dispatcher)', () => {
 			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(creating, agent);
 			// Owned keys are written to the central store, whose mirror failures are logged rather than thrown.
-			const store = (creating as unknown as { _sessionStateStore: IAgentHostSessionStateStore })._sessionStateStore;
+			const store = getTestSessionStateStore(creating);
 			const writeMetadata = store.writeMetadata.bind(store);
 			store.writeMetadata = async (session, resource, values, flush) => {
 				if (values[REMOTE_SESSION_ORIGIN_METADATA_KEY]) {
@@ -10590,7 +10647,7 @@ suite('AgentService (node dispatcher)', () => {
 			const external = agent.addSession('backfilled-legacy-discovery', Date.now());
 
 			registerTestAgentProvider(svc, agent);
-			for (let attempt = 0; attempt < 50 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
+			for (let attempt = 0; attempt < 500 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
 				await timeout(0);
 			}
 
@@ -11888,6 +11945,8 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('repair-later', 20);
 			registerTestAgentProvider(svc, agent);
 			await timeout(0);
+			// Let the provider's background import finish: it invalidates the list mid-computation and would trigger a second computation.
+			await getStartupTestInternals(svc)._ensureSessionsV2Imported(agent);
 			await svc.whenCatalogReconciliationIdle();
 			const reconciliationStarted = new DeferredPromise<void>();
 			const reconciliation = (svc as unknown as { _catalogReconciliationService: { start(): void } })._catalogReconciliationService;
@@ -11902,6 +11961,67 @@ suite('AgentService (node dispatcher)', () => {
 				reconciliationStartedBeforeReturn: false,
 			});
 			await reconciliationStarted.p;
+		});
+
+		test('central fallback listing reads the legacy session.db without importing it', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'legacy-archived');
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			const database = new TestSessionDatabase();
+			await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			const svc = createCentralCatalogService(createSessionDataService(database), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			agent.addSession('legacy-archived', 20);
+			registerTestAgentProvider(svc, agent);
+			await timeout(0);
+			await getStartupTestInternals(svc)._ensureSessionsV2Imported(agent);
+			await svc.whenCatalogReconciliationIdle();
+			const store = getTestSessionStateStore(svc);
+			const loads: string[] = [];
+			const load = store.load.bind(store);
+			store.load = async resource => { loads.push(resource.toString()); return load(resource); };
+
+			const listed = await svc.listSessions();
+			const central = (await orchestratorDatabase.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY])).get(session.toString());
+			assert.deepStrictEqual({
+				archived: listed.map(entry => ((entry.status ?? 0) & SessionStatus.IsArchived) !== 0),
+				loads,
+				imported: central?.imported ?? false,
+			}, {
+				archived: [true],
+				loads: [],
+				imported: false,
+			});
+		});
+
+		test('central fallback listing prefers the imported central value over a later session.db edit', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'imported-archived');
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			const database = new TestSessionDatabase();
+			await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			const svc = createCentralCatalogService(createSessionDataService(database), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			agent.addSession('imported-archived', 20);
+			registerTestAgentProvider(svc, agent);
+			await timeout(0);
+			await getStartupTestInternals(svc)._ensureSessionsV2Imported(agent);
+			await svc.whenCatalogReconciliationIdle();
+			await getTestSessionStateStore(svc).load(session);
+			await database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'false');
+
+			const listed = await svc.listSessions();
+			assert.deepStrictEqual(listed.map(entry => ((entry.status ?? 0) & SessionStatus.IsArchived) !== 0), [true]);
 		});
 
 		test('central list coalesces repeated lists onto one in-flight catalog read', async () => {
@@ -19645,7 +19765,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
-			await database.setMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, 'true');
+			await getTestSessionStateStore(svc).writeMetadata(session, session, { [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
 			getStateManager(svc).deleteSession(session.toString());
 
 			await assert.rejects(
@@ -20250,8 +20370,10 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: [sessionFolder] };
 			const legacy = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' };
 			const otherFolder = { [getWorkingDirectoryKey('file:///other')]: { owner: 'contoso', repo: 'tools' } };
-			await db.setMetadata(META_GITHUB_STATE, JSON.stringify(legacy));
-			await db.setMetadata(META_GITHUB_DATA_STATE, JSON.stringify(otherFolder));
+			await getTestSessionStateStore(localService).writeMetadata(sessionResource, sessionResource, {
+				[META_GITHUB_STATE]: JSON.stringify(legacy),
+				[META_GITHUB_DATA_STATE]: JSON.stringify(otherFolder),
+			}, SessionStateMirrorFlush.Immediate);
 
 			await localService.restoreSession(sessionResource);
 
@@ -22478,6 +22600,7 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			registerTestAgentProvider(svc, agent);
 			const internals = svc as unknown as {
+				_ensureSessionsV2Imported(provider: IAgent): Promise<void>;
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogSyncService: {
 					runMigrationExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
@@ -22491,6 +22614,8 @@ suite('AgentService (node dispatcher)', () => {
 				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void>;
 				_pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void>;
 			};
+			// The provider's background import races the simulated legacy source below; settle it first.
+			await internals._ensureSessionsV2Imported(agent);
 			internals._catalogSyncSuppressedSessions.add(session.toString());
 			const now = new Date().toISOString();
 			getStateManager(svc).restoreSession({
@@ -23589,7 +23714,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 12,
+				snapshotReads: 13,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
@@ -26592,7 +26717,7 @@ suite('AgentService (node dispatcher)', () => {
 			await sessionDataService.deleteSessionData(peer);
 
 			getStateManager(localService).deleteSession(session.toString());
-			catalogDatabase.hiddenCatalogReads = 2;
+			catalogDatabase.hiddenCatalogReads = 3;
 			await localService.restoreSession(session);
 			await localService.subscribe(peer, 'cached-peer-reader');
 			db.hideLegacyCatalog = false;
@@ -27014,7 +27139,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
-			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
+			await getTestSessionStateStore(localService).writeMetadata(session, session, { [AH_META_IS_READ_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
 
 			getStateManager(localService).deleteSession(sessionUri);
 			await localService.restoreSession(session);
@@ -30991,11 +31116,11 @@ suite('AgentService (node dispatcher)', () => {
 			// Wait for the fire-and-forget persistence to flush
 			await new Promise(r => setTimeout(r, 50));
 			const persistedConfigValues = JSON.parse((await sessionDb.getMetadata('configValues'))!);
-			await sessionDb.setMetadata('configValues', JSON.stringify({
+			await getTestSessionStateStore(localService).update(session, 'configValues', () => JSON.stringify({
 				autoApprove: 'autoApprove',
 				[SessionConfigKey.SandboxEnabled]: 'off',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
-			}));
+			}), SessionStateMirrorFlush.Immediate);
 			getStateManager(localService).removeSession(session.toString());
 			const listed = await localService.listSessions();
 
@@ -32270,11 +32395,13 @@ suite('AgentService (node dispatcher)', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
 				const sessionDb = new TestSessionDatabase();
-				const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+				const { localAgent, localService, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
 				const sessionStr = sessionResource.toString();
 				// The flags contribution persists the merged config asynchronously
 				// (not observable under fake timers), so seed the durable value.
-				await sessionDb.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.AgentMerge]: { enabled: true } }));
+				await getTestSessionStateStore(localService).update(sessionResource, 'configValues', () => JSON.stringify({ [SessionConfigKey.AgentMerge]: { enabled: true } }), SessionStateMirrorFlush.Immediate);
+				// The previous host goes away; otherwise it would itself start monitoring from the seeded value.
+				localService.dispose();
 
 				// A fresh host over the same durable state must resume monitoring
 				// from the index alone. Remove best-effort local notices so the
@@ -32359,8 +32486,8 @@ suite('AgentService (node dispatcher)', () => {
 		test('an archived session is dropped from the index instead of being restored', async () => {
 			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
 			const sessionDb = new TestSessionDatabase();
-			const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
-			await sessionDb.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			const { localService, localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+			await getTestSessionStateStore(localService).update(sessionResource, AH_META_IS_ARCHIVED_DB_KEY, () => 'true', SessionStateMirrorFlush.Immediate);
 
 			const restarted = createAgentMergeService(sessionDb, orchestratorDb);
 			registerTestAgentProvider(restarted, localAgent);

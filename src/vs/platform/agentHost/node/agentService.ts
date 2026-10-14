@@ -72,6 +72,7 @@ import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLog
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -2302,125 +2303,117 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const sanitized = { ...metadata, _meta: withSessionMultiRootMetadata(metadata._meta, undefined) };
 		try {
-			const ref = await this._sessionDataService.tryOpenDatabase(metadata.session);
-			if (!ref) {
-				return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
+			const session = metadata.session.toString();
+			const defaultChatTitleKey = customChatTitleMetadataKey(await this._readDefaultChat(metadata.session));
+			const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session);
+			const metadataKeys: Record<string, true> = changesetKeys
+				? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+				: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+			metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
+			metadataKeys[SESSION_WORKING_DIRECTORIES_KEY] = true;
+			metadataKeys[SESSION_INITIATOR_METADATA_KEY] = true;
+			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
+			if (snapshot?.authorityVersion === 2) {
+				delete metadataKeys[defaultChatTitleKey];
 			}
-			try {
-				const session = metadata.session.toString();
-				const defaultChatTitleKey = customChatTitleMetadataKey(await this._readDefaultChat(metadata.session));
-				const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session);
-				const metadataKeys: Record<string, true> = changesetKeys
-					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
-				metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
-				metadataKeys[SESSION_WORKING_DIRECTORIES_KEY] = true;
-				metadataKeys[SESSION_INITIATOR_METADATA_KEY] = true;
-				const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
-				if (snapshot?.authorityVersion === 2) {
-					delete metadataKeys[defaultChatTitleKey];
-				}
-				const persisted = await ref.object.getMetadataObject(metadataKeys);
-				if (isAgentHostChatBacking(metadata.session, !!persisted[CHAT_BACKING_METADATA_KEY])) {
-					return undefined;
-				}
-				let updated = sanitized;
-				const workingDirectories = parseSessionWorkingDirectories(persisted[SESSION_WORKING_DIRECTORIES_KEY]);
-				if (workingDirectories !== undefined) {
-					updated = { ...updated, workingDirectories: workingDirectories.map(directory => URI.parse(directory)) };
-				}
-				const persistedTitle = persisted.customTitle
-					|| await this._readDefaultChatTitle(metadata.session, persisted[defaultChatTitleKey]);
-				if (persistedTitle) {
-					updated = { ...updated, summary: persistedTitle };
-				}
-				if (persisted[AH_META_IS_READ_DB_KEY] !== undefined) {
-					updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, persisted[AH_META_IS_READ_DB_KEY] === 'true') };
-				}
-				const persistedArchived = persisted[AH_META_IS_ARCHIVED_DB_KEY] ?? persisted[AH_META_IS_DONE_DB_KEY];
-				if (persistedArchived !== undefined) {
-					updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
-				}
-				const creationReference = parseSessionCreationReference(persisted[AH_META_CREATED_BY_SESSION_DB_KEY]);
-				if (creationReference) {
-					updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
-				}
-				const remoteOrigin = this._readPersistedRemoteSessionOrigin(persisted[REMOTE_SESSION_ORIGIN_METADATA_KEY], session);
-				if (remoteOrigin) {
-					updated = { ...updated, _meta: withRemoteSessionOrigin(updated._meta, remoteOrigin) };
-				}
-				const initiator = this._readPersistedSessionInitiator(persisted[SESSION_INITIATOR_METADATA_KEY], session);
-				if (initiator) {
-					updated = { ...updated, _meta: withSessionInitiator(updated._meta, initiator) };
-				}
-				if (persisted[META_GIT_STATE]) {
-					try {
-						const gitState = JSON.parse(persisted[META_GIT_STATE]) as ISessionGitState;
-						updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
-					} catch (error) {
-						this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${metadata.session}`, error);
-					}
-				}
-				if (persisted[META_GIT_DATA_STATE]) {
-					try {
-						updated = { ...updated, _meta: withSessionGitData(updated._meta, parseSessionGitData(JSON.parse(persisted[META_GIT_DATA_STATE]))) };
-					} catch (error) {
-						this._logService.warn(`[AgentService][listSessions] Failed to parse folder-scoped Git state for ${metadata.session}`, error);
-					}
-				}
-				updated = {
-					...updated,
-					_meta: withPersistedGitHubData(updated._meta, persisted, metadata.workingDirectories?.[0]?.toString(), error => {
-						this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${metadata.session}`, error);
-					}),
-				};
-				if (persisted[META_SOURCE_CONTROL_STATE]) {
-					try {
-						const sourceControlState = parsePersistedSourceControlState(persisted[META_SOURCE_CONTROL_STATE]);
-						updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
-					} catch (error) {
-						this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${metadata.session}`, error);
-					}
-				}
-				if (persisted[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-					updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, persisted[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
-				}
-				if (persisted[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
-					updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, persisted[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
-				}
-				if (persisted[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
-					try {
-						const devContainerWorktree = readAgentDevContainerWorktreeMetadata({
-							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(persisted[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
-						});
-						if (devContainerWorktree) {
-							updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, devContainerWorktree.handle) };
-						}
-					} catch { }
-				}
-				const multiRoot = parseSessionMultiRootMetadata(persisted[SESSION_META_MULTI_ROOT_KEY]);
-				if (multiRoot) {
-					updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
-				}
-				const artifacts = this._readPersistedArtifacts(persisted[SESSION_ARTIFACTS_KEY], session, '[AgentService][listSessions]');
-				if (artifacts.length > 0) {
-					updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
-				}
-				const folderPickerDecision = parseSessionFolderPickerDecision(persisted[SESSION_META_FOLDER_PICKER_KEY]);
-				if (folderPickerDecision) {
-					updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
-				}
-				const worktreeProject = worktreeProjectFromRepositoryRoot(persisted[WORKTREE_META_REPOSITORY_ROOT]);
-				if (worktreeProject) {
-					updated = { ...updated, project: worktreeProject };
-				}
-				return {
-					metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>),
-					persistedTitle,
-				};
-			} finally {
-				ref.dispose();
+			const persisted: Record<string, string | undefined> = Object.fromEntries(await this._sessionStateStore.readWithoutImport(metadata.session, Object.keys(metadataKeys)));
+			if (isAgentHostChatBacking(metadata.session, !!persisted[CHAT_BACKING_METADATA_KEY])) {
+				return undefined;
 			}
+			let updated = sanitized;
+			const workingDirectories = parseSessionWorkingDirectories(persisted[SESSION_WORKING_DIRECTORIES_KEY]);
+			if (workingDirectories !== undefined) {
+				updated = { ...updated, workingDirectories: workingDirectories.map(directory => URI.parse(directory)) };
+			}
+			const persistedTitle = persisted.customTitle
+				|| await this._readDefaultChatTitle(metadata.session, persisted[defaultChatTitleKey]);
+			if (persistedTitle) {
+				updated = { ...updated, summary: persistedTitle };
+			}
+			if (persisted[AH_META_IS_READ_DB_KEY] !== undefined) {
+				updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, persisted[AH_META_IS_READ_DB_KEY] === 'true') };
+			}
+			const persistedArchived = persisted[AH_META_IS_ARCHIVED_DB_KEY] ?? persisted[AH_META_IS_DONE_DB_KEY];
+			if (persistedArchived !== undefined) {
+				updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
+			}
+			const creationReference = parseSessionCreationReference(persisted[AH_META_CREATED_BY_SESSION_DB_KEY]);
+			if (creationReference) {
+				updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
+			}
+			const remoteOrigin = this._readPersistedRemoteSessionOrigin(persisted[REMOTE_SESSION_ORIGIN_METADATA_KEY], session);
+			if (remoteOrigin) {
+				updated = { ...updated, _meta: withRemoteSessionOrigin(updated._meta, remoteOrigin) };
+			}
+			const initiator = this._readPersistedSessionInitiator(persisted[SESSION_INITIATOR_METADATA_KEY], session);
+			if (initiator) {
+				updated = { ...updated, _meta: withSessionInitiator(updated._meta, initiator) };
+			}
+			if (persisted[META_GIT_STATE]) {
+				try {
+					const gitState = JSON.parse(persisted[META_GIT_STATE]) as ISessionGitState;
+					updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
+				} catch (error) {
+					this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${metadata.session}`, error);
+				}
+			}
+			if (persisted[META_GIT_DATA_STATE]) {
+				try {
+					updated = { ...updated, _meta: withSessionGitData(updated._meta, parseSessionGitData(JSON.parse(persisted[META_GIT_DATA_STATE]))) };
+				} catch (error) {
+					this._logService.warn(`[AgentService][listSessions] Failed to parse folder-scoped Git state for ${metadata.session}`, error);
+				}
+			}
+			updated = {
+				...updated,
+				_meta: withPersistedGitHubData(updated._meta, persisted, metadata.workingDirectories?.[0]?.toString(), error => {
+					this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${metadata.session}`, error);
+				}),
+			};
+			if (persisted[META_SOURCE_CONTROL_STATE]) {
+				try {
+					const sourceControlState = parsePersistedSourceControlState(persisted[META_SOURCE_CONTROL_STATE]);
+					updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
+				} catch (error) {
+					this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${metadata.session}`, error);
+				}
+			}
+			if (persisted[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, persisted[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
+			}
+			if (persisted[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, persisted[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
+			}
+			if (persisted[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
+				try {
+					const devContainerWorktree = readAgentDevContainerWorktreeMetadata({
+						[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(persisted[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
+					});
+					if (devContainerWorktree) {
+						updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, devContainerWorktree.handle) };
+					}
+				} catch { }
+			}
+			const multiRoot = parseSessionMultiRootMetadata(persisted[SESSION_META_MULTI_ROOT_KEY]);
+			if (multiRoot) {
+				updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
+			}
+			const artifacts = this._readPersistedArtifacts(persisted[SESSION_ARTIFACTS_KEY], session, '[AgentService][listSessions]');
+			if (artifacts.length > 0) {
+				updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
+			}
+			const folderPickerDecision = parseSessionFolderPickerDecision(persisted[SESSION_META_FOLDER_PICKER_KEY]);
+			if (folderPickerDecision) {
+				updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
+			}
+			const worktreeProject = worktreeProjectFromRepositoryRoot(persisted[WORKTREE_META_REPOSITORY_ROOT]);
+			if (worktreeProject) {
+				updated = { ...updated, project: worktreeProject };
+			}
+			return {
+				metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>),
+				persistedTitle,
+			};
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${metadata.session}`, error);
 			return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
@@ -2695,8 +2688,13 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._peerChatStore.setRead(session, URI.parse(readable[0].resource), readValue === 'true');
 			}
 		}
+		const ownedOverrides = Object.fromEntries(Object.entries(metadataOverrides).filter(([key]) => key !== AH_META_IS_READ_DB_KEY && getSessionStateValueKey(key)));
+		const ownedWrite = Object.keys(ownedOverrides).length > 0
+			? persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error))
+			: Promise.resolve();
 		await this._peerChatStore.whenIdle();
 		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+			await ownedWrite;
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			const normalized = snapshot?.authorityVersion === 2 ? snapshot : undefined;
 			if (normalized && !normalized.header) {
@@ -3150,19 +3148,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Archive check for the few indexed sessions, so a terminal session is never re-held. */
 	private async _isPersistedSessionArchived(session: URI): Promise<boolean> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return false;
-		}
-		try {
-			const metadata = await ref.object.getMetadataObject({
-				[AH_META_IS_ARCHIVED_DB_KEY]: true,
-				[AH_META_IS_DONE_DB_KEY]: true,
-			});
-			return (metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY]) === 'true';
-		} finally {
-			ref.dispose();
-		}
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY]);
+		return (metadata.get(AH_META_IS_ARCHIVED_DB_KEY) ?? metadata.get(AH_META_IS_DONE_DB_KEY)) === 'true';
 	}
 
 	/** Mirrors a session's Agent Merge enablement into the host-owned index. */
@@ -4006,16 +3993,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _isExternalProviderChat(session: URI): Promise<boolean> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return true;
-		}
-
-		try {
-			return await ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY) === undefined;
-		} finally {
-			ref.dispose();
-		}
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_WORKSPACELESS_DB_KEY]);
+		return metadata.get(AH_META_WORKSPACELESS_DB_KEY) === undefined;
 	}
 
 	/**
@@ -4030,18 +4009,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// A read failure is deliberately not caught: registering on a guess would
 		// durably mark a host-created session external, whereas failing the pass
 		// leaves it unmarked and retried.
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return { chatBacking: false, hostCreated: false };
-		}
-		try {
-			const metadata = await ref.object.getMetadataObject({ [CHAT_BACKING_METADATA_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true });
-			// The workspace-less marker is written when the host creates a session,
-			// so its presence is what identifies a host-created session.
-			return { chatBacking: !!metadata[CHAT_BACKING_METADATA_KEY] && await this._isChatBacking(session, findChatBackingOwner), hostCreated: metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined };
-		} finally {
-			ref.dispose();
-		}
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [CHAT_BACKING_METADATA_KEY, AH_META_WORKSPACELESS_DB_KEY]);
+		// The workspace-less marker is written when the host creates a session,
+		// so its presence is what identifies a host-created session.
+		return { chatBacking: !!metadata.get(CHAT_BACKING_METADATA_KEY) && await this._isChatBacking(session, findChatBackingOwner), hostCreated: metadata.get(AH_META_WORKSPACELESS_DB_KEY) !== undefined };
 	}
 
 	private async _migrateRegisteredSession(entry: IStoredRegisteredSession): Promise<IRegisteredSession | undefined> {
@@ -4255,41 +4226,33 @@ export class AgentService extends Disposable implements IAgentService {
 			let pullRequestUrls = getAllSessionRelatedPullRequestUrls(liveSummary?._meta);
 			let autoArchivedAt: number | undefined;
 			if (archived === undefined || archived || pullRequestUrls.length === 0) {
-				const ref = await this._sessionDataService.tryOpenDatabase(entry.session);
-				if (!ref) {
-					return undefined;
+				const metadata: Record<string, string | undefined> = Object.fromEntries(await this._sessionStateStore.readWithoutImport(entry.session, [
+					AH_META_IS_ARCHIVED_DB_KEY,
+					AH_META_IS_DONE_DB_KEY,
+					AH_META_AUTO_ARCHIVED_AT_DB_KEY,
+					META_GITHUB_STATE,
+					META_GITHUB_DATA_STATE,
+				]));
+				if (archived === undefined) {
+					archived = (metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY]) === 'true';
 				}
-				try {
-					const metadata = await ref.object.getMetadataObject({
-						[AH_META_IS_ARCHIVED_DB_KEY]: true,
-						[AH_META_IS_DONE_DB_KEY]: true,
-						[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: true,
-						[META_GITHUB_STATE]: true,
-						[META_GITHUB_DATA_STATE]: true,
-					});
-					if (archived === undefined) {
-						archived = (metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY]) === 'true';
-					}
-					if (archived) {
-						const rawAutoArchivedAt = metadata[AH_META_AUTO_ARCHIVED_AT_DB_KEY];
-						const value = rawAutoArchivedAt ? Number(rawAutoArchivedAt) : Number.NaN;
-						autoArchivedAt = Number.isFinite(value) ? value : undefined;
-					}
-					if (pullRequestUrls.length === 0) {
-						// A session that was not restored since each folder got its own state still has the original entry.
-						const persistedMeta: { [key: string]: unknown } = {};
-						for (const [metadataKey, metaKey] of [[META_GITHUB_DATA_STATE, SESSION_META_GITHUB_DATA_KEY], [META_GITHUB_STATE, SESSION_META_GITHUB_KEY]] as const) {
-							const value = metadata[metadataKey];
-							try {
-								persistedMeta[metaKey] = value ? JSON.parse(value) : undefined;
-							} catch (error) {
-								this._logService.warn(`[AgentService] Failed to parse lifecycle GitHub state for ${sessionKey}: ${toErrorMessage(error)}`);
-							}
+				if (archived) {
+					const rawAutoArchivedAt = metadata[AH_META_AUTO_ARCHIVED_AT_DB_KEY];
+					const value = rawAutoArchivedAt ? Number(rawAutoArchivedAt) : Number.NaN;
+					autoArchivedAt = Number.isFinite(value) ? value : undefined;
+				}
+				if (pullRequestUrls.length === 0) {
+					// A session that was not restored since each folder got its own state still has the original entry.
+					const persistedMeta: { [key: string]: unknown } = {};
+					for (const [metadataKey, metaKey] of [[META_GITHUB_DATA_STATE, SESSION_META_GITHUB_DATA_KEY], [META_GITHUB_STATE, SESSION_META_GITHUB_KEY]] as const) {
+						const value = metadata[metadataKey];
+						try {
+							persistedMeta[metaKey] = value ? JSON.parse(value) : undefined;
+						} catch (error) {
+							this._logService.warn(`[AgentService] Failed to parse lifecycle GitHub state for ${sessionKey}: ${toErrorMessage(error)}`);
 						}
-						pullRequestUrls = getAllSessionRelatedPullRequestUrls(persistedMeta);
 					}
-				} finally {
-					ref.dispose();
+					pullRequestUrls = getAllSessionRelatedPullRequestUrls(persistedMeta);
 				}
 			}
 
@@ -5136,22 +5099,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const defaultChatTitleKey = customChatTitleMetadataKey(defaultChat);
 		let mirroredChatTitle: string | undefined;
 		try {
-			const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
-			if (sessionRef) {
-				try {
-					const keys: Record<string, true> = {
-						[SESSION_CUSTOM_TITLE_KEY]: true,
-						...(normalized ? {} : { [defaultChatTitleKey]: true }),
-					};
-					const metadata = await sessionRef.object.getMetadataObject(keys);
-					const sessionTitle = metadata[SESSION_CUSTOM_TITLE_KEY];
-					mirroredChatTitle = metadata[defaultChatTitleKey];
-					if (sessionTitle) {
-						return sessionTitle;
-					}
-				} finally {
-					sessionRef.dispose();
-				}
+			const metadata = await this._sessionStateStore.readWithoutImport(session, [SESSION_CUSTOM_TITLE_KEY, ...(normalized ? [] : [defaultChatTitleKey])]);
+			mirroredChatTitle = metadata.get(defaultChatTitleKey);
+			const sessionTitle = metadata.get(SESSION_CUSTOM_TITLE_KEY);
+			if (sessionTitle) {
+				return sessionTitle;
 			}
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to read session title metadata for ${session.toString()}`, error);
@@ -9559,6 +9511,31 @@ export class AgentService extends Disposable implements IAgentService {
 		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr
 			? Promise.resolve(undefined)
 			: this._loadWorkspaceTransitions(URI.parse(defaultChatStorage));
+		await this._sessionStateStore.load(session);
+		const restoreKeys: Record<string, true> = {
+			customTitle: true,
+			[SESSION_WORKING_DIRECTORIES_KEY]: true,
+			[AH_META_IS_READ_DB_KEY]: true,
+			...(normalizedCatalog ? {} : { [AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: true }),
+			[AH_META_IS_ARCHIVED_DB_KEY]: true,
+			[AH_META_IS_DONE_DB_KEY]: true,
+			configValues: true,
+			[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true,
+			[AH_META_WORKSPACELESS_DB_KEY]: true,
+			[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
+			[AH_META_EHCLI_LAST_TURN_DB_KEY]: true,
+			[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
+			[REMOTE_SESSION_ORIGIN_METADATA_KEY]: true,
+			[SESSION_INITIATOR_METADATA_KEY]: true,
+			[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
+			[SESSION_META_MULTI_ROOT_KEY]: true,
+			[SESSION_ARTIFACTS_KEY]: true,
+			[SESSION_META_FOLDER_PICKER_KEY]: true,
+			...GIT_DB_METADATA_KEYS,
+			...CHANGESET_DB_METADATA_KEYS,
+		};
+		const centralMetadata = this._sessionStateStore.legacyMetadata(session, Object.keys(restoreKeys));
+		const unownedKeys = Object.fromEntries(centralMetadata.unowned.map(key => [key, true] as const));
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -9566,28 +9543,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (db) {
 					let retainedForWorkspaceTransitions = false;
 					try {
-						const m = await db.object.getMetadataObject({
-							customTitle: true,
-							[SESSION_WORKING_DIRECTORIES_KEY]: true,
-							[AH_META_IS_READ_DB_KEY]: true,
-							...(normalizedCatalog ? {} : { [AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: true }),
-							[AH_META_IS_ARCHIVED_DB_KEY]: true,
-							[AH_META_IS_DONE_DB_KEY]: true,
-							configValues: true,
-							[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true,
-							[AH_META_WORKSPACELESS_DB_KEY]: true,
-							[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
-							[AH_META_EHCLI_LAST_TURN_DB_KEY]: true,
-							[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
-							[REMOTE_SESSION_ORIGIN_METADATA_KEY]: true,
-							[SESSION_INITIATOR_METADATA_KEY]: true,
-							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
-							[SESSION_META_MULTI_ROOT_KEY]: true,
-							[SESSION_ARTIFACTS_KEY]: true,
-							[SESSION_META_FOLDER_PICKER_KEY]: true,
-							...GIT_DB_METADATA_KEYS,
-							...CHANGESET_DB_METADATA_KEYS,
-						});
+						const m: Record<string, string | undefined> = { ...(centralMetadata.unowned.length > 0 ? await db.object.getMetadataObject(unownedKeys) : {}), ...centralMetadata.values };
 						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true' && defaultChatStorage === sessionStr) {
 							retainedForWorkspaceTransitions = true;
 							workspaceTransitionsPromise = this._readWorkspaceTransitions(db, session);
@@ -10440,15 +10396,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _isWorkspaceConversionQuarantined(session: URI): Promise<boolean> {
-		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
-		if (!ref) {
-			return false;
-		}
-		try {
-			return await ref.object.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY) === 'true';
-		} finally {
-			ref.dispose();
-		}
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]);
+		return metadata.get(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY) === 'true';
 	}
 
 	/**
