@@ -759,7 +759,7 @@ suite('AgentHostPeerChatStore', () => {
 			selection: { text: selectionText, responsePartId: 'response-1' },
 		}));
 
-		const restored = await store.readLocalChatMetadata([{
+		const restored = await store.readLocalChatMetadata(session, [{
 			uri: first.toString(),
 			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'turn-1' },
 		}]);
@@ -809,6 +809,35 @@ suite('AgentHostPeerChatStore', () => {
 
 		assert.deepStrictEqual(await store.tryRead(session), [
 			{ uri: first.toString(), archived: true, providerData: 'backing', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/second'] },
+		]);
+	});
+
+	test('the session state mirror is the only writer of the chat working directories key', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual({
+			writes: database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+			read: await store.tryRead(session),
+		}, {
+			writes: [
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) },
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/second']) },
+			],
+			read: [{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/second'] }],
+		});
+	});
+
+	test('working directories are read from the session state store rather than a stale chat database value', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await database.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, JSON.stringify(['file:///stale']));
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/first'] },
 		]);
 	});
 
@@ -934,7 +963,7 @@ suite('AgentHostPeerChatStore', () => {
 			updatedWrites,
 			removedWrites,
 			addedWrites,
-			local: central && await store.readLocalChatMetadata(central),
+			local: central && await store.readLocalChatMetadata(session, central),
 			legacy: await store.tryReadLegacy(session),
 		}, {
 			reorderedWrites: 0,
@@ -963,7 +992,7 @@ suite('AgentHostPeerChatStore', () => {
 
 		await store.upsert(session, second, 'added');
 		const central = await store.tryRead(session);
-		const local = central && await store.readLocalChatMetadata(central);
+		const local = central && await store.readLocalChatMetadata(session, central);
 		const reconciled = await store.reconcileLegacy(session);
 
 		assert.deepStrictEqual({
@@ -1002,7 +1031,7 @@ suite('AgentHostPeerChatStore', () => {
 		await store.upsert(session, second, 'added');
 		const central = await store.tryRead(session);
 
-		assert.deepStrictEqual(central && await store.readLocalChatMetadata(central), [
+		assert.deepStrictEqual(central && await store.readLocalChatMetadata(session, central), [
 			{ uri: first.toString(), providerData: 'central-update' },
 			{ uri: second.toString(), providerData: 'added' },
 		]);

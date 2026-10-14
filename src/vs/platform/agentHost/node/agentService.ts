@@ -2967,7 +2967,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const decoded = central && decodeAgentHostCatalogPayload(central.payload);
 		const defaultChat = this._resolveDefaultChat(registered.session, snapshot, decoded?.ok ? decoded.value.data.chats.find(chat => chat.kind === 'default')?.uri : undefined);
 		const defaultChatMetadata = snapshot?.authorityVersion === 2 ? undefined
-			: await this._readLegacyDefaultChatMetadata(defaultChat, decoded?.ok ? decoded.value.data : undefined);
+			: await this._readLegacyDefaultChatMetadata(registered.session, defaultChat, decoded?.ok ? decoded.value.data : undefined);
 		if (!database) {
 			if (decoded?.ok) {
 				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
@@ -3887,7 +3887,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(provider, metadata.session);
 		const defaultChat = this._resolveDefaultChat(metadata.session, snapshot, existingCatalogData?.chats.find(chat => chat.kind === 'default')?.uri);
 		const defaultChatMetadata = authoritativeChats !== undefined || existingCatalogData === undefined ? undefined
-			: await this._readLegacyDefaultChatMetadata(defaultChat, existingCatalogData);
+			: await this._readLegacyDefaultChatMetadata(metadata.session, defaultChat, existingCatalogData);
 		const meta = preserveCentralMetadata
 			? { ...existingCatalogData._meta, ...metadata._meta }
 			: metadata._meta;
@@ -3926,9 +3926,9 @@ export class AgentService extends Disposable implements IAgentService {
 			snapshot?.authorityVersion === 2 ? snapshot.header?.revision : undefined);
 	}
 
-	private async _readLegacyDefaultChatMetadata(defaultChat: string, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
+	private async _readLegacyDefaultChatMetadata(session: URI, defaultChat: string, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
 		const persistedDefault = source?.chats.find(chat => chat.kind === 'default');
-		const [metadata] = await this._peerChatStore.readLocalChatMetadata([{
+		const [metadata] = await this._peerChatStore.readLocalChatMetadata(session, [{
 			uri: defaultChat,
 			origin: fromCatalogChatOrigin(persistedDefault?.origin),
 			inheritedTurnId: persistedDefault?.inheritedTurnId,
@@ -9948,7 +9948,7 @@ export class AgentService extends Disposable implements IAgentService {
 				throw error;
 			}
 			this._logService.warn(`[AgentService] Restoring cached peer-chat membership without backing enrichment for ${session.toString()}`, error);
-			entries = await this._peerChatStore.readLocalChatMetadata(cachedPeers.map(chat => ({
+			entries = await this._peerChatStore.readLocalChatMetadata(session, cachedPeers.map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
@@ -10064,7 +10064,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const providerData = legacyProviderData.get(peer.uri);
 				return providerData !== undefined ? { ...peer, providerData } : peer;
 			});
-			const peers = await this._peerChatStore.readLocalChatMetadata(enrichedPeers);
+			const peers = await this._peerChatStore.readLocalChatMetadata(session, enrichedPeers);
 			return this._peerChatStore.initialize(session, peers, database);
 		}
 		let legacy: readonly IAgentLegacyChat[] | undefined;

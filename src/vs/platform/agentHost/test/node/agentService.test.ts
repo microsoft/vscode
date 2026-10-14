@@ -7454,13 +7454,13 @@ suite('AgentService (node dispatcher)', () => {
 			let gate = false;
 			const disposed: string[] = [];
 			class GatedDatabase extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					if (gate && values[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === JSON.stringify([destination.toString()])) {
+				override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+					if (gate && set[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === JSON.stringify([destination.toString()])) {
 						gate = false;
 						started.complete();
 						await release.p;
 					}
-					await super.setMetadataValues(values);
+					await super.applyMetadataChanges(set, remove);
 				}
 			}
 			class MultiChatAgent extends MockAgent {
@@ -7495,7 +7495,7 @@ suite('AgentService (node dispatcher)', () => {
 				disposed,
 				workspace: getStateManager(svc).getChatState(peer.toString())?.workingDirectories,
 				persisted: await database.getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
-			}, { disposedWhilePersisting: [], disposed: [peer.toString()], workspace: undefined, persisted: '' });
+			}, { disposedWhilePersisting: [], disposed: [peer.toString()], workspace: undefined, persisted: undefined });
 		});
 
 		test('normalized workspace finalization serializes disposal across central metadata persistence', async () => {
@@ -26498,7 +26498,8 @@ suite('AgentService (node dispatcher)', () => {
 				payloadReads: catalogDatabase.payloadReads,
 			}, {
 				peers: [{ uri: peer }],
-				payloadReads: 0,
+				// The one read is the session state store resolving the default chat while importing a legacy session; peer recovery itself reads none.
+				payloadReads: 1,
 			});
 		});
 

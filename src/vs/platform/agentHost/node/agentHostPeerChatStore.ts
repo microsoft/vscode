@@ -8,7 +8,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
@@ -420,7 +420,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					result = merged;
 					return;
 				}
-				const local = await this.readLocalChatMetadata(central);
+				const local = await this.readLocalChatMetadata(session, central);
 				if (JSON.stringify(local) !== JSON.stringify(central)) {
 					const replaceResult = await this._replaceCentral(session, local, catalog.revision, { database });
 					if (replaceResult === 'conflict') {
@@ -451,7 +451,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to repair legacy peer-chat membership for ${session.toString()}`);
 			});
 		}
-		return this._readWorkingDirectories(this._entriesFromCatalog(catalog.chats));
+		return this._readWorkingDirectories(session, this._entriesFromCatalog(catalog.chats));
 	}
 
 	/**
@@ -745,11 +745,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 	}
 
-	async readLocalChatMetadata(entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
+	async readLocalChatMetadata(session: URI, entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
 		const limiter = new Limiter<IPersistedPeerChat>(CHAT_METADATA_CONCURRENCY);
 		return Promise.all(entries.map(entry => limiter.queue(async () => {
 			try {
-				return await this._readChatMetadata(entry);
+				return await this._readChatMetadata(session, entry);
 			} catch (error) {
 				this._logService.warn(`[AgentHostPeerChatStore] Failed to read chat-local metadata for ${entry.uri}: ${toErrorMessage(error)}`);
 				return entry;
@@ -840,7 +840,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				?? (legacyIsCurrentMirror ? central : legacy)
 				?? central
 				?? [];
-			const currentWithWorkingDirectories = await this._readWorkingDirectories(current);
+			const currentWithWorkingDirectories = await this._readWorkingDirectories(session, current);
 			const updated = this._parse(session, JSON.stringify(mutate(currentWithWorkingDirectories)));
 			const result = await this._replaceCentral(session, updated, catalog?.revision, {
 				previousEntries: legacyIsCurrentMirror ? central : undefined,
@@ -908,14 +908,14 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const changedEntries = previousByUri
 				? entries.filter(entry => JSON.stringify(previousByUri.get(entry.uri)) !== JSON.stringify(entry))
 				: entries;
-			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
+			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(session, entry))));
 			const current = await this._database.getSessionChatCatalog(session.toString());
 			if (!current) {
 				return;
 			}
 			if (current.revision !== revision) {
 				previousEntries = entries;
-				entries = await this._readWorkingDirectories(this._entriesFromCatalog(current.chats));
+				entries = await this._readWorkingDirectories(session, this._entriesFromCatalog(current.chats));
 				revision = current.revision;
 				continue;
 			}
@@ -927,7 +927,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				return;
 			}
 			previousEntries = entries;
-			entries = await this._readWorkingDirectories(this._entriesFromCatalog(superseding.chats));
+			entries = await this._readWorkingDirectories(session, this._entriesFromCatalog(superseding.chats));
 			revision = superseding.revision;
 		}
 	}
@@ -1054,7 +1054,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return merged;
 	}
 
-	private async _readChatMetadata(entry: IPersistedPeerChat): Promise<IPersistedPeerChat> {
+	private async _readChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<IPersistedPeerChat> {
+		const central = this._sessionStateStore.peek(session)?.chats.get(entry.uri);
 		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(entry.uri));
 		if (!ref) {
 			return entry;
@@ -1065,7 +1066,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: true,
 				[CHAT_ORIGIN_METADATA_KEY]: true,
 				[CHAT_INHERITED_TURN_METADATA_KEY]: true,
-				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true,
+				...(central ? {} : { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true }),
 			});
 			const isRead = metadata[AH_META_IS_READ_DB_KEY] !== undefined
 				? metadata[AH_META_IS_READ_DB_KEY] === 'true'
@@ -1073,9 +1074,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const origin = metadata[CHAT_ORIGIN_METADATA_KEY]
 				? this._parseOrigin(metadata[CHAT_ORIGIN_METADATA_KEY])
 				: metadata[CHAT_ORIGIN_METADATA_KEY] === '' ? undefined : entry.origin;
-			const workingDirectories = metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY]
-				? this._parseWorkingDirectories(metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY])
-				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
+			const workingDirectories = central
+				? central.workingDirectories ?? entry.workingDirectories
+				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY]
+					? this._parseWorkingDirectories(metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY])
+					: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
 			return {
 				uri: entry.uri,
 				...(entry.archived ? { archived: true } : {}),
@@ -1094,9 +1097,19 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 	}
 
-	private async _readWorkingDirectories(entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
+	/** Takes each chat's working directories from the session state store, the only owner of `agentHost.chatWorkingDirectories`; unloaded sessions fall back to what the database holds. */
+	private async _readWorkingDirectories(session: URI, entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
+		const central = this._sessionStateStore.peek(session)?.chats;
 		const limiter = new Limiter<IPersistedPeerChat>(CHAT_METADATA_CONCURRENCY);
 		return Promise.all(entries.map(entry => limiter.queue(async () => {
+			const row = central?.get(entry.uri);
+			if (row) {
+				if (row.workingDirectories === undefined) {
+					return entry;
+				}
+				const { workingDirectories: _existingWorkingDirectories, ...entryWithoutWorkingDirectories } = entry;
+				return { ...entryWithoutWorkingDirectories, workingDirectories: [...row.workingDirectories] };
+			}
 			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(entry.uri));
 			if (!ref) {
 				return entry;
@@ -1121,7 +1134,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		})));
 	}
 
-	private async _writeChatMetadata(entry: IPersistedPeerChat): Promise<void> {
+	private async _writeChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
 		try {
 			await ref.object.setMetadataValues({
@@ -1129,11 +1142,12 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: entry.providerData ?? '',
 				[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
 				[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
-				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: entry.workingDirectories === undefined ? '' : JSON.stringify(entry.workingDirectories),
 			});
 		} finally {
 			ref.dispose();
 		}
+		// The store's mirror flush is the only writer of the working directories key.
+		await this._sessionStateStore.write(session, sessionStatePatch({ chats: [{ chat: entry.uri, isDefault: false, fields: { workingDirectories: entry.workingDirectories ?? null } }] }), SessionStateMirrorFlush.Immediate);
 	}
 
 	private _parseOrigin(raw: string): ChatOrigin | undefined {
