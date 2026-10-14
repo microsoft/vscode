@@ -342,7 +342,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		let statusLabel: string;
 		switch (status) {
 			case AgentSessionStatus.NeedsInput:
-				statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+				statusLabel = localize('agentSessionNeedsInput', "Needs Attention");
 				break;
 			case AgentSessionStatus.InProgress:
 				statusLabel = localize('agentSessionInProgress', "In Progress");

@@ -51,6 +51,8 @@ suite('sandboxSettingsReader', () => {
 		[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentHostSandboxKey.AllowUnsandboxedCommands, true],
 		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers, true],
 		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, AgentHostSandboxKey.AuthenticateGit, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, AgentHostSandboxKey.AuthenticateGh, true],
 		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess, true],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork, false],
 	] as const) {

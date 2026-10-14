@@ -28,7 +28,7 @@ export interface IConnectionDiagnosticError {
 
 export type ConnectionDiagnosticObserver = (event: IConnectionDiagnosticEvent) => void;
 
-export function emitConnectionDiagnostic(observer: ConnectionDiagnosticObserver | undefined, event: IConnectionDiagnosticEvent): void {
+export function emitConnectionDiagnostic<T extends IConnectionDiagnosticEvent>(observer: ((event: T) => void) | undefined, event: T): void {
 	try {
 		observer?.(event);
 	} catch (error) {
@@ -47,6 +47,10 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted token]')
 		.replace(/[\r\n\t]+/g, ' ')
 		.slice(0, limit);
+}
+
+export function getGitHubRequestId(header: string | readonly string[] | null | undefined): string | undefined {
+	return typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
 }
 
 interface IErrorFields {

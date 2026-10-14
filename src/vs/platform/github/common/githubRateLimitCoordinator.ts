@@ -3,64 +3,88 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { parseHeaderNumber, parseRetryAfter } from './client/headers.js';
 import { CooldownState } from './cooldownState.js';
-import { parseHeaderNumber, parseRetryAfter } from './httpHeaders.js';
 import { RequestQueue } from './requestQueue.js';
 import { RequestAccount } from './types.js';
 
 /** GitHub's documented floor for retrying a rate limit it gave no reset hint for. */
 const unhintedRateLimitCooldown = 60_000;
+const unclassifiedRestResource = '<unclassified-rest>';
 
 /** Interprets GitHub quota headers and GraphQL feedback using shared cooldown storage. */
 export class GitHubRateLimitCoordinator extends CooldownState {
 
-	updateFromResponse(account: RequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
-		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
+	/** Adds REST admission waits without changing the bucket-specific identity cooldown checks. */
+	getRequestDelay(account: RequestAccount, resource: string): number {
+		let delay = super.getDelay(account, resource);
+		if (resource !== 'graphql' && resource !== 'agents') {
+			delay = Math.max(delay, super.getDelay(account, unclassifiedRestResource));
+			for (const alias of restResourceAliases(resource)) {
+				delay = Math.max(delay, super.getDelay(account, alias));
+			}
+		}
+		return delay;
+	}
+
+	/** Preserves a transient identity response's REST-only wait on its resolved account. */
+	preserveRestFallback(source: RequestAccount, target: RequestAccount): number {
+		const delay = Math.max(0, (this.getState(source, unclassifiedRestResource)?.blockedUntil ?? 0) - this._scheduler.now());
+		this.preserveCooldown(target, unclassifiedRestResource, delay);
+		return delay;
+	}
+
+	updateFromResponse(account: RequestAccount, response: Response, responseBody?: string, fallbackResource?: string): void {
+		const reportedResource = response.headers.get('x-ratelimit-resource') ?? fallbackResource ?? 'core';
+		const resource = fallbackResource !== undefined && fallbackResource !== 'graphql'
+			&& reportedResource !== fallbackResource && !restResourceAliases(fallbackResource).includes(reportedResource)
+			? unclassifiedRestResource : reportedResource;
 		const isGraphQL = resource === 'graphql';
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
-		const previousBlockedUntil = previous?.blockedUntil ?? (isGraphQL && previous?.remaining === 0 ? previous.resetAt : undefined);
+		const previousBlockedUntil = previous?.blockedUntil ?? (previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now, isGraphQL);
-		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
-		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
-		const rateLimited = isRateLimited(response.status, responseBody);
-		const secondaryLimited = rateLimited && isSecondaryRateLimit(responseBody);
-		// GitHub's documented order: honour `retry-after`; otherwise wait for the
-		// reset only once the quota is actually spent. A secondary limit reports
-		// the primary window, so obeying its reset would park the account for up
-		// to an hour over a refusal that needs a minute.
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now);
+		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'));
+		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'));
+		const rateLimit = classifyGitHubHttpRateLimit(response, responseBody);
+		const secondaryLimited = rateLimit === 'secondary';
+		// A secondary limit can report an unspent primary quota window.
 		const hinted = retryAfter !== undefined
 			? now + retryAfter * 1000
 			: remaining === 0 && resetSeconds !== undefined ? resetSeconds * 1000 : undefined;
-		// A refusal must always park the caller, including when the only hint
-		// GitHub gave has already elapsed and would otherwise retry at once.
+		// Expired hints must not let a rate-limited refusal retry immediately.
 		const refusedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
-		// Every rate-limited refusal parks its resource, notably the primary form
-		// GitHub reports as 403 with spent quota headers rather than as 429. Only
-		// the body separates that from an authorization failure, which must stay
-		// unparked so a credential problem still surfaces immediately.
 		const blockedUntil = secondaryLimited
 			? undefined
-			: rateLimited || (isGraphQL && remaining === 0)
+			: rateLimit !== undefined || (isGraphQL && remaining === 0)
 				? refusedUntil
-				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
+				: hinted;
 		if (secondaryLimited) {
 			const accountKey = RequestQueue.accountKey(account);
-			// GitHub asks clients that hit a secondary limit to wait at least a
-			// minute when it gives no usable hint, and the refusal parks the
-			// whole account rather than only the resource that observed it.
 			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
-			limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit'), isGraphQL) ?? previous?.limit,
-			remaining: remaining ?? previous?.remaining,
-			used: parseHeaderNumber(response.headers.get('x-ratelimit-used'), isGraphQL) ?? previous?.used,
-			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
+			...(resource === unclassifiedRestResource ? {} : {
+				limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
+				remaining: remaining ?? previous?.remaining,
+				used: parseHeaderNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
+				resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
+			}),
 			blockedUntil: previousBlockedUntil !== undefined && previousBlockedUntil > now
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 		this._onDidChange.fire();
+	}
+
+	/** Mission Control uses refusal/service hints, not GitHub REST counters or successful polling hints. */
+	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now());
+		if (classifyGitHubHttpRateLimit(response, responseBody)) {
+			this.updateCooldown(account, 'agents', retryAfter !== undefined && retryAfter > 0 ? retryAfter * 1000 : unhintedRateLimitCooldown);
+		} else if (response.status >= 500 && retryAfter !== undefined) {
+			this.updateCooldown(account, 'agents', retryAfter * 1000);
+		}
 	}
 
 	updateFromGraphQL(account: RequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
@@ -86,7 +110,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
-		const retryAfterSeconds = parseRetryAfter(retryAfter, now, true);
+		const retryAfterSeconds = parseRetryAfter(retryAfter, now);
 		const hinted = retryAfterSeconds !== undefined ? now + retryAfterSeconds * 1000 : previous?.resetAt;
 		const blockedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
 		this._states.set(key, {
@@ -98,18 +122,44 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 	}
 }
 
-/**
- * Whether GitHub refused the request for rate limiting. Primary exhaustion is
- * reported as 403 with the quota headers rather than as 429, and only the body
- * tells it apart from an authorization failure.
- */
-function isRateLimited(status: number, body: string | undefined): boolean {
-	if (status === 429) {
-		return true;
+export function getGitHubRestResource(url: string): string {
+	const target = new URL(url);
+	const path = target.pathname.replace(/^\/api\/v3(?=\/)/, '');
+	if (/^\/(?:repos\/[^/]+\/[^/]+|repositories\/[^/]+)\/(?:commits\/.+\/)?check-(?:runs|suites)(?:\/|$)/.test(path)) {
+		return 'checks';
 	}
-	return status === 403 && (body?.toLowerCase().includes('rate limit') ?? false);
+	if (/^\/search\/code\/?$/.test(path)) {
+		return 'code_search';
+	}
+	if (/^\/search\/issues\/?$/.test(path) && ['semantic', 'hybrid'].includes(target.searchParams.get('search_type') ?? '')) {
+		return 'semantic_search';
+	}
+	return path.startsWith('/search/') ? 'search' : 'core';
 }
 
-function isSecondaryRateLimit(body: string | undefined): boolean {
-	return body?.toLowerCase().includes('secondary rate limit') ?? false;
+function restResourceAliases(resource: string): readonly string[] {
+	switch (resource) {
+		case 'checks': return ['core'];
+		case 'code_search': return ['search', 'code_search_expanded'];
+		case 'semantic_search': return ['search'];
+		default: return [];
+	}
+}
+
+/** A generic "Rate Limit Exceeded" message can also accompany non-quota 403 denials. */
+export function classifyGitHubHttpRateLimit(response: Pick<Response, 'status' | 'headers'>, body?: string): 'primary' | 'secondary' | undefined {
+	if (response.status !== 403 && response.status !== 429) {
+		return undefined;
+	}
+	if (response.headers.get('x-github-secondary-rate-limited')?.toLowerCase() === 'true'
+		|| /\bsecondary rate limit\b|\babuse detection mechanism\b/i.test(body ?? '')) {
+		return 'secondary';
+	}
+	const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'));
+	if (response.status === 429 || remaining === 0
+		|| parseRetryAfter(response.headers.get('retry-after'), 0) !== undefined
+		|| remaining === undefined && /\bAPI rate limit exceeded\b/i.test(body ?? '')) {
+		return 'primary';
+	}
+	return undefined;
 }

@@ -619,6 +619,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/canvases",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/dropOrPasteInto",
 			"project": "vscode-workbench"
 		},

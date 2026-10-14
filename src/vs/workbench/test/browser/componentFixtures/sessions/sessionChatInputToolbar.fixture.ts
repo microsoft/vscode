@@ -137,6 +137,7 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly chats = constObservable([chat, ...subagents]);
 		override readonly status = constObservable(spec.status ?? SessionStatus.InProgress);
+		override readonly loading = constObservable(false);
 		override readonly isArchived = constObservable(false);
 		override readonly isRead = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: spec.removableArtifacts });
@@ -262,20 +263,15 @@ export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSess
 			visibility.toggle(kind);
 		}
 	}
-	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
-	pills.setSession(sessionMock.session, sessionMock.chat);
-	pills.setDebugData(options?.debugData);
-	container.appendChild(pills.element);
-	if (options?.debugData) {
-		const banners = disposableStore.add(instantiationService.createInstance(SessionInputBanners));
-		banners.setDebugData(options.debugData);
-		container.appendChild(banners.domNode);
-	}
-
 	container.style.padding = '12px';
 	container.style.height = options?.height ?? 'auto';
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+
+	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
+	// Mount and size the row before it gets pills, so it measures its overflow synchronously
+	// instead of on a later native ResizeObserver callback that can escape virtual time.
+	container.appendChild(pills.element);
 	if (options?.popupPlacement === 'above') {
 		container.style.position = 'relative';
 		pills.element.style.position = 'absolute';
@@ -283,6 +279,13 @@ export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSess
 		pills.element.style.right = '24px';
 		pills.element.style.bottom = '52px';
 		pills.element.style.width = 'auto';
+	}
+	pills.setSession(sessionMock.session, sessionMock.chat);
+	pills.setDebugData(options?.debugData);
+	if (options?.debugData) {
+		const banners = disposableStore.add(instantiationService.createInstance(SessionInputBanners));
+		banners.setDebugData(options.debugData);
+		container.appendChild(banners.domNode);
 	}
 }
 

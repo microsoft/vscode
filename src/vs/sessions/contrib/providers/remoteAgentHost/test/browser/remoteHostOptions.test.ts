@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -36,6 +37,37 @@ import {
 
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
+		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
+			address: 'cloudsandbox:environment', isConnected, canRemove: false, disconnectLabel: 'Disconnect',
+		}).map(item => ({ id: item.id, label: item.label }));
+		assert.deepStrictEqual({ connected: snapshot(true), disconnected: snapshot(false) }, {
+			connected: [
+				{ id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
+				{ id: 'rename', label: '$(edit) Rename...' },
+				{ id: 'copy', label: '$(copy) Copy Address' },
+				{ id: 'settings', label: '$(settings-gear) Open Settings' },
+			],
+			disconnected: [
+				{ id: 'reconnect', label: '$(debug-restart) Reconnect' },
+				{ id: 'rename', label: '$(edit) Rename...' },
+				{ id: 'copy', label: '$(copy) Copy Address' },
+				{ id: 'settings', label: '$(settings-gear) Open Settings' },
+			],
+		});
+	});
+
+	test('externally owned inventory cannot be removed or disconnected through the removal fallback', async () => {
+		const calls: string[] = [];
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly canRemove = false;
+			override async remove() { calls.push('remove'); }
+			override async disconnect() { calls.push('disconnect'); }
+		}();
+		await assert.rejects(removeRemoteHost(provider, new class extends mock<IRemoteAgentHostService>() { }(), new TestConfigurationService()), /cannot be removed locally/);
+		assert.deepStrictEqual(calls, []);
+	});
 
 	for (const hasRemove of [false, true]) {
 		test(`host removal ${hasRemove ? 'uses permanent removal instead of temporary disconnect' : 'preserves the legacy disconnect fallback'}`, async () => {
@@ -190,7 +222,7 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('rename remote host', () => {
-		function createRenameHarness(input: string | undefined, fail = false) {
+		function createRenameHarness(input: string | undefined, fail = false, inventoryRename?: (name: string | undefined) => void) {
 			const instantiationService = store.add(new TestInstantiationService());
 			const accept = store.add(new Emitter<void>());
 			const hide = store.add(new Emitter<void>());
@@ -236,6 +268,7 @@ suite('remoteHostOptions', () => {
 			const provider = new class extends mock<IAgentHostSessionsProvider>() {
 				override readonly remoteAddress = 'tunnel:my-host';
 				override readonly label = 'Original Host';
+				override readonly setDisplayName = inventoryRename;
 			}();
 			return { run: () => instantiationService.invokeFunction(showRemoteHostOptions, provider), inputs, saved, errors };
 		}
@@ -264,6 +297,20 @@ suite('remoteHostOptions', () => {
 				saved: [],
 				errors: ['Failed to rename Original Host: Storage unavailable'],
 			});
+		});
+
+		test('inventory-owned rename does not fall back to global display-name storage', async () => {
+			const localNames: (string | undefined)[] = [];
+			const harness = createRenameHarness('Profile label', false, name => localNames.push(name));
+			await harness.run();
+			assert.deepStrictEqual({ localNames, globalNames: harness.saved, errors: harness.errors },
+				{ localNames: ['Profile label'], globalNames: [], errors: [] });
+		});
+
+		test('a stale inventory rename is cancelled without creating a global alias', async () => {
+			const harness = createRenameHarness('Old account label', false, () => { throw new CancellationError(); });
+			await harness.run();
+			assert.deepStrictEqual({ globalNames: harness.saved, errors: harness.errors }, { globalNames: [], errors: [] });
 		});
 	});
 

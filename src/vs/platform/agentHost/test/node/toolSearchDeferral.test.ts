@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES } from '../../node/copilot/toolSearchDeferral.js';
+import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES, searchToolsWithoutClient } from '../../node/copilot/toolSearchDeferral.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -64,11 +64,40 @@ suite('toolSearchDeferral', () => {
 			assert.strictEqual(agentHostModelSupportsToolSearch('hydrafusion'), true);
 		});
 
+		test('supports Auto, which resolves to a concrete model after session launch', () => {
+			assert.strictEqual(agentHostModelSupportsToolSearch('auto'), true);
+		});
+
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
 			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
 			}
 			assert.strictEqual(agentHostModelSupportsToolSearch(undefined), false);
+		});
+	});
+
+	suite('searchToolsWithoutClient', () => {
+		test('loads exactly named tools, otherwise lists the loadable names', () => {
+			const preamble = 'No client is connected, so tool search only matches exact tool names and client tools are unavailable.';
+			const candidates = [
+				{ name: 'list_sessions', description: 'List the agent sessions on this host.' },
+				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics for failed required checks.' },
+				{ name: 'rerunAgentMergeWorkflow', description: 'Rerun a GitHub Actions workflow for a failed required check.' },
+			];
+			assert.deepStrictEqual(
+				[
+					searchToolsWithoutClient('readAgentMergeCI rerunAgentMergeWorkflow', candidates),
+					searchToolsWithoutClient('Use `RERUNAGENTMERGEWORKFLOW`, then list_sessions.', candidates),
+					searchToolsWithoutClient('rerun the failed workflow', candidates),
+					searchToolsWithoutClient('readAgentMergeCI', []),
+				],
+				[
+					{ toolNames: ['readAgentMergeCI', 'rerunAgentMergeWorkflow'], textResultForLlm: `${preamble} Loaded: readAgentMergeCI, rerunAgentMergeWorkflow.` },
+					{ toolNames: ['rerunAgentMergeWorkflow', 'list_sessions'], textResultForLlm: `${preamble} Loaded: rerunAgentMergeWorkflow, list_sessions.` },
+					{ toolNames: [], textResultForLlm: `${preamble} No tool name matched. Search again with the exact name of one of these tools: list_sessions, readAgentMergeCI, rerunAgentMergeWorkflow.` },
+					{ toolNames: [], textResultForLlm: `${preamble} No other deferred tools can be loaded.` },
+				],
+			);
 		});
 	});
 

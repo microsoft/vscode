@@ -16,7 +16,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
-	clearCommands() {
+	clearCommandsForTest() {
 		this._commands.length = 0;
 	}
 }
@@ -41,7 +41,7 @@ suite('CommandDetectionCapability', () => {
 		deepStrictEqual(addEvents, capability.commands);
 		// Clear the commands to avoid re-asserting past commands
 		addEvents.length = 0;
-		capability.clearCommands();
+		capability.clearCommandsForTest();
 	}
 
 	async function printStandardCommand(prompt: string, command: string, output: string, cwd: string | undefined, exitCode: number) {
@@ -91,6 +91,19 @@ suite('CommandDetectionCapability', () => {
 			cwd: undefined,
 			marker: { line: 0 }
 		}]);
+	});
+
+	test('should invalidate all commands when cleared', async () => {
+		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+		await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
+		strictEqual(capability.commands.length, 2);
+
+		const invalidatedCommands: ITerminalCommand[] = [];
+		store.add(capability.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
+		deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo foo', 'echo bar']);
 	});
 
 	test('should trim the command when command executed appears on the following line', async () => {

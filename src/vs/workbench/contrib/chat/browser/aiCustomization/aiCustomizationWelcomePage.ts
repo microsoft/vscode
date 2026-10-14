@@ -79,6 +79,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	getAccessibilityContent?(): string;
 	restoreMarketplaceItemFocus?(origin: ICustomizationMarketplaceOrigin): void;
 	setSearchQuery?(value: string): void;
+	showMarketplace?(query: string, sourceId: string | undefined): void;
 	resetFilters?(): void;
 	reset?(): void;
 }
@@ -218,5 +219,9 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	setSearchQuery(value: string): void {
 		this.implementation.value?.setSearchQuery?.(value);
+	}
+
+	showMarketplace(query: string, sourceId: string | undefined): void {
+		this.implementation.value?.showMarketplace?.(query, sourceId);
 	}
 }

@@ -55,6 +55,11 @@ body img {
 	object-fit: contain;
 }
 
+.container img:not(.scale-to-fit) {
+	/* Zoomed images may be larger than the container. Keep them at their explicit size */
+	flex-shrink: 0;
+}
+
 .container img {
 	margin: auto;
 }
